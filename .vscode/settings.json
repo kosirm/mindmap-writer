@@ -1,0 +1,18 @@
+{
+  "typescript.tsdk": "vue3-mindmap/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "files.exclude": {
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/docs": true
+  },
+  "typescript.validate.enable": true,
+  "typescript.tsserver.maxTsServerMemory": 4096,
+  "typescript.disableAutomaticTypeAcquisition": false,
+  // Exclude node_modules from TypeScript project detection
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false
+}
+
