@@ -34,6 +34,7 @@ npm install vue3-mindmap
 | download-btn | Boolean                  | false      | 是否显示下载按钮        |
 | sharp-corner | Boolean                  | false      | 设置分支为圆角或直角     |
 | ctm          | Boolean                  | false      | 是否响应右键菜单        |
+| keyboard     | Boolean                  | false      | 是否启用键盘快捷键      |
 | locale       | 'zh' \| 'en' \| 'ptBR'   | 'zh'       | i18n                  |
 
 ## Example
@@ -76,6 +77,29 @@ export default defineComponent({
 })
 </script>
 ```
+
+## Keyboard Shortcuts / 键盘快捷键
+
+When `keyboard` prop is enabled, the following keyboard shortcuts are available:
+
+| Shortcut | Action | Description |
+| --- | --- | --- |
+| **Enter** | Add Sibling | Create a new sibling node after the selected node |
+| **Ctrl/Cmd + Enter** | Add Child | Create a new child node under the selected node |
+| **Tab** | Indent | Make the selected node a child of its previous sibling |
+| **Shift + Tab** | Outdent | Promote the selected node to be sibling of its parent |
+| **Delete / Backspace** | Delete Node | Delete the selected node |
+| **Arrow Up** | Navigate Up | Select the previous sibling node |
+| **Arrow Down** | Navigate Down | Select the next sibling node |
+| **Arrow Left** | Navigate Left | From root: go to left children; From any node: go to parent |
+| **Arrow Right** | Navigate Right | From root: go to right children; From right nodes: go to children; From left nodes: go to parent |
+| **Space** | Toggle Collapse | Collapse or expand the selected node |
+| **F2** | Edit Node | Enter edit mode for the selected node |
+| **Ctrl/Cmd + C** | Copy | Copy the selected node to clipboard |
+| **Ctrl/Cmd + X** | Cut | Cut the selected node to clipboard |
+| **Ctrl/Cmd + V** | Paste | Paste from clipboard as child of selected node |
+| **Escape** | Deselect | Deselect the current node |
+| **Any character** | Edit Node | Start editing the node with the typed character |
 
 ## 注意
 

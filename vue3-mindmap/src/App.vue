@@ -20,6 +20,7 @@
       :sharp-corner="checkboxList['sharp-corner'].value"
       :ctm="checkboxList['contextmenu'].value"
       :timetravel="checkboxList['timetravel'].value"
+      :keyboard="checkboxList['keyboard'].value"
       @update:model-value="onChange"
       :locale="locale"
     />
@@ -46,6 +47,7 @@
 
 <script lang="ts">
 import learn from './learn.json'
+import testData from './test-data.json'
 import { defineComponent, reactive, ref } from 'vue'
 import Mindmap from './components/Mindmap'
 import { Locale } from './components/Mindmap/interface'
@@ -64,7 +66,7 @@ export default defineComponent({
       timetravel: { value: true },
       'download-btn': { value: true },
       'add-node-btn': { value: true },
-      keyboard: { value: false, disabled: true },
+      keyboard: { value: true },
       zoom: { value: true },
       drag: { value: true },
       edit: { value: true },
@@ -77,9 +79,9 @@ export default defineComponent({
       'x-gap': { value: 84, min: 0, max: 100 },
       'y-gap': { value: 18, min: 0, max: 100 }
     })
-    const data = ref(learn)
+    const data = ref(testData)
     const onChange = () => console.log('update:model-value')
-    const locale = ref<Locale>('zh')
+    const locale = ref<Locale>('en')
 
     return {
       data,
