@@ -1,6 +1,7 @@
 import style from '../css'
 import { Mdata } from '../interface'
 import { onContextmenu, onEdit, onSelect } from './listener'
+import { onKeyDown } from './keyboard'
 import { selection, zoom, drag } from '../variable'
 import { foreignDivEle, wrapperEle } from '../variable/element'
 
@@ -54,5 +55,20 @@ export const switchDrag = (draggable: boolean): void => {
     drag(gText)
   } else {
     gText.on('.drag', null)
+  }
+}
+
+export const switchKeyboard = (enabled: boolean): void => {
+  if (!wrapperEle.value) { return }
+  if (enabled) {
+    // Add keyboard event listener to wrapper element
+    // Make wrapper focusable so it can receive keyboard events
+    wrapperEle.value.setAttribute('tabindex', '0')
+    wrapperEle.value.addEventListener('keydown', onKeyDown)
+    // Focus the wrapper so keyboard events work immediately
+    wrapperEle.value.focus()
+  } else {
+    wrapperEle.value.removeEventListener('keydown', onKeyDown)
+    wrapperEle.value.removeAttribute('tabindex')
   }
 }

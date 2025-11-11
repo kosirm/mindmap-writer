@@ -1,0 +1,58 @@
+[
+  {
+    "name": "Mindmap Writer Project",
+    "children": [
+      {
+        "name": "Features",
+        "children": [
+          { "name": "Keyboard Shortcuts" },
+          { "name": "Text Editor Integration" },
+          { "name": "Bidirectional Sync" },
+          { "name": "AI Integration" }
+        ]
+      },
+      {
+        "name": "Technology Stack",
+        "children": [
+          { "name": "Vue 3" },
+          { "name": "Quasar Framework" },
+          { "name": "Tiptap Editor" },
+          { "name": "vue3-mindmap" },
+          { "name": "Supabase" }
+        ]
+      },
+      {
+        "name": "Development Phases",
+        "left": true,
+        "children": [
+          { "name": "Phase 1: Keyboard Shortcuts" },
+          { "name": "Phase 2: Data Model" },
+          { "name": "Phase 3: Tiptap Extension" },
+          { "name": "Phase 4: Main App" }
+        ]
+      },
+      {
+        "name": "Keyboard Shortcuts",
+        "left": true,
+        "children": [
+          { "name": "Enter - Add Sibling" },
+          { "name": "Ctrl+Enter - Add Child" },
+          { "name": "Tab - Indent" },
+          { "name": "Shift+Tab - Outdent" },
+          { "name": "Delete - Remove Node" },
+          { "name": "Arrow Keys - Navigate" },
+          { "name": "Space - Toggle Collapse" }
+        ]
+      },
+      {
+        "name": "Testing",
+        "children": [
+          { "name": "Unit Tests" },
+          { "name": "Integration Tests" },
+          { "name": "Manual Testing" }
+        ]
+      }
+    ]
+  }
+]
+

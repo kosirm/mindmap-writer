@@ -3,6 +3,23 @@
 ## Project Overview
 A writer software combining mindmap visualization with a rich text editor, enabling perfect synchronization between hierarchical mindmap structure and linear text content.
 
+### Architecture Philosophy: Data-Centric Multi-View Design
+
+**Core Principle**: Single source of truth (unified data model) with multiple **views** that render and interact with the same data.
+
+**Primary Views**:
+- **Text View** (Tiptap): Linear document view for writing and editing
+- **Mindmap View** (vue3-mindmap): Hierarchical visual view for structure and organization
+
+**Future Extensible Views**:
+- **Circle Pack View**: D3-based circular hierarchy visualization
+- **Tree View**: Traditional outline/tree structure
+- **Timeline View**: Chronological organization
+- **Kanban View**: Task/project management perspective
+- **Graph View**: Network/relationship visualization
+
+**Final Output**: The primary output is structured text (for books, articles, novels, documentation). The mindmap and other views serve as powerful tools for organizing, structuring, and navigating content during the creative process.
+
 ## Tech Stack
 - **Framework**: Quasar (Vue 3)
 - **Mindmap**: vue3-mindmap (customized)

@@ -40,7 +40,7 @@ import { fitView, getSize, centerView, next, prev, download, bindForeignDiv } fr
 import { xGap, yGap, branch, scaleExtent, ctm, selection, changeSharpCorner, addNodeBtn, mmprops } from './variable'
 import { wrapperEle, svgEle, gEle, asstSvgEle, foreignEle, foreignDivEle  } from './variable/element'
 import { draw } from './draw'
-import { switchZoom, switchEdit, switchSelect, switchContextmenu, switchDrag, onClickMenu } from './listener'
+import { switchZoom, switchEdit, switchSelect, switchContextmenu, switchDrag, switchKeyboard, onClickMenu } from './listener'
 import Contextmenu from '../Contextmenu.vue'
 import { cloneDeep } from 'lodash'
 import i18next from '../../i18n'
@@ -62,7 +62,7 @@ export default defineComponent({
     branch: {
       type: Number,
       default: branch,
-      validator: (val: number) => val >= 1 && val <= 6 
+      validator: (val: number) => val >= 1 && val <= 6
     },
     scaleExtent: {
       type: Object as PropType<TwoNumber>,
@@ -116,6 +116,7 @@ export default defineComponent({
       })
       switchZoom(props.zoom)
       switchContextmenu(props.ctm)
+      switchKeyboard(props.keyboard)
     })
     // watch
     watch(() => [props.branch, addNodeBtn.value, props.sharpCorner], () => {
@@ -133,6 +134,7 @@ export default defineComponent({
     })
     watch(() => props.zoom, (val) => switchZoom(val))
     watch(() => props.ctm, (val) => switchContextmenu(val))
+    watch(() => props.keyboard, (val) => switchKeyboard(val))
 
     return {
       wrapperEle,
