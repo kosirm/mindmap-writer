@@ -35,7 +35,19 @@ npm install vue3-mindmap
 | sharp-corner | Boolean                  | false      | 设置分支为圆角或直角     |
 | ctm          | Boolean                  | false      | 是否响应右键菜单        |
 | keyboard     | Boolean                  | false      | 是否启用键盘快捷键      |
+| orientation  | String                   | 'right-left' | 节点分布模式: 'clockwise', 'anticlockwise', 'right-left', 'left-right' |
 | locale       | 'zh' \| 'en' \| 'ptBR'   | 'zh'       | i18n                  |
+
+### Orientation Modes / 节点分布模式
+
+The `orientation` prop controls how child nodes are distributed around the root node:
+
+- **`right-left`** (default): First half on right side (top-to-bottom), second half on left side (top-to-bottom)
+- **`left-right`**: First half on left side (top-to-bottom), second half on right side (top-to-bottom)
+- **`clockwise`**: First half on right side (top-to-bottom), second half on left side (bottom-to-top)
+- **`anticlockwise`**: First half on left side (top-to-bottom), second half on right side (bottom-to-top)
+
+This orientation is applied recursively to all levels of the mindmap hierarchy.
 
 ## Example
 
@@ -86,13 +98,15 @@ When `keyboard` prop is enabled, the following keyboard shortcuts are available:
 | --- | --- | --- |
 | **Enter** | Add Sibling | Create a new sibling node after the selected node |
 | **Ctrl/Cmd + Enter** | Add Child | Create a new child node under the selected node |
-| **Tab** | Indent | Make the selected node a child of its previous sibling |
-| **Shift + Tab** | Outdent | Promote the selected node to be sibling of its parent |
 | **Delete / Backspace** | Delete Node | Delete the selected node |
 | **Arrow Up** | Navigate Up | Select the previous sibling node |
 | **Arrow Down** | Navigate Down | Select the next sibling node |
 | **Arrow Left** | Navigate Left | From root: go to left children; From any node: go to parent |
 | **Arrow Right** | Navigate Right | From root: go to right children; From right nodes: go to children; From left nodes: go to parent |
+| **Ctrl/Cmd + Up** | Move Up | Move node up in sibling order (swap with previous sibling) |
+| **Ctrl/Cmd + Down** | Move Down | Move node down in sibling order (swap with next sibling) |
+| **Ctrl/Cmd + Left** | Hierarchy Left | Right side: decrease indent; Left side: increase indent |
+| **Ctrl/Cmd + Right** | Hierarchy Right | Right side: increase indent; Left side: decrease indent |
 | **Space** | Toggle Collapse | Collapse or expand the selected node |
 | **F2** | Edit Node | Enter edit mode for the selected node |
 | **Ctrl/Cmd + C** | Copy | Copy the selected node to clipboard |

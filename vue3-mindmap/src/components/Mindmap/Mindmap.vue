@@ -44,6 +44,7 @@ import { switchZoom, switchEdit, switchSelect, switchContextmenu, switchDrag, sw
 import Contextmenu from '../Contextmenu.vue'
 import { cloneDeep } from 'lodash'
 import i18next from '../../i18n'
+import { applyOrientation, Orientation } from './orientation'
 
 export default defineComponent({
   name: 'Mindmap',
@@ -69,6 +70,11 @@ export default defineComponent({
       default: scaleExtent
     },
     sharpCorner: Boolean,
+    orientation: {
+      type: String as PropType<'clockwise' | 'anticlockwise' | 'right-left' | 'left-right'>,
+      default: 'right-left',
+      validator: (val: string) => ['clockwise', 'anticlockwise', 'right-left', 'left-right'].includes(val)
+    },
     // 操作许可
     centerBtn: Boolean,
     fitBtn: Boolean,
@@ -84,6 +90,9 @@ export default defineComponent({
     locale: { type: String as PropType<Locale>, default: 'zh' }
   },
   setup (props, context) {
+    // Keep a pristine copy of the original data for orientation changes
+    const originalData = cloneDeep(props.modelValue[0])
+
     // 立即执行
     watchEffect(() => i18next.changeLanguage(props.locale))
     watchEffect(() => emitter.emit('scale-extent', props.scaleExtent))
@@ -101,7 +110,11 @@ export default defineComponent({
       emitter.emit('selection-g', d3.select(gEle.value))
       emitter.emit('selection-asstSvg', d3.select(asstSvgEle.value))
       emitter.emit('selection-foreign',d3.select(foreignEle.value))
-      emitter.emit('mmdata', new ImData(cloneDeep(props.modelValue[0]), xGap, yGap, getSize))
+
+      // Apply orientation before creating ImData
+      const dataWithOrientation = cloneDeep(originalData)
+      applyOrientation(dataWithOrientation, props.orientation as Orientation)
+      emitter.emit('mmdata', new ImData(dataWithOrientation, xGap, yGap, getSize))
 
       changeSharpCorner.value = false
       afterOperation()
@@ -135,6 +148,14 @@ export default defineComponent({
     watch(() => props.zoom, (val) => switchZoom(val))
     watch(() => props.ctm, (val) => switchContextmenu(val))
     watch(() => props.keyboard, (val) => switchKeyboard(val))
+    watch(() => props.orientation, (val) => {
+      // Reapply orientation when it changes - always use original pristine data
+      const dataWithOrientation = cloneDeep(originalData)
+      applyOrientation(dataWithOrientation, val as Orientation)
+      emitter.emit('mmdata', new ImData(dataWithOrientation, xGap, yGap, getSize))
+      afterOperation()
+      fitView()
+    })
 
     return {
       wrapperEle,

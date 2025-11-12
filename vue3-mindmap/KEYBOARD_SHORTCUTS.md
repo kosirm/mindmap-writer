@@ -39,10 +39,6 @@ The keyboard shortcuts feature allows users to navigate and edit the mindmap usi
 - **Enter**: Create a new sibling node after the selected node
 - **Ctrl/Cmd + Enter**: Create a new child node under the selected node
 
-### Hierarchy Management
-- **Tab**: Indent - Make the selected node a child of its previous sibling
-- **Shift + Tab**: Outdent - Promote the selected node to be sibling of its parent
-
 ### Node Deletion
 - **Delete** or **Backspace**: Delete the selected node (cannot delete root)
 
@@ -51,11 +47,24 @@ The keyboard shortcuts feature allows users to navigate and edit the mindmap usi
 - **Arrow Down**: Select the next sibling node
 - **Arrow Left**: Navigate left in the mindmap structure
   - From root: Navigate to first left-side child
-  - From any other node: Navigate to parent
+  - From left-side nodes: Navigate to first child (go deeper left)
+  - From right-side nodes: Navigate to parent (go back left)
 - **Arrow Right**: Navigate right in the mindmap structure
   - From root: Navigate to first right-side child
-  - From left-side nodes: Navigate to parent
-  - From right-side nodes: Navigate to first child
+  - From right-side nodes: Navigate to first child (go deeper right)
+  - From left-side nodes: Navigate to parent (go back right)
+
+### Hierarchy Management (Respects Mindmap Spatial Layout)
+- **Ctrl/Cmd + Left Arrow**:
+  - On right side: Decrease indent (outdent/promote node to grandparent)
+  - On left side: Increase indent (make child of previous sibling)
+- **Ctrl/Cmd + Right Arrow**:
+  - On right side: Increase indent (make child of previous sibling)
+  - On left side: Decrease indent (outdent/promote node to grandparent)
+
+### Reordering
+- **Ctrl/Cmd + Up Arrow**: Move node up in sibling order (swap with previous sibling)
+- **Ctrl/Cmd + Down Arrow**: Move node down in sibling order (swap with next sibling)
 
 ### Editing
 - **F2**: Enter edit mode for the selected node

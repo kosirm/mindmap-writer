@@ -1,18 +1,51 @@
 import style from '../css'
-import { add, addSibling, del, collapse, expand, changeLeft } from '../data'
+import { add, addSibling, del, collapse, expand, changeLeft, moveChild, moveSibling, mmdata } from '../data'
 import { getSelectedGData, selectGNode } from '../assistant'
-import { edit } from './listener'
-import { Mdata } from '../interface'
+import { edit, onEditBlur } from './listener'
+import { Mdata, Data } from '../interface'
 import { selection } from '../variable'
+import { foreignEle, foreignDivEle, wrapperEle } from '../variable/element'
 import * as d3 from '../d3'
+
+/**
+ * Helper function to find a node by its rawData reference after structure changes
+ */
+const findNodeByRawData = (rawData: Data): Mdata | null => {
+  const findInTree = (node: Mdata): Mdata | null => {
+    if (node.rawData === rawData) {
+      return node
+    }
+    if (node.children) {
+      for (const child of node.children) {
+        const found = findInTree(child)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  return findInTree(mmdata.data)
+}
 
 /**
  * Keyboard event handler for mindmap
  * Provides keyboard shortcuts for navigation and editing
  */
 export const onKeyDown = (e: KeyboardEvent): void => {
-  // Don't handle keyboard events when editing text
+  const { key, ctrlKey, metaKey, shiftKey } = e
+  const cmdKey = ctrlKey || metaKey // Support both Ctrl (Windows/Linux) and Cmd (Mac)
+
+  // Check if we're in edit mode
   const editedNode = document.getElementsByClassName(style.edited)[0]
+
+  // Allow Escape key to work even in edit mode
+  if (key === 'Escape') {
+    e.preventDefault()
+    handleEscape()
+    return
+  }
+
+  // Don't handle other keyboard events when editing text
   if (editedNode) { return }
 
   // Don't handle if no node is selected
@@ -21,9 +54,6 @@ export const onKeyDown = (e: KeyboardEvent): void => {
 
   const selectedData = getSelectedGData()
   if (!selectedData) { return }
-
-  const { key, ctrlKey, metaKey, shiftKey } = e
-  const cmdKey = ctrlKey || metaKey // Support both Ctrl (Windows/Linux) and Cmd (Mac)
 
   // Handle different key combinations
   switch (key) {
@@ -38,17 +68,6 @@ export const onKeyDown = (e: KeyboardEvent): void => {
       }
       break
 
-    case 'Tab':
-      e.preventDefault()
-      if (shiftKey) {
-        // Shift + Tab: Outdent (promote node)
-        handleOutdent(selectedData)
-      } else {
-        // Tab: Indent (make child of previous sibling)
-        handleIndent(selectedData)
-      }
-      break
-
     case 'Delete':
     case 'Backspace':
       e.preventDefault()
@@ -57,22 +76,42 @@ export const onKeyDown = (e: KeyboardEvent): void => {
 
     case 'ArrowUp':
       e.preventDefault()
-      handleNavigateUp(selectedData)
+      if (cmdKey) {
+        // Ctrl/Cmd + Arrow Up: Move node up in sibling order (swap with previous sibling)
+        handleMoveUp(selectedData)
+      } else {
+        handleNavigateUp(selectedData)
+      }
       break
 
     case 'ArrowDown':
       e.preventDefault()
-      handleNavigateDown(selectedData)
+      if (cmdKey) {
+        // Ctrl/Cmd + Arrow Down: Move node down in sibling order (swap with next sibling)
+        handleMoveDown(selectedData)
+      } else {
+        handleNavigateDown(selectedData)
+      }
       break
 
     case 'ArrowLeft':
       e.preventDefault()
-      handleNavigateLeft(selectedData)
+      if (cmdKey) {
+        // Ctrl/Cmd + Arrow Left: Hierarchy management (respects left/right side)
+        handleHierarchyLeft(selectedData)
+      } else {
+        handleNavigateLeft(selectedData)
+      }
       break
 
     case 'ArrowRight':
       e.preventDefault()
-      handleNavigateRight(selectedData)
+      if (cmdKey) {
+        // Ctrl/Cmd + Arrow Right: Hierarchy management (respects left/right side)
+        handleHierarchyRight(selectedData)
+      } else {
+        handleNavigateRight(selectedData)
+      }
       break
 
     case 'c':
@@ -94,11 +133,6 @@ export const onKeyDown = (e: KeyboardEvent): void => {
         e.preventDefault()
         handlePaste(selectedData)
       }
-      break
-
-    case 'Escape':
-      e.preventDefault()
-      handleEscape()
       break
 
     case ' ': // Space
@@ -159,6 +193,42 @@ const handleDelete = (d: Mdata): void => {
 }
 
 /**
+ * Hierarchy Left: Respects mindmap spatial layout
+ * - Right side: Decrease indent (outdent/promote)
+ * - Left side: Increase indent (make child of previous sibling)
+ */
+const handleHierarchyLeft = (d: Mdata): void => {
+  if (d.depth === 0) { return } // Can't modify root
+
+  // On the right side (or undefined = right), left means outdent
+  if (d.left === false || d.left === undefined) {
+    handleOutdent(d)
+  }
+  // On the left side, left means indent (go deeper)
+  else if (d.left === true) {
+    handleIndent(d)
+  }
+}
+
+/**
+ * Hierarchy Right: Respects mindmap spatial layout
+ * - Right side: Increase indent (make child of previous sibling)
+ * - Left side: Decrease indent (outdent/promote)
+ */
+const handleHierarchyRight = (d: Mdata): void => {
+  if (d.depth === 0) { return } // Can't modify root
+
+  // On the right side (or undefined = right), right means indent
+  if (d.left === false || d.left === undefined) {
+    handleIndent(d)
+  }
+  // On the left side, right means outdent (go back toward root)
+  else if (d.left === true) {
+    handleOutdent(d)
+  }
+}
+
+/**
  * Indent: Make the selected node a child of its previous sibling
  */
 const handleIndent = (d: Mdata): void => {
@@ -174,22 +244,120 @@ const handleIndent = (d: Mdata): void => {
 
   if (currentIndex > 0) {
     const prevSibling = siblings[currentIndex - 1]
+    const nodeRawData = d.rawData // Store reference to find node after operation
+
     // Move current node as child of previous sibling
-    const { moveChild } = require('../data')
     moveChild(prevSibling.id, d.id)
+
+    // Re-select the moved node after structure refresh
+    setTimeout(() => {
+      const movedNode = findNodeByRawData(nodeRawData)
+      if (movedNode) {
+        selectGNode(movedNode)
+      }
+    }, 50)
   }
 }
 
 /**
  * Outdent: Promote the selected node to be sibling of its parent
+ * Makes the node a child of its grandparent (first sibling after parent)
  */
 const handleOutdent = (d: Mdata): void => {
   // Can't outdent root node or direct children of root
   if (d.depth <= 1 || !d.parent || !d.parent.parent) { return }
 
-  const { moveSibling } = require('../data')
-  // Move after parent
-  moveSibling(d.id, d.parent.id)
+  const grandparent = d.parent.parent
+  const parent = d.parent
+  const nodeRawData = d.rawData // Store reference to find node after operation
+
+  // Move to grandparent as a child
+  moveChild(grandparent.id, d.id)
+
+  // After moving, reorder to place it right after the original parent
+  // Need to wait for structure to update, then reorder
+  setTimeout(() => {
+    const movedNode = findNodeByRawData(nodeRawData)
+    if (movedNode && movedNode.parent) {
+      const siblings = movedNode.parent.children.filter(child => child.left === parent.left)
+      const parentIndex = siblings.findIndex(s => s.id === parent.id)
+
+      if (parentIndex >= 0 && parentIndex < siblings.length - 1) {
+        // Move to position after parent
+        const nextSibling = siblings[parentIndex + 1]
+        if (nextSibling && nextSibling.id !== movedNode.id) {
+          moveSibling(movedNode.id, nextSibling.id, -1) // Move before next sibling
+
+          // Re-select after second move
+          setTimeout(() => {
+            const finalNode = findNodeByRawData(nodeRawData)
+            if (finalNode) {
+              selectGNode(finalNode)
+            }
+          }, 50)
+        } else {
+          selectGNode(movedNode)
+        }
+      } else {
+        selectGNode(movedNode)
+      }
+    }
+  }, 50)
+}
+
+/**
+ * Move node up in sibling order (swap with previous sibling)
+ */
+const handleMoveUp = (d: Mdata): void => {
+  // Can't move root or nodes without parent
+  if (d.depth === 0 || !d.parent) { return }
+
+  // Get ALL children (not filtered by side)
+  const allChildren = d.parent.children
+  const currentIndex = allChildren.findIndex(s => s.id === d.id)
+
+  if (currentIndex > 0) {
+    const prevSibling = allChildren[currentIndex - 1]
+
+    // Move to the position of previous sibling (swap with it)
+    // after=0 means insert at refIndex (which will be adjusted by moveSibling logic)
+    moveSibling(d.id, prevSibling.id, 0)
+
+    // Wait for structure to refresh, then re-select
+    setTimeout(() => {
+      const refreshedNode = findNodeByRawData(d.rawData)
+      if (refreshedNode) {
+        selectGNode(refreshedNode)
+      }
+    }, 50)
+  }
+}
+
+/**
+ * Move node down in sibling order (swap with next sibling)
+ */
+const handleMoveDown = (d: Mdata): void => {
+  // Can't move root or nodes without parent
+  if (d.depth === 0 || !d.parent) { return }
+
+  // Get ALL children (not filtered by side)
+  const allChildren = d.parent.children
+  const currentIndex = allChildren.findIndex(s => s.id === d.id)
+
+  if (currentIndex < allChildren.length - 1) {
+    const nextSibling = allChildren[currentIndex + 1]
+
+    // Move after next sibling
+    moveSibling(d.id, nextSibling.id, 1)
+
+    // Wait for structure to refresh, then re-select
+    setTimeout(() => {
+      const refreshedNode = findNodeByRawData(d.rawData)
+      if (refreshedNode) {
+        selectGNode(refreshedNode)
+      }
+    }, 50)
+  }
 }
 
 /**
@@ -312,12 +480,53 @@ const handlePaste = (d: Mdata): void => {
 }
 
 /**
- * Deselect current node
+ * Handle Escape key:
+ * - If in edit mode: exit edit mode (but keep node selected)
+ * - If not in edit mode: deselect current node
  */
 const handleEscape = (): void => {
-  const selectedNode = document.getElementsByClassName(style.selected)[0]
-  if (selectedNode) {
-    selectedNode.classList.remove(style.selected)
+  console.log('=== ESCAPE KEY PRESSED ===')
+
+  // Check if we're currently in edit mode
+  const editedNode = document.getElementsByClassName(style.edited)[0]
+  console.log('Edited node found:', editedNode)
+
+  // Also check if foreign element is visible
+  if (foreignEle.value) {
+    console.log('Foreign element display:', foreignEle.value.style.display)
+  }
+
+  if (editedNode) {
+    console.log('In edit mode - calling onEditBlur()')
+
+    // Blur the editing div to remove focus
+    if (foreignDivEle.value) {
+      console.log('Blurring foreignDivEle')
+      foreignDivEle.value.blur()
+    }
+
+    // We're in edit mode - exit editing but keep node selected
+    onEditBlur()
+
+    // Re-select the node after exiting edit mode
+    const gNode = editedNode as SVGGElement
+    setTimeout(() => {
+      console.log('Re-selecting node after edit')
+      gNode.classList.add(style.selected)
+
+      // Focus the wrapper element to ensure keyboard events are captured
+      if (wrapperEle.value) {
+        console.log('Focusing wrapper element')
+        wrapperEle.value.focus()
+      }
+    }, 10)
+  } else {
+    console.log('Not in edit mode - deselecting node')
+    // Not in edit mode - deselect the node
+    const selectedNode = document.getElementsByClassName(style.selected)[0]
+    if (selectedNode) {
+      selectedNode.classList.remove(style.selected)
+    }
   }
 }
 

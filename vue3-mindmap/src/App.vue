@@ -21,6 +21,7 @@
       :ctm="checkboxList['contextmenu'].value"
       :timetravel="checkboxList['timetravel'].value"
       :keyboard="checkboxList['keyboard'].value"
+      :orientation="orientation"
       @update:model-value="onChange"
       :locale="locale"
     />
@@ -31,6 +32,15 @@
           <option value="zh">简体中文</option>
           <option value="en">English</option>
           <option value="ptBR">Brazilian Portuguese</option>
+        </select>
+      </div>
+      <div>
+        <label for="orientation-select">Orientation</label>
+        <select id="orientation-select" v-model="orientation">
+          <option value="right-left">Right-Left</option>
+          <option value="left-right">Left-Right</option>
+          <option value="clockwise">Clockwise</option>
+          <option value="anticlockwise">Anticlockwise</option>
         </select>
       </div>
       <div v-for="(item, key) in checkboxList" :key="key">
@@ -82,13 +92,15 @@ export default defineComponent({
     const data = ref(testData)
     const onChange = () => console.log('update:model-value')
     const locale = ref<Locale>('en')
+    const orientation = ref<'clockwise' | 'anticlockwise' | 'right-left' | 'left-right'>('right-left')
 
     return {
       data,
       checkboxList,
       rangeList,
       onChange,
-      locale
+      locale,
+      orientation
     }
   }
 })
