@@ -65,9 +65,20 @@ export default defineConfig((ctx) => {
       // polyfillModulePreload: true,
       // distDir
 
-      // extendViteConf (viteConf) {},
+      extendViteConf (viteConf) {
+        if (!viteConf.resolve) {
+          viteConf.resolve = {};
+        }
+        if (!viteConf.resolve.alias) {
+          viteConf.resolve.alias = {};
+        }
+        if (typeof viteConf.resolve.alias === 'object' && !Array.isArray(viteConf.resolve.alias)) {
+          // @ts-ignore - Adding custom alias to Vite config
+          viteConf.resolve.alias['@'] = fileURLToPath(new URL('./src', import.meta.url));
+        }
+      },
       // viteVuePluginOptions: {},
-      
+
       vitePlugins: [
         ['@intlify/unplugin-vue-i18n/vite', {
           // if you want to use Vue I18n Legacy API, you need to set `compositionOnly: false`
@@ -114,7 +125,7 @@ export default defineConfig((ctx) => {
       // directives: [],
 
       // Quasar plugins
-      plugins: []
+      plugins: ['Notify', 'Dialog']
     },
 
     // animations: 'all', // --- includes all animations
