@@ -485,23 +485,12 @@ const handlePaste = (d: Mdata): void => {
  * - If not in edit mode: deselect current node
  */
 const handleEscape = (): void => {
-  console.log('=== ESCAPE KEY PRESSED ===')
-
   // Check if we're currently in edit mode
   const editedNode = document.getElementsByClassName(style.edited)[0]
-  console.log('Edited node found:', editedNode)
-
-  // Also check if foreign element is visible
-  if (foreignEle.value) {
-    console.log('Foreign element display:', foreignEle.value.style.display)
-  }
 
   if (editedNode) {
-    console.log('In edit mode - calling onEditBlur()')
-
     // Blur the editing div to remove focus
     if (foreignDivEle.value) {
-      console.log('Blurring foreignDivEle')
       foreignDivEle.value.blur()
     }
 
@@ -511,17 +500,14 @@ const handleEscape = (): void => {
     // Re-select the node after exiting edit mode
     const gNode = editedNode as SVGGElement
     setTimeout(() => {
-      console.log('Re-selecting node after edit')
       gNode.classList.add(style.selected)
 
       // Focus the wrapper element to ensure keyboard events are captured
       if (wrapperEle.value) {
-        console.log('Focusing wrapper element')
         wrapperEle.value.focus()
       }
     }, 10)
   } else {
-    console.log('Not in edit mode - deselecting node')
     // Not in edit mode - deselect the node
     const selectedNode = document.getElementsByClassName(style.selected)[0]
     if (selectedNode) {
