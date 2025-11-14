@@ -5,6 +5,7 @@ export interface Data {
   children?: Array<Data> | undefined
   left?: boolean | undefined
   collapse?: boolean | undefined
+  icons?: string[] | undefined  // Array of icon identifiers (e.g., ['content', 'calendar', 'priority'])
 }
 
 export interface TreeData {
@@ -40,6 +41,8 @@ export interface Mdata {
   // 拖拽时的偏移量
   px: number
   py: number
+  icons: string[] // Array of icon identifiers
+  iconsWidth: number // Total width of icons container
 }
 
 export interface TspanData {

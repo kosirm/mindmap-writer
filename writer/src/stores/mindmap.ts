@@ -23,12 +23,15 @@ export interface MindmapNode {
   createdAt: Date;
   updatedAt: Date;
 
+  // Icons displayed before the title (e.g., 'content', 'calendar', 'priority')
+  icons: string[];
+
   // Metadata (extensible for future features)
   metadata: {
     color?: string | undefined;        // Node color
     collapsed?: boolean | undefined;   // Is node collapsed
     left?: boolean | undefined;        // For mindmap layout (left/right side)
-    // Future: icons, tags, custom dates, etc.
+    // Future: tags, custom dates, etc.
   };
 }
 
@@ -41,6 +44,7 @@ export interface MindmapData {
   children?: Array<MindmapData> | undefined;
   left?: boolean | undefined;
   collapse?: boolean | undefined;
+  icons?: string[] | undefined;
 }
 
 /**
@@ -110,6 +114,7 @@ function convertLegacyToNode(
     parentId,
     order,
     children: [],
+    icons: legacy.icons || [],
     createdAt: now,
     updatedAt: now,
     metadata: {
@@ -133,10 +138,19 @@ function convertLegacyToNode(
  * Used for rendering in vue3-mindmap component
  */
 function convertNodeToLegacy(node: MindmapNode): MindmapData {
+  // Auto-add 'content' icon if node has content different from title
+  const icons = [...node.icons];
+  if (node.content && node.content.trim() !== '' && node.content !== node.title) {
+    if (!icons.includes('content')) {
+      icons.push('content');
+    }
+  }
+
   const legacy: MindmapData = {
     name: node.title,
     left: node.metadata.left,
-    collapse: node.metadata.collapsed
+    collapse: node.metadata.collapsed,
+    icons: icons.length > 0 ? icons : undefined
   };
 
   if (node.children.length > 0) {
@@ -271,6 +285,7 @@ export const useMindmapStore = defineStore('mindmap', () => {
       parentId: null,
       order: 0,
       children: [],
+      icons: [],
       createdAt: now,
       updatedAt: now,
       metadata: {}
@@ -327,6 +342,9 @@ export const useMindmapStore = defineStore('mindmap', () => {
     node.title = legacy.name;
     node.content = legacy.name; // In legacy format, name is the content
     node.updatedAt = new Date();
+
+    // Update icons (filter out auto-added 'content' icon)
+    node.icons = (legacy.icons || []).filter(icon => icon !== 'content');
 
     // Update metadata
     node.metadata.collapsed = legacy.collapse;

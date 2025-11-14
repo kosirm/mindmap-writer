@@ -12,18 +12,21 @@ export const attrA = (
   gTrigger: SelectionRect,
   gTextRect: SelectionRect,
   gExpandBtn: SelectionG,
-  gAddBtn?: SelectionG
+  gAddBtn?: SelectionG,
+  gIconsRect?: SelectionRect
 ): void => {
   if (isRoot) {
       attrTrigger(gTrigger, rootTextRectPadding)
       attrTextRect(gTextRect, rootTextRectPadding, rootTextRectRadius)
       attrExpandBtn(gExpandBtn, rootTextRectPadding)
       if (gAddBtn) { attrAddBtn(gAddBtn, rootTextRectPadding) }
+      if (gIconsRect) { attrIconsRect(gIconsRect, rootTextRectPadding) }
     } else {
       attrTrigger(gTrigger, textRectPadding)
       attrTextRect(gTextRect, textRectPadding)
       attrExpandBtn(gExpandBtn, textRectPadding)
       if (gAddBtn) { attrAddBtn(gAddBtn, textRectPadding) }
+      if (gIconsRect) { attrIconsRect(gIconsRect, textRectPadding) }
     }
 }
 
@@ -35,7 +38,11 @@ export const attrG = (g: SelectionG, tran?: Transition): void => {
 
 export const attrText = (text: d3.Selection<SVGTextElement, Mdata, SVGGElement, IsMdata>, tran?: Transition): void => {
   const t1 = tran ? text.transition(tran) : text
-  t1.attr('transform', (d) => `translate(${d.left ? -d.width : 0},0)`)
+  t1.attr('transform', (d) => {
+    // Text position (no icons offset since they're in separate container)
+    const textOffset = d.left ? -d.width : 0
+    return `translate(${textOffset},0)`
+  })
 }
 
 export const attrTspan = (tspan: d3.Selection<SVGTSpanElement, TspanData, SVGTextElement, Mdata>): void => {
@@ -73,6 +80,16 @@ export const attrTextRect = (rect: SelectionRect, padding: number, radius = 4): 
     .attr('height', (d) => d.height + padding * 2)
 }
 
+export const attrIconsRect = (rect: SelectionRect, padding: number, radius = 4): void => {
+  rect.attr('x', -padding) // Positioned at 0,0 within the icons container
+    .attr('y', -padding)
+    .attr('rx', radius).attr('ry', radius)
+    .attr('width', (d) => d.icons.length > 0 ? d.iconsWidth + padding * 2 : 0)
+    .attr('height', (d) => d.icons.length > 0 ? d.height + padding * 2 : 0)
+    .attr('fill', 'transparent')
+    .attr('stroke', 'none')
+}
+
 export const attrExpandBtn = (g: SelectionG, trp: number): void => {
   g.attr('class', style['expand-btn'])
     .attr('transform', (d) => getExpandBtnTransform(d, trp))
@@ -86,10 +103,18 @@ export const attrAddBtn = (g: SelectionG, trp: number): void => {
 export const attrTrigger = (rect: SelectionRect, padding: number): void => {
   const w = addBtnSide + addBtnRect.margin
   const p = padding * 2
+  const ICON_TEXT_GAP = 10
   rect.attr('class', style.trigger)
-    .attr('x', (d) => -padding - (d.left ? d.width + w : 0))
+    .attr('x', (d) => {
+      // Include icons width + gap if icons exist
+      const iconsSpace = d.icons.length > 0 ? d.iconsWidth + ICON_TEXT_GAP : 0
+      return -padding - (d.left ? d.width + iconsSpace + w : 0)
+    })
     .attr('y', -padding)
-    .attr('width', (d) => d.width + p + w)
+    .attr('width', (d) => {
+      const iconsSpace = d.icons.length > 0 ? d.iconsWidth + ICON_TEXT_GAP : 0
+      return d.width + iconsSpace + p + w
+    })
     .attr('height', (d) => d.height + p)
 }
 

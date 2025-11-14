@@ -199,7 +199,7 @@ class ImData {
   }
 
   private createMdataFromData (rawData: Data, id: string, parent: IsMdata = null): Mdata {
-    const { name, collapse, children: rawChildren } = rawData
+    const { name, collapse, children: rawChildren, icons = [] } = rawData
     const { width, height } = this.getSize(name)
     const depth = parent ? parent.depth + 1 : 0
     let left = false
@@ -210,12 +210,20 @@ class ImData {
     } else if (depth !== 0 && parent) {
       left = parent.left
     }
+
+    // Calculate icons width (each icon is 16px + 4px margin)
+    const iconSize = 16
+    const iconMargin = 4
+    const iconsWidth = icons.length > 0 ? (icons.length * (iconSize + iconMargin)) : 0
+
     const data: Mdata = {
       id, name, rawData, parent, left, color, depth,
       x: 0, y: 0, dx: 0, dy: 0, px: 0, py: 0,
       width, height, children: [], _children: [],
       collapse: !!collapse,
       gKey: this.gKey += 1,
+      icons,
+      iconsWidth,
     }
     if (rawChildren) {
       if (!data.collapse) {
@@ -411,7 +419,9 @@ class ImData {
           px: 0,
           py: 0,
           children: [],
-          _children: []
+          _children: [],
+          icons: [],
+          iconsWidth: 0
         }
         p.children.push(d)
         p.rawData.children.push(rawData)
@@ -501,6 +511,8 @@ class ImData {
         dy: 0,
         px: 0,
         py: 0,
+        icons: [],
+        iconsWidth: 0
       }
       parent.children.splice(start, 0, sibling)
       parent.rawData.children?.splice(start, 0, rawSibling)
@@ -537,7 +549,9 @@ class ImData {
         dx: 0,
         dy: 0,
         px: 0,
-        py: 0
+        py: 0,
+        icons: [],
+        iconsWidth: 0
       }
       d.parent = p
       oldP.children.splice(index, 1, p)

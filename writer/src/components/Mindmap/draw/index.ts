@@ -5,6 +5,8 @@ import { getAddPath, makeTransition } from '../assistant'
 import { addBtnRect, addNodeBtn, drag, mmprops, selection, currentOrientation } from '../variable'
 import { mmdata } from '../data'
 import { addAndEdit, onClickExpandBtn, onEdit, onMouseEnter, onMouseLeave, onSelect } from '../listener'
+import { appendIcons, attrIcons, positionIconsContainer } from './icons'
+import emitter from '../../../mitt'
 import style from '../css'
 
 /**
@@ -90,14 +92,38 @@ export const appendExpandBtn = (g: SelectionG): d3.Selection<SVGGElement, Mdata,
 const bindEvent = (g: SelectionG, isRoot: boolean) => {
   const gExpandBtn = g.select(`:scope > g.${style.content} > g.${style['expand-btn']}`)
   gExpandBtn.on('click', onClickExpandBtn)
+
+  const gContent = g.select<SVGGElement>(`:scope > g.${style.content}`)
+
   if (mmprops.value.drag || mmprops.value.edit) {
-    const gText = g.select<SVGGElement>(`:scope > g.${style.content} > g.${style.text}`)
+    const gText = gContent.select<SVGGElement>(`:scope > g.${style.text}`)
     gText.on('mousedown', onSelect)
     if (mmprops.value.drag && !isRoot) { drag(gText) }
-    if (mmprops.value.edit) { gText.on('click', onEdit) }
+
+    // Bind edit to text element only
+    if (mmprops.value.edit) {
+      const textElement = gText.select(':scope > text')
+      textElement.on('click', (e: MouseEvent, d: Mdata) => {
+        // Get the parent gText element from the event target
+        const target = e.currentTarget as SVGTextElement
+        const gTextNode = target?.parentElement
+        if (gTextNode && gTextNode instanceof SVGGElement) {
+          onEdit.call(gTextNode, e, d)
+        }
+      })
+    }
+
+    // Bind icon click to switch to Content Editor
+    const gIconsContainer = gContent.select(':scope > g.icons-container')
+    gIconsContainer.on('click', (e: MouseEvent, d: Mdata) => {
+      e.stopPropagation()
+      // Emit event to switch to Node Content mode in Text Editor
+      emitter.emit('icon-clicked', d.id)
+    })
   }
+
   if (addNodeBtn.value) {
-    g.select<SVGGElement>(`:scope > g.${style.content}`)
+    gContent
       .on('mouseenter', onMouseEnter)
       .on('mouseleave', onMouseLeave)
   }
@@ -112,7 +138,15 @@ const appendNode = (enter: d3.Selection<d3.EnterElement, Mdata, SVGGElement, IsM
   // 节点容器
   const gContent = enterG.append('g').attr('class', style.content)
   const gTrigger = gContent.append('rect')
-  // 绘制文本
+
+  // 绘制图标组 (separate from text)
+  const gIconsContainer = gContent.append('g').attr('class', 'icons-container')
+  appendIcons(gIconsContainer) // Position the container
+  const gIconsRect = gIconsContainer.append('rect').attr('class', 'icons-rect')
+  const gIcons = gIconsContainer.append('g').attr('class', 'node-icons')
+  attrIcons(gIcons) // Render icons within container
+
+  // 绘制文本组 (separate from icons)
   const gText = gContent.append('g').attr('class', style.text)
   const gTextRect = gText.append('rect')
   const text = gText.append('text')
@@ -125,7 +159,7 @@ const appendNode = (enter: d3.Selection<d3.EnterElement, Mdata, SVGGElement, IsM
   // 绘制折叠按钮
   const gExpandBtn = appendExpandBtn(gContent)
 
-  attrA(isRoot, gTrigger, gTextRect, gExpandBtn, gAddBtn)
+  attrA(isRoot, gTrigger, gTextRect, gExpandBtn, gAddBtn, gIconsRect)
 
   bindEvent(enterG, isRoot)
 
@@ -145,9 +179,23 @@ const updateNode = (update: SelectionG) => {
   attrPath(update.select<SVGPathElement>(':scope > path'), tran)
   const gContent = update.select<SVGGElement>(`:scope > g.${style.content}`)
   const gTrigger = gContent.select<SVGRectElement>(':scope > rect')
-  const gText = gContent.select<SVGGElement>(`g.${style.text}`)
-  const gTextRect = gText.select<SVGRectElement>('rect')
-  const text = gText.select<SVGTextElement>('text')
+
+  // Update icons container
+  let gIconsContainer = gContent.select<SVGGElement>(':scope > g.icons-container')
+  if (!gIconsContainer.node()) {
+    gIconsContainer = gContent.insert('g', `g.${style.text}`).attr('class', 'icons-container')
+    gIconsContainer.append('rect').attr('class', 'icons-rect')
+    gIconsContainer.append('g').attr('class', 'node-icons')
+  }
+  positionIconsContainer(gIconsContainer) // Position the container
+  const gIconsRect = gIconsContainer.select<SVGRectElement>(':scope > rect.icons-rect')
+  const gIcons = gIconsContainer.select<SVGGElement>(':scope > g.node-icons')
+  attrIcons(gIcons) // Render icons within container
+
+  // Update text
+  const gText = gContent.select<SVGGElement>(`:scope > g.${style.text}`)
+  const gTextRect = gText.select<SVGRectElement>(':scope > rect')
+  const text = gText.select<SVGTextElement>(':scope > text')
   attrText(text, tran)
   text.selectAll<SVGTSpanElement, TspanData>('tspan')
     .data(getTspanData)
@@ -160,7 +208,7 @@ const updateNode = (update: SelectionG) => {
     gAddBtn.remove()
   }
 
-  attrA(isRoot, gTrigger, gTextRect, gExpandBtn, gAddBtn)
+  attrA(isRoot, gTrigger, gTextRect, gExpandBtn, gAddBtn, gIconsRect)
 
   update.each((d: Mdata, i: number) => {
     // Always draw children (even if empty array) to properly handle deletions
