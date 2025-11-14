@@ -106,12 +106,27 @@
 
         <q-tab-panel name="structure">
           <div v-if="currentDocumentStructure">
+            <!-- Tree header with expand/collapse toggle -->
+            <div class="row items-center justify-end q-mb-sm q-px-sm">
+              <q-btn
+                flat
+                dense
+                round
+                size="sm"
+                :icon="treeExpanded ? 'unfold_less' : 'unfold_more'"
+                @click="toggleTreeExpansion"
+              >
+                <q-tooltip>{{ treeExpanded ? 'Collapse All' : 'Expand All' }}</q-tooltip>
+              </q-btn>
+            </div>
+
             <q-tree
               ref="treeRef"
               :nodes="treeNodes"
               :selected="selectedNodeId"
               node-key="id"
-              default-expand-all
+              :default-expand-all="treeExpanded"
+              dense
               @update:selected="onTreeNodeSelected"
             >
               <template #default-header="prop">
@@ -164,6 +179,7 @@ const leftDrawerTab = ref('navigation');
 const documentListVersion = ref(0);
 const selectedNodeId = ref<string | null>(null);
 const treeRef = ref();
+const treeExpanded = ref(true);
 
 const savedDocuments = computed(() => {
   // Force reactivity by using documentListVersion
@@ -277,6 +293,25 @@ function formatDate(date: Date): string {
 }
 
 // ============================================================================
+// Tree View Controls
+// ============================================================================
+
+/**
+ * Toggle expand/collapse all nodes in tree
+ */
+function toggleTreeExpansion() {
+  treeExpanded.value = !treeExpanded.value;
+
+  if (treeRef.value) {
+    if (treeExpanded.value) {
+      treeRef.value.expandAll();
+    } else {
+      treeRef.value.collapseAll();
+    }
+  }
+}
+
+// ============================================================================
 // EVENT BUS - Tree View Sync
 // ============================================================================
 
@@ -333,7 +368,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .tree-node-header {
-  padding: 4px 8px;
+  padding: 2px 8px;
   border-radius: 4px;
   transition: background-color 0.2s;
 

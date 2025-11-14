@@ -254,20 +254,46 @@
           <div class="panel-container">
             <div class="panel-header">
               <span class="panel-title">Text Editor</span>
-              <q-btn
-                flat
-                dense
-                round
-                size="sm"
-                icon="fullscreen"
-                @click="viewMode = 'text'"
-              >
-                <q-tooltip>Maximize Text Editor</q-tooltip>
-              </q-btn>
+              <div class="q-ml-auto row items-center q-gutter-xs">
+                <!-- Mode toggle -->
+                <q-btn-toggle
+                  v-model="textEditorMode"
+                  toggle-color="primary"
+                  :options="[
+                    { value: 'full', icon: 'description' },
+                    { value: 'node', icon: 'article' }
+                  ]"
+                  size="sm"
+                  dense
+                  unelevated
+                  class="text-editor-mode-toggle"
+                >
+                  <template #full>
+                    <q-tooltip>Full Document - View all nodes</q-tooltip>
+                  </template>
+                  <template #node>
+                    <q-tooltip>Node Content - Edit selected node only</q-tooltip>
+                  </template>
+                </q-btn-toggle>
+
+                <q-btn
+                  flat
+                  dense
+                  round
+                  size="sm"
+                  icon="fullscreen"
+                  @click="viewMode = 'text'"
+                >
+                  <q-tooltip>Maximize Text Editor</q-tooltip>
+                </q-btn>
+              </div>
             </div>
             <tiptap-editor
               :model-value="store.currentDocument"
+              :mode="textEditorMode"
               @update:model-value="handleTextEditorUpdate"
+              @update:node-content="handleNodeContentUpdate"
+              @update:mode="textEditorMode = $event"
             />
           </div>
         </template>
@@ -318,20 +344,46 @@
         <div class="panel-container">
           <div class="panel-header">
             <span class="panel-title">Text Editor</span>
-            <q-btn
-              flat
-              dense
-              round
-              size="sm"
-              icon="fullscreen_exit"
-              @click="viewMode = 'split'"
-            >
-              <q-tooltip>Back to Split View</q-tooltip>
-            </q-btn>
+            <div class="q-ml-auto row items-center q-gutter-xs">
+              <!-- Mode toggle -->
+              <q-btn-toggle
+                v-model="textEditorMode"
+                toggle-color="primary"
+                :options="[
+                  { value: 'full', icon: 'description' },
+                  { value: 'node', icon: 'article' }
+                ]"
+                size="sm"
+                dense
+                unelevated
+                class="text-editor-mode-toggle"
+              >
+                <template #full>
+                  <q-tooltip>Full Document - View all nodes</q-tooltip>
+                </template>
+                <template #node>
+                  <q-tooltip>Node Content - Edit selected node only</q-tooltip>
+                </template>
+              </q-btn-toggle>
+
+              <q-btn
+                flat
+                dense
+                round
+                size="sm"
+                icon="fullscreen_exit"
+                @click="viewMode = 'split'"
+              >
+                <q-tooltip>Back to Split View</q-tooltip>
+              </q-btn>
+            </div>
           </div>
           <tiptap-editor
             :model-value="store.currentDocument"
+            :mode="textEditorMode"
             @update:model-value="handleTextEditorUpdate"
+            @update:node-content="handleNodeContentUpdate"
+            @update:mode="textEditorMode = $event"
           />
         </div>
       </div>
@@ -353,6 +405,9 @@ import style from 'components/Mindmap/css';
 const store = useMindmapStore();
 const $q = useQuasar();
 const viewSync = useViewSync('mindmap');
+
+// Text editor mode
+const textEditorMode = ref<'full' | 'node'>('full');
 
 // Key to force mindmap re-render when data changes
 const mindmapKey = ref(0);
@@ -569,11 +624,23 @@ function handleNewDocument() {
   });
 }
 
-// Handle text editor updates
+// Handle text editor updates (Full Document mode)
 function handleTextEditorUpdate(updatedNode: MindmapNode) {
   // TODO: Implement proper sync logic
   // For now, just log the update
   console.log('Text editor updated:', updatedNode);
+}
+
+// Handle node content updates (Node Content mode)
+function handleNodeContentUpdate(nodeId: string, content: string) {
+  // Find the node and update its content
+  const node = findNodeById(store.currentDocument, nodeId);
+  if (node) {
+    node.content = content;
+    node.updatedAt = new Date();
+    // Mark as dirty and auto-save
+    store.save();
+  }
 }
 
 // ============================================================================
@@ -675,6 +742,30 @@ viewSync.onNodeSelected((event) => {
       // 3. The selection highlight is sufficient visual feedback
     } else {
       console.warn('Mindmap element not found for ID:', mindmapId, 'path:', node.path);
+    }
+  }
+});
+
+/**
+ * Listen to icon clicks in mindmap to switch to Node Content mode
+ */
+emitter.on<string>('icon-clicked', (mindmapId: string) => {
+  // Convert mindmap ID to path
+  const path = mindmapIdToPath(mindmapId);
+
+  // Find the node by path
+  const node = findNodeByPath(store.currentDocument, path);
+
+  if (node) {
+    // Select the node
+    viewSync.selectNode(node.id, true);
+
+    // Switch to Node Content mode
+    textEditorMode.value = 'node';
+
+    // If in mindmap-only view, switch to split view to show text editor
+    if (viewMode.value === 'mindmap') {
+      viewMode.value = 'split';
     }
   }
 });

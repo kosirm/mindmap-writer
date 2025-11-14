@@ -110,6 +110,11 @@ $seleColor: rgba($color: blue, $alpha: 0.15);
     opacity: 0;
   }
 
+  // Keep icons visible when editing
+  .edited > .content > .icons-container {
+    opacity: 1;
+  }
+
   // outline
   .outline > .content > .text > rect {
     opacity: 1;

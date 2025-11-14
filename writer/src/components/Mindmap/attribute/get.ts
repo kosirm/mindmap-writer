@@ -39,12 +39,15 @@ export const getPath = (d: Mdata): string => {
   let dpw = 0
   let dph = 0
   const trp = Math.max(textRectPadding - 3, 0) // -3为了不超过选中框
-  let w = d.width + trp
+  const ICON_TEXT_GAP = 10
+  const iconsSpace = d.icons.length > 0 ? d.iconsWidth + ICON_TEXT_GAP : 0
+  let w = d.width + iconsSpace + trp
   const targetOffset = getYOffset()
   let sourceOffset = targetOffset
   const { parent } = d
   if (parent) {
-    dpw = parent.width
+    const parentIconsSpace = parent.icons.length > 0 ? parent.iconsWidth + ICON_TEXT_GAP : 0
+    dpw = parent.width + parentIconsSpace
     dph = parent.height
     if (parent.depth === 0) {
       if (!sharpCorner) { dpw /= 2 }
@@ -67,15 +70,19 @@ export const getPath = (d: Mdata): string => {
   return `${link({ source, target })}L${w},${target[1]}`
 }
 export const getAddBtnTransform = (d: Mdata, trp: number): string => {
+  const ICON_TEXT_GAP = 10
+  const iconsSpace = d.icons.length > 0 ? d.iconsWidth + ICON_TEXT_GAP : 0
   const y = d.depth === 0 ? d.height / 2 : d.height + getYOffset()
-  let x = d.width + trp + addBtnSide / 2 + addBtnRect.margin
+  let x = d.width + iconsSpace + trp + addBtnSide / 2 + addBtnRect.margin
   if (d.left) { x = -x }
   return `translate(${x},${y})`
 }
 export const getExpandBtnTransform = (d: Mdata, trp: number): string => {
+  const ICON_TEXT_GAP = 10
+  const iconsSpace = d.icons.length > 0 ? d.iconsWidth + ICON_TEXT_GAP : 0
   const gap = 4
   const y = d.depth === 0 ? d.height / 2 : d.height + getYOffset()
-  let x = d.width + trp + expandBtnRect.width / 2 + gap
+  let x = d.width + iconsSpace + trp + expandBtnRect.width / 2 + gap
   if (d.left) { x = -x }
   return `translate(${x},${y})`
 }
