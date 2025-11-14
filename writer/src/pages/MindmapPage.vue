@@ -345,10 +345,14 @@ import { useQuasar, Notify } from 'quasar';
 import Mindmap from 'components/Mindmap';
 import TiptapEditor from 'components/TiptapEditor.vue';
 import { useMindmapStore, type MindmapData, type MindmapNode } from 'stores/mindmap';
+import { useViewSync } from 'src/composables/useViewSync';
+import emitter from 'src/mitt';
+import style from 'components/Mindmap/css';
 
 // Store
 const store = useMindmapStore();
 const $q = useQuasar();
+const viewSync = useViewSync('mindmap');
 
 // Key to force mindmap re-render when data changes
 const mindmapKey = ref(0);
@@ -570,6 +574,124 @@ function handleTextEditorUpdate(updatedNode: MindmapNode) {
   // TODO: Implement proper sync logic
   // For now, just log the update
   console.log('Text editor updated:', updatedNode);
+}
+
+// ============================================================================
+// EVENT BUS - Mindmap View Sync
+// ============================================================================
+
+/**
+ * Helper function to find node by path in the tree
+ */
+function findNodeByPath(node: MindmapNode | null, targetPath: string): MindmapNode | null {
+  if (!node) return null;
+  if (node.path === targetPath) return node;
+
+  for (const child of node.children) {
+    const found = findNodeByPath(child, targetPath);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+/**
+ * Helper function to convert hierarchical mindmap ID (like "0-1-2") to node path (like "1-2-3")
+ * The mindmap component uses 0-based indices, our paths use 1-based
+ * Examples:
+ *   "0" → "1" (root)
+ *   "0-0" → "1-1" (first child)
+ *   "0-1" → "1-2" (second child)
+ *   "0-0-1" → "1-1-2" (second child of first child)
+ */
+function mindmapIdToPath(mindmapId: string): string {
+  if (mindmapId === '0') return '1'; // Root node
+
+  const parts = mindmapId.split('-');
+  // Skip the root "0" and convert from 0-based to 1-based
+  return '1-' + parts.slice(1).map(p => (parseInt(p) + 1).toString()).join('-');
+}
+
+/**
+ * Helper function to convert node path to mindmap hierarchical ID
+ * Examples:
+ *   "1" → "0" (root)
+ *   "1-1" → "0-0" (first child)
+ *   "1-2" → "0-1" (second child)
+ *   "1-1-2" → "0-0-1" (second child of first child)
+ */
+function pathToMindmapId(path: string): string {
+  if (path === '1') return '0'; // Root node
+
+  const parts = path.split('-');
+  // Skip the root "1" and convert from 1-based to 0-based
+  return '0-' + parts.slice(1).map(p => (parseInt(p) - 1).toString()).join('-');
+}
+
+/**
+ * Listen to mindmap node selection events from the mindmap component
+ */
+emitter.on('node-selected-in-mindmap', (mindmapId: string) => {
+  // Convert mindmap ID to path
+  const path = mindmapIdToPath(mindmapId);
+
+  // Find the node by path
+  const node = findNodeByPath(store.currentDocument, path);
+
+  if (node) {
+    // Emit selection event to other views
+    viewSync.selectNode(node.id, true);
+  }
+});
+
+/**
+ * Listen to node selection from other views (tree, text editor)
+ */
+viewSync.onNodeSelected((event) => {
+  // Ignore events from mindmap itself
+  if (event.source === 'mindmap') return;
+
+  // Find the node by ID
+  const node = findNodeById(store.currentDocument, event.nodeId);
+
+  if (node) {
+    // Convert path to mindmap ID and select in mindmap
+    const mindmapId = pathToMindmapId(node.path);
+
+    // Select the node in the mindmap using DOM query
+    const mindmapElement = document.querySelector<SVGGElement>(`g[data-id='${mindmapId}']`);
+    if (mindmapElement) {
+      // Remove old selection using CSS module class
+      const oldSelection = document.getElementsByClassName(style.selected)[0];
+      if (oldSelection) {
+        oldSelection.classList.remove(style.selected);
+      }
+      // Add new selection
+      mindmapElement.classList.add(style.selected);
+
+      // Note: We don't automatically pan to the node because:
+      // 1. It can be disorienting when the node is already visible
+      // 2. Users can manually pan/zoom if needed
+      // 3. The selection highlight is sufficient visual feedback
+    } else {
+      console.warn('Mindmap element not found for ID:', mindmapId, 'path:', node.path);
+    }
+  }
+});
+
+/**
+ * Helper function to find node by UUID
+ */
+function findNodeById(node: MindmapNode | null, targetId: string): MindmapNode | null {
+  if (!node) return null;
+  if (node.id === targetId) return node;
+
+  for (const child of node.children) {
+    const found = findNodeById(child, targetId);
+    if (found) return found;
+  }
+
+  return null;
 }
 </script>
 

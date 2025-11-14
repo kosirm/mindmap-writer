@@ -107,13 +107,23 @@
         <q-tab-panel name="structure">
           <div v-if="currentDocumentStructure">
             <q-tree
+              ref="treeRef"
               :nodes="treeNodes"
+              :selected="selectedNodeId"
               node-key="id"
               default-expand-all
+              @update:selected="onTreeNodeSelected"
             >
               <template #default-header="prop">
-                <div class="row items-center">
-                  <div class="text-weight-bold text-primary">{{ prop.node.label }}</div>
+                <div
+                  class="row items-center cursor-pointer tree-node-header"
+                  :class="{ 'tree-node-selected': selectedNodeId === prop.node.id }"
+                  :data-node-id="prop.node.id"
+                  @click.stop="selectTreeNode(prop.node.id)"
+                >
+                  <div class="text-weight-bold" :class="selectedNodeId === prop.node.id ? 'text-primary' : ''">
+                    {{ prop.node.label }}
+                  </div>
                 </div>
               </template>
             </q-tree>
@@ -136,6 +146,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useMindmapStore, type MindmapNode } from 'stores/mindmap';
+import { useViewSync } from 'src/composables/useViewSync';
 
 interface TreeNode {
   id: string;
@@ -146,10 +157,13 @@ interface TreeNode {
 const router = useRouter();
 const $q = useQuasar();
 const mindmapStore = useMindmapStore();
+const viewSync = useViewSync('tree');
 
 const leftDrawerOpen = ref(false);
 const leftDrawerTab = ref('navigation');
 const documentListVersion = ref(0);
+const selectedNodeId = ref<string | null>(null);
+const treeRef = ref();
 
 const savedDocuments = computed(() => {
   // Force reactivity by using documentListVersion
@@ -262,8 +276,77 @@ function formatDate(date: Date): string {
   }
 }
 
+// ============================================================================
+// EVENT BUS - Tree View Sync
+// ============================================================================
+
+/**
+ * Handle tree node selection - emit event to other views
+ */
+function selectTreeNode(nodeId: string) {
+  selectedNodeId.value = nodeId;
+  // Emit selection event to other views (mindmap, text editor)
+  viewSync.selectNode(nodeId, true);
+}
+
+/**
+ * Handle selection from q-tree component
+ */
+function onTreeNodeSelected(nodeId: string) {
+  if (nodeId) {
+    selectTreeNode(nodeId);
+  }
+}
+
+/**
+ * Listen to node selection from other views (mindmap, text editor)
+ */
+viewSync.onNodeSelected((event) => {
+  // Ignore events from tree view itself
+  if (event.source === 'tree') return;
+
+  // Update selected node
+  selectedNodeId.value = event.nodeId;
+
+  // Scroll to node if needed
+  if (event.scrollIntoView && treeRef.value) {
+    // Use nextTick to ensure DOM is updated
+    setTimeout(() => {
+      // Find the tree node element by node ID
+      const treeNodeElement = document.querySelector(`[data-node-id="${event.nodeId}"]`);
+      if (treeNodeElement) {
+        treeNodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        // If we can't find by data attribute, try to find by the node structure
+        // The q-tree component should have rendered the node
+        console.log('Tree node element not found for scrolling:', event.nodeId);
+      }
+    }, 100);
+  }
+});
+
 onMounted(() => {
   // Refresh document list when component mounts
   documentListVersion.value++;
 });
 </script>
+
+<style scoped lang="scss">
+.tree-node-header {
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.tree-node-selected {
+  background-color: rgba(25, 118, 210, 0.12);
+
+  &:hover {
+    background-color: rgba(25, 118, 210, 0.18);
+  }
+}
+</style>
