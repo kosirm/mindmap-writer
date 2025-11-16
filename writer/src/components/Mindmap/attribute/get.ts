@@ -1,5 +1,4 @@
-import type { Mdata, TspanData, TwoNumber } from '../interface'
-import { getMultiline } from '../assistant'
+import type { Mdata, TwoNumber } from '../interface'
 import style from '../css'
 import { addBtnSide, link, textRectPadding, sharpCorner, expandBtnRect, addBtnRect } from '../variable'
 const getYOffset = () => 3 // max-branch / 2
@@ -30,11 +29,6 @@ export const getAddBtnClass = (d: Mdata): string[] => {
 }
 export const getGTransform = (d: Mdata): string => { return `translate(${d.dx + d.px},${d.dy + d.py})` }
 export const getDataId = (d: Mdata): string => { return d.id }
-export const getTspanData = (d: Mdata): TspanData[] => {
-  const multiline = getMultiline(d.name)
-  const height = d.height / multiline.length
-  return multiline.map((name) => ({ name, height }))
-}
 export const getPath = (d: Mdata): string => {
   let dpw = 0
   let dph = 0

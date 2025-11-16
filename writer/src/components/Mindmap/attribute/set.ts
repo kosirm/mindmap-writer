@@ -1,4 +1,4 @@
-import type { IsMdata, Mdata, SelectionCircle, SelectionG, SelectionRect, Transition, TspanData } from '../interface'
+import type { IsMdata, Mdata, SelectionCircle, SelectionG, SelectionRect, Transition } from '../interface'
 import * as d3 from '../d3'
 import { addBtnRect, addBtnSide, branch, changeSharpCorner, expandBtnRect, rootTextRectPadding, rootTextRectRadius, textRectPadding } from '../variable'
 import { getAddBtnClass, getAddBtnTransform, getDataId, getExpandBtnTransform, getGClass, getGTransform, getPath } from './get'
@@ -36,20 +36,31 @@ export const attrG = (g: SelectionG, tran?: Transition): void => {
   g2.attr('transform', getGTransform)
 }
 
-export const attrText = (text: d3.Selection<SVGTextElement, Mdata, SVGGElement, IsMdata>, tran?: Transition): void => {
-  const t1 = tran ? text.transition(tran) : text
-  t1.attr('transform', (d) => {
-    // Text position (no icons offset since they're in separate container)
-    const textOffset = d.left ? -d.width : 0
-    return `translate(${textOffset},0)`
-  })
+// HTML rendering with foreignObject
+export const attrForeignObject = (
+  fo: d3.Selection<SVGForeignObjectElement, Mdata, SVGGElement, IsMdata>,
+  tran?: Transition
+): void => {
+  const fo1 = (tran ? fo.transition(tran) : fo) as d3.Selection<SVGForeignObjectElement, Mdata, SVGGElement, IsMdata>
+  fo1
+    .attr('x', (d: Mdata) => d.left ? -d.width : 0)
+    .attr('y', 0)
+    .attr('width', (d: Mdata) => d.width)
+    .attr('height', (d: Mdata) => d.height)
 }
 
-export const attrTspan = (tspan: d3.Selection<SVGTSpanElement, TspanData, SVGTextElement, Mdata>): void => {
-  tspan.attr('alignment-baseline', 'text-before-edge')
-    .text((d) => d.name || ' ')
-    .attr('x', 0)
-    .attr('dy', (d, i) => i ? d.height : 0)
+export const attrDiv = (
+  div: d3.Selection<d3.BaseType, Mdata, d3.BaseType, IsMdata>
+): void => {
+  div
+    .style('width', '100%')
+    .style('height', '100%')
+    .style('display', 'flex')
+    .style('align-items', 'center')
+    .style('font-family', 'inherit')
+    .style('font-size', 'inherit')
+    .style('cursor', 'pointer')
+    .html((d: Mdata) => d.name || ' ')
 }
 
 export const attrAddBtnRect = (rect: SelectionRect): void => {

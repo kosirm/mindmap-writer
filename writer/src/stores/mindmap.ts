@@ -11,8 +11,10 @@ export interface MindmapNode {
   path: string;            // Hierarchical path (e.g., "1", "1-1", "1-2-3")
 
   // Content
-  title: string;           // First N words (auto-extracted from content)
+  title: string;           // Explicit title (empty string = use inferred title from content)
+  inferredTitle?: string;  // Cached inferred title (computed from content)
   content: string;         // Full paragraph text
+  inferredCharCount?: number; // Optional: per-node character count for inferred title
 
   // Hierarchy
   parentId: string | null; // Reference to parent node
@@ -79,19 +81,223 @@ function generateId(): string {
 }
 
 /**
- * Extract title from content (first N words)
- * TODO: Will be used when implementing title auto-extraction from content
+ * Infer title from content (first N characters, rounded to word boundary)
+ * Now preserves HTML formatting in the returned title
+ * @param content - The content (HTML string from Tiptap)
+ * @param targetCharCount - Target character count based on plain text length (default: 20)
+ * @returns Inferred title as HTML string with formatting preserved
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function extractTitle(content: string, wordCount: number = 3): string {
-  if (!content.trim()) return 'Untitled';
+export function inferTitle(content: string, targetCharCount: number = 20): string {
+  if (!content || !content.trim()) return '';
 
-  const words = content.trim().split(/\s+/);
-  const titleWords = words.slice(0, wordCount);
-  const title = titleWords.join(' ');
+  // Parse HTML to get both plain text and DOM structure
+  const tmp = document.createElement('div');
+  tmp.innerHTML = content;
+  const plainText = tmp.textContent || '';
+  const trimmedPlainText = plainText.trim();
 
-  // Add ellipsis if there are more words
-  return words.length > wordCount ? `${title}...` : title;
+  // If content is shorter than target, return all content (as HTML)
+  if (trimmedPlainText.length <= targetCharCount) {
+    // Stop at first paragraph break for single-line titles
+    const firstParagraphEnd = content.indexOf('</p>');
+    if (firstParagraphEnd > 0) {
+      // Extract first paragraph only
+      const firstParagraph = content.substring(0, firstParagraphEnd + 4); // Include </p>
+      return firstParagraph;
+    }
+    return content;
+  }
+
+  // Check if the character at targetCharCount is a word boundary
+  const charAtTarget = trimmedPlainText.charAt(targetCharCount);
+  const wordBoundaryChars = [' ', ',', '.', '!', '?', ';', ':', '\n'];
+
+  let targetPlainTextLength = targetCharCount;
+
+  if (!wordBoundaryChars.includes(charAtTarget)) {
+    // The target position is in the middle of a word, find the last word boundary
+    const textUpToTarget = trimmedPlainText.substring(0, targetCharCount);
+    const lastSpace = Math.max(
+      textUpToTarget.lastIndexOf(' '),
+      textUpToTarget.lastIndexOf(','),
+      textUpToTarget.lastIndexOf('.'),
+      textUpToTarget.lastIndexOf('!'),
+      textUpToTarget.lastIndexOf('?'),
+      textUpToTarget.lastIndexOf(';'),
+      textUpToTarget.lastIndexOf(':')
+    );
+
+    if (lastSpace > 0) {
+      targetPlainTextLength = lastSpace;
+    }
+  }
+
+  // Now extract HTML up to targetPlainTextLength characters of plain text
+  return extractHtmlUpToLength(content, targetPlainTextLength);
+}
+
+/**
+ * Extract HTML content up to a specific plain text character count
+ * Preserves all HTML formatting (bold, italic, etc.)
+ * @param html - The HTML content
+ * @param targetLength - Target plain text character count
+ * @returns HTML string truncated to target length
+ */
+function extractHtmlUpToLength(html: string, targetLength: number): string {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+
+  let charCount = 0;
+  let result = '';
+
+  // Walk through the DOM tree and extract HTML up to targetLength characters
+  function walkNode(node: Node): boolean {
+    if (charCount >= targetLength) return false; // Stop walking
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      // Text node - count characters
+      const text = node.textContent || '';
+      const remainingChars = targetLength - charCount;
+
+      if (text.length <= remainingChars) {
+        // Include all text
+        result += text;
+        charCount += text.length;
+        return true; // Continue
+      } else {
+        // Truncate text
+        result += text.substring(0, remainingChars);
+        charCount = targetLength;
+        return false; // Stop
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      // Element node - preserve tags
+      const element = node as Element;
+      const tagName = element.tagName.toLowerCase();
+
+      // Stop at paragraph boundaries
+      if (tagName === 'p' && result.length > 0) {
+        return false; // Stop at second paragraph
+      }
+
+      result += `<${tagName}>`;
+
+      // Walk children
+      for (let i = 0; i < node.childNodes.length; i++) {
+        const childNode = node.childNodes[i];
+        if (childNode && !walkNode(childNode)) {
+          break; // Stop if child says stop
+        }
+      }
+
+      result += `</${tagName}>`;
+      return charCount < targetLength; // Continue if not done
+    }
+
+    return true; // Continue by default
+  }
+
+  // Walk all child nodes
+  for (let i = 0; i < tmp.childNodes.length; i++) {
+    const childNode = tmp.childNodes[i];
+    if (childNode && !walkNode(childNode)) {
+      break;
+    }
+  }
+
+  return result.trim();
+}
+
+/**
+ * Strip HTML tags from text
+ * @param html - HTML string
+ * @returns Plain text
+ */
+export function stripHtmlTags(html: string): string {
+  if (!html) return '';
+
+  // Create a temporary div element
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+
+  // Get text content (this automatically strips all HTML tags)
+  const text = tmp.textContent || tmp.innerText || '';
+
+  // Clean up and return
+  return text.trim();
+}
+
+/**
+ * Clean HTML tags from node title and content (recursively)
+ * @param node - The mindmap node to clean
+ */
+function cleanNodeHtml(node: MindmapNode): void {
+  // Clean title if it contains HTML tags
+  if (node.title && (node.title.includes('<') || node.title.includes('>'))) {
+    node.title = stripHtmlTags(node.title);
+  }
+
+  // Clean content if it contains HTML tags
+  if (node.content && (node.content.includes('<') || node.content.includes('>'))) {
+    node.content = stripHtmlTags(node.content);
+  }
+
+  // Recursively clean children
+  if (node.children && node.children.length > 0) {
+    node.children.forEach(child => cleanNodeHtml(child));
+  }
+}
+
+/**
+ * Normalize HTML title to ensure consistent rendering
+ * Ensures all titles have proper <p> tags with margin: 0; padding: 0;
+ * @param html - HTML string
+ * @returns Normalized HTML string
+ */
+function normalizeTitleHtml(html: string): string {
+  if (!html || html.trim() === '') return '<p style="margin: 0; padding: 0;"></p>';
+
+  // If it's plain text (no HTML tags), wrap it in a <p> tag
+  if (!html.includes('<')) {
+    return `<p style="margin: 0; padding: 0;">${html}</p>`;
+  }
+
+  // If it already has <p> tags, ensure they have the correct inline styles
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+
+  // Find all <p> tags and add inline styles
+  const paragraphs = tmp.querySelectorAll('p');
+  paragraphs.forEach(p => {
+    p.setAttribute('style', 'margin: 0; padding: 0;');
+  });
+
+  return tmp.innerHTML;
+}
+
+/**
+ * Get display title for a node (explicit or inferred)
+ * @param node - The mindmap node
+ * @param defaultCharCount - Default character count for inference (default: 20)
+ * @returns Display title string (normalized HTML)
+ */
+export function getDisplayTitle(node: MindmapNode, defaultCharCount: number = 20): string {
+  let title: string;
+
+  // If node has explicit title, use it
+  if (node.title && node.title.trim() !== '') {
+    title = node.title;
+  } else if (node.inferredTitle) {
+    // Otherwise, use cached inferred title if available
+    title = node.inferredTitle;
+  } else {
+    // Fallback: calculate on the fly (shouldn't happen if updateInferredTitles is called)
+    const charCount = node.inferredCharCount || defaultCharCount;
+    title = inferTitle(node.content, charCount);
+  }
+
+  // Normalize the HTML to ensure consistent rendering
+  return normalizeTitleHtml(title);
 }
 
 /**
@@ -110,7 +316,9 @@ function convertLegacyToNode(
     id,
     path,
     title: legacy.name,
-    content: legacy.name, // Legacy format doesn't have separate content
+    // Initialize content as empty - user must explicitly add content in Content Editor
+    // This prevents the content icon from appearing on newly created nodes
+    content: '',
     parentId,
     order,
     children: [],
@@ -138,16 +346,29 @@ function convertLegacyToNode(
  * Used for rendering in vue3-mindmap component
  */
 function convertNodeToLegacy(node: MindmapNode): MindmapData {
-  // Auto-add 'content' icon if node has content different from title
+  // Get display title (explicit or inferred)
+  const displayTitle = getDisplayTitle(node);
+
+  // Auto-add 'content' icon if node has actual text content
   const icons = [...node.icons];
-  if (node.content && node.content.trim() !== '' && node.content !== node.title) {
-    if (!icons.includes('content')) {
-      icons.push('content');
+
+  // Only check for content icon if content exists and is not empty
+  if (node.content && node.content.trim() !== '') {
+    // Check if content has actual text (not just empty HTML tags like <p></p> or <p><br></p>)
+    const tmp = document.createElement('div');
+    tmp.innerHTML = node.content;
+    const textContent = tmp.textContent || '';
+
+    // Only add icon if there's actual text content (not just whitespace)
+    if (textContent.trim() !== '') {
+      if (!icons.includes('content')) {
+        icons.push('content');
+      }
     }
   }
 
   const legacy: MindmapData = {
-    name: node.title,
+    name: displayTitle,
     left: node.metadata.left,
     collapse: node.metadata.collapsed,
     icons: icons.length > 0 ? icons : undefined
@@ -186,11 +407,32 @@ export const useMindmapStore = defineStore('mindmap', () => {
   const currentDocument = ref<MindmapNode | null>(null);
 
   /**
+   * Version counter to force reactivity when nested properties change
+   */
+  const documentVersion = ref(0);
+
+  /**
    * Legacy format for vue3-mindmap component (computed from currentDocument)
    */
   const legacyDocument = computed<MindmapData | null>(() => {
+    // Access documentVersion to make this computed depend on it
+    const version = documentVersion.value;
+
+    console.log('[Store] legacyDocument computed called', {
+      version,
+      hasCurrentDoc: !!currentDocument.value,
+      timestamp: new Date().toISOString()
+    });
+
     if (!currentDocument.value) return null;
-    return convertNodeToLegacy(currentDocument.value);
+    const legacy = convertNodeToLegacy(currentDocument.value);
+
+    console.log('[Store] legacyDocument computed result', {
+      rootName: legacy.name,
+      hasChildren: !!legacy.children
+    });
+
+    return legacy;
   });
 
   /**
@@ -338,10 +580,17 @@ export const useMindmapStore = defineStore('mindmap', () => {
    * Preserves IDs and timestamps
    */
   function updateNodeFromLegacy(node: MindmapNode, legacy: MindmapData): void {
-    // Update title and content
-    node.title = legacy.name;
-    node.content = legacy.name; // In legacy format, name is the content
-    node.updatedAt = new Date();
+    // Check if the title actually changed (user edited it in mindmap)
+    // If node has empty title (inferred mode), only update if user explicitly set a title
+    const currentDisplayTitle = getDisplayTitle(node);
+    const titleChanged = legacy.name !== currentDisplayTitle;
+
+    if (titleChanged) {
+      // User edited the title in mindmap - set it as explicit title
+      node.title = legacy.name;
+      node.updatedAt = new Date();
+    }
+    // If title didn't change, don't update it (preserve inferred mode)
 
     // Update icons (filter out auto-added 'content' icon)
     node.icons = (legacy.icons || []).filter(icon => icon !== 'content');
@@ -384,10 +633,43 @@ export const useMindmapStore = defineStore('mindmap', () => {
   }
 
   /**
+   * Update inferred titles for a node and all its children recursively
+   */
+  function updateInferredTitles(node: MindmapNode): void {
+    // Update inferred title for this node
+    if (node.title === '' || !node.title) {
+      const charCount = node.inferredCharCount || 20;
+      node.inferredTitle = inferTitle(node.content, charCount);
+    } else {
+      // If node has explicit title, clear inferred title
+      delete node.inferredTitle;
+    }
+
+    // Recursively update children
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => updateInferredTitles(child));
+    }
+  }
+
+  /**
    * Update the current document data (extended format)
    */
   function updateDocument(data: MindmapNode): void {
+    console.log('[Store] updateDocument called', {
+      dataId: data.id,
+      dataPath: data.path,
+      dataTitle: data.title,
+      dataContent: data.content
+    });
+
+    // Update inferred titles for all nodes
+    updateInferredTitles(data);
+
     currentDocument.value = data;
+
+    // Increment version to force reactivity for nested property changes
+    documentVersion.value++;
+
     isDirty.value = true;
 
     if (documentMetadata.value) {
@@ -449,6 +731,9 @@ export const useMindmapStore = defineStore('mindmap', () => {
 
       // Restore dates from JSON strings
       const restoredData = restoreDatesInNode(parsed.data);
+
+      // Clean HTML tags from old data
+      cleanNodeHtml(restoredData);
 
       currentDocument.value = restoredData;
       documentMetadata.value = {
@@ -612,6 +897,9 @@ export const useMindmapStore = defineStore('mindmap', () => {
 
       // Restore dates from JSON strings
       const restoredData = restoreDatesInNode(parsed.data);
+
+      // Clean HTML tags from imported data
+      cleanNodeHtml(restoredData);
 
       currentDocument.value = restoredData;
       documentMetadata.value = {

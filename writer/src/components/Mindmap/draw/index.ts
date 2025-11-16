@@ -1,6 +1,6 @@
-import type { TspanData, Mdata, SelectionG, IsMdata } from '../interface'
+import type { Mdata, SelectionG, IsMdata } from '../interface'
 import * as d3 from '../d3'
-import { attrA, attrAddBtnRect, attrExpandBtnCircle, attrExpandBtnRect, attrG, attrPath, attrText, attrTspan, getSiblingGClass, getTspanData } from '../attribute'
+import { attrA, attrAddBtnRect, attrExpandBtnCircle, attrExpandBtnRect, attrG, attrPath, attrForeignObject, attrDiv, getSiblingGClass } from '../attribute'
 import { getAddPath, makeTransition } from '../assistant'
 import { addBtnRect, addNodeBtn, drag, mmprops, selection, currentOrientation } from '../variable'
 import { mmdata } from '../data'
@@ -52,20 +52,7 @@ const getVisualChildren = (node: Mdata): Mdata[] => {
   return children
 }
 
-export const appendTspan = (
-  enter: d3.Selection<d3.EnterElement, TspanData, SVGTextElement, Mdata>
-): d3.Selection<SVGTSpanElement, TspanData, SVGTextElement, Mdata> => {
-  const tspan = enter.append('tspan')
-  attrTspan(tspan)
-  return tspan
-}
 
-export const updateTspan = (
-  update: d3.Selection<SVGTSpanElement, TspanData, SVGTextElement, Mdata>
-): d3.Selection<SVGTSpanElement, TspanData, SVGTextElement, Mdata> => {
-  attrTspan(update)
-  return update
-}
 
 export const appendAddBtn = (g: SelectionG): d3.Selection<SVGGElement, Mdata, SVGGElement, IsMdata> => {
   const gAddBtn = g.append('g')
@@ -94,18 +81,68 @@ const bindEvent = (g: SelectionG, isRoot: boolean) => {
   gExpandBtn.on('click', onClickExpandBtn)
 
   const gContent = g.select<SVGGElement>(`:scope > g.${style.content}`)
+  const gTrigger = gContent.select<SVGRectElement>(`:scope > rect.${style.trigger}`)
 
   if (mmprops.value.drag || mmprops.value.edit) {
     const gText = gContent.select<SVGGElement>(`:scope > g.${style.text}`)
-    gText.on('mousedown', onSelect)
+    const gTextNode = gText.node();
+    // Now we use foreignObject instead of text element
+    const foreignObject = gText.select<SVGForeignObjectElement>(':scope > foreignObject')
+    const foreignObjectNode = foreignObject.node();
+    const gTriggerNode = gTrigger.node();
+    const gTextRect = gText.select(':scope > rect')
+    const gTextRectNode = gTextRect.node();
+
+    console.log('[Mindmap draw] bindEvent - binding events', {
+      gTextEmpty: gText.empty(),
+      gTextNode,
+      gTextNodePointerEvents: gTextNode ? window.getComputedStyle(gTextNode as Element).pointerEvents : 'N/A',
+      foreignObjectEmpty: foreignObject.empty(),
+      foreignObjectNode,
+      foreignObjectPointerEvents: foreignObjectNode ? window.getComputedStyle(foreignObjectNode as Element).pointerEvents : 'N/A',
+      gTriggerNode,
+      gTriggerPointerEvents: gTriggerNode ? window.getComputedStyle(gTriggerNode as Element).pointerEvents : 'N/A',
+      gTriggerDimensions: gTriggerNode ? {
+        x: gTriggerNode.getAttribute('x'),
+        y: gTriggerNode.getAttribute('y'),
+        width: gTriggerNode.getAttribute('width'),
+        height: gTriggerNode.getAttribute('height')
+      } : 'N/A',
+      gTextRectNode,
+      gTextRectPointerEvents: gTextRectNode ? window.getComputedStyle(gTextRectNode as Element).pointerEvents : 'N/A',
+      isRoot
+    });
+
+    // Add mousedown listener to gTrigger to see if it's capturing events
+    gTrigger.on('mousedown', (e: MouseEvent, d: Mdata) => {
+      console.log('[Mindmap draw] gTrigger mousedown fired', {
+        nodeId: d.id,
+        nodeName: d.name,
+        target: e.target,
+        currentTarget: e.currentTarget,
+        targetTagName: (e.target as Element)?.tagName,
+        targetClass: (e.target as Element)?.className
+      });
+    })
+
+    gText.on('mousedown', (e: MouseEvent, d: Mdata) => {
+      console.log('[Mindmap draw] gText mousedown fired', {
+        nodeId: d.id,
+        nodeName: d.name,
+        target: e.target,
+        currentTarget: e.currentTarget
+      });
+      onSelect(e, d);
+    })
+
     if (mmprops.value.drag && !isRoot) { drag(gText) }
 
-    // Bind edit to text element only
+    // Bind edit to foreignObject (HTML rendering)
     if (mmprops.value.edit) {
-      const textElement = gText.select(':scope > text')
-      textElement.on('click', (e: MouseEvent, d: Mdata) => {
+      foreignObject.on('click', (e: MouseEvent, d: Mdata) => {
+        console.log('[Mindmap draw] foreignObject clicked', { nodeId: d.id, nodeName: d.name });
         // Get the parent gText element from the event target
-        const target = e.currentTarget as SVGTextElement
+        const target = e.currentTarget as SVGForeignObjectElement
         const gTextNode = target?.parentElement
         if (gTextNode && gTextNode instanceof SVGGElement) {
           onEdit.call(gTextNode, e, d)
@@ -146,13 +183,16 @@ const appendNode = (enter: d3.Selection<d3.EnterElement, Mdata, SVGGElement, IsM
   const gIcons = gIconsContainer.append('g').attr('class', 'node-icons')
   attrIcons(gIcons) // Render icons within container
 
-  // 绘制文本组 (separate from icons)
+  // 绘制文本组 (separate from icons) - HTML rendering with foreignObject
   const gText = gContent.append('g').attr('class', style.text)
   const gTextRect = gText.append('rect')
-  const text = gText.append('text')
-  attrText(text)
-  const tspan = text.selectAll('tspan').data(getTspanData).enter().append('tspan')
-  attrTspan(tspan)
+  const foreignObject = gText.append('foreignObject')
+  attrForeignObject(foreignObject)
+  const div = foreignObject.append('xhtml:div')
+  attrDiv(div)
+
+  // Debug: Add data attribute to help identify nodes
+  enterG.attr('data-node-name', (d: Mdata) => d.name || 'EMPTY')
   // 绘制添加按钮
   let gAddBtn
   if (addNodeBtn.value) { gAddBtn = appendAndBindAddBtn(gContent) }
@@ -192,14 +232,13 @@ const updateNode = (update: SelectionG) => {
   const gIcons = gIconsContainer.select<SVGGElement>(':scope > g.node-icons')
   attrIcons(gIcons) // Render icons within container
 
-  // Update text
+  // Update text - HTML rendering with foreignObject
   const gText = gContent.select<SVGGElement>(`:scope > g.${style.text}`)
   const gTextRect = gText.select<SVGRectElement>(':scope > rect')
-  const text = gText.select<SVGTextElement>(':scope > text')
-  attrText(text, tran)
-  text.selectAll<SVGTSpanElement, TspanData>('tspan')
-    .data(getTspanData)
-    .join(appendTspan, updateTspan, (exit: d3.Selection<SVGTSpanElement, TspanData, SVGTextElement, Mdata>) => exit.remove())
+  const foreignObject = gText.select<SVGForeignObjectElement>(':scope > foreignObject')
+  attrForeignObject(foreignObject, tran)
+  const div = foreignObject.select('div') as d3.Selection<d3.BaseType, Mdata, d3.BaseType, IsMdata>
+  attrDiv(div)
   let gAddBtn = gContent.select<SVGGElement>(`g.${style['add-btn']}`)
   const gExpandBtn = gContent.select<SVGGElement>(`g.${style['expand-btn']}`)
   if (addNodeBtn.value) {
@@ -209,6 +248,9 @@ const updateNode = (update: SelectionG) => {
   }
 
   attrA(isRoot, gTrigger, gTextRect, gExpandBtn, gAddBtn, gIconsRect)
+
+  // Rebind events on update (important for reactivity)
+  bindEvent(update, isRoot)
 
   update.each((d: Mdata, i: number) => {
     // Always draw children (even if empty array) to properly handle deletions

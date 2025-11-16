@@ -306,6 +306,26 @@ class ImData {
     return data.id === id ? data : null
   }
 
+  /**
+   * Find a node by its rawData reference (stable across tree structure changes)
+   */
+  findByRawData (rawData: Data): IsMdata {
+    const findInTree = (node: Mdata): IsMdata => {
+      if (node.rawData === rawData) {
+        return node
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          const found = findInTree(child)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    return findInTree(this.data)
+  }
+
   rename (id: string, name: string): IsMdata { // 修改名称
     if (id.length > 0) {
       const d = this.find(id)
@@ -561,11 +581,103 @@ class ImData {
     return null
   }
 
-  changeLeft (id: string): IsMdata {
-    const d = this.find(id)
+  changeLeft (rawData: Data, dropY?: number): IsMdata {
+    console.log('[ImData.changeLeft] Called with rawData:', rawData.name, 'dropY:', dropY);
+    const d = this.findByRawData(rawData)
     if (d) {
+      console.log('[ImData.changeLeft] Found node BEFORE change:', {
+        id: d.id,
+        name: d.name,
+        gKey: d.gKey,
+        currentLeft: d.left,
+        newLeft: !d.left,
+        rawDataLeft: d.rawData.left,
+        currentY: d.y,
+        parentId: d.parent?.id,
+        parentName: d.parent?.name
+      });
+
+      // Log all siblings before change
+      if (d.parent) {
+        console.log('[ImData.changeLeft] Parent children BEFORE change:',
+          d.parent.children.map(c => ({ id: c.id, name: c.name, gKey: c.gKey, left: c.left, y: c.y }))
+        );
+      }
+
       d.left = !d.left
+      // Update rawData.left to persist the change
+      d.rawData.left = d.left
+
+      // If dropY is provided, reorder children based on drop position
+      if (dropY !== undefined && d.parent) {
+        console.log('[ImData.changeLeft] Reordering children based on dropY:', dropY);
+
+        // Remove the node from its current position
+        const nodeIndex = d.parent.children.indexOf(d)
+        if (nodeIndex !== -1) {
+          d.parent.children.splice(nodeIndex, 1)
+        }
+
+        // Find siblings on the new side and their y positions
+        const siblingsOnNewSide = d.parent.children.filter(c => c.left === d.left)
+        console.log('[ImData.changeLeft] Siblings on new side:',
+          siblingsOnNewSide.map(c => ({ id: c.id, name: c.name, y: c.y }))
+        );
+
+        // Find the insertion index based on dropY
+        let insertIndex = d.parent.children.length // Default: insert at end
+
+        if (siblingsOnNewSide.length > 0) {
+          // Find the first sibling on the new side that has y > dropY
+          for (let i = 0; i < d.parent.children.length; i++) {
+            const child = d.parent.children[i]
+            if (child && child.left === d.left && child.y > dropY) {
+              insertIndex = i
+              break
+            }
+          }
+        }
+
+        console.log('[ImData.changeLeft] Inserting at index:', insertIndex);
+        d.parent.children.splice(insertIndex, 0, d)
+
+        console.log('[ImData.changeLeft] Children after reordering:',
+          d.parent.children.map(c => ({ id: c.id, name: c.name, left: c.left }))
+        );
+      }
+
+      console.log('[ImData.changeLeft] After property change, BEFORE renew:', {
+        id: d.id,
+        gKey: d.gKey,
+        left: d.left,
+        rawDataLeft: d.rawData.left
+      });
       this.renew()
+
+      // Find the node again after renew to see its new state
+      const dAfterRenew = this.findByRawData(rawData)
+      if (dAfterRenew) {
+        console.log('[ImData.changeLeft] Found node AFTER renew:', {
+          id: dAfterRenew.id,
+          name: dAfterRenew.name,
+          gKey: dAfterRenew.gKey,
+          left: dAfterRenew.left,
+          rawDataLeft: dAfterRenew.rawData.left,
+          x: dAfterRenew.x,
+          y: dAfterRenew.y,
+          parentId: dAfterRenew.parent?.id,
+          parentName: dAfterRenew.parent?.name
+        });
+
+        // Log all siblings after change
+        if (dAfterRenew.parent) {
+          console.log('[ImData.changeLeft] Parent children AFTER renew:',
+            dAfterRenew.parent.children.map(c => ({ id: c.id, name: c.name, gKey: c.gKey, left: c.left, x: c.x, y: c.y }))
+          );
+        }
+      }
+    } else {
+      console.error('[ImData.changeLeft] Node not found with rawData:', rawData.name);
     }
     return d
   }

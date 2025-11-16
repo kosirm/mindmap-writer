@@ -160,7 +160,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { useMindmapStore, type MindmapNode } from 'stores/mindmap';
+import { useMindmapStore, type MindmapNode, getDisplayTitle, stripHtmlTags } from 'stores/mindmap';
 import { useViewSync } from 'src/composables/useViewSync';
 
 interface TreeNode {
@@ -194,9 +194,10 @@ const treeNodes = computed(() => {
   if (!doc) return [];
 
   function convertToTreeNode(node: MindmapNode): TreeNode {
+    const displayTitle = getDisplayTitle(node) || 'Untitled';
     const treeNode: TreeNode = {
       id: node.id,
-      label: node.title || 'Untitled'
+      label: stripHtmlTags(displayTitle)
     };
 
     if (node.children && node.children.length > 0) {
