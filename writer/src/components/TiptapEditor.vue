@@ -56,12 +56,14 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
+import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { MindmapNode } from 'stores/mindmap';
-import { inferTitle } from 'stores/mindmap';
+import { inferTitle, getDisplayTitle } from 'stores/mindmap';
 import { useViewSync } from 'src/composables/useViewSync';
 import { InferredTitleMark } from './TiptapExtensions/InferredTitleMark';
+import { MindmapNodeExtension } from './TiptapExtensions/MindmapNodeExtension';
 
 interface Props {
   modelValue: MindmapNode | null;
@@ -151,6 +153,7 @@ const editor = useEditor({
     InferredTitleMark.configure({
       onResize: handleInferredTitleResize,
     }),
+    MindmapNodeExtension, // Custom extension for Full Document mode
   ],
   content: '',
   editorProps: {
@@ -190,25 +193,94 @@ const editor = useEditor({
   },
 });
 
-// Convert MindmapNode tree to HTML for display
-function convertNodeToHTML(node: MindmapNode | null): string {
-  if (!node) return '';
+/**
+ * Extract plain text from HTML string
+ */
+function htmlToText(html: string): string {
+  if (!html || html.trim() === '') return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || '';
+}
 
-  let html = '';
+/**
+ * Convert MindmapNode tree to Tiptap JSON format for Full Document mode
+ * Each node becomes a MindmapNode block with title and content
+ */
+function convertNodeToTiptapJSON(node: MindmapNode, depth: number = 0): JSONContent[] {
+  if (!node) return [];
 
-  // Add current node content (already HTML)
-  if (node.content) {
-    html += node.content;
+  const result: JSONContent[] = [];
+
+  // Check if title is inferred
+  let titleHasContent = false;
+  if (node.title && node.title.trim() !== '') {
+    const textContent = htmlToText(node.title);
+    titleHasContent = textContent.trim() !== '';
   }
+  const isInferredTitle = !titleHasContent;
+
+  // Get display title (explicit or inferred) and extract text
+  const displayTitleHtml = getDisplayTitle(node);
+  const displayTitle = htmlToText(displayTitleHtml);
+
+  // Create title paragraph
+  const titleParagraph: JSONContent = {
+    type: 'paragraph',
+    content: displayTitle ? [{ type: 'text', text: displayTitle }] : [],
+  };
+
+  // Parse content HTML to Tiptap JSON
+  const contentParagraphs: JSONContent[] = [];
+  if (node.content && node.content.trim() !== '') {
+    // Extract text content from HTML
+    const textContent = htmlToText(node.content);
+    if (textContent.trim() !== '') {
+      contentParagraphs.push({
+        type: 'paragraph',
+        content: [{ type: 'text', text: textContent }],
+      });
+    }
+  }
+
+  // Create the mindmap node block
+  const mindmapNodeBlock: JSONContent = {
+    type: 'mindmapNode',
+    attrs: {
+      nodeId: node.id,
+      depth: depth,
+      isInferredTitle: isInferredTitle,
+    },
+    content: [titleParagraph, ...contentParagraphs],
+  };
+
+  result.push(mindmapNodeBlock);
 
   // Recursively add children
   if (node.children && node.children.length > 0) {
     for (const child of node.children) {
-      html += convertNodeToHTML(child);
+      result.push(...convertNodeToTiptapJSON(child, depth + 1));
     }
   }
 
-  return html;
+  return result;
+}
+
+/**
+ * Convert MindmapNode tree to Tiptap document JSON
+ */
+function convertNodeTreeToDocument(node: MindmapNode | null): JSONContent {
+  if (!node) {
+    return {
+      type: 'doc',
+      content: [],
+    };
+  }
+
+  return {
+    type: 'doc',
+    content: convertNodeToTiptapJSON(node, 0),
+  };
 }
 
 // Helper function to find node by ID
@@ -338,8 +410,8 @@ watch(() => props.modelValue, (newValue) => {
   if (editorMode.value !== 'full') return; // Only update in full mode
 
   isUpdatingFromStore.value = true;
-  const html = convertNodeToHTML(newValue);
-  editor.value.commands.setContent(html);
+  const docJSON = convertNodeTreeToDocument(newValue);
+  editor.value.commands.setContent(docJSON);
   isUpdatingFromStore.value = false;
 }, { deep: true });
 
@@ -354,8 +426,8 @@ watch(editorMode, (newMode, oldMode) => {
   if (newMode === 'full') {
     // Switch to Full Document mode
     console.log('[TiptapEditor] Switching to Full Document mode');
-    const html = convertNodeToHTML(props.modelValue);
-    editor.value.commands.setContent(html);
+    const docJSON = convertNodeTreeToDocument(props.modelValue);
+    editor.value.commands.setContent(docJSON);
     editor.value.setOptions({
       editorProps: {
         attributes: {
@@ -522,8 +594,12 @@ watch(() => {
 // Initialize content on mount
 onMounted(() => {
   if (editor.value && props.modelValue) {
-    const html = convertNodeToHTML(props.modelValue);
-    editor.value.commands.setContent(html);
+    if (editorMode.value === 'full') {
+      const docJSON = convertNodeTreeToDocument(props.modelValue);
+      editor.value.commands.setContent(docJSON);
+    } else {
+      // In node mode, content is set by the selectedNode watcher
+    }
   }
 
   // Debug: Add global event listeners to track all clicks
