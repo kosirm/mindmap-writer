@@ -57,9 +57,11 @@ export const attrDiv = (
     .style('height', '100%')
     .style('display', 'flex')
     .style('align-items', 'center')
+    .style('justify-content', 'center')
     .style('font-family', 'inherit')
     .style('font-size', 'inherit')
     .style('cursor', 'pointer')
+    .style('background-color', (d: Mdata) => d.isInferredTitle ? 'rgba(240, 240, 240, 0.7)' : 'white')
     .html((d: Mdata) => d.name || ' ')
 }
 
@@ -89,6 +91,7 @@ export const attrTextRect = (rect: SelectionRect, padding: number, radius = 4): 
     .attr('rx', radius).attr('ry', radius)
     .attr('width', (d) => d.width + padding * 2)
     .attr('height', (d) => d.height + padding * 2)
+    // Note: Background color is now set on the div inside foreignObject (see attrDiv)
 }
 
 export const attrIconsRect = (rect: SelectionRect, padding: number, radius = 4): void => {

@@ -33,6 +33,10 @@ export const moveSibling = (id: string, referenceId: string, after = 0): void =>
   mmdata.moveSibling(id, referenceId, after)
   afterOperation()
 }
+export const reorderSibling = (rawData: Data, dropY: number): void => {
+  mmdata.reorderSibling(rawData, dropY)
+  afterOperation()
+}
 export const add = (id: string, name: string | Data): IsMdata => {
   const d = mmdata.add(id, name)
   afterOperation()

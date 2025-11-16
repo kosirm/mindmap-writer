@@ -38,7 +38,7 @@ $seleColor: rgba($color: blue, $alpha: 0.15);
   }
 
   foreignObject {
-    background-color: white;
+    background-color: transparent; // Transparent so rect background shows through
     border: 1px solid #aaa;
 
     div {
