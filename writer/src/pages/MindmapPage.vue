@@ -260,8 +260,8 @@
                   v-model="textEditorMode"
                   toggle-color="primary"
                   :options="[
-                    { value: 'full', icon: 'description' },
-                    { value: 'node', icon: 'article' }
+                    { value: 'full', icon: 'description', slot: 'full' },
+                    { value: 'node', icon: 'article', slot: 'node' }
                   ]"
                   size="sm"
                   dense
@@ -515,11 +515,15 @@ watch(() => store.documentId, (newId: string | null, oldId: string | null | unde
 const mindmapData = computed<MindmapData[]>({
   get: () => {
     const legacy = store.legacyDocument ? [store.legacyDocument] : [{ name: 'Root' }];
-    console.log('mindmapData getter:', legacy);
+    console.log('[MindmapPage] mindmapData getter called:', {
+      hasLegacy: !!store.legacyDocument,
+      rootName: legacy[0]?.name,
+      timestamp: new Date().toISOString()
+    });
     return legacy;
   },
   set: (newData) => {
-    console.log('mindmapData setter:', newData);
+    console.log('[MindmapPage] mindmapData setter called:', newData);
     if (newData && newData[0]) {
       store.updateDocumentFromLegacy(newData[0]);
     }
@@ -626,22 +630,84 @@ function handleNewDocument() {
 
 // Handle text editor updates (Full Document mode)
 function handleTextEditorUpdate(updatedNode: MindmapNode) {
-  // TODO: Implement proper sync logic
-  // For now, just log the update
-  console.log('Text editor updated:', updatedNode);
+  console.log('[MindmapPage] handleTextEditorUpdate called', {
+    nodeId: updatedNode.id,
+    title: updatedNode.title,
+    inferredTitle: updatedNode.inferredTitle,
+    inferredCharCount: updatedNode.inferredCharCount
+  });
+
+  // Update the store to trigger reactivity
+  if (store.currentDocument) {
+    store.updateDocument(store.currentDocument);
+  }
+  store.updateDocument(updatedNode);
 }
 
 // Handle node content updates (Node Content mode)
-function handleNodeContentUpdate(nodeId: string, content: string) {
+function handleNodeContentUpdate(nodeId: string, htmlContent: string) {
+  console.log('[MindmapPage] handleNodeContentUpdate called', {
+    nodeId,
+    htmlContent,
+    htmlLength: htmlContent.length
+  });
+
+  // Store HTML directly (no conversion needed)
+  console.log('[MindmapPage] Storing HTML content directly');
+
   // Find the node and update its content
   const node = findNodeById(store.currentDocument, nodeId);
   if (node) {
-    node.content = content;
+    console.log('[MindmapPage] Found node, updating content', {
+      nodeId: node.id,
+      nodePath: node.path,
+      oldContent: node.content,
+      newContent: htmlContent,
+      oldTitle: node.title,
+      titleIsEmpty: node.title === ''
+    });
+
+    // Update the node content with HTML directly
+    node.content = htmlContent;
+
+    // DON'T touch the title - if it's empty, it will be inferred from content
+    // If it's not empty, it's an explicit title and should remain unchanged
+
     node.updatedAt = new Date();
-    // Mark as dirty and auto-save
-    store.save();
+
+    console.log('[MindmapPage] After update', {
+      newContent: node.content,
+      title: node.title,
+      titleIsEmpty: node.title === ''
+    });
+
+    // Trigger reactivity by creating a new reference to the root document
+    // This forces Vue to detect the change and re-render the mindmap
+    if (store.currentDocument) {
+      console.log('[MindmapPage] Triggering store update');
+      // Create a deep copy to trigger reactivity
+      const updatedDoc = JSON.parse(JSON.stringify(store.currentDocument));
+      // Restore Date objects
+      restoreDates(updatedDoc);
+      store.updateDocument(updatedDoc);
+    }
+  } else {
+    console.error('[MindmapPage] Node not found!', { nodeId });
   }
 }
+
+/**
+ * Restore Date objects after JSON.parse (recursively)
+ */
+function restoreDates(node: MindmapNode): void {
+  node.createdAt = new Date(node.createdAt);
+  node.updatedAt = new Date(node.updatedAt);
+  if (node.children && node.children.length > 0) {
+    node.children.forEach(child => restoreDates(child));
+  }
+}
+
+
 
 // ============================================================================
 // EVENT BUS - Mindmap View Sync

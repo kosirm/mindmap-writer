@@ -1,10 +1,11 @@
 import style from '../css'
 import { add, addSibling, del, collapse, expand, moveChild, moveSibling, mmdata } from '../data'
 import { getSelectedGData, selectGNode } from '../assistant'
-import { edit, onEditBlur } from './listener'
+import { edit } from './listener'
 import type { Mdata, Data } from '../interface'
 import { selection } from '../variable'
-import { wrapperEle, foreignDivEle } from '../variable/element'
+import { wrapperEle } from '../variable/element'
+import emitter from '../../../mitt'
 
 /**
  * Helper function to find a node by its rawData reference after structure changes
@@ -577,13 +578,8 @@ const handleEscape = (): void => {
   const editedNode = document.getElementsByClassName(style.edited)[0]
 
   if (editedNode) {
-    // Blur the editing div to remove focus
-    if (foreignDivEle.value) {
-      foreignDivEle.value.blur()
-    }
-
-    // We're in edit mode - exit editing but keep node selected
-    onEditBlur()
+    // We're in edit mode - trigger editor cancel
+    emitter.emit('editor-cancel')
 
     // Re-select the node after exiting edit mode
     const gNode = editedNode as SVGGElement

@@ -34,6 +34,7 @@ $seleColor: rgba($color: blue, $alpha: 0.15);
   text {
     fill: #4B4B4B;
     cursor: default;
+    pointer-events: all;
   }
 
   foreignObject {
@@ -52,6 +53,7 @@ $seleColor: rgba($color: blue, $alpha: 0.15);
 
   .trigger {
     fill: transparent;
+    pointer-events: none; // Don't capture events - let them pass through to gText
   }
 
   &.dragging .add-btn { visibility: hidden; }
@@ -93,6 +95,7 @@ $seleColor: rgba($color: blue, $alpha: 0.15);
     fill: $seleColor;
     stroke-width: 1;
     stroke: white;
+    pointer-events: none;
   }
 
   // 关于selected

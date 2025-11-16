@@ -14,6 +14,9 @@ emitter.on('mmdata', (val: ImData) => val ? mmdata = val : null)
 
 export const afterOperation = (snap = true): void => {
   if (snap) { snapshot.snap(mmdata.data) }
+  // Emit internal-update event BEFORE emitting update:modelValue
+  // This tells Mindmap.vue to skip recreating ImData when the change came from the mindmap itself
+  emitter.emit('internal-update')
   mmcontext.emit('update:modelValue', cloneDeep([mmdata.data.rawData]))
   updateTimeTravelState()
   draw()
@@ -61,7 +64,7 @@ export const addParent = (id: string, name: string): IsMdata => {
   afterOperation()
   return d
 }
-export const changeLeft = (id: string): void => {
-  mmdata.changeLeft(id)
+export const changeLeft = (rawData: Data, dropY?: number): void => {
+  mmdata.changeLeft(rawData, dropY)
   afterOperation()
 }

@@ -3,8 +3,8 @@ import { ctm, editFlag, selection, textRectPadding, zoomTransform } from '../var
 import * as d3 from '../d3'
 import type { Mdata } from '../interface'
 import { fitView, getRelativePos, getSelectedGData, isData, moveNode, moveView, scaleView, selectGNode } from '../assistant'
-import { add, addParent, addSibling, changeLeft, collapse, del, delOne, expand, mmdata, moveChild, moveSibling, rename } from '../data'
-import { svgEle, gEle, foreignDivEle, wrapperEle, foreignEle } from '../variable/element'
+import { add, addParent, addSibling, changeLeft, collapse, del, delOne, expand, mmdata, moveChild, moveSibling } from '../data'
+import { svgEle, gEle, wrapperEle } from '../variable/element'
 import emitter from '../../../mitt'
 import { getDataId, getSiblingGClass } from '../attribute'
 import type { MenuEvent } from '../variable/contextmenu'
@@ -33,6 +33,7 @@ export const onZoomMove = (e: d3.D3ZoomEvent<SVGSVGElement, null>): void => {
 }
 
 export const onSelect = (e: MouseEvent, d: Mdata): void => {
+  console.log('[Mindmap listener] onSelect called', { nodeId: d.id, nodeName: d.name, event: e.type });
   e.stopPropagation()
   selectGNode(d)
   // Emit event for cross-view synchronization
@@ -40,24 +41,40 @@ export const onSelect = (e: MouseEvent, d: Mdata): void => {
 }
 
 /**
- * 进入编辑状态
+ * 进入编辑状态 - Now uses Tiptap editor
  * @param this - gText
  */
 export function onEdit (this: SVGGElement, _e: MouseEvent, d: Mdata): void {
+  console.log('[Mindmap listener] onEdit called', { nodeId: d.id, nodeName: d.name, editFlag });
   const gNode = this.parentNode?.parentNode as SVGGElement
   const { foreign } = selection
-  if (editFlag && foreign && foreignDivEle.value) {
+  if (editFlag && foreign) {
     gNode.classList.add(style.edited)
     emitter.emit('edit-flag', false)
+
+    // Position and size the foreignObject overlay
     foreign.attr('x', d.x - 2 - (d.left ? d.width : 0))
       .attr('y', d.y - mmdata.data.y - 2)
+      .attr('width', d.width + 4)
+      .attr('height', d.height + 4)
       .attr('data-id', d.id)
       .attr('data-name', d.name)
       .style('display', '')
-    const div = foreignDivEle.value
-    div.textContent = d.name
-    div.focus()
-    getSelection()?.selectAllChildren(div)
+
+    console.log('[Mindmap listener] foreignObject positioned', {
+      x: d.x - 2 - (d.left ? d.width : 0),
+      y: d.y - mmdata.data.y - 2,
+      width: d.width + 4,
+      height: d.height + 4
+    })
+
+    // Emit event to trigger Tiptap editor
+    emitter.emit('start-edit', {
+      nodeId: d.id,
+      content: d.name,
+      oldName: d.name
+    })
+
     const gContent = gNode.querySelector<SVGGElement>(`:scope > .${style.content}`)
     if (gContent) {
       moveView(gContent)
@@ -65,19 +82,7 @@ export function onEdit (this: SVGGElement, _e: MouseEvent, d: Mdata): void {
   }
 }
 
-export const onEditBlur = (): void => {
-  document.getElementsByClassName(style.edited)[0]?.classList.remove(style.edited, style.selected)
-
-  if (foreignEle.value && foreignDivEle.value) {
-    foreignEle.value.style.display = 'none'
-    const id = foreignEle.value.getAttribute('data-id')
-    const oldname = foreignEle.value.getAttribute('data-name')
-    const name = foreignDivEle.value.textContent
-    if (id && name !== null && name !== oldname) {
-      rename(id, name)
-    }
-  }
-}
+// onEditBlur is no longer needed - handled by Tiptap editor's save/cancel events
 
 export const onContextmenu = (e: MouseEvent): void => {
   e.preventDefault()
@@ -194,7 +199,23 @@ export function onDragMove (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Md
   if (svgEle.value) { svgEle.value.classList.add(style.dragging) }
   const { g } = selection
   if (!g) { return }
-  moveNode(gNode, d, [e.x - d.x, e.y - d.y])
+
+  const dragOffset: [number, number] = [e.x - d.x, e.y - d.y];
+
+  // Log every 10th drag event to avoid console spam
+  if (Math.random() < 0.1) {
+    console.log('[onDragMove] Dragging', {
+      nodeId: d.id,
+      eventX: e.x,
+      eventY: e.y,
+      nodeX: d.x,
+      nodeY: d.y,
+      dragOffsetX: dragOffset[0],
+      dragOffsetY: dragOffset[1]
+    });
+  }
+
+  moveNode(gNode, d, dragOffset)
   // 鼠标相对gEle左上角的位置
   const mousePos = d3.pointer(e, gEle.value)
   mousePos[1] += mmdata.data.y
@@ -229,9 +250,23 @@ export function onDragMove (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Md
 export function onDragEnd (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Mdata, Mdata>, d: Mdata): void {
   const gNode = this.parentNode?.parentNode as SVGGElement
   if (svgEle.value) { svgEle.value.classList.remove(style.dragging) }
+
+  console.log('[onDragEnd] Drag ended', {
+    nodeId: d.id,
+    nodeName: d.name,
+    depth: d.depth,
+    currentLeft: d.left,
+    currentX: d.x,
+    dragOffsetPx: d.px,
+    dragOffsetPy: d.py,
+    finalX: d.x + d.px,
+    finalY: d.y + d.py
+  });
+
   // 判断是否找到了新的父节点
   const np = document.getElementsByClassName(style.outline)[0]
   if (np) {
+    console.log('[onDragEnd] Found new parent node');
     np.classList.remove(style.outline)
     const pid = np.getAttribute('data-id')
     if (pid) {
@@ -243,35 +278,73 @@ export function onDragEnd (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Mda
     }
     return
   }
+
   // 判断是否变换left
-  const xToCenter = d.x - mmdata.getRootWidth() / 2
-  const lr = d.depth === 1 && (xToCenter * (xToCenter + d.px) < 0)
-  const getSameSide = lr ? (a: Mdata) => a.left !== d.left : (a: Mdata) => a.left === d.left
-  // 判断是否需要调换节点顺序
+  const rootWidth = mmdata.getRootWidth();
+  const xToCenter = d.x - rootWidth / 2;
+  const lr = d.depth === 1 && (xToCenter * (xToCenter + d.px) < 0);
+
+  console.log('[onDragEnd] Side change check', {
+    rootWidth,
+    xToCenter,
+    'xToCenter + d.px': xToCenter + d.px,
+    'xToCenter * (xToCenter + d.px)': xToCenter * (xToCenter + d.px),
+    'depth === 1': d.depth === 1,
+    lr: lr,
+    willChangeSide: lr
+  });
+
+  // If crossing to the other side, change side immediately without checking siblings
+  if (lr) {
+    console.log('[onDragEnd] Changing side! Using rawData:', d.rawData.name, 'dropY:', d.y + d.py);
+    const dropY = d.y + d.py
+    d.px = 0
+    d.py = 0
+    changeLeft(d.rawData, dropY)
+    return
+  }
+
+  // Not changing sides, check if we need to reorder siblings on the same side
+  const getSameSide = (a: Mdata) => a.left === d.left
   const p = gNode.parentNode as SVGGElement
-  let downD = lr ? { y: Infinity, id: d.id } : d
-  let upD = lr ? { y: -Infinity, id: d.id } : d
+  let downD = d
+  let upD = d
   const brothers = d3.select<SVGGElement, Mdata>(p)
     .selectAll<SVGGElement, Mdata>(`g.${getSiblingGClass(d).join('.')}`)
     .filter((a) => a !== d && getSameSide(a))
   const endY = d.y + d.py
+
+  console.log('[onDragEnd] Sibling check', {
+    brothersCount: brothers.size(),
+    endY,
+    currentY: d.y
+  });
+
   brothers.each((b) => {
-    if ((lr || b.y > d.y) && b.y < endY && b.y > upD.y) { upD = b } // 找新哥哥节点
-    if ((lr || b.y < d.y) && b.y > endY && b.y < downD.y) { downD = b } // 找新弟弟节点
+    if (b.y > d.y && b.y < endY && b.y > upD.y) { upD = b } // 找新哥哥节点
+    if (b.y < d.y && b.y > endY && b.y < downD.y) { downD = b } // 找新弟弟节点
   })
+
+  console.log('[onDragEnd] Final decision', {
+    downDId: downD.id,
+    upDId: upD.id,
+    currentId: d.id,
+    willMoveSiblingDown: downD.id !== d.id,
+    willMoveSiblingUp: upD.id !== d.id
+  });
+
   if (downD.id !== d.id) {
+    console.log('[onDragEnd] Moving sibling (down)');
     d.px = 0
     d.py = 0
     moveSibling(d.id, downD.id)
   } else if (upD.id !== d.id) {
+    console.log('[onDragEnd] Moving sibling (up)');
     d.px = 0
     d.py = 0
     moveSibling(d.id, upD.id, 1)
-  } else if (lr) {
-    d.px = 0
-    d.py = 0
-    changeLeft(d.id)
   } else {
+    console.log('[onDragEnd] Restoring position (no change)');
     // 复原
     moveNode(gNode, d, [0, 0], 500)
   }

@@ -8,7 +8,6 @@ import { observer, selection, zoom, zoomTransform } from './variable'
 import { afterOperation, mmdata } from './data'
 import { snapshot } from './state'
 import { foreignDivEle, gEle, svgEle, wrapperEle } from './variable/element'
-import { onEditBlur } from './listener'
 
 /**
  * 使页面重排
@@ -27,18 +26,6 @@ export const getAddPath = (stroke: number, side: number): string => {
   const temp2 = stroke / 2
   const temp3 = side / 2
   return `M${temp3},${temp2}H${temp2}V${temp3}H${temp1}V${temp2}H${temp0}V${temp1}H${temp1}V${temp0}H${temp2}V${temp1}H${temp3}V${temp2}Z`
-}
-
-/**
- * 将一个字符串按换行符切分，返回字符串数组
- * @param str - 字符串
- */
-export const getMultiline = (str: string): string[] => {
-  const multiline = str.split('\n')
-  if (multiline.length > 1 && multiline[multiline.length - 1] === '') {
-    multiline.pop()
-  }
-  return multiline
 }
 
 export const convertToImg = (svgdiv: HTMLDivElement, name: string): void => {
@@ -81,18 +68,33 @@ export function getDragContainer (this: SVGGElement): SVGGElement {
 export function selectGNode (d: SVGGElement): void
 export function selectGNode (d: Mdata): void
 export function selectGNode (d: SVGGElement | Mdata): void {
+  const dataId = d instanceof SVGGElement ? d.getAttribute('data-id') : getDataId(d)
   const ele = d instanceof SVGGElement ? d : document.querySelector<SVGGElement>(`g[data-id='${getDataId(d)}']`)
   const oldSele = document.getElementsByClassName(style.selected)[0]
+
+  console.log('[Mindmap assistant] selectGNode called', {
+    dataId,
+    elementFound: !!ele,
+    elementClasses: ele?.classList.toString(),
+    oldSelection: oldSele?.getAttribute('data-id'),
+    isSameElement: oldSele === ele
+  })
+
   if (ele) {
     if (oldSele) {
       if (oldSele !== ele) {
+        console.log('[Mindmap assistant] Switching selection from', oldSele.getAttribute('data-id'), 'to', dataId)
         oldSele.classList.remove(style.selected)
         ele.classList.add(style.selected)
+        console.log('[Mindmap assistant] After adding selected class:', ele.classList.toString())
       } else {
+        console.log('[Mindmap assistant] Same element clicked - setting edit-flag to true')
         emitter.emit('edit-flag', true)
       }
     } else {
+      console.log('[Mindmap assistant] No previous selection - adding selected class to', dataId)
       ele.classList.add(style.selected)
+      console.log('[Mindmap assistant] After adding selected class:', ele.classList.toString())
     }
   } else {
     // Element not found - this can happen after deletion when IDs are renewed
@@ -114,21 +116,40 @@ export function getSelectedGData (): Mdata {
 }
 
 /**
- * 获取文本在tspan中的宽度与高度
- * @param text -
- * @returns -
+ * Get size of HTML content using foreignObject
+ * @param html - HTML string
+ * @returns width and height
  */
-export const getSize = (text: string): { width: number, height: number } => {
+export const getSizeHTML = (html: string): { width: number, height: number } => {
   const { asstSvg } = selection
   if (!asstSvg) { throw new Error('asstSvg undefined') }
-  const multiline = getMultiline(text)
-  const t = asstSvg.append('text')
-  t.selectAll('tspan').data(multiline).enter().append('tspan').text((d) => d).attr('x', 0)
-  const tBox = (t.node() as SVGTextElement).getBBox()
-  t.remove()
+
+  // Create temporary foreignObject with large dimensions to prevent wrapping
+  const fo = asstSvg.append('foreignObject')
+    .attr('width', 2000)
+    .attr('height', 2000)
+
+  // Create div with HTML content - match the exact styles used in the actual mindmap
+  const div = fo.append('xhtml:div')
+    .style('display', 'inline-block')
+    .style('font-family', 'inherit')
+    .style('font-size', 'inherit')
+    .style('line-height', '1.2')
+    .style('white-space', 'nowrap')
+    .html(html || ' ')
+
+  // Measure the div
+  const divNode = div.node() as HTMLDivElement
+  const bbox = divNode.getBoundingClientRect()
+
+  // Clean up
+  fo.remove()
+
+  // Add a buffer (5px) to account for browser rendering differences
+  // This prevents text from being cut off at the edges
   return {
-    width: Math.max(tBox.width, 22),
-    height: Math.max(tBox.height, 22) * multiline.length
+    width: Math.max(Math.ceil(bbox.width) + 5, 22),
+    height: Math.max(Math.ceil(bbox.height) + 5, 22)
   }
 }
 
@@ -236,11 +257,12 @@ export const prev = (): void => {
 
 /**
  * foreignDivEle事件监听与观察
+ * Note: blur event is now handled by Tiptap editor component
  */
 export const bindForeignDiv = (): void => {
   if (foreignDivEle.value) {
     observer.observe(foreignDivEle.value)
-    foreignDivEle.value.addEventListener('blur', onEditBlur)
+    // Blur event removed - handled by Tiptap editor
     foreignDivEle.value.addEventListener('mousedown', (e: MouseEvent) => e.stopPropagation())
   }
 }
