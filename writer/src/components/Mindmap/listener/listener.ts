@@ -3,10 +3,10 @@ import { ctm, editFlag, selection, textRectPadding, zoomTransform } from '../var
 import * as d3 from '../d3'
 import type { Mdata } from '../interface'
 import { fitView, getRelativePos, getSelectedGData, isData, moveNode, moveView, scaleView, selectGNode } from '../assistant'
-import { add, addParent, addSibling, changeLeft, collapse, del, delOne, expand, mmdata, moveChild, moveSibling } from '../data'
+import { add, addParent, addSibling, changeLeft, collapse, del, delOne, expand, mmdata, moveChild, reorderSibling } from '../data'
 import { svgEle, gEle, wrapperEle } from '../variable/element'
 import emitter from '../../../mitt'
-import { getDataId, getSiblingGClass } from '../attribute'
+import { getDataId } from '../attribute'
 import type { MenuEvent } from '../variable/contextmenu'
 
 /**
@@ -304,48 +304,25 @@ export function onDragEnd (this: SVGGElement, e: d3.D3DragEvent<SVGGElement, Mda
     return
   }
 
-  // Not changing sides, check if we need to reorder siblings on the same side
-  const getSameSide = (a: Mdata) => a.left === d.left
-  const p = gNode.parentNode as SVGGElement
-  let downD = d
-  let upD = d
-  const brothers = d3.select<SVGGElement, Mdata>(p)
-    .selectAll<SVGGElement, Mdata>(`g.${getSiblingGClass(d).join('.')}`)
-    .filter((a) => a !== d && getSameSide(a))
+  // Not changing sides, reorder on the same side based on drop position
   const endY = d.y + d.py
 
-  console.log('[onDragEnd] Sibling check', {
-    brothersCount: brothers.size(),
+  console.log('[onDragEnd] Same-side reorder check', {
+    currentY: d.y,
     endY,
-    currentY: d.y
+    dropY: endY,
+    left: d.left
   });
 
-  brothers.each((b) => {
-    if (b.y > d.y && b.y < endY && b.y > upD.y) { upD = b } // 找新哥哥节点
-    if (b.y < d.y && b.y > endY && b.y < downD.y) { downD = b } // 找新弟弟节点
-  })
-
-  console.log('[onDragEnd] Final decision', {
-    downDId: downD.id,
-    upDId: upD.id,
-    currentId: d.id,
-    willMoveSiblingDown: downD.id !== d.id,
-    willMoveSiblingUp: upD.id !== d.id
-  });
-
-  if (downD.id !== d.id) {
-    console.log('[onDragEnd] Moving sibling (down)');
+  // Check if the node moved significantly (more than 5px)
+  if (Math.abs(d.py) > 5) {
+    console.log('[onDragEnd] Reordering sibling on same side');
     d.px = 0
     d.py = 0
-    moveSibling(d.id, downD.id)
-  } else if (upD.id !== d.id) {
-    console.log('[onDragEnd] Moving sibling (up)');
-    d.px = 0
-    d.py = 0
-    moveSibling(d.id, upD.id, 1)
+    reorderSibling(d.rawData, endY)
   } else {
-    console.log('[onDragEnd] Restoring position (no change)');
-    // 复原
+    console.log('[onDragEnd] Restoring position (no significant movement)');
+    // Restore position - no significant movement
     moveNode(gNode, d, [0, 0], 500)
   }
 }

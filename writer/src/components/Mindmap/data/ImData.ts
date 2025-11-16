@@ -199,7 +199,7 @@ class ImData {
   }
 
   private createMdataFromData (rawData: Data, id: string, parent: IsMdata = null): Mdata {
-    const { name, collapse, children: rawChildren, icons = [] } = rawData
+    const { name, collapse, children: rawChildren, icons = [], isInferredTitle = false } = rawData
     const { width, height } = this.getSize(name)
     const depth = parent ? parent.depth + 1 : 0
     let left = false
@@ -224,6 +224,7 @@ class ImData {
       gKey: this.gKey += 1,
       icons,
       iconsWidth,
+      isInferredTitle,
     }
     if (rawChildren) {
       if (!data.collapse) {
@@ -441,7 +442,8 @@ class ImData {
           children: [],
           _children: [],
           icons: [],
-          iconsWidth: 0
+          iconsWidth: 0,
+          isInferredTitle: false
         }
         p.children.push(d)
         p.rawData.children.push(rawData)
@@ -532,7 +534,8 @@ class ImData {
         px: 0,
         py: 0,
         icons: [],
-        iconsWidth: 0
+        iconsWidth: 0,
+        isInferredTitle: false
       }
       parent.children.splice(start, 0, sibling)
       parent.rawData.children?.splice(start, 0, rawSibling)
@@ -571,7 +574,8 @@ class ImData {
         px: 0,
         py: 0,
         icons: [],
-        iconsWidth: 0
+        iconsWidth: 0,
+        isInferredTitle: false
       }
       d.parent = p
       oldP.children.splice(index, 1, p)
@@ -579,6 +583,153 @@ class ImData {
       return p
     }
     return null
+  }
+
+  /**
+   * Reorder a node on the same side based on drop position
+   * @param rawData - The node's rawData reference
+   * @param dropY - Y coordinate where the node was dropped
+   */
+  reorderSibling (rawData: Data, dropY: number): IsMdata {
+    console.log('[ImData.reorderSibling] Called with rawData:', rawData.name, 'dropY:', dropY, 'orientation:', currentOrientation);
+    const d = this.findByRawData(rawData)
+    if (d && d.parent) {
+      console.log('[ImData.reorderSibling] Found node:', {
+        id: d.id,
+        name: d.name,
+        currentY: d.y,
+        left: d.left
+      });
+
+      // Log all siblings before change
+      console.log('[ImData.reorderSibling] Parent children BEFORE reorder:',
+        d.parent.children.map(c => ({ id: c.id, name: c.name, left: c.left, y: c.y }))
+      );
+
+      // Determine if this side should be reversed based on orientation
+      // In clockwise: left side is reversed (bottom to top visually)
+      // In anticlockwise: right side is reversed (bottom to top visually)
+      const shouldReverse =
+        (currentOrientation === 'clockwise' && d.left === true) ||
+        (currentOrientation === 'anticlockwise' && d.left === false)
+
+      console.log('[ImData.reorderSibling] Orientation check:', {
+        orientation: currentOrientation,
+        side: d.left ? 'left' : 'right',
+        shouldReverse
+      });
+
+      // Find siblings on the same side (excluding the node being moved)
+      const siblingsOnSameSide = d.parent.children
+        .filter(c => c !== d && c.left === d.left)
+        .sort((a, b) => a.y - b.y) // Sort by Y position (top to bottom visually)
+
+      console.log('[ImData.reorderSibling] Siblings on same side (sorted by visual Y):', {
+        dropY,
+        targetSide: d.left ? 'left' : 'right',
+        siblings: siblingsOnSameSide.map(c => ({
+          id: c.id,
+          name: c.name.substring(0, 30),
+          y: c.y
+        }))
+      });
+
+      // Find which sibling should come AFTER the dropped node in VISUAL order
+      // (first sibling with y > dropY)
+      let insertBeforeSiblingVisual: Mdata | null = null
+      for (const sibling of siblingsOnSameSide) {
+        if (sibling.y > dropY) {
+          insertBeforeSiblingVisual = sibling
+          console.log('[ImData.reorderSibling] Will insert BEFORE sibling (visually):', {
+            id: sibling.id,
+            name: sibling.name.substring(0, 30),
+            y: sibling.y
+          });
+          break
+        }
+      }
+
+      // If the side is reversed, we need to find the DATA position
+      // For reversed sides: visual top = data end, visual bottom = data start
+      let insertBeforeSibling: Mdata | null = null
+
+      if (shouldReverse) {
+        // For reversed sides, we need to reverse the logic
+        if (insertBeforeSiblingVisual === null) {
+          // Dropped at visual bottom = data start
+          // Insert before the first sibling in data order (which is last visually)
+          const lastSibling = siblingsOnSameSide[siblingsOnSameSide.length - 1]
+          insertBeforeSibling = lastSibling || null
+          console.log('[ImData.reorderSibling] Reversed: Dropped at visual bottom, insert at data start');
+        } else {
+          // Find the sibling that comes AFTER insertBeforeSiblingVisual in visual order
+          const visualIndex = siblingsOnSameSide.indexOf(insertBeforeSiblingVisual)
+          if (visualIndex > 0) {
+            const prevSibling = siblingsOnSameSide[visualIndex - 1]
+            insertBeforeSibling = prevSibling || null
+            console.log('[ImData.reorderSibling] Reversed: Insert AFTER (in data) the sibling that is BEFORE (visually)');
+          } else {
+            // insertBeforeSiblingVisual is the first visually = last in data
+            // So insert at the very end (no insertBeforeSibling)
+            insertBeforeSibling = null
+            console.log('[ImData.reorderSibling] Reversed: Insert at data end (visual top)');
+          }
+        }
+      } else {
+        // Normal order: visual order = data order
+        insertBeforeSibling = insertBeforeSiblingVisual
+      }
+
+      if (insertBeforeSibling) {
+        console.log('[ImData.reorderSibling] Final: Will insert BEFORE sibling (in data):', {
+          id: insertBeforeSibling.id,
+          name: insertBeforeSibling.name.substring(0, 30)
+        });
+      } else {
+        console.log('[ImData.reorderSibling] Final: Will insert at END of data array');
+      }
+
+      // Remove the node from its current position
+      const nodeIndex = d.parent.children.indexOf(d)
+      if (nodeIndex !== -1) {
+        d.parent.children.splice(nodeIndex, 1)
+        // Also remove from rawData children
+        if (d.parent.rawData.children) {
+          d.parent.rawData.children.splice(nodeIndex, 1)
+        }
+      }
+
+      // Find the insertion index in the modified array
+      let insertIndex = d.parent.children.length // Default: insert at end
+      if (insertBeforeSibling) {
+        insertIndex = d.parent.children.indexOf(insertBeforeSibling)
+        console.log('[ImData.reorderSibling] Found insertBeforeSibling in array at index:', insertIndex);
+        if (insertIndex === -1) {
+          console.log('[ImData.reorderSibling] WARNING: insertBeforeSibling not found in array!');
+          insertIndex = d.parent.children.length
+        }
+      } else {
+        console.log('[ImData.reorderSibling] No insertBeforeSibling, inserting at end');
+      }
+
+      console.log('[ImData.reorderSibling] Array BEFORE insertion:',
+        d.parent.children.map((c, idx) => ({ idx, id: c.id, name: c.name.substring(0, 20), left: c.left }))
+      );
+      console.log('[ImData.reorderSibling] Inserting at index:', insertIndex, 'node:', d.id);
+
+      d.parent.children.splice(insertIndex, 0, d)
+      // Also insert into rawData children
+      if (d.parent.rawData.children) {
+        d.parent.rawData.children.splice(insertIndex, 0, d.rawData)
+      }
+
+      console.log('[ImData.reorderSibling] Array AFTER insertion:',
+        d.parent.children.map((c, idx) => ({ idx, id: c.id, name: c.name.substring(0, 20), left: c.left }))
+      );
+
+      this.renew()
+    }
+    return d
   }
 
   changeLeft (rawData: Data, dropY?: number): IsMdata {
@@ -616,6 +767,10 @@ class ImData {
         const nodeIndex = d.parent.children.indexOf(d)
         if (nodeIndex !== -1) {
           d.parent.children.splice(nodeIndex, 1)
+          // Also remove from rawData children
+          if (d.parent.rawData.children) {
+            d.parent.rawData.children.splice(nodeIndex, 1)
+          }
         }
 
         // Find siblings on the new side and their y positions
@@ -640,6 +795,10 @@ class ImData {
 
         console.log('[ImData.changeLeft] Inserting at index:', insertIndex);
         d.parent.children.splice(insertIndex, 0, d)
+        // Also insert into rawData children
+        if (d.parent.rawData.children) {
+          d.parent.rawData.children.splice(insertIndex, 0, d.rawData)
+        }
 
         console.log('[ImData.changeLeft] Children after reordering:',
           d.parent.children.map(c => ({ id: c.id, name: c.name, left: c.left }))

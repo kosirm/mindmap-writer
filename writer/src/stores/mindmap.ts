@@ -47,6 +47,7 @@ export interface MindmapData {
   left?: boolean | undefined;
   collapse?: boolean | undefined;
   icons?: string[] | undefined;
+  isInferredTitle?: boolean | undefined; // True if title is inferred from content
 }
 
 /**
@@ -212,6 +213,9 @@ function extractHtmlUpToLength(html: string, targetLength: number): string {
  * Strip HTML tags from text
  * @param html - HTML string
  * @returns Plain text
+ *
+ * NOTE: This function is kept for potential future use (e.g., extracting plain text for search),
+ * but we no longer use it to clean stored content because we want to preserve HTML formatting.
  */
 export function stripHtmlTags(html: string): string {
   if (!html) return '';
@@ -225,27 +229,6 @@ export function stripHtmlTags(html: string): string {
 
   // Clean up and return
   return text.trim();
-}
-
-/**
- * Clean HTML tags from node title and content (recursively)
- * @param node - The mindmap node to clean
- */
-function cleanNodeHtml(node: MindmapNode): void {
-  // Clean title if it contains HTML tags
-  if (node.title && (node.title.includes('<') || node.title.includes('>'))) {
-    node.title = stripHtmlTags(node.title);
-  }
-
-  // Clean content if it contains HTML tags
-  if (node.content && (node.content.includes('<') || node.content.includes('>'))) {
-    node.content = stripHtmlTags(node.content);
-  }
-
-  // Recursively clean children
-  if (node.children && node.children.length > 0) {
-    node.children.forEach(child => cleanNodeHtml(child));
-  }
 }
 
 /**
@@ -284,8 +267,17 @@ function normalizeTitleHtml(html: string): string {
 export function getDisplayTitle(node: MindmapNode, defaultCharCount: number = 20): string {
   let title: string;
 
-  // If node has explicit title, use it
+  // Check if title has actual text content (not just empty HTML tags)
+  let titleHasContent = false;
   if (node.title && node.title.trim() !== '') {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = node.title;
+    const textContent = tmp.textContent || '';
+    titleHasContent = textContent.trim() !== '';
+  }
+
+  // If node has explicit title with content, use it
+  if (titleHasContent) {
     title = node.title;
   } else if (node.inferredTitle) {
     // Otherwise, use cached inferred title if available
@@ -349,6 +341,18 @@ function convertNodeToLegacy(node: MindmapNode): MindmapData {
   // Get display title (explicit or inferred)
   const displayTitle = getDisplayTitle(node);
 
+  // Check if title has actual text content (not just empty HTML tags)
+  let titleHasContent = false;
+  if (node.title && node.title.trim() !== '') {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = node.title;
+    const textContent = tmp.textContent || '';
+    titleHasContent = textContent.trim() !== '';
+  }
+
+  // Title is inferred if it has no actual text content
+  const isInferredTitle = !titleHasContent;
+
   // Auto-add 'content' icon if node has actual text content
   const icons = [...node.icons];
 
@@ -371,7 +375,8 @@ function convertNodeToLegacy(node: MindmapNode): MindmapData {
     name: displayTitle,
     left: node.metadata.left,
     collapse: node.metadata.collapsed,
-    icons: icons.length > 0 ? icons : undefined
+    icons: icons.length > 0 ? icons : undefined,
+    isInferredTitle: isInferredTitle // Always set to enable visual distinction in mindmap
   };
 
   if (node.children.length > 0) {
@@ -563,6 +568,9 @@ export const useMindmapStore = defineStore('mindmap', () => {
       currentDocument.value = convertLegacyToNode(data);
     }
 
+    // Increment version to force reactivity for nested property changes
+    documentVersion.value++;
+
     isDirty.value = true;
 
     if (documentMetadata.value) {
@@ -589,6 +597,35 @@ export const useMindmapStore = defineStore('mindmap', () => {
       // User edited the title in mindmap - set it as explicit title
       node.title = legacy.name;
       node.updatedAt = new Date();
+
+      // Check if title has actual text content (not just empty HTML tags)
+      let titleHasContent = false;
+      if (node.title && node.title.trim() !== '') {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = node.title;
+        const textContent = tmp.textContent || '';
+        titleHasContent = textContent.trim() !== '';
+      }
+
+      // Clear inferred title fields when setting explicit title with content
+      if (titleHasContent) {
+        delete node.inferredTitle;
+        delete node.inferredCharCount;
+        console.log('[Store] updateNodeFromLegacy: Cleared inferred title (manual title set)', {
+          nodeId: node.id,
+          newTitle: node.title,
+          titleHasContent
+        });
+      } else {
+        // Title has no content - re-infer from content
+        const charCount = node.inferredCharCount || 20;
+        node.inferredTitle = inferTitle(node.content, charCount);
+        console.log('[Store] updateNodeFromLegacy: Re-inferred title (title has no content)', {
+          nodeId: node.id,
+          inferredTitle: node.inferredTitle,
+          titleHasContent
+        });
+      }
     }
     // If title didn't change, don't update it (preserve inferred mode)
 
@@ -636,13 +673,37 @@ export const useMindmapStore = defineStore('mindmap', () => {
    * Update inferred titles for a node and all its children recursively
    */
   function updateInferredTitles(node: MindmapNode): void {
+    // Check if title has actual text content (not just empty HTML tags)
+    let titleHasContent = false;
+    if (node.title && node.title.trim() !== '') {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = node.title;
+      const textContent = tmp.textContent || '';
+      titleHasContent = textContent.trim() !== '';
+    }
+
     // Update inferred title for this node
-    if (node.title === '' || !node.title) {
+    if (!titleHasContent) {
       const charCount = node.inferredCharCount || 20;
       node.inferredTitle = inferTitle(node.content, charCount);
+      console.log('[Store] updateInferredTitles: Updated inferred title', {
+        nodeId: node.id,
+        nodePath: node.path,
+        title: node.title,
+        titleHasContent,
+        content: node.content,
+        inferredTitle: node.inferredTitle,
+        charCount
+      });
     } else {
       // If node has explicit title, clear inferred title
       delete node.inferredTitle;
+      console.log('[Store] updateInferredTitles: Node has explicit title, cleared inferred', {
+        nodeId: node.id,
+        nodePath: node.path,
+        title: node.title,
+        titleHasContent
+      });
     }
 
     // Recursively update children
@@ -732,8 +793,9 @@ export const useMindmapStore = defineStore('mindmap', () => {
       // Restore dates from JSON strings
       const restoredData = restoreDatesInNode(parsed.data);
 
-      // Clean HTML tags from old data
-      cleanNodeHtml(restoredData);
+      // NOTE: We no longer clean HTML tags because we want to preserve rich text formatting
+      // including paragraph breaks (<p> tags), bold (<strong>), italic (<em>), etc.
+      // cleanNodeHtml(restoredData);
 
       currentDocument.value = restoredData;
       documentMetadata.value = {
@@ -898,8 +960,9 @@ export const useMindmapStore = defineStore('mindmap', () => {
       // Restore dates from JSON strings
       const restoredData = restoreDatesInNode(parsed.data);
 
-      // Clean HTML tags from imported data
-      cleanNodeHtml(restoredData);
+      // NOTE: We no longer clean HTML tags because we want to preserve rich text formatting
+      // including paragraph breaks (<p> tags), bold (<strong>), italic (<em>), etc.
+      // cleanNodeHtml(restoredData);
 
       currentDocument.value = restoredData;
       documentMetadata.value = {

@@ -145,11 +145,11 @@ export const getSizeHTML = (html: string): { width: number, height: number } => 
   // Clean up
   fo.remove()
 
-  // Add a buffer (5px) to account for browser rendering differences
+  // Add a buffer (10px) to account for browser rendering differences
   // This prevents text from being cut off at the edges
   return {
-    width: Math.max(Math.ceil(bbox.width) + 5, 22),
-    height: Math.max(Math.ceil(bbox.height) + 5, 22)
+    width: Math.max(Math.ceil(bbox.width) + 10, 22),
+    height: Math.max(Math.ceil(bbox.height) + 10, 22)
   }
 }
 

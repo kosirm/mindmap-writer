@@ -6,6 +6,7 @@ export interface Data {
   left?: boolean | undefined
   collapse?: boolean | undefined
   icons?: string[] | undefined  // Array of icon identifiers (e.g., ['content', 'calendar', 'priority'])
+  isInferredTitle?: boolean | undefined // True if title is inferred from content
 }
 
 export interface TreeData {
@@ -43,6 +44,7 @@ export interface Mdata {
   py: number
   icons: string[] // Array of icon identifiers
   iconsWidth: number // Total width of icons container
+  isInferredTitle: boolean // True if title is inferred from content
 }
 
 export interface TspanData {

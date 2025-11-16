@@ -107,6 +107,31 @@ export default defineComponent({
     const currentEditingNodeId = ref<string | null>(null)
     const currentEditingNodeOldName = ref<string | null>(null)
 
+    // Function to get size of HTML content
+    const getContentSize = (html: string): { width: number, height: number } => {
+      const div = document.createElement('div')
+      div.style.cssText = 'position: absolute; visibility: hidden; white-space: nowrap; font-family: inherit; font-size: 16px; padding: 4px 8px;'
+      div.innerHTML = html || '<p style="margin: 0; padding: 0;">Type here...</p>'
+      document.body.appendChild(div)
+      const rect = div.getBoundingClientRect()
+      document.body.removeChild(div)
+      return { width: rect.width, height: rect.height }
+    }
+
+    // Watch for editor content changes and resize foreignObject
+    watch(editorContent, (newContent) => {
+      if (editorVisible.value && foreignEle.value) {
+        const size = getContentSize(newContent)
+        const minWidth = 120
+        const minHeight = 30
+        const width = Math.max(size.width + 20, minWidth)
+        const height = Math.max(size.height + 10, minHeight)
+
+        foreignEle.value.setAttribute('width', width.toString())
+        foreignEle.value.setAttribute('height', height.toString())
+      }
+    })
+
     // Editor event handlers
     const onEditorSave = (html: string) => {
       console.log('[Mindmap] Editor save', { nodeId: currentEditingNodeId.value, html })
@@ -145,14 +170,42 @@ export default defineComponent({
 
     // Flag to prevent recreating ImData when the change originated from the mindmap itself
     let isInternalUpdate = false
+    let previousModelValue: Data[] | null = null
 
     // Watch for modelValue changes and update the mindmap data
     watch(() => props.modelValue, (newValue) => {
       console.log('[Mindmap] modelValue changed, isInternalUpdate:', isInternalUpdate);
-      if (isInternalUpdate) {
+
+      // Check if this is an internal update that changed inferred titles
+      // If so, we need to redraw even though it's an internal update
+      let needsRedrawForInferredTitle = false
+      if (isInternalUpdate && previousModelValue && previousModelValue[0] && newValue && newValue[0]) {
+        // Check if any node's name changed (which could be due to inferred title)
+        const checkNodeNameChange = (oldNode: Data | undefined, newNode: Data | undefined): boolean => {
+          if (!oldNode || !newNode) return false
+          if (oldNode.name !== newNode.name) return true
+          if (oldNode.children && newNode.children) {
+            for (let i = 0; i < Math.max(oldNode.children.length, newNode.children.length); i++) {
+              if (oldNode.children[i] && newNode.children[i]) {
+                if (checkNodeNameChange(oldNode.children[i], newNode.children[i])) return true
+              }
+            }
+          }
+          return false
+        }
+        needsRedrawForInferredTitle = checkNodeNameChange(previousModelValue[0], newValue[0])
+        console.log('[Mindmap] Checking for inferred title changes:', needsRedrawForInferredTitle);
+      }
+
+      if (isInternalUpdate && !needsRedrawForInferredTitle) {
         console.log('[Mindmap] Skipping mmdata recreation - internal update');
         isInternalUpdate = false
+        previousModelValue = newValue ? cloneDeep(newValue) : null
         return
+      }
+
+      if (needsRedrawForInferredTitle) {
+        console.log('[Mindmap] Forcing redraw due to inferred title change');
       }
 
       console.log('[Mindmap] Creating new ImData from modelValue');
@@ -163,6 +216,9 @@ export default defineComponent({
         // Just redraw - don't call afterOperation to avoid emitting update:modelValue
         draw()
       }
+
+      isInternalUpdate = false
+      previousModelValue = newValue ? cloneDeep(newValue) : null
     }, { deep: true })
 
     // Listen for internal updates from the mindmap
@@ -177,6 +233,19 @@ export default defineComponent({
       currentEditingNodeOldName.value = data.oldName
       editorContent.value = data.content
       editorVisible.value = true
+
+      // Immediately resize the foreignObject for the initial content
+      if (foreignEle.value) {
+        const size = getContentSize(data.content)
+        const minWidth = 120
+        const minHeight = 30
+        const width = Math.max(size.width + 20, minWidth)
+        const height = Math.max(size.height + 10, minHeight)
+
+        foreignEle.value.setAttribute('width', width.toString())
+        foreignEle.value.setAttribute('height', height.toString())
+      }
+
       console.log('[Mindmap] Editor state updated', {
         editorContent: editorContent.value,
         editorVisible: editorVisible.value,
@@ -257,9 +326,9 @@ export default defineComponent({
       // Emit orientation so it's available globally
       emitter.emit('orientation', val as Orientation)
 
-      // Reapply orientation when it changes - always use original pristine data
-      const dataWithOrientation = cloneDeep(originalData)
-      if (dataWithOrientation) {
+      // Reapply orientation when it changes - use current modelValue (latest data)
+      if (props.modelValue && props.modelValue[0]) {
+        const dataWithOrientation = cloneDeep(props.modelValue[0])
         applyOrientation(dataWithOrientation, val as Orientation)
         emitter.emit('mmdata', new ImData(dataWithOrientation, xGap, yGap, getSizeHTML))
         afterOperation()

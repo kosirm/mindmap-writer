@@ -6,6 +6,9 @@ export interface InferredTitleMarkOptions {
   onResize?: (newLength: number) => void;
 }
 
+// Flag to track if we're currently resizing (to prevent triggering onUpdate during visual feedback)
+let isResizing = false;
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     inferredTitleMark: {
@@ -17,6 +20,10 @@ declare module '@tiptap/core' {
        * Unset the inferred title mark
        */
       unsetInferredTitleMark: () => ReturnType;
+      /**
+       * Check if currently resizing (returns boolean directly, not a command)
+       */
+      isResizingInferredTitle: () => ReturnType;
     };
   }
 }
@@ -34,8 +41,15 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
     };
   },
 
-  // Make the mark non-inclusive so typing at the boundary doesn't require double keystrokes
+  // Make the mark non-inclusive so typing at the boundary doesn't extend the mark
+  // Setting to false means new content typed at the boundary won't inherit the mark
   inclusive: false,
+
+  // Don't exclude any marks - allow this mark to coexist with others
+  excludes: '',
+
+  // Spanning allows the mark to span across multiple nodes if needed
+  spanning: true,
 
   parseHTML() {
     return [
@@ -93,7 +107,8 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
             endPos,
             docSize: state.doc.content.size,
             selectionFrom: state.selection.from,
-            selectionTo: state.selection.to
+            selectionTo: state.selection.to,
+            isResizing
           });
 
           // Create the mark
@@ -108,10 +123,55 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
           return true;
         },
 
+      isResizingInferredTitle:
+        () =>
+        () => {
+          return isResizing;
+        },
+
       unsetInferredTitleMark:
         () =>
-        ({ commands }) => {
-          return commands.unsetMark(this.name);
+        ({ state, tr, dispatch }) => {
+          console.log('[InferredTitleMark] unsetInferredTitleMark called', {
+            docContent: state.doc.textContent,
+            docSize: state.doc.content.size,
+            selection: { from: state.selection.from, to: state.selection.to }
+          });
+
+          // Check if the mark exists in the document
+          let hasMarkBefore = false;
+          state.doc.descendants((node, pos) => {
+            if (node.marks.some(mark => mark.type.name === this.name)) {
+              hasMarkBefore = true;
+              console.log('[InferredTitleMark] Found mark at position', pos, 'in node:', node.textContent);
+            }
+          });
+
+          console.log('[InferredTitleMark] Document has mark before removal:', hasMarkBefore);
+
+          if (!hasMarkBefore) {
+            console.log('[InferredTitleMark] No mark to remove');
+            return true;
+          }
+
+          // Manually remove the mark from the entire document
+          const markType = state.schema.marks[this.name];
+          if (!markType) {
+            console.log('[InferredTitleMark] Mark type not found in schema');
+            return false;
+          }
+
+          // Remove the mark from the entire document (from position 0 to doc.content.size)
+          const transaction = tr.removeMark(0, state.doc.content.size, markType);
+
+          console.log('[InferredTitleMark] Created transaction to remove mark');
+
+          if (dispatch) {
+            dispatch(transaction);
+            console.log('[InferredTitleMark] Transaction dispatched');
+          }
+
+          return true;
         },
     };
   },
@@ -186,6 +246,9 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
                 startX
               });
 
+              // Set the resizing flag to prevent onUpdate from triggering during visual feedback
+              isResizing = true;
+
               // Handle mouse move - only update visual feedback, don't emit updates
               const handleMouseMove = (moveEvent: MouseEvent) => {
                 hasMoved = true;
@@ -225,6 +288,9 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
 
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
+
+                // Reset the resizing flag
+                isResizing = false;
 
                 // Only trigger resize if the mouse actually moved
                 if (hasMoved) {

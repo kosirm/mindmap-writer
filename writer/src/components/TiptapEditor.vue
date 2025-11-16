@@ -99,27 +99,33 @@ const handleInferredTitleResize = (newLength: number) => {
     selectedNode: selectedNode.value
   });
 
-  if (!selectedNode.value) return;
+  if (!selectedNode.value || !editor.value) return;
 
-  // Get the actual inferred title with word-boundary rounding
-  const text = editor.value?.state.doc.textContent || '';
-  const inferredTitle = inferTitle(text, newLength);
-  const actualLength = inferredTitle.length;
+  // Get the HTML content (inferTitle expects HTML)
+  const htmlContent = editor.value.getHTML();
+  const inferredTitleHtml = inferTitle(htmlContent, newLength);
+
+  // Extract plain text length from the inferred title HTML
+  const tmp = document.createElement('div');
+  tmp.innerHTML = inferredTitleHtml;
+  const inferredTitlePlainText = tmp.textContent || '';
+  const actualLength = inferredTitlePlainText.length;
 
   console.log('[TiptapEditor] Calculated inferred title', {
     requestedLength: newLength,
     actualLength,
-    inferredTitle
+    inferredTitleHtml,
+    inferredTitlePlainText
   });
 
   // Store the custom character count in the node
   if (!selectedNode.value.inferredCharCount || selectedNode.value.inferredCharCount !== actualLength) {
     selectedNode.value.inferredCharCount = actualLength;
-    selectedNode.value.inferredTitle = inferredTitle;
+    selectedNode.value.inferredTitle = inferredTitleHtml;
 
-    // Update the highlight to match the actual length
+    // Update the highlight to match the actual plain text length
     isUpdatingFromStore.value = true;
-    editor.value?.commands.setInferredTitleMark(actualLength);
+    editor.value.commands.setInferredTitleMark(actualLength);
     isUpdatingFromStore.value = false;
 
     // Emit update to store
@@ -155,6 +161,12 @@ const editor = useEditor({
   onUpdate: ({ editor }) => {
     if (isUpdatingFromStore.value) {
       console.log('[TiptapEditor] onUpdate: Skipping - isUpdatingFromStore is true');
+      return;
+    }
+
+    // Check if we're currently resizing the inferred title mark (visual feedback only)
+    if (editor.commands.isResizingInferredTitle()) {
+      console.log('[TiptapEditor] onUpdate: Skipping - currently resizing inferred title');
       return;
     }
 
@@ -216,52 +228,102 @@ function findNodeById(node: MindmapNode | null, id: string): MindmapNode | null 
 
 // Update inferred title highlight
 function updateInferredTitleHighlight() {
+  if (!editor.value) return;
+  if (editorMode.value !== 'node') return;
+  if (!selectedNodeId.value) return;
+
+  // IMPORTANT: Always get the LATEST node from the store, not the cached selectedNode.value
+  // This ensures we have the most up-to-date title and inferredTitle fields
+  const currentNode = findNodeById(props.modelValue, selectedNodeId.value);
+  if (!currentNode) return;
+
+  // Check if title has actual text content (not just empty HTML tags)
+  let titleHasContent = false;
+  if (currentNode.title && currentNode.title.trim() !== '') {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = currentNode.title;
+    const textContent = tmp.textContent || '';
+    titleHasContent = textContent.trim() !== '';
+  }
+
   console.log('[TiptapEditor] updateInferredTitleHighlight START', {
     hasEditor: !!editor.value,
     mode: editorMode.value,
-    hasSelectedNode: !!selectedNode.value,
-    selectedNodeId: selectedNode.value?.id,
-    selectedNodeTitle: selectedNode.value?.title,
-    selectedNodeHasInferredTitle: selectedNode.value ? !selectedNode.value.title || selectedNode.value.title.trim() === '' : false
+    hasSelectedNode: !!currentNode,
+    selectedNodeId: currentNode.id,
+    selectedNodeTitle: currentNode.title,
+    titleHasContent,
+    hasInferredTitle: !!currentNode.inferredTitle
   });
-
-  if (!editor.value) return;
-  if (editorMode.value !== 'node') return;
-  if (!selectedNode.value) return;
 
   // Set flag to prevent onUpdate from emitting changes
   isUpdatingFromStore.value = true;
 
-  // Only highlight if node has empty title (inferred mode)
-  if (selectedNode.value.title && selectedNode.value.title.trim() !== '') {
+  // Only highlight if node has no title content (inferred mode)
+  if (titleHasContent) {
     // Node has explicit title - remove highlight
     console.log('[TiptapEditor] Node has explicit title, removing highlight');
+
+    // Check editor state before removal
+    const htmlBefore = editor.value.getHTML();
+    console.log('[TiptapEditor] Editor HTML before unset:', htmlBefore);
+
     editor.value.commands.unsetInferredTitleMark();
+
+    // Check editor state after removal
+    const htmlAfter = editor.value.getHTML();
+    console.log('[TiptapEditor] Editor HTML after unset:', htmlAfter);
+    console.log('[TiptapEditor] HTML changed:', htmlBefore !== htmlAfter);
+
     isUpdatingFromStore.value = false;
     return;
   }
 
-  // Get the plain text content from editor
-  const plainText = editor.value.getText();
+  // Get the HTML content from editor (inferTitle expects HTML)
+  const htmlContent = editor.value.getHTML();
 
-  // Calculate what the inferred title would be
-  const charCount = selectedNode.value.inferredCharCount || 20;
-  const inferredTitle = inferTitle(plainText, charCount);
+  // Calculate what the inferred title would be (returns HTML)
+  const charCount = currentNode.inferredCharCount || 20;
+  const inferredTitleHtml = inferTitle(htmlContent, charCount);
+
+  // Extract plain text length from the inferred title HTML
+  const tmp = document.createElement('div');
+  tmp.innerHTML = inferredTitleHtml;
+  const inferredTitlePlainText = tmp.textContent || '';
+  const inferredTitleLength = inferredTitlePlainText.length;
 
   console.log('[TiptapEditor] Applying inferred title highlight', {
-    plainText,
+    htmlContent,
     charCount,
-    inferredTitle,
-    inferredTitleLength: inferredTitle.length,
-    plainTextSubstring: plainText.substring(0, inferredTitle.length),
-    match: plainText.substring(0, inferredTitle.length) === inferredTitle
+    inferredTitleHtml,
+    inferredTitlePlainText,
+    inferredTitleLength
   });
 
-  // Apply highlight for the exact length of the inferred title
-  if (inferredTitle) {
-    editor.value.commands.setInferredTitleMark(inferredTitle.length);
-  } else {
-    editor.value.commands.unsetInferredTitleMark();
+  // Check if the mark length has actually changed to avoid unnecessary updates
+  // This prevents the double-space issue when typing within the highlighted area
+  let currentMarkLength = 0;
+  const { state } = editor.value;
+  state.doc.descendants((node) => {
+    if (node.marks.some(mark => mark.type.name === 'inferredTitleMark')) {
+      currentMarkLength += node.nodeSize - 1; // -1 because nodeSize includes the node itself
+    }
+  });
+
+  console.log('[TiptapEditor] Current mark length vs new length', {
+    currentMarkLength,
+    inferredTitleLength,
+    needsUpdate: currentMarkLength !== inferredTitleLength
+  });
+
+  // Only update the mark if the length has changed
+  if (currentMarkLength !== inferredTitleLength) {
+    // Apply highlight for the exact plain text length of the inferred title
+    if (inferredTitleLength > 0) {
+      editor.value.commands.setInferredTitleMark(inferredTitleLength);
+    } else {
+      editor.value.commands.unsetInferredTitleMark();
+    }
   }
 
   // Reset flag
@@ -392,14 +454,26 @@ watch(() => {
     const currentEditorHTML = editor.value.getHTML();
     const newContentHTML = newContent || '';
 
+    // Strip inferred title marks from both sides before comparing
+    // This prevents unnecessary updates when the only difference is the mark
+    const stripInferredTitleMark = (html: string): string => {
+      return html.replace(/<span[^>]*data-inferred-title="true"[^>]*class="inferred-title-highlight"[^>]*>(.*?)<\/span>/g, '$1')
+                 .replace(/<span[^>]*class="inferred-title-highlight"[^>]*data-inferred-title="true"[^>]*>(.*?)<\/span>/g, '$1');
+    };
+
+    const currentEditorHTMLStripped = stripInferredTitleMark(currentEditorHTML);
+    const newContentHTMLStripped = stripInferredTitleMark(newContentHTML);
+
     console.log('[TiptapEditor] Comparing editor HTML with new content', {
       currentEditorHTML,
       newContentHTML,
-      areEqual: currentEditorHTML === newContentHTML
+      currentEditorHTMLStripped,
+      newContentHTMLStripped,
+      areEqual: currentEditorHTMLStripped === newContentHTMLStripped
     });
 
-    // Only update if the HTML is actually different
-    if (currentEditorHTML !== newContentHTML) {
+    // Only update if the HTML is actually different (ignoring inferred title marks)
+    if (currentEditorHTMLStripped !== newContentHTMLStripped) {
       console.log('[TiptapEditor] Updating editor content from store');
       isUpdatingFromStore.value = true;
       editor.value.commands.setContent(newContent || '');
@@ -409,7 +483,39 @@ watch(() => {
       void nextTick(() => {
         updateInferredTitleHighlight();
       });
+    } else {
+      console.log('[TiptapEditor] Content is the same (ignoring marks), skipping update');
     }
+  }
+});
+
+// Watch for changes to the selected node's title
+// When title changes from empty to non-empty (or vice versa), update the highlight
+watch(() => {
+  if (selectedNodeId.value && props.modelValue) {
+    const node = findNodeById(props.modelValue, selectedNodeId.value);
+    return node?.title;
+  }
+  return null;
+}, (newTitle, oldTitle) => {
+  console.log('[TiptapEditor] Title watcher triggered', {
+    newTitle,
+    oldTitle,
+    mode: editorMode.value,
+    selectedNodeId: selectedNodeId.value
+  });
+
+  // Only update highlight if:
+  // 1. We're in node mode
+  // 2. Editor exists
+  // 3. Title actually changed
+  if (editorMode.value === 'node' && editor.value && newTitle !== oldTitle) {
+    console.log('[TiptapEditor] Title changed, updating highlight');
+
+    // Update inferred title highlight
+    void nextTick(() => {
+      updateInferredTitleHighlight();
+    });
   }
 });
 
