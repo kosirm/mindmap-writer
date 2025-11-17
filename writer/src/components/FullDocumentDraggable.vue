@@ -112,6 +112,9 @@ const store = useMindmapStore();
 const isHovered = ref(false);
 const isHighlighted = ref(false);
 
+// Flag to prevent infinite loops when updating content from external sources
+const isUpdatingFromExternal = ref(false);
+
 // Initialize view sync for Full Document view
 const viewSync = useViewSync('full-document');
 
@@ -367,7 +370,12 @@ function handleTitleClick() {
 // Click on content text - select node + load Tiptap for content
 // cursorAtStart: if true, place cursor at start; if false/undefined, place at end
 function handleContentClick(cursorAtStart = false) {
-  console.log('[FullDocumentDraggable] Content clicked', props.node.id);
+  console.log('[FullDocumentDraggable] Content clicked', {
+    nodeId: props.node.id,
+    currentContent: props.node.content,
+    inferredCharCount: props.node.inferredCharCount,
+    isInferredTitle: isInferredTitle.value
+  });
 
   // Select this node
   viewSync.selectNode(props.node.id, true);
@@ -392,7 +400,17 @@ function handleContentClick(cursorAtStart = false) {
 
   // Create Tiptap editor for content (always create if it doesn't exist)
   if (!activeContentEditor.value) {
+    console.log('[FullDocumentDraggable] Creating new content editor', {
+      nodeId: props.node.id,
+      content: props.node.content,
+      isInferredTitle: isInferredTitle.value
+    });
     const onUpdate = (html: string) => {
+      // Skip if we're updating from external source (to prevent infinite loops)
+      if (isUpdatingFromExternal.value) {
+        return;
+      }
+
       // Update store on change
       const node = props.source[props.index];
       if (node) {
@@ -553,9 +571,42 @@ function handleContentClick(cursorAtStart = false) {
       options
     );
 
-    // Focus the editor after it's mounted
+    console.log('[FullDocumentDraggable] Content editor created', {
+      nodeId: props.node.id,
+      editorHTML: activeContentEditor.value?.getHTML(),
+      isInferredTitle: isInferredTitle.value
+    });
+
+    // Focus the editor and apply highlight after it's mounted
     void nextTick(() => {
       if (activeContentEditor.value) {
+        // For inferred title nodes, apply the highlight mark after editor is mounted
+        if (isInferredTitle.value) {
+          const highlightLength = extractInferredTitleLength(props.node.content);
+          console.log('[FullDocumentDraggable] Applying initial highlight to new editor', {
+            nodeId: props.node.id,
+            content: props.node.content,
+            highlightLength,
+            inferredCharCount: props.node.inferredCharCount,
+            editorHTML: activeContentEditor.value.getHTML()
+          });
+
+          if (highlightLength && highlightLength > 0) {
+            activeContentEditor.value.commands.setInferredTitleMark(highlightLength);
+            console.log('[FullDocumentDraggable] Initial highlight applied', {
+              nodeId: props.node.id,
+              highlightLength,
+              editorHTMLAfter: activeContentEditor.value.getHTML()
+            });
+          } else {
+            console.warn('[FullDocumentDraggable] No highlight length found in content', {
+              nodeId: props.node.id,
+              content: props.node.content
+            });
+          }
+        }
+
+        // Focus the editor
         const focusPosition = cursorAtStart ? 'start' : 'end';
         activeContentEditor.value.commands.focus(focusPosition);
       }
@@ -611,6 +662,90 @@ fieldNavigationBus.on('open-field', (event) => {
     }
   }
 });
+
+// Watch for content changes from external sources (e.g., Content editor)
+// This ensures the Full Document editor stays in sync when content is modified elsewhere
+watch(() => props.node.content, (newContent, oldContent) => {
+  console.log('[FullDocumentDraggable] Content watcher triggered', {
+    nodeId: props.node.id,
+    newContent,
+    oldContent,
+    contentChanged: newContent !== oldContent,
+    isContentEditing: isContentEditing.value,
+    activeContentEditor: !!activeContentEditor.value,
+    activeNodeId: activeNodeId.value,
+    activeField: activeField.value,
+    isThisNodeActive: activeNodeId.value === props.node.id,
+    isInferredTitle: isInferredTitle.value
+  });
+
+  // Only update if:
+  // 1. This node's content editor is currently active
+  // 2. Content actually changed
+  // 3. Current editor HTML is different from new content (avoid unnecessary updates)
+  if (isContentEditing.value && activeContentEditor.value && newContent !== oldContent) {
+    const currentEditorHTML = activeContentEditor.value.getHTML();
+    const newContentHTML = newContent || '';
+
+    console.log('[FullDocumentDraggable] Comparing HTML', {
+      nodeId: props.node.id,
+      currentEditorHTML,
+      newContentHTML,
+      areEqual: currentEditorHTML === newContentHTML,
+      currentHighlightLength: extractInferredTitleLength(currentEditorHTML),
+      newHighlightLength: extractInferredTitleLength(newContentHTML)
+    });
+
+    if (currentEditorHTML !== newContentHTML) {
+      console.log('[FullDocumentDraggable] Updating editor content from external change', {
+        nodeId: props.node.id
+      });
+
+      // Set flag to prevent onUpdate from triggering (avoid infinite loop)
+      isUpdatingFromExternal.value = true;
+
+      // Update the editor content
+      activeContentEditor.value.commands.setContent(newContentHTML);
+
+      // For inferred title nodes, apply the highlight mark based on the updated content
+      if (isInferredTitle.value) {
+        const highlightLength = extractInferredTitleLength(newContentHTML);
+        console.log('[FullDocumentDraggable] Checking highlight for inferred title', {
+          nodeId: props.node.id,
+          highlightLength,
+          newContentHTML
+        });
+
+        if (highlightLength && highlightLength > 0) {
+          console.log('[FullDocumentDraggable] Applying inferred title highlight from watcher', {
+            nodeId: props.node.id,
+            highlightLength
+          });
+          activeContentEditor.value.commands.setInferredTitleMark(highlightLength);
+        } else {
+          console.warn('[FullDocumentDraggable] No highlight length found in new content', {
+            nodeId: props.node.id,
+            newContentHTML
+          });
+        }
+      }
+
+      // Reset flag
+      isUpdatingFromExternal.value = false;
+    } else {
+      console.log('[FullDocumentDraggable] HTML is the same, skipping update', {
+        nodeId: props.node.id
+      });
+    }
+  } else {
+    console.log('[FullDocumentDraggable] Watcher conditions not met', {
+      nodeId: props.node.id,
+      isContentEditing: isContentEditing.value,
+      hasActiveEditor: !!activeContentEditor.value,
+      contentChanged: newContent !== oldContent
+    });
+  }
+}, { deep: false });
 </script>
 
 <style scoped lang="scss">
