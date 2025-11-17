@@ -22,7 +22,6 @@ const store = useMindmapStore();
   overflow-y: auto;
   background-color: #ffffff;
 }
-
 .document-nodes {
   max-width: 900px;
   margin: 0 auto;

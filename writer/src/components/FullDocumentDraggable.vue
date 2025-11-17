@@ -17,7 +17,7 @@
       }"
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
-      @click="handleClick"
+      @click="handleWrapperClick"
     >
       <!-- Drag handle -->
       <button
@@ -32,26 +32,42 @@
       <!-- Node content -->
       <div class="node-content">
         <!-- Title (only for manual titles) -->
-        <div
-          v-if="!isInferredTitle"
-          ref="titleRef"
-          class="node-title"
-          contenteditable="true"
-          @blur="handleTitleBlur"
-          @keydown.enter.prevent="handleTitleEnter"
-          v-html="displayTitle"
-        ></div>
+        <div v-if="!isInferredTitle" class="title-wrapper">
+          <!-- Static HTML (when not editing) -->
+          <div
+            v-if="!isTitleEditing"
+            class="node-title"
+            v-html="displayTitle"
+            @click.stop="() => handleTitleClick()"
+          ></div>
+
+          <!-- Tiptap Editor (when editing) -->
+          <EditorContent
+            v-else-if="titleEditor"
+            :editor="titleEditor"
+            class="node-title"
+            @click.stop
+          />
+        </div>
 
         <!-- Content (always shown for inferred titles, conditionally for manual titles) -->
-        <div
-          v-if="isInferredTitle || hasContent || isEditingContent"
-          ref="contentRef"
-          class="node-body"
-          contenteditable="true"
-          @blur="handleContentBlur"
-          @focus="isEditingContent = true"
-          v-html="node.content"
-        ></div>
+        <div v-if="isInferredTitle || hasContent || isContentEditing" class="content-wrapper">
+          <!-- Static HTML (when not editing) -->
+          <div
+            v-if="!isContentEditing"
+            class="node-body"
+            v-html="node.content"
+            @click.stop="() => handleContentClick()"
+          ></div>
+
+          <!-- Tiptap Editor (when editing) -->
+          <EditorContent
+            v-else-if="contentEditor"
+            :editor="contentEditor"
+            class="node-body"
+            @click.stop
+          />
+        </div>
       </div>
     </div>
 
@@ -61,11 +77,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useDraggable } from '@vue-dnd-kit/core';
+import { EditorContent, type Editor } from '@tiptap/vue-3';
 import type { MindmapNode } from 'src/stores/mindmap';
-import { inferTitle } from 'src/stores/mindmap';
+import { inferTitle, useMindmapStore } from 'src/stores/mindmap';
 import { useViewSync } from 'src/composables/useViewSync';
+import {
+  activeNodeId,
+  activeTitleEditor,
+  activeContentEditor,
+  activeField,
+  isFieldActive,
+  destroyActiveEditors,
+  createTitleEditor,
+  createContentEditor,
+  fieldNavigationBus,
+} from 'src/composables/useFullDocumentEditor';
+import { useDocumentNavigation } from 'src/composables/useDocumentNavigation';
+import {
+  extractInferredTitleText,
+  extractInferredTitleLength,
+  updateInferredTitleLength,
+} from 'src/utils/inferredTitleUtils';
 
 const props = defineProps<{
   node: MindmapNode;
@@ -74,14 +108,23 @@ const props = defineProps<{
   depth: number;
 }>();
 
+const store = useMindmapStore();
 const isHovered = ref(false);
-const isEditingContent = ref(false);
 const isHighlighted = ref(false);
-const titleRef = ref<HTMLElement | null>(null);
-const contentRef = ref<HTMLElement | null>(null);
 
 // Initialize view sync for Full Document view
 const viewSync = useViewSync('full-document');
+
+// Initialize document navigation
+const navigation = useDocumentNavigation();
+
+// Check if this node's fields are currently being edited
+const isTitleEditing = computed(() => isFieldActive(props.node.id, 'title'));
+const isContentEditing = computed(() => isFieldActive(props.node.id, 'content'));
+
+// Unwrap editor refs for template (EditorContent expects Editor, not Ref<Editor>)
+const titleEditor = computed(() => activeTitleEditor.value as Editor | null);
+const contentEditor = computed(() => activeContentEditor.value as Editor | null);
 
 // Using computed for index and source ensures reactivity
 // This is especially important when working with nested trees
@@ -107,9 +150,12 @@ const displayTitle = computed(() => {
     return props.node.title;
   }
 
-  // Return inferred title
-  if (props.node.inferredTitle) {
-    return props.node.inferredTitle;
+  // Extract inferred title from content HTML (single source of truth)
+  const inferredText = extractInferredTitleText(props.node.content);
+
+  if (inferredText) {
+    // Wrap in paragraph tags to match expected HTML format
+    return `<p><span>${inferredText}</span></p>`;
   }
 
   // Fallback: infer from content
@@ -121,27 +167,7 @@ const hasContent = computed(() => {
   return props.node.content && props.node.content.trim() !== '';
 });
 
-// Title editing handlers
-function handleTitleBlur(event: FocusEvent) {
-  const target = event.target as HTMLElement;
-  const newTitle = target.innerHTML;
-
-  if (newTitle !== displayTitle.value) {
-    // Update the node title in the store
-    const node = props.source[props.index];
-    if (node) {
-      node.title = newTitle;
-      node.updatedAt = new Date();
-
-      // Clear inferred title when user sets explicit title
-      if (newTitle.trim() !== '') {
-        delete node.inferredTitle;
-      }
-    }
-  }
-}
-
-// Mouse event handlers for hover and click
+// Mouse event handlers for hover
 function handleMouseEnter() {
   isHovered.value = true;
 }
@@ -150,76 +176,441 @@ function handleMouseLeave() {
   isHovered.value = false;
 }
 
-function handleClick(event: MouseEvent) {
-  // Don't trigger if clicking on contenteditable elements
+// Click on node wrapper (empty space) - just select the node
+function handleWrapperClick(event: MouseEvent) {
+  // Only handle clicks on the wrapper itself, not on children
   const target = event.target as HTMLElement;
-  if (target.contentEditable === 'true') {
-    return;
+  if (target.classList.contains('node-wrapper') || target.classList.contains('node-content')) {
+    // Select this node (sync to other views)
+    viewSync.selectNode(props.node.id, true);
+    isHighlighted.value = true;
+  }
+}
+
+// Helper function to clean up empty content
+function cleanupEmptyContent() {
+  const node = props.source[props.index];
+  if (node) {
+    // Check if content is empty (no text content)
+    const tmp = document.createElement('div');
+    tmp.innerHTML = node.content || '';
+    const textContent = tmp.textContent || '';
+
+    if (!textContent.trim()) {
+      // Content is empty, remove it
+      node.content = '';
+      node.updatedAt = new Date();
+
+      // If this is an inferred title node, we need to keep it as inferred
+      // (no action needed, just clear content)
+    }
+  }
+}
+
+// Helper function to navigate to a specific field in another node
+// This uses the event bus to trigger the appropriate editor
+function navigateToField(nodeId: string, field: 'title' | 'content', cursorPosition: 'start' | 'end') {
+  // First, select the target node (this will trigger the node to be highlighted)
+  viewSync.selectNode(nodeId, true);
+
+  // Then, emit an event for the target node to open the appropriate field
+  // We'll use nextTick to ensure the node is rendered and ready
+  void nextTick(() => {
+    fieldNavigationBus.emit('open-field', { nodeId, field, cursorPosition });
+  });
+}
+
+// Click on title text - select node + load Tiptap for title
+function handleTitleClick() {
+  console.log('[FullDocumentDraggable] Title clicked', props.node.id);
+
+  // Select this node
+  viewSync.selectNode(props.node.id, true);
+  isHighlighted.value = true;
+
+  // If another node was active, destroy its editors
+  if (activeNodeId.value !== props.node.id) {
+    destroyActiveEditors();
   }
 
-  // Emit selection event to other views
+  // If we're switching from content to title in the same node, destroy content editor
+  if (activeNodeId.value === props.node.id && activeField.value === 'content') {
+    if (activeContentEditor.value) {
+      activeContentEditor.value.destroy();
+      activeContentEditor.value = null;
+    }
+  }
+
+  // Set this node as active
+  activeNodeId.value = props.node.id;
+  activeField.value = 'title';
+
+  // Create Tiptap editor for title (always create if it doesn't exist)
+  if (!activeTitleEditor.value) {
+    activeTitleEditor.value = createTitleEditor(
+      props.node.title || '',
+      (html: string) => {
+        // Update store on change
+        const node = props.source[props.index];
+        if (node) {
+          node.title = html;
+          node.updatedAt = new Date();
+
+          // Clear inferred title when user sets explicit title
+          if (html.trim() !== '') {
+            delete node.inferredTitle;
+          }
+        }
+      },
+      {
+        // Handle Enter key - move to content editor
+        onEnterKey: () => {
+          // Trigger content click to open content editor (cursor at end)
+          handleContentClick(false);
+        },
+        // Handle Right arrow at end of title - navigate to next field
+        onRightArrowAtEnd: () => {
+          console.log('[FullDocumentDraggable] Right arrow at end of title', props.node.id);
+
+          // Check if this node has actual text content (not just HTML tags)
+          const hasContent = props.node.content && (() => {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = props.node.content;
+            const textContent = tmp.textContent || '';
+            return textContent.trim() !== '';
+          })();
+          console.log('[FullDocumentDraggable] Has content:', hasContent, 'Content:', props.node.content);
+
+          if (hasContent) {
+            // Navigate to content of same node
+            console.log('[FullDocumentDraggable] Navigating to content of same node');
+            handleContentClick(true);
+          } else {
+            // Navigate to next field (skip empty content)
+            console.log('[FullDocumentDraggable] Skipping empty content, navigating to next field');
+            const nextField = navigation.getNextField(props.node.id, 'title');
+            console.log('[FullDocumentDraggable] Next field:', nextField);
+            if (nextField) {
+              navigateToField(nextField.nodeId, nextField.field, 'start');
+            }
+          }
+        },
+        // Handle Left arrow at start of title - move to previous field
+        onLeftArrowAtStart: () => {
+          console.log('[FullDocumentDraggable] Left arrow at start of title', props.node.id);
+          const prevField = navigation.getPreviousField(props.node.id, 'title');
+          console.log('[FullDocumentDraggable] Previous field from title:', prevField);
+          if (prevField) {
+            // Navigate to previous field
+            if (prevField.field === 'title') {
+              // Find the node component and trigger title click
+              navigateToField(prevField.nodeId, 'title', 'end');
+            } else {
+              // Navigate to content
+              navigateToField(prevField.nodeId, 'content', 'end');
+            }
+          } else {
+            console.log('[FullDocumentDraggable] No previous field found');
+          }
+        },
+        // Handle Up arrow at first line of title - move to previous field
+        onUpArrowAtFirstLine: () => {
+          console.log('[FullDocumentDraggable] Up arrow at first line of title', props.node.id);
+          const prevField = navigation.getPreviousField(props.node.id, 'title');
+          console.log('[FullDocumentDraggable] Previous field from title:', prevField);
+          if (prevField) {
+            navigateToField(prevField.nodeId, prevField.field, 'end');
+          } else {
+            console.log('[FullDocumentDraggable] No previous field found');
+          }
+        },
+        // Handle Down arrow at last line of title - move to next field
+        onDownArrowAtLastLine: () => {
+          console.log('[FullDocumentDraggable] Down arrow at last line of title', props.node.id);
+
+          // Check if this node has content
+          const hasContent = props.node.content && (() => {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = props.node.content;
+            const textContent = tmp.textContent || '';
+            return textContent.trim() !== '';
+          })();
+
+          if (hasContent) {
+            // Navigate to content of same node
+            console.log('[FullDocumentDraggable] Navigating to content of same node');
+            handleContentClick(true);
+          } else {
+            // Navigate to next field (skip empty content)
+            console.log('[FullDocumentDraggable] Skipping empty content, navigating to next field');
+            const nextField = navigation.getNextField(props.node.id, 'title');
+            console.log('[FullDocumentDraggable] Next field:', nextField);
+            if (nextField) {
+              navigateToField(nextField.nodeId, nextField.field, 'start');
+            }
+          }
+        }
+      }
+    );
+
+    // Focus the editor after it's mounted
+    void nextTick(() => {
+      if (activeTitleEditor.value) {
+        // If coming from content (left arrow), place cursor at end
+        // Otherwise, place at end by default (normal click behavior)
+        activeTitleEditor.value.commands.focus('end');
+      }
+    });
+  }
+}
+
+// Click on content text - select node + load Tiptap for content
+// cursorAtStart: if true, place cursor at start; if false/undefined, place at end
+function handleContentClick(cursorAtStart = false) {
+  console.log('[FullDocumentDraggable] Content clicked', props.node.id);
+
+  // Select this node
   viewSync.selectNode(props.node.id, true);
+  isHighlighted.value = true;
+
+  // If another node was active, destroy its editors
+  if (activeNodeId.value !== props.node.id) {
+    destroyActiveEditors();
+  }
+
+  // If we're switching from title to content in the same node, destroy title editor
+  if (activeNodeId.value === props.node.id && activeField.value === 'title') {
+    if (activeTitleEditor.value) {
+      activeTitleEditor.value.destroy();
+      activeTitleEditor.value = null;
+    }
+  }
+
+  // Set this node as active
+  activeNodeId.value = props.node.id;
+  activeField.value = 'content';
+
+  // Create Tiptap editor for content (always create if it doesn't exist)
+  if (!activeContentEditor.value) {
+    const onUpdate = (html: string) => {
+      // Update store on change
+      const node = props.source[props.index];
+      if (node) {
+        // Just save the HTML as-is
+        // The highlight is applied by the InferredTitleMark extension in real-time
+        node.content = html;
+        node.updatedAt = new Date();
+
+        // For inferred title nodes, update the inferredCharCount cache
+        if (isInferredTitle.value) {
+          const highlightLength = extractInferredTitleLength(html);
+          if (highlightLength !== null) {
+            node.inferredCharCount = highlightLength;
+          }
+        }
+      }
+    };
+
+    // For inferred title nodes, include the resize callback
+    const options = isInferredTitle.value ? {
+      onInferredTitleResize: (newLength: number) => {
+        console.log('[FullDocumentDraggable] onInferredTitleResize called', { newLength, nodeId: props.node.id });
+
+        const node = props.source[props.index];
+        if (node && activeContentEditor.value) {
+          // Get current HTML from editor
+          const currentHtml = activeContentEditor.value.getHTML();
+
+          console.log('[FullDocumentDraggable] Current HTML:', currentHtml);
+
+          // Update the highlight length in the content HTML
+          const updatedHtml = updateInferredTitleLength(currentHtml, newLength);
+
+          console.log('[FullDocumentDraggable] Updated HTML:', updatedHtml);
+
+          // Update BOTH the content HTML and the inferredCharCount cache
+          node.content = updatedHtml;
+          node.inferredCharCount = newLength;
+          node.updatedAt = new Date();
+
+          // DON'T call setContent here - the InferredTitleMark extension already updated the visual
+          // Calling setContent would trigger onUpdate which might interfere
+          // The editor already has the correct visual state from the resize operation
+
+          // Trigger reactivity by updating the document
+          if (store.currentDocument) {
+            store.updateDocument(store.currentDocument);
+          }
+
+          console.log('[FullDocumentDraggable] Store updated with new length:', newLength);
+        }
+      },
+      // Handle Left arrow at start of content - move to title or previous field
+      onLeftArrowAtStart: () => {
+        // Clean up empty content before moving
+        cleanupEmptyContent();
+
+        // Try to navigate to previous field
+        const prevField = navigation.getPreviousField(props.node.id, 'content');
+        if (prevField) {
+          // Navigate to previous field
+          navigateToField(prevField.nodeId, prevField.field, 'end');
+        }
+      },
+      // Handle Right arrow at end of content - move to next field
+      onRightArrowAtEnd: () => {
+        console.log('[FullDocumentDraggable] Right arrow at end of content (inferred)', props.node.id);
+        const nextField = navigation.getNextField(props.node.id, 'content');
+        console.log('[FullDocumentDraggable] Next field from content:', nextField);
+        if (nextField) {
+          // Navigate to next field
+          navigateToField(nextField.nodeId, nextField.field, 'start');
+        } else {
+          console.log('[FullDocumentDraggable] No next field found');
+        }
+      },
+      // Handle Up arrow at first line of content - move to previous field
+      onUpArrowAtFirstLine: () => {
+        console.log('[FullDocumentDraggable] Up arrow at first line of content (inferred)', props.node.id);
+        // Clean up empty content before moving
+        cleanupEmptyContent();
+
+        const prevField = navigation.getPreviousField(props.node.id, 'content');
+        console.log('[FullDocumentDraggable] Previous field from content:', prevField);
+        if (prevField) {
+          navigateToField(prevField.nodeId, prevField.field, 'end');
+        } else {
+          console.log('[FullDocumentDraggable] No previous field found');
+        }
+      },
+      // Handle Down arrow at last line of content - move to next field
+      onDownArrowAtLastLine: () => {
+        console.log('[FullDocumentDraggable] Down arrow at last line of content (inferred)', props.node.id);
+        const nextField = navigation.getNextField(props.node.id, 'content');
+        console.log('[FullDocumentDraggable] Next field from content:', nextField);
+        if (nextField) {
+          navigateToField(nextField.nodeId, nextField.field, 'start');
+        } else {
+          console.log('[FullDocumentDraggable] No next field found');
+        }
+      }
+    } : {
+      // For manual title nodes, still need arrow handlers
+      onLeftArrowAtStart: () => {
+        // Clean up empty content before moving
+        cleanupEmptyContent();
+
+        // Try to navigate to previous field
+        const prevField = navigation.getPreviousField(props.node.id, 'content');
+        if (prevField) {
+          // Navigate to previous field
+          navigateToField(prevField.nodeId, prevField.field, 'end');
+        }
+      },
+      // Handle Right arrow at end of content - move to next field
+      onRightArrowAtEnd: () => {
+        console.log('[FullDocumentDraggable] Right arrow at end of content (manual)', props.node.id);
+        const nextField = navigation.getNextField(props.node.id, 'content');
+        console.log('[FullDocumentDraggable] Next field from content:', nextField);
+        if (nextField) {
+          // Navigate to next field
+          navigateToField(nextField.nodeId, nextField.field, 'start');
+        } else {
+          console.log('[FullDocumentDraggable] No next field found');
+        }
+      },
+      // Handle Up arrow at first line of content - move to previous field
+      onUpArrowAtFirstLine: () => {
+        console.log('[FullDocumentDraggable] Up arrow at first line of content (manual)', props.node.id);
+        // Clean up empty content before moving
+        cleanupEmptyContent();
+
+        const prevField = navigation.getPreviousField(props.node.id, 'content');
+        console.log('[FullDocumentDraggable] Previous field from content:', prevField);
+        if (prevField) {
+          navigateToField(prevField.nodeId, prevField.field, 'end');
+        } else {
+          console.log('[FullDocumentDraggable] No previous field found');
+        }
+      },
+      // Handle Down arrow at last line of content - move to next field
+      onDownArrowAtLastLine: () => {
+        console.log('[FullDocumentDraggable] Down arrow at last line of content (manual)', props.node.id);
+        const nextField = navigation.getNextField(props.node.id, 'content');
+        console.log('[FullDocumentDraggable] Next field from content:', nextField);
+        if (nextField) {
+          navigateToField(nextField.nodeId, nextField.field, 'start');
+        } else {
+          console.log('[FullDocumentDraggable] No next field found');
+        }
+      }
+    };
+
+    activeContentEditor.value = createContentEditor(
+      props.node.content || '',
+      isInferredTitle.value,
+      onUpdate,
+      options
+    );
+
+    // Focus the editor after it's mounted
+    void nextTick(() => {
+      if (activeContentEditor.value) {
+        const focusPosition = cursorAtStart ? 'start' : 'end';
+        activeContentEditor.value.commands.focus(focusPosition);
+      }
+    });
+  }
 }
 
 // Listen to selection events from other views
 viewSync.onNodeSelected((event) => {
-  // Ignore events from full-document itself
-  if (event.source === 'full-document') return;
-
   // Highlight this node if it matches the selected node
   isHighlighted.value = event.nodeId === props.node.id;
 
-  // Scroll into view if requested
-  if (isHighlighted.value && event.scrollIntoView && elementRef.value) {
+  // Only scroll into view if the selection came from OTHER views (not full-document)
+  // This prevents the annoying jump when clicking to edit within Full Document
+  if (isHighlighted.value && event.scrollIntoView && event.source !== 'full-document' && elementRef.value) {
     elementRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 });
 
-function handleTitleEnter() {
-  // Show content editor and focus it
-  isEditingContent.value = true;
+// Watch for active node changes to update highlight state and clean up empty content
+watch(activeNodeId, (newActiveId, oldActiveId) => {
+  // Update highlight state based on whether this is the active node
+  // This ensures only one node is highlighted at a time
+  if (newActiveId !== props.node.id) {
+    isHighlighted.value = false;
 
-  // Wait for next tick for the content div to be rendered
-  setTimeout(() => {
-    if (contentRef.value) {
-      contentRef.value.focus();
-      // Place cursor at the end if there's content
-      if (hasContent.value) {
-        const range = document.createRange();
-        const sel = window.getSelection();
-        range.selectNodeContents(contentRef.value);
-        range.collapse(false);
-        sel?.removeAllRanges();
-        sel?.addRange(range);
-      }
-    }
-  }, 0);
-}
-
-// Content editing handlers
-function handleContentBlur(event: FocusEvent) {
-  const target = event.target as HTMLElement;
-  const newContent = target.innerHTML;
-
-  if (newContent !== props.node.content) {
-    // Update the node content in the store
-    const node = props.source[props.index];
-    if (node) {
-      node.content = newContent;
-      node.updatedAt = new Date();
-
-      // Update inferred title if title is empty
-      if (!node.title || node.title.trim() === '') {
-        node.inferredTitle = inferTitle(newContent);
-      }
+    // If this node was previously active and we're switching away, clean up empty content
+    if (oldActiveId === props.node.id) {
+      cleanupEmptyContent();
     }
   }
+});
 
-  // Hide content editor if content is empty
-  if (!newContent || newContent.trim() === '') {
-    isEditingContent.value = false;
+// Listen for field navigation events
+fieldNavigationBus.on('open-field', (event) => {
+  // Only handle events for this node
+  if (event.nodeId === props.node.id) {
+    if (event.field === 'title') {
+      // Open title editor
+      handleTitleClick();
+      // Position cursor after editor is created
+      void nextTick(() => {
+        if (activeTitleEditor.value) {
+          activeTitleEditor.value.commands.focus(event.cursorPosition);
+        }
+      });
+    } else {
+      // Open content editor
+      // The navigation system only includes content fields that have content,
+      // so we can safely open the editor here
+      const cursorAtStart = event.cursorPosition === 'start';
+      handleContentClick(cursorAtStart);
+    }
   }
-}
+});
 </script>
 
 <style scoped lang="scss">
@@ -298,25 +689,75 @@ function handleContentBlur(event: FocusEvent) {
 .node-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
+// Wrapper divs for title and content
+.title-wrapper,
+.content-wrapper {
+  width: 100%;
+}
+
+// Shared styles for both static HTML and Tiptap editor
 .node-title {
   font-weight: 600;
   font-size: 1.1em;
   color: #333;
-  margin-bottom: 4px;
   outline: none;
   cursor: text;
+  min-height: 1.5em;
+  line-height: 1.5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s;
 
-  &:focus {
-    background-color: rgba(25, 118, 210, 0.05);
-    border-radius: 2px;
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.03);
   }
 
   &:empty:before {
-    content: 'Untitled';
+    content: 'Enter title...';
     color: #999;
     font-style: italic;
+  }
+
+  // Remove default paragraph margins from static HTML (v-html)
+  :deep(p) {
+    margin: 0;
+    line-height: 1.5;
+
+    // Ensure empty paragraphs still take up space (for line breaks)
+    min-height: 1.5em;
+  }
+
+  :deep(strong) {
+    font-weight: 700;
+  }
+
+  :deep(em) {
+    font-style: italic;
+  }
+
+  // Remove Tiptap's default styles to match static HTML
+  :deep(.ProseMirror) {
+    outline: none;
+    padding: 0;
+    min-height: 1.5em;
+
+    p {
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    strong {
+      font-weight: 700;
+    }
+
+    em {
+      font-style: italic;
+    }
   }
 }
 
@@ -328,10 +769,12 @@ function handleContentBlur(event: FocusEvent) {
   outline: none;
   cursor: text;
   min-height: 1.6em;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s;
 
-  &:focus {
-    background-color: rgba(25, 118, 210, 0.05);
-    border-radius: 2px;
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.03);
   }
 
   &:empty:before {
@@ -340,9 +783,13 @@ function handleContentBlur(event: FocusEvent) {
     font-style: italic;
   }
 
-  // Preserve formatting from Tiptap
+  // Remove default paragraph margins from static HTML (v-html)
   :deep(p) {
-    margin: 4px 0;
+    margin: 0;
+    line-height: 1.6;
+
+    // Ensure empty paragraphs still take up space (for line breaks)
+    min-height: 1.6em;
   }
 
   :deep(strong) {
@@ -351,6 +798,39 @@ function handleContentBlur(event: FocusEvent) {
 
   :deep(em) {
     font-style: italic;
+  }
+
+  :deep(br) {
+    line-height: 1.6;
+  }
+
+  // Remove Tiptap's default styles to match static HTML
+  :deep(.ProseMirror) {
+    outline: none;
+    padding: 0;
+    min-height: 1.6em;
+
+    p {
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    strong {
+      font-weight: 700;
+    }
+
+    em {
+      font-style: italic;
+    }
+  }
+
+  // Inferred title highlight styles (shared with TiptapEditor.vue)
+  :deep(.inferred-title-highlight) {
+    background-color: rgba(0, 0, 0, 0.04);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+    padding: 2px 0;
+    position: relative;
+    cursor: text;
   }
 }
 </style>
