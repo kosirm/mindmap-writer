@@ -197,11 +197,11 @@ export const MindmapNodeExtension = Node.create({
               const $pos = view.state.doc.resolve(pos);
 
               // Find the mindmap node
-              let nodePos = pos;
+              // let nodePos = pos;
               for (let d = $pos.depth; d > 0; d--) {
                 const node = $pos.node(d);
                 if (node.type.name === 'mindmapNode') {
-                  nodePos = $pos.before(d);
+                  // nodePos = $pos.before(d);
                   break;
                 }
               }

@@ -184,12 +184,38 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
         key: new PluginKey('inferredTitleMarkResize'),
         props: {
           handleDOMEvents: {
+            // Handle mousemove to show resize cursor only near right edge
+            mousemove: (view, event) => {
+              const target = event.target as HTMLElement;
+
+              // Only handle if hovering over the inferred title highlight
+              if (!target.classList?.contains('inferred-title-highlight')) {
+                return false;
+              }
+
+              const rect = target.getBoundingClientRect();
+              const mouseX = event.clientX;
+
+              // Define resize zone: 16px from the right edge (with 8px buffer on each side)
+              const distanceFromRight = rect.right - mouseX;
+              const isInResizeZone = distanceFromRight >= 0 && distanceFromRight <= 16;
+
+              // Update cursor based on position
+              if (isInResizeZone) {
+                target.style.cursor = 'ew-resize';
+              } else {
+                target.style.cursor = 'text';
+              }
+
+              return false;
+            },
+
             mousedown: (view, event) => {
               const target = event.target as HTMLElement;
 
               // Check if the mousedown is on the resize handle
               // We detect this by checking if the click is on the highlight span
-              // and if the click position is near the right edge OR above it (for the triangle)
+              // and if the click position is near the right edge (within 16px)
               if (!target.classList.contains('inferred-title-highlight')) {
                 return false;
               }
@@ -197,25 +223,19 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
               const span = target;
               const rect = span.getBoundingClientRect();
               const clickX = event.clientX;
-              const clickY = event.clientY;
 
-              // Check if click is within the resize handle area:
-              // - Horizontally: within 12px of the right edge (expanded for triangle)
-              // - Vertically: from 10px above the top to the bottom (to catch triangle clicks)
-              const isInHorizontalRange = clickX >= rect.right - 12 && clickX <= rect.right + 2;
-              const isInVerticalRange = clickY >= rect.top - 10 && clickY <= rect.bottom;
+              // Check if click is within the resize zone: 16px from the right edge
+              const distanceFromRight = rect.right - clickX;
+              const isInResizeZone = distanceFromRight >= 0 && distanceFromRight <= 16;
 
-              if (!isInHorizontalRange || !isInVerticalRange) {
+              if (!isInResizeZone) {
                 return false;
               }
 
               console.log('[InferredTitleMark] Resize handle clicked', {
                 clickX,
-                clickY,
                 rectRight: rect.right,
-                rectTop: rect.top,
-                distanceX: rect.right - clickX,
-                distanceY: clickY - rect.top
+                distanceFromRight: distanceFromRight
               });
 
               // Prevent default text selection
@@ -249,6 +269,8 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
               // Set the resizing flag to prevent onUpdate from triggering during visual feedback
               isResizing = true;
 
+              const text = state.doc.textContent;
+
               // Handle mouse move - only update visual feedback, don't emit updates
               const handleMouseMove = (moveEvent: MouseEvent) => {
                 hasMoved = true;
@@ -259,7 +281,6 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
                 const deltaChars = Math.round(deltaX / charWidth);
 
                 const newLength = Math.max(1, initialLength + deltaChars);
-                const text = state.doc.textContent;
                 const clampedLength = Math.min(newLength, text.length);
 
                 console.log('[InferredTitleMark] Resizing', {
@@ -299,7 +320,6 @@ export const InferredTitleMark = Mark.create<InferredTitleMarkOptions>({
                   const charWidth = rect.width / initialLength;
                   const deltaChars = Math.round(deltaX / charWidth);
                   const newLength = Math.max(1, initialLength + deltaChars);
-                  const text = state.doc.textContent;
                   const clampedLength = Math.min(newLength, text.length);
 
                   console.log('[InferredTitleMark] Final resize', {

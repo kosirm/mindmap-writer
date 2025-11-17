@@ -5,7 +5,7 @@ import type { MindmapNode } from '../stores/mindmap';
 /**
  * View source types - identifies which view triggered an event
  */
-export type ViewSource = 'tree' | 'mindmap' | 'text' | 'system';
+export type ViewSource = 'tree' | 'mindmap' | 'text' | 'full-document' | 'system';
 
 /**
  * Event types for multi-view synchronization

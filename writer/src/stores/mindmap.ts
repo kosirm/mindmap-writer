@@ -109,32 +109,9 @@ export function inferTitle(content: string, targetCharCount: number = 20): strin
     return content;
   }
 
-  // Check if the character at targetCharCount is a word boundary
-  const charAtTarget = trimmedPlainText.charAt(targetCharCount);
-  const wordBoundaryChars = [' ', ',', '.', '!', '?', ';', ':', '\n'];
-
-  let targetPlainTextLength = targetCharCount;
-
-  if (!wordBoundaryChars.includes(charAtTarget)) {
-    // The target position is in the middle of a word, find the last word boundary
-    const textUpToTarget = trimmedPlainText.substring(0, targetCharCount);
-    const lastSpace = Math.max(
-      textUpToTarget.lastIndexOf(' '),
-      textUpToTarget.lastIndexOf(','),
-      textUpToTarget.lastIndexOf('.'),
-      textUpToTarget.lastIndexOf('!'),
-      textUpToTarget.lastIndexOf('?'),
-      textUpToTarget.lastIndexOf(';'),
-      textUpToTarget.lastIndexOf(':')
-    );
-
-    if (lastSpace > 0) {
-      targetPlainTextLength = lastSpace;
-    }
-  }
-
-  // Now extract HTML up to targetPlainTextLength characters of plain text
-  return extractHtmlUpToLength(content, targetPlainTextLength);
+  // Use the exact character count the user specified (no word boundary snapping)
+  // This allows users to have titles that end mid-word if they want
+  return extractHtmlUpToLength(content, targetCharCount);
 }
 
 /**
