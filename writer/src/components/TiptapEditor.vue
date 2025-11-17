@@ -60,10 +60,14 @@ import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { MindmapNode } from 'stores/mindmap';
-import { inferTitle, getDisplayTitle } from 'stores/mindmap';
+import { getDisplayTitle, useMindmapStore } from 'stores/mindmap';
 import { useViewSync } from 'src/composables/useViewSync';
 import { InferredTitleMark } from './TiptapExtensions/InferredTitleMark';
 import { MindmapNodeExtension } from './TiptapExtensions/MindmapNodeExtension';
+import {
+  extractInferredTitleLength,
+  updateInferredTitleLength,
+} from 'src/utils/inferredTitleUtils';
 
 interface Props {
   modelValue: MindmapNode | null;
@@ -82,6 +86,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<Emits>();
 
+const store = useMindmapStore();
 const isUpdatingFromStore = ref(false);
 const editorMode = computed({
   get: () => props.mode,
@@ -103,44 +108,44 @@ const handleInferredTitleResize = (newLength: number) => {
 
   if (!selectedNode.value || !editor.value) return;
 
-  // Get the HTML content (inferTitle expects HTML)
+  // Get the current HTML content
   const htmlContent = editor.value.getHTML();
-  const inferredTitleHtml = inferTitle(htmlContent, newLength);
 
-  // Extract plain text length from the inferred title HTML
-  const tmp = document.createElement('div');
-  tmp.innerHTML = inferredTitleHtml;
-  const inferredTitlePlainText = tmp.textContent || '';
-  const actualLength = inferredTitlePlainText.length;
+  // Update the highlight length in the content HTML (single source of truth)
+  const updatedHtml = updateInferredTitleLength(htmlContent, newLength);
 
-  console.log('[TiptapEditor] Calculated inferred title', {
+  console.log('[TiptapEditor] Updated inferred title highlight', {
     requestedLength: newLength,
-    actualLength,
-    inferredTitleHtml,
-    inferredTitlePlainText
+    oldHtml: htmlContent,
+    newHtml: updatedHtml
   });
 
-  // Store the custom character count in the node
-  if (!selectedNode.value.inferredCharCount || selectedNode.value.inferredCharCount !== actualLength) {
-    selectedNode.value.inferredCharCount = actualLength;
-    selectedNode.value.inferredTitle = inferredTitleHtml;
+  // Update BOTH the content HTML and the inferredCharCount cache
+  selectedNode.value.content = updatedHtml;
+  selectedNode.value.inferredCharCount = newLength;
+  selectedNode.value.updatedAt = new Date();
 
-    // Update the highlight to match the actual plain text length
-    isUpdatingFromStore.value = true;
-    editor.value.commands.setInferredTitleMark(actualLength);
-    isUpdatingFromStore.value = false;
+  // Update the editor content to reflect the change
+  isUpdatingFromStore.value = true;
+  editor.value.commands.setContent(updatedHtml);
+  isUpdatingFromStore.value = false;
 
-    // Emit update to store
-    if (props.modelValue) {
-      emit('update:modelValue', props.modelValue);
-    }
-
-    console.log('[TiptapEditor] Updated inferredCharCount and inferredTitle', {
-      nodeId: selectedNode.value.id,
-      newCharCount: actualLength,
-      newInferredTitle: selectedNode.value.inferredTitle
-    });
+  // Emit update to store
+  if (props.modelValue) {
+    emit('update:modelValue', props.modelValue);
   }
+
+  // Trigger reactivity by updating the document in the store
+  // This ensures the change is reflected in all views (Full Document, Mindmap, etc.)
+  if (store.currentDocument) {
+    store.updateDocument(store.currentDocument);
+  }
+
+  console.log('[TiptapEditor] Updated content with new highlight', {
+    nodeId: selectedNode.value.id,
+    newContent: selectedNode.value.content,
+    newCharCount: selectedNode.value.inferredCharCount
+  });
 };
 
 // Initialize Tiptap editor
@@ -176,6 +181,7 @@ const editor = useEditor({
     if (editorMode.value === 'node' && selectedNodeId.value) {
       // In Node Content mode, emit the content update for the selected node
       const content = editor.getHTML();
+
       console.log('[TiptapEditor] onUpdate: Node mode - emitting update:node-content', {
         nodeId: selectedNodeId.value,
         htmlContent: content,
@@ -183,8 +189,33 @@ const editor = useEditor({
       });
       emit('update:node-content', selectedNodeId.value, content);
 
-      // Update inferred title highlight if node has empty title
-      updateInferredTitleHighlight();
+      // For inferred title nodes, apply highlight as user types
+      if (selectedNode.value) {
+        // Check if title has actual text content
+        let titleHasContent = false;
+        if (selectedNode.value.title && selectedNode.value.title.trim() !== '') {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = selectedNode.value.title;
+          const textContent = tmp.textContent || '';
+          titleHasContent = textContent.trim() !== '';
+        }
+
+        if (!titleHasContent) {
+          // Node has empty title - apply highlight as user types
+          const plainText = editor.getText();
+          const targetLength = Math.min(20, plainText.length);
+
+          if (targetLength > 0) {
+            // Apply the highlight mark
+            isUpdatingFromStore.value = true;
+            editor.commands.setInferredTitleMark(targetLength);
+            isUpdatingFromStore.value = false;
+
+            // Update the inferredCharCount cache
+            selectedNode.value.inferredCharCount = targetLength;
+          }
+        }
+      }
     } else if (editorMode.value === 'full') {
       // In Full Document mode, parse and update the entire tree
       // TODO: Parse editor content and update store
@@ -351,48 +382,40 @@ function updateInferredTitleHighlight() {
     return;
   }
 
-  // Get the HTML content from editor (inferTitle expects HTML)
+  // Get the HTML content from editor
   const htmlContent = editor.value.getHTML();
 
-  // Calculate what the inferred title would be (returns HTML)
-  const charCount = currentNode.inferredCharCount || 20;
-  const inferredTitleHtml = inferTitle(htmlContent, charCount);
+  // Extract the highlight length from the content HTML (single source of truth)
+  let highlightLength = extractInferredTitleLength(htmlContent);
 
-  // Extract plain text length from the inferred title HTML
-  const tmp = document.createElement('div');
-  tmp.innerHTML = inferredTitleHtml;
-  const inferredTitlePlainText = tmp.textContent || '';
-  const inferredTitleLength = inferredTitlePlainText.length;
+  if (highlightLength && highlightLength > 0) {
+    console.log('[TiptapEditor] Found existing inferred title highlight in content', {
+      htmlContent,
+      highlightLength
+    });
 
-  console.log('[TiptapEditor] Applying inferred title highlight', {
-    htmlContent,
-    charCount,
-    inferredTitleHtml,
-    inferredTitlePlainText,
-    inferredTitleLength
-  });
+    // Apply the highlight mark based on the length from the content HTML
+    editor.value.commands.setInferredTitleMark(highlightLength);
+  } else {
+    console.log('[TiptapEditor] No inferred title highlight found in content', {
+      htmlContent
+    });
 
-  // Check if the mark length has actually changed to avoid unnecessary updates
-  // This prevents the double-space issue when typing within the highlighted area
-  let currentMarkLength = 0;
-  const { state } = editor.value;
-  state.doc.descendants((node) => {
-    if (node.marks.some(mark => mark.type.name === 'inferredTitleMark')) {
-      currentMarkLength += node.nodeSize - 1; // -1 because nodeSize includes the node itself
-    }
-  });
+    // No highlight exists yet - calculate default highlight length
+    // Get plain text from content
+    const plainText = editor.value.getText();
 
-  console.log('[TiptapEditor] Current mark length vs new length', {
-    currentMarkLength,
-    inferredTitleLength,
-    needsUpdate: currentMarkLength !== inferredTitleLength
-  });
+    // Highlight up to 20 characters (or less if content is shorter)
+    highlightLength = Math.min(20, plainText.length);
 
-  // Only update the mark if the length has changed
-  if (currentMarkLength !== inferredTitleLength) {
-    // Apply highlight for the exact plain text length of the inferred title
-    if (inferredTitleLength > 0) {
-      editor.value.commands.setInferredTitleMark(inferredTitleLength);
+    console.log('[TiptapEditor] Calculated default inferred title highlight', {
+      plainText,
+      highlightLength
+    });
+
+    // Apply the highlight mark
+    if (highlightLength > 0) {
+      editor.value.commands.setInferredTitleMark(highlightLength);
     } else {
       editor.value.commands.unsetInferredTitleMark();
     }
@@ -492,9 +515,7 @@ watch(() => {
 }, (newNode) => {
   console.log('[TiptapEditor] Selected node watcher triggered', {
     newNodeId: newNode?.id,
-    newNodeInferredCharCount: newNode?.inferredCharCount,
-    oldNodeId: selectedNode.value?.id,
-    oldNodeInferredCharCount: selectedNode.value?.inferredCharCount
+    oldNodeId: selectedNode.value?.id
   });
 
   // Update the selectedNode ref to point to the latest version from the store

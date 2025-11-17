@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue';
+import { ref } from 'vue';
 
 /**
  * Composable for handling inferred title resize functionality.
@@ -9,7 +9,7 @@ export function useInferredTitleResize() {
 
   /**
    * Attach resize handlers to an element with inferred title highlight.
-   * 
+   *
    * @param element - The HTML element containing the inferred title highlight span
    * @param onResizeComplete - Callback when resize is complete with new character length
    * @returns Cleanup function to remove event listeners

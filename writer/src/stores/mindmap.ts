@@ -1,5 +1,6 @@
 import { defineStore, acceptHMRUpdate } from 'pinia';
 import { ref, computed } from 'vue';
+import { extractInferredTitleText, extractInferredTitleLength } from 'src/utils/inferredTitleUtils';
 
 /**
  * Extended data structure for mindmap nodes
@@ -256,13 +257,21 @@ export function getDisplayTitle(node: MindmapNode, defaultCharCount: number = 20
   // If node has explicit title with content, use it
   if (titleHasContent) {
     title = node.title;
-  } else if (node.inferredTitle) {
-    // Otherwise, use cached inferred title if available
-    title = node.inferredTitle;
   } else {
-    // Fallback: calculate on the fly (shouldn't happen if updateInferredTitles is called)
-    const charCount = node.inferredCharCount || defaultCharCount;
-    title = inferTitle(node.content, charCount);
+    // Node has empty title - extract inferred title from content HTML
+    // Use inferredCharCount as a hint for how many characters to extract
+    const charCount = node.inferredCharCount || extractInferredTitleLength(node.content) || defaultCharCount;
+
+    // Extract the inferred title text from content
+    const inferredText = extractInferredTitleText(node.content);
+
+    if (inferredText) {
+      // We have highlighted text in the content - use it
+      title = `<p><span>${inferredText}</span></p>`;
+    } else {
+      // No highlight found - calculate on the fly using inferTitle
+      title = inferTitle(node.content, charCount);
+    }
   }
 
   // Normalize the HTML to ensure consistent rendering
@@ -594,12 +603,9 @@ export const useMindmapStore = defineStore('mindmap', () => {
           titleHasContent
         });
       } else {
-        // Title has no content - re-infer from content
-        const charCount = node.inferredCharCount || 20;
-        node.inferredTitle = inferTitle(node.content, charCount);
-        console.log('[Store] updateNodeFromLegacy: Re-inferred title (title has no content)', {
+        // Title has no content - inferred title is extracted from content HTML on-the-fly
+        console.log('[Store] updateNodeFromLegacy: Using inferred title from content (title has no content)', {
           nodeId: node.id,
-          inferredTitle: node.inferredTitle,
           titleHasContent
         });
       }
@@ -659,23 +665,18 @@ export const useMindmapStore = defineStore('mindmap', () => {
       titleHasContent = textContent.trim() !== '';
     }
 
-    // Update inferred title for this node
+    // Note: Inferred title is now extracted from content HTML on-the-fly
+    // No need to store it separately
     if (!titleHasContent) {
-      const charCount = node.inferredCharCount || 20;
-      node.inferredTitle = inferTitle(node.content, charCount);
-      console.log('[Store] updateInferredTitles: Updated inferred title', {
+      console.log('[Store] updateInferredTitles: Node uses inferred title from content', {
         nodeId: node.id,
         nodePath: node.path,
         title: node.title,
         titleHasContent,
-        content: node.content,
-        inferredTitle: node.inferredTitle,
-        charCount
+        content: node.content
       });
     } else {
-      // If node has explicit title, clear inferred title
-      delete node.inferredTitle;
-      console.log('[Store] updateInferredTitles: Node has explicit title, cleared inferred', {
+      console.log('[Store] updateInferredTitles: Node has explicit title', {
         nodeId: node.id,
         nodePath: node.path,
         title: node.title,
