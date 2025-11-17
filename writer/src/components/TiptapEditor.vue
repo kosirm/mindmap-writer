@@ -707,33 +707,11 @@ onBeforeUnmount(() => {
 
   // Inferred title highlight
   .inferred-title-highlight {
-    background-color: rgba(255, 235, 59, 0.3); // Light yellow highlight
-    border-bottom: 2px solid rgba(255, 193, 7, 0.6); // Amber underline
+    background-color: rgba(0, 0, 0, 0.04); // Light gray highlight
+    border-bottom: 1px solid rgba(0, 0, 0, 0.15); // Gray underline
     padding: 2px 0;
-    padding-right: 4px; // Add padding on the right to prevent covering last character
     position: relative;
     cursor: text; // Default cursor for the text
-
-    // Add a small triangle/tear indicator above the end of the highlight
-    &::before {
-      content: '';
-      position: absolute;
-      right: 0px; // Align with the right edge
-      top: -10px; // Position above the text
-      width: 0;
-      height: 0;
-      border-left: 5px solid transparent;
-      border-right: 5px solid transparent;
-      border-top: 10px solid rgba(255, 193, 7, 0.9); // Amber triangle pointing down
-      cursor: ew-resize; // Show resize cursor
-      z-index: 10; // Ensure it's above other elements
-      pointer-events: auto; // Make sure it receives mouse events
-    }
-
-    // Show resize cursor when hovering near the right edge
-    &:hover {
-      cursor: ew-resize;
-    }
   }
 }
 </style>

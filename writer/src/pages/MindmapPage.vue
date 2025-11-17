@@ -288,7 +288,14 @@
                 </q-btn>
               </div>
             </div>
+            <!-- Full Document mode: use vue-dnd-kit based editor -->
+            <full-document-editor
+              v-if="textEditorMode === 'full'"
+            />
+
+            <!-- Node Content mode: use Tiptap editor -->
             <tiptap-editor
+              v-else
               :model-value="store.currentDocument"
               :mode="textEditorMode"
               @update:model-value="handleTextEditorUpdate"
@@ -378,7 +385,15 @@
               </q-btn>
             </div>
           </div>
+
+          <!-- Full Document mode: use vue-dnd-kit based editor -->
+          <full-document-editor
+            v-if="textEditorMode === 'full'"
+          />
+
+          <!-- Node Content mode: use Tiptap editor -->
           <tiptap-editor
+            v-else
             :model-value="store.currentDocument"
             :mode="textEditorMode"
             @update:model-value="handleTextEditorUpdate"
@@ -396,6 +411,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useQuasar, Notify } from 'quasar';
 import Mindmap from 'components/Mindmap';
 import TiptapEditor from 'components/TiptapEditor.vue';
+import FullDocumentEditor from 'components/FullDocumentEditor.vue';
 import { useMindmapStore, type MindmapData, type MindmapNode } from 'stores/mindmap';
 import { useViewSync } from 'src/composables/useViewSync';
 import emitter from 'src/mitt';
