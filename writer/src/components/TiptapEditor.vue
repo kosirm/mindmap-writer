@@ -1,6 +1,16 @@
 <template>
   <div class="tiptap-editor-container">
-    <template v-if="editor">
+    <!-- Show "Select a node" message when in node mode but no node is selected -->
+    <div v-if="editorMode === 'node' && !selectedNodeId" class="no-node-selected">
+      <q-icon name="article" size="4em" color="grey-5" />
+      <div class="text-h6 text-grey-6 q-mt-md">Select a node to start editing</div>
+      <div class="text-caption text-grey-5 q-mt-sm">
+        Click on a node in the mindmap or tree view to edit its content
+      </div>
+    </div>
+
+    <!-- Show editor when in full mode or when a node is selected in node mode -->
+    <template v-else-if="editor">
       <div class="editor-toolbar">
         <!-- Formatting buttons only -->
         <q-btn
@@ -61,7 +71,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { MindmapNode } from 'stores/mindmap';
 import { getDisplayTitle, useMindmapStore } from 'stores/mindmap';
-import { useViewSync } from 'src/composables/useViewSync';
+import { useViewSync, globalSelectedNodeId } from 'src/composables/useViewSync';
 import { InferredTitleMark } from './TiptapExtensions/InferredTitleMark';
 import { MindmapNodeExtension } from './TiptapExtensions/MindmapNodeExtension';
 import {
@@ -201,18 +211,38 @@ const editor = useEditor({
         }
 
         if (!titleHasContent) {
-          // Node has empty title - apply highlight as user types
-          const plainText = editor.getText();
-          const targetLength = Math.min(20, plainText.length);
+          // Node has empty title - check if highlight already exists
+          const currentHighlightLength = extractInferredTitleLength(content);
 
-          if (targetLength > 0) {
-            // Apply the highlight mark
-            isUpdatingFromStore.value = true;
-            editor.commands.setInferredTitleMark(targetLength);
-            isUpdatingFromStore.value = false;
+          console.log('[TiptapEditor] onUpdate: Checking inferred title highlight', {
+            currentHighlightLength,
+            contentHtml: content
+          });
 
-            // Update the inferredCharCount cache
-            selectedNode.value.inferredCharCount = targetLength;
+          // Only apply default 20-character highlight if no highlight exists yet
+          if (!currentHighlightLength || currentHighlightLength === 0) {
+            const plainText = editor.getText();
+            const targetLength = Math.min(20, plainText.length);
+
+            console.log('[TiptapEditor] onUpdate: No highlight found, applying default', {
+              targetLength,
+              plainText
+            });
+
+            if (targetLength > 0) {
+              // Apply the default highlight mark
+              isUpdatingFromStore.value = true;
+              editor.commands.setInferredTitleMark(targetLength);
+              isUpdatingFromStore.value = false;
+
+              // Update the inferredCharCount cache
+              selectedNode.value.inferredCharCount = targetLength;
+            }
+          } else {
+            console.log('[TiptapEditor] onUpdate: Highlight already exists, preserving it', {
+              currentHighlightLength
+            });
+            // Highlight already exists - preserve it (don't recalculate to 20)
           }
         }
       }
@@ -462,14 +492,45 @@ watch(editorMode, (newMode, oldMode) => {
     // Switch to Node Content mode
     console.log('[TiptapEditor] Switching to Node Content mode', {
       hasSelectedNode: !!selectedNode.value,
-      selectedNodeId: selectedNode.value?.id,
+      selectedNodeId: selectedNodeId.value,
+      globalSelectedNodeId: globalSelectedNodeId.value,
       selectedNodeTitle: selectedNode.value?.title
     });
 
+    // If no node is selected in Content editor, check the global selected node ID
+    if (!selectedNodeId.value && globalSelectedNodeId.value && props.modelValue) {
+      console.log('[TiptapEditor] No local node selected, using global selected node', {
+        globalSelectedNodeId: globalSelectedNodeId.value
+      });
+      selectedNodeId.value = globalSelectedNodeId.value;
+      selectedNode.value = findNodeById(props.modelValue, globalSelectedNodeId.value);
+      console.log('[TiptapEditor] Adopted global selected node', {
+        nodeId: selectedNodeId.value,
+        found: !!selectedNode.value
+      });
+    }
+
+    // If we have a selected node ID but no selectedNode ref, try to find it
+    if (selectedNodeId.value && !selectedNode.value && props.modelValue) {
+      selectedNode.value = findNodeById(props.modelValue, selectedNodeId.value);
+      console.log('[TiptapEditor] Found node by ID during mode switch', {
+        nodeId: selectedNodeId.value,
+        found: !!selectedNode.value
+      });
+    }
+
     if (selectedNode.value) {
+      console.log('[TiptapEditor] Loading selected node content', {
+        nodeId: selectedNode.value.id,
+        content: selectedNode.value.content
+      });
       editor.value.commands.setContent(selectedNode.value.content || '');
+
+      // Apply inferred title highlight if needed
+      updateInferredTitleHighlight();
     } else {
-      editor.value.commands.setContent('<p>Select a node to edit its content</p>');
+      console.log('[TiptapEditor] No node selected, clearing editor');
+      editor.value.commands.setContent('');
     }
     editor.value.setOptions({
       editorProps: {
@@ -489,19 +550,57 @@ watch(editorMode, (newMode, oldMode) => {
 
 // Listen to node selection events from other views
 viewSync.onNodeSelected((event) => {
+  console.log('[TiptapEditor] Node selection event received', {
+    nodeId: event.nodeId,
+    source: event.source,
+    currentMode: editorMode.value,
+    currentSelectedNodeId: selectedNodeId.value
+  });
+
   selectedNodeId.value = event.nodeId;
 
   // Find the selected node in the tree
   selectedNode.value = findNodeById(props.modelValue, event.nodeId);
 
+  console.log('[TiptapEditor] Node found in tree', {
+    nodeId: event.nodeId,
+    nodeFound: !!selectedNode.value,
+    nodeContent: selectedNode.value?.content,
+    editorMode: editorMode.value,
+    hasEditor: !!editor.value
+  });
+
   // If in Node Content mode, update the editor
+  console.log('[TiptapEditor] Checking conditions for editor update', {
+    editorModeValue: editorMode.value,
+    editorModeIsNode: editorMode.value === 'node',
+    hasEditor: !!editor.value,
+    hasSelectedNode: !!selectedNode.value,
+    allConditionsMet: editorMode.value === 'node' && !!editor.value && !!selectedNode.value
+  });
+
   if (editorMode.value === 'node' && editor.value && selectedNode.value) {
+    console.log('[TiptapEditor] Updating editor with node content', {
+      nodeId: selectedNode.value.id,
+      content: selectedNode.value.content
+    });
+
     isUpdatingFromStore.value = true;
     editor.value.commands.setContent(selectedNode.value.content || '');
     isUpdatingFromStore.value = false;
 
     // Apply inferred title highlight
     updateInferredTitleHighlight();
+  } else {
+    console.log('[TiptapEditor] Not updating editor', {
+      editorMode: editorMode.value,
+      hasEditor: !!editor.value,
+      hasSelectedNode: !!selectedNode.value,
+      reason: !editorMode.value ? 'no mode' :
+              editorMode.value !== 'node' ? 'not in node mode' :
+              !editor.value ? 'no editor' :
+              !selectedNode.value ? 'no selected node' : 'unknown'
+    });
   }
 });
 
@@ -542,42 +641,50 @@ watch(() => {
   // 1. We're in node mode
   // 2. Editor exists
   // 3. Content actually changed
-  // 4. Current editor HTML is different from new content (avoid unnecessary updates)
   if (editorMode.value === 'node' && editor.value && newContent !== oldContent) {
     const currentEditorHTML = editor.value.getHTML();
     const newContentHTML = newContent || '';
 
-    // Strip inferred title marks from both sides before comparing
-    // This prevents unnecessary updates when the only difference is the mark
-    const stripInferredTitleMark = (html: string): string => {
-      return html.replace(/<span[^>]*data-inferred-title="true"[^>]*class="inferred-title-highlight"[^>]*>(.*?)<\/span>/g, '$1')
-                 .replace(/<span[^>]*class="inferred-title-highlight"[^>]*data-inferred-title="true"[^>]*>(.*?)<\/span>/g, '$1');
-    };
-
-    const currentEditorHTMLStripped = stripInferredTitleMark(currentEditorHTML);
-    const newContentHTMLStripped = stripInferredTitleMark(newContentHTML);
-
-    console.log('[TiptapEditor] Comparing editor HTML with new content', {
+    console.log('[TiptapEditor] Content watcher: comparing HTML', {
       currentEditorHTML,
       newContentHTML,
-      currentEditorHTMLStripped,
-      newContentHTMLStripped,
-      areEqual: currentEditorHTMLStripped === newContentHTMLStripped
+      areEqual: currentEditorHTML === newContentHTML,
+      currentHighlightLength: extractInferredTitleLength(currentEditorHTML),
+      newHighlightLength: extractInferredTitleLength(newContentHTML)
     });
 
-    // Only update if the HTML is actually different (ignoring inferred title marks)
-    if (currentEditorHTMLStripped !== newContentHTMLStripped) {
-      console.log('[TiptapEditor] Updating editor content from store');
-      isUpdatingFromStore.value = true;
-      editor.value.commands.setContent(newContent || '');
-      isUpdatingFromStore.value = false;
+    // Only update if the HTML is actually different
+    if (currentEditorHTML !== newContentHTML) {
+      console.log('[TiptapEditor] Content watcher: updating editor content from store');
 
-      // Update inferred title highlight after content is set
+      // Set flag to prevent onUpdate from triggering
+      isUpdatingFromStore.value = true;
+
+      // Update the editor content
+      editor.value.commands.setContent(newContentHTML);
+
+      // Extract highlight length from the new content HTML and apply it
       void nextTick(() => {
-        updateInferredTitleHighlight();
+        const highlightLength = extractInferredTitleLength(newContentHTML);
+
+        console.log('[TiptapEditor] Content watcher: applying highlight from new content', {
+          highlightLength,
+          newContentHTML
+        });
+
+        if (highlightLength && highlightLength > 0) {
+          // Apply the highlight mark based on the length from the content HTML
+          editor.value?.commands.setInferredTitleMark(highlightLength);
+        } else {
+          // No highlight in content - calculate default
+          updateInferredTitleHighlight();
+        }
+
+        // Reset flag after highlight is applied
+        isUpdatingFromStore.value = false;
       });
     } else {
-      console.log('[TiptapEditor] Content is the same (ignoring marks), skipping update');
+      console.log('[TiptapEditor] Content watcher: HTML is the same, skipping update');
     }
   }
 });
@@ -614,12 +721,62 @@ watch(() => {
 
 // Initialize content on mount
 onMounted(() => {
+  console.log('[TiptapEditor] Component mounted', {
+    mode: editorMode.value,
+    selectedNodeId: selectedNodeId.value,
+    globalSelectedNodeId: globalSelectedNodeId.value
+  });
+
   if (editor.value && props.modelValue) {
     if (editorMode.value === 'full') {
       const docJSON = convertNodeTreeToDocument(props.modelValue);
       editor.value.commands.setContent(docJSON);
     } else {
-      // In node mode, content is set by the selectedNode watcher
+      // In node mode, check if there's a global selected node
+      if (!selectedNodeId.value && globalSelectedNodeId.value) {
+        console.log('[TiptapEditor] onMounted: Adopting global selected node', {
+          globalSelectedNodeId: globalSelectedNodeId.value
+        });
+        selectedNodeId.value = globalSelectedNodeId.value;
+        selectedNode.value = findNodeById(props.modelValue, globalSelectedNodeId.value);
+
+        if (selectedNode.value) {
+          console.log('[TiptapEditor] onMounted: Loading selected node content', {
+            nodeId: selectedNode.value.id,
+            content: selectedNode.value.content
+          });
+          editor.value.commands.setContent(selectedNode.value.content || '');
+
+          // Apply inferred title highlight from the content HTML
+          // Use nextTick to ensure editor content is fully loaded
+          void nextTick(() => {
+            // Extract highlight length from the content HTML
+            const highlightLength = extractInferredTitleLength(selectedNode.value?.content || '');
+
+            console.log('[TiptapEditor] onMounted: Applying inferred title highlight', {
+              nodeId: selectedNode.value?.id,
+              highlightLength,
+              contentHtml: selectedNode.value?.content
+            });
+
+            if (highlightLength && highlightLength > 0) {
+              // Apply the highlight mark based on the length from the content HTML
+              editor.value?.commands.setInferredTitleMark(highlightLength);
+            } else {
+              // No highlight in content - calculate default
+              updateInferredTitleHighlight();
+            }
+          });
+
+          // Emit selection event to sync with other views (mindmap, tree)
+          // This ensures the node stays selected in mindmap when switching from Full Document
+          console.log('[TiptapEditor] onMounted: Emitting selection event to sync with other views', {
+            nodeId: selectedNode.value.id
+          });
+          viewSync.selectNode(selectedNode.value.id, false); // false = don't scroll
+        }
+      }
+      // Otherwise, content is set by the selectedNode watcher when a node is selected
     }
   }
 
@@ -708,6 +865,16 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.no-node-selected {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
 }
 
 :deep(.ProseMirror) {
