@@ -1,4 +1,4 @@
-import { onUnmounted } from 'vue';
+import { onUnmounted, ref } from 'vue';
 import emitter from '../mitt';
 import type { MindmapNode } from '../stores/mindmap';
 
@@ -6,6 +6,12 @@ import type { MindmapNode } from '../stores/mindmap';
  * View source types - identifies which view triggered an event
  */
 export type ViewSource = 'tree' | 'mindmap' | 'text' | 'full-document' | 'system';
+
+/**
+ * Global selected node ID - persists across view switches
+ * This is the single source of truth for which node is currently selected
+ */
+export const globalSelectedNodeId = ref<string | null>(null);
 
 /**
  * Event types for multi-view synchronization
@@ -102,6 +108,9 @@ export function useViewSync(viewSource: ViewSource) {
    * Emit node selection event
    */
   function selectNode(nodeId: string, scrollIntoView = true) {
+    // Update global selected node ID
+    globalSelectedNodeId.value = nodeId;
+
     emitter.emit('node-selected', {
       nodeId,
       source: viewSource,
