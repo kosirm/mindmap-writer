@@ -1,5 +1,41 @@
 # Lessons Learned - Vue Flow Mindmap MVP
 
+## Event Bus Architecture (2025-11-18)
+
+### ✅ Successfully Implemented Event Bus with mitt
+
+**What we did:**
+- Installed `mitt` (200 bytes, 11.7k stars)
+- Created typed event bus in `src/composables/useEventBus.ts`
+- Migrated tree ↔ canvas selection sync to use events
+- Added automatic event logging in dev mode
+
+**Results:**
+- ✅ **Works perfectly!** No issues during migration
+- ✅ Clean separation of concerns
+- ✅ Easy to debug with wildcard listener
+- ✅ Type-safe event handling
+- ✅ Proper cleanup in `onBeforeUnmount`
+
+**Key Benefits:**
+1. **Decoupling:** Tree and canvas don't directly manipulate each other
+2. **Debugging:** All events logged in console with `[Event Bus]` prefix
+3. **Scalability:** Easy to add new events for Tiptap and Writer panel
+4. **Maintainability:** Clear event flow, no circular reactivity issues
+
+**Best Practices Established:**
+- Always use named functions for event handlers (so they can be removed)
+- Always clean up listeners in `onBeforeUnmount`
+- Follow naming convention: `<source>:<action>` (e.g., `tree:node-selected`)
+- Define all events in `MindmapEvents` type for type safety
+
+**Next Steps:**
+- Use event bus for Tiptap integration (`node:edit-start`, `node:title-updated`, etc.)
+- Use event bus for Writer panel sync
+- Consider adding undo/redo with event history
+
+---
+
 ## Architecture Decisions
 
 ### 1. Why Vue Flow Over vue3-mindmap

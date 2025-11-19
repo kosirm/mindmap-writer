@@ -1,0 +1,23 @@
+For production (distant future):
+- [ ] Add tests
+- [ ] Add CI/CD
+- [ ] Add documentation
+- [ ] Add code comments
+- [ ] Add code formatting
+- [ ] Add code linting
+- [ ] Add code security
+- [ ] Add code coverage
+- [ ] Add code complexity
+- [ ] Add code duplication
+- [ ] Add code maintainability
+
+- [ ] Add tiptap for editing
+- [ ] Add event bus for communication (mitt)
+- [ ] Add Full Document view
+- [ ] Add zoomable D3 views (circle-pack, sunburst, treemap, ...)
+- [ ] Add AI chat integration
+- [ ] Add toolbar and menu
+- [ ] Add keyboard management page
+- [ ] Add multilangual support
+- [ ] Add subscription support (limited version, pro version, etc.)
+- [ ] Add subscription backend (supabase)
