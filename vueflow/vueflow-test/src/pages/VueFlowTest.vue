@@ -92,8 +92,98 @@
                 />
               </div>
 
-              <div class="text-caption text-grey-7">
+              <div class="text-caption text-grey-7 q-mb-lg">
                 Export the current mindmap data model as JSON to see the structure of nodes and edges.
+              </div>
+
+              <q-separator class="q-my-md" />
+
+              <div class="text-h6 q-mb-md">Local Storage</div>
+
+              <!-- Current Mindmap Name -->
+              <div class="q-mb-md">
+                <q-input
+                  v-model="currentMindmapName"
+                  label="Current Mindmap Name"
+                  outlined
+                  dense
+                  :rules="[(val: string) => !!val || 'Name is required']"
+                />
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="q-mb-md q-gutter-y-sm">
+                <q-btn
+                  color="positive"
+                  icon="add"
+                  label="New Mindmap"
+                  @click="createNewMindmap"
+                  class="full-width"
+                />
+                <q-btn
+                  color="primary"
+                  icon="save"
+                  label="Save Current Mindmap"
+                  @click="saveCurrentMindmap"
+                  class="full-width"
+                  :disable="!currentMindmapName"
+                />
+              </div>
+
+              <q-separator class="q-my-md" />
+
+              <!-- Saved Mindmaps List -->
+              <div class="text-subtitle2 q-mb-sm">Saved Mindmaps ({{ savedMindmaps.length }})</div>
+
+              <div v-if="savedMindmaps.length === 0" class="text-center text-grey-7 q-pa-md">
+                No saved mindmaps yet
+              </div>
+
+              <q-list v-else bordered separator class="rounded-borders">
+                <q-item
+                  v-for="mindmap in savedMindmaps"
+                  :key="mindmap.id"
+                  clickable
+                  :active="currentMindmapId === mindmap.id"
+                  active-class="bg-blue-1"
+                >
+                  <q-item-section>
+                    <q-item-label>{{ mindmap.name }}</q-item-label>
+                    <q-item-label caption>
+                      {{ formatDate(mindmap.timestamp) }} • {{ mindmap.nodeCount }} nodes
+                    </q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <div class="q-gutter-xs">
+                      <q-btn
+                        flat
+                        dense
+                        round
+                        icon="upload"
+                        color="primary"
+                        size="sm"
+                        @click.stop="loadMindmap(mindmap.id)"
+                      >
+                        <q-tooltip>Load</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        flat
+                        dense
+                        round
+                        icon="delete"
+                        color="negative"
+                        size="sm"
+                        @click.stop="deleteMindmap(mindmap.id)"
+                      >
+                        <q-tooltip>Delete</q-tooltip>
+                      </q-btn>
+                    </div>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+
+              <div class="text-caption text-grey-7 q-mt-md">
+                Mindmaps are saved in your browser's local storage and persist between sessions.
               </div>
             </q-tab-panel>
 
@@ -388,6 +478,7 @@
       :nodes-draggable="!isSimulationRunning"
       :min-zoom="0.2"
       :max-zoom="4"
+      :connection-line-type="ConnectionLineType.Straight"
       class="vue-flow-container"
       @pane-click="onPaneClick"
       @node-click="onNodeClick"
@@ -399,31 +490,13 @@
       <Background />
       <Controls />
 
-      <!-- Custom node template with single center handle -->
-      <template #node-custom="{ data }">
-        <div class="custom-node">
-          <!-- Single invisible handle in the center -->
-          <!-- Position doesn't matter as we override with CSS -->
-          <Handle
-            type="source"
-            :position="Position.Top"
-            id="center"
-            class="center-handle"
-            :style="{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }"
-          />
-          <Handle
-            type="target"
-            :position="Position.Top"
-            id="center"
-            class="center-handle"
-            :style="{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }"
-          />
-
-          <!-- Node content -->
-          <div class="node-content">
-            {{ data.label }}
-          </div>
-        </div>
+      <!-- Custom node template using CustomNode component -->
+      <template #node-custom="nodeProps">
+        <CustomNode
+          :id="nodeProps.id"
+          :data="nodeProps.data"
+          @update:data="(newData) => updateNodeData(nodeProps.id, newData)"
+        />
       </template>
     </VueFlow>
   </q-page>
@@ -431,12 +504,14 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { VueFlow, useVueFlow, Handle, Position } from '@vue-flow/core';
+import { VueFlow, useVueFlow, ConnectionLineType } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import type { Node, Edge } from '@vue-flow/core';
 import * as d3 from 'd3-force';
 import { Notify } from 'quasar';
+import { eventBus } from '../composables/useEventBus';
+import CustomNode from '../components/CustomNode.vue';
 
 // Import Vue Flow styles
 import '@vue-flow/core/dist/style.css';
@@ -458,6 +533,21 @@ const activeTab = ref('tree'); // Default to Tree tab
 
 // Selected node tracking
 const selectedNodeId = ref<string | null>(null);
+
+// Mindmap management state
+const currentMindmapName = ref('Untitled Mindmap');
+const currentMindmapId = ref<string | null>(null);
+
+interface SavedMindmap {
+  id: string;
+  name: string;
+  timestamp: number;
+  nodeCount: number;
+  nodes: Node[];
+  edges: Edge[];
+}
+
+const savedMindmaps = ref<SavedMindmap[]>([]);
 
 // Simulation state
 const isSimulationRunning = ref(false);
@@ -630,11 +720,11 @@ function createNode(x: number, y: number, label?: string, parentId?: string): No
     type: 'custom',
     position: { x, y },
     data: {
-      label: label || `Node ${id}`,
+      label: label || `Node ${id}`,  // Fallback label for display (will be removed later)
       // Custom fields for our mindmap
       parentId: parentId || null,  // For hierarchy - which node is the parent
-      content: '',  // Rich text content (will be HTML from Tiptap)
-      title: '',  // Node title (can be empty for inferred titles)
+      content: '',  // Rich text content (will be HTML from Tiptap later)
+      title: label || `Node ${id}`,  // Node title (editable with Tiptap) - initialize with label
     },
   };
 }
@@ -736,14 +826,23 @@ function onPaneClick(mouseEvent: MouseEvent) {
       runSimulation();
     }
   } else {
-    // Regular click - deselect node
-    selectedNodeId.value = null;
+    // Regular click - emit event to deselect all nodes
+    eventBus.emit('canvas:pane-clicked', {});
   }
 }
 
-// Handle node click (select node)
+// Handle node click (select node) - emit event instead of directly updating state
 function onNodeClick(event: { node: Node }) {
-  selectedNodeId.value = event.node.id;
+  // Emit event - tree will listen and update itself
+  eventBus.emit('canvas:node-selected', { nodeId: event.node.id });
+}
+
+// Update node data (called from CustomNode component when title is edited)
+function updateNodeData(nodeId: string, newData: { label: string; title: string; content: string; parentId: string | null }) {
+  const node = nodes.value.find(n => n.id === nodeId);
+  if (node) {
+    node.data = newData;
+  }
 }
 
 // Handle connection start (when starting to drag a connection)
@@ -991,6 +1090,17 @@ function onKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  // Handle E key - start editing selected node
+  if (event.key === 'e' || event.key === 'E') {
+    // Only if a single node is selected
+    if (selectedNodeId.value) {
+      event.preventDefault();
+      // Emit event to start editing
+      eventBus.emit('node:edit-start', { nodeId: selectedNodeId.value });
+    }
+    return;
+  }
+
   // Handle Ctrl + Arrow keys for creating connected nodes
   // Only handle if Ctrl is pressed and a node is selected
   if (!event.ctrlKey || !selectedNodeId.value) return;
@@ -1074,12 +1184,227 @@ function viewJSON() {
   console.log(edges.value);
 }
 
-// Handle tree node selection - sync to canvas
+// LocalStorage keys
+const MINDMAPS_LIST_KEY = 'vueflow-mindmaps-list';
+const MINDMAP_PREFIX = 'vueflow-mindmap-';
+
+// Load list of saved mindmaps from localStorage
+function loadMindmapsList() {
+  try {
+    const listData = localStorage.getItem(MINDMAPS_LIST_KEY);
+    if (listData) {
+      const list = JSON.parse(listData);
+      savedMindmaps.value = list.sort((a: SavedMindmap, b: SavedMindmap) => b.timestamp - a.timestamp);
+    }
+  } catch (error) {
+    console.error('Error loading mindmaps list:', error);
+  }
+}
+
+// Save list of mindmaps to localStorage
+function saveMindmapsList() {
+  try {
+    localStorage.setItem(MINDMAPS_LIST_KEY, JSON.stringify(savedMindmaps.value));
+  } catch (error) {
+    console.error('Error saving mindmaps list:', error);
+  }
+}
+
+// Create a new empty mindmap
+function createNewMindmap() {
+  // Clear current mindmap
+  nodes.value = [];
+  edges.value = [];
+  selectedNodeId.value = null;
+
+  // Generate new ID and name
+  currentMindmapId.value = `mindmap-${Date.now()}`;
+  currentMindmapName.value = 'Untitled Mindmap';
+
+  Notify.create({
+    type: 'info',
+    message: 'New mindmap created',
+    position: 'top',
+    timeout: 2000,
+  });
+}
+
+// Save current mindmap to localStorage
+function saveCurrentMindmap() {
+  try {
+    if (!currentMindmapName.value.trim()) {
+      Notify.create({
+        type: 'warning',
+        message: 'Please enter a name for the mindmap',
+        position: 'top',
+        timeout: 2000,
+      });
+      return;
+    }
+
+    // Generate ID if this is a new mindmap
+    if (!currentMindmapId.value) {
+      currentMindmapId.value = `mindmap-${Date.now()}`;
+    }
+
+    const mindmapData: SavedMindmap = {
+      id: currentMindmapId.value,
+      name: currentMindmapName.value,
+      timestamp: Date.now(),
+      nodeCount: nodes.value.length,
+      nodes: nodes.value,
+      edges: edges.value,
+    };
+
+    // Save the mindmap data
+    localStorage.setItem(MINDMAP_PREFIX + currentMindmapId.value, JSON.stringify(mindmapData));
+
+    // Update the list
+    const existingIndex = savedMindmaps.value.findIndex(m => m.id === currentMindmapId.value);
+    if (existingIndex >= 0) {
+      savedMindmaps.value[existingIndex] = mindmapData;
+    } else {
+      savedMindmaps.value.push(mindmapData);
+    }
+
+    // Sort by timestamp (newest first)
+    savedMindmaps.value.sort((a, b) => b.timestamp - a.timestamp);
+
+    // Save the updated list
+    saveMindmapsList();
+
+    Notify.create({
+      type: 'positive',
+      message: `Mindmap "${currentMindmapName.value}" saved successfully!`,
+      position: 'top',
+      timeout: 2000,
+    });
+  } catch (error) {
+    console.error('Error saving mindmap:', error);
+    Notify.create({
+      type: 'negative',
+      message: 'Failed to save mindmap',
+      position: 'top',
+      timeout: 2000,
+    });
+  }
+}
+
+// Load a mindmap from localStorage
+function loadMindmap(id: string) {
+  try {
+    const mindmapData = localStorage.getItem(MINDMAP_PREFIX + id);
+
+    if (!mindmapData) {
+      Notify.create({
+        type: 'warning',
+        message: 'Mindmap not found',
+        position: 'top',
+        timeout: 2000,
+      });
+      return;
+    }
+
+    const mindmap: SavedMindmap = JSON.parse(mindmapData);
+
+    // Load the data
+    nodes.value = mindmap.nodes;
+    edges.value = mindmap.edges;
+    currentMindmapId.value = mindmap.id;
+    currentMindmapName.value = mindmap.name;
+
+    // Update node counter to avoid ID conflicts
+    const maxId = Math.max(...nodes.value.map(n => parseInt(n.id) || 0), 0);
+    nodeCounter = maxId + 1;
+
+    // Clear selection
+    selectedNodeId.value = null;
+
+    Notify.create({
+      type: 'positive',
+      message: `Mindmap "${mindmap.name}" loaded successfully!`,
+      position: 'top',
+      timeout: 2000,
+    });
+  } catch (error) {
+    console.error('Error loading mindmap:', error);
+    Notify.create({
+      type: 'negative',
+      message: 'Failed to load mindmap',
+      position: 'top',
+      timeout: 2000,
+    });
+  }
+}
+
+// Delete a mindmap from localStorage
+function deleteMindmap(id: string) {
+  try {
+    // Remove from localStorage
+    localStorage.removeItem(MINDMAP_PREFIX + id);
+
+    // Remove from list
+    savedMindmaps.value = savedMindmaps.value.filter(m => m.id !== id);
+
+    // Save updated list
+    saveMindmapsList();
+
+    // If we deleted the current mindmap, create a new one
+    if (currentMindmapId.value === id) {
+      createNewMindmap();
+    }
+
+    Notify.create({
+      type: 'info',
+      message: 'Mindmap deleted successfully!',
+      position: 'top',
+      timeout: 2000,
+    });
+  } catch (error) {
+    console.error('Error deleting mindmap:', error);
+    Notify.create({
+      type: 'negative',
+      message: 'Failed to delete mindmap',
+      position: 'top',
+      timeout: 2000,
+    });
+  }
+}
+
+// Format date for display
+function formatDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString();
+}
+
+// Handle tree node selection - emit event instead of directly manipulating canvas
 function onTreeNodeSelected(nodeId: string | null) {
+  // Emit event - canvas will listen and update itself
+  eventBus.emit('tree:node-selected', { nodeId });
+}
+
+// ============================================================================
+// EVENT BUS HANDLERS
+// ============================================================================
+
+// Handle tree node selection event - update canvas
+function handleTreeNodeSelected({ nodeId }: { nodeId: string | null }) {
   if (!nodeId) {
     // Deselect all nodes in canvas
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     removeSelectedNodes(nodes.value as any);
+    selectedNodeId.value = null; // Clear for keyboard shortcuts
     return;
   }
 
@@ -1089,23 +1414,66 @@ function onTreeNodeSelected(nodeId: string | null) {
     // Select this node in the canvas (this will deselect others)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     addSelectedNodes([node as any]);
+    selectedNodeId.value = nodeId; // Update for keyboard shortcuts
   }
 }
 
+// Handle canvas node selection event - update tree
+function handleCanvasNodeSelected({ nodeId }: { nodeId: string }) {
+  // Update tree selection to match canvas selection
+  selectedTreeNodeIds.value = [nodeId];
+  selectedNodeId.value = nodeId; // Update for keyboard shortcuts
+}
+
+// Handle canvas pane click event - deselect all
+function handleCanvasPaneClicked() {
+  // Deselect all nodes in canvas
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  removeSelectedNodes(nodes.value as any);
+  // Clear tree selection
+  selectedTreeNodeIds.value = [];
+  selectedNodeId.value = null; // Clear for keyboard shortcuts
+}
+
 // Watch for canvas selection changes - sync to tree
+// This watcher is still needed to handle multi-select and other Vue Flow selection changes
 watch(getSelectedNodes, (selectedNodes) => {
   // Update tree selection to match canvas selection
   selectedTreeNodeIds.value = selectedNodes.map(node => node.id);
 }, { deep: true });
 
-// Register keyboard event listener
+// ============================================================================
+// LIFECYCLE HOOKS
+// ============================================================================
+
+// Register event listeners and keyboard handler
 onMounted(() => {
+  // Register event bus listeners
+  eventBus.on('tree:node-selected', handleTreeNodeSelected);
+  eventBus.on('canvas:node-selected', handleCanvasNodeSelected);
+  eventBus.on('canvas:pane-clicked', handleCanvasPaneClicked);
+
+  // Register keyboard event listener
   window.addEventListener('keydown', onKeyDown);
+
+  // Initialize D3 simulation
   initSimulation();
+
+  // Load list of saved mindmaps
+  loadMindmapsList();
 });
 
+// Clean up event listeners
 onBeforeUnmount(() => {
+  // Remove event bus listeners
+  eventBus.off('tree:node-selected', handleTreeNodeSelected);
+  eventBus.off('canvas:node-selected', handleCanvasNodeSelected);
+  eventBus.off('canvas:pane-clicked', handleCanvasPaneClicked);
+
+  // Remove keyboard event listener
   window.removeEventListener('keydown', onKeyDown);
+
+  // Stop D3 simulation
   if (simulation) {
     simulation.stop();
   }
@@ -1173,33 +1541,10 @@ onBeforeUnmount(() => {
   font-style: italic;
 }
 
-/* Custom node styling */
-.custom-node {
-  padding: 16px 24px;
-  border-radius: 8px;
-  background: white;
-  border: 2px solid #1976d2;
-  min-width: 100px;
-  text-align: center;
-  position: relative;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.custom-node:hover {
-  border-color: #1565c0;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
 /* Selected node styling - subtle background change */
 :deep(.vue-flow__node.selected) .custom-node {
   background: #e3f2fd;
   box-shadow: 0 0 0 2px #1976d2;
-}
-
-.node-content {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
 }
 
 /* Center handle - invisible but functional */
