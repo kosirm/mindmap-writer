@@ -479,6 +479,7 @@
       :min-zoom="0.2"
       :max-zoom="4"
       :connection-line-type="ConnectionLineType.Straight"
+      :disable-keyboard-a11y="true"
       class="vue-flow-container"
       @pane-click="onPaneClick"
       @node-click="onNodeClick"

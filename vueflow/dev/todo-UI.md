@@ -1,5 +1,8 @@
   # UI/UX TODO List
 
+
+- [ ] vueflow keyboard shortcuts (where, how to change)
+- [ ] how to do D3 force for children only?
 - [ ] Add clean, minimal styling throughout
 - [ ] Add professional UI (drawers, etc.)
 - [ ] Add zoomable D3 views (circle-pack, sunburst, treemap, ...)

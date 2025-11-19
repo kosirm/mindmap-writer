@@ -187,8 +187,8 @@ watch(activeNodeId, (newValue) => {
   background: white;
   border: 2px solid #1976d2;
   border-radius: 8px;
-  padding: 12px 16px;
-  min-width: 120px;
+  padding: 4px 12px;
+  /* min-width: 120px; */
   max-width: 300px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: box-shadow 0.2s;
@@ -199,12 +199,12 @@ watch(activeNodeId, (newValue) => {
 }
 
 .center-handle {
-  width: 24px !important;
-  height: 24px !important;
+  width: 12px !important;
+  height: 12px !important;
   background: transparent !important;
   border: none !important;
   opacity: 0 !important;
-  cursor: crosshair !important;
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><line x1="8" y1="0" x2="8" y2="16" stroke="%231976D2" stroke-width="3"/><line x1="0" y1="8" x2="16" y2="8" stroke="%231976D2" stroke-width="3"/></svg>') 8 8, crosshair !important;
 }
 
 /* Keep it invisible even on hover */
@@ -214,7 +214,7 @@ watch(activeNodeId, (newValue) => {
 }
 
 .node-content {
-  cursor: text;
+  cursor: hand;
 }
 
 .node-title {
