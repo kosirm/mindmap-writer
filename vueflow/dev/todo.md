@@ -11,9 +11,12 @@ For production (distant future):
 - [ ] Add code duplication
 - [ ] Add code maintainability
 
-- [ ] Add tiptap for editing
-- [ ] Add event bus for communication (mitt)
+- [x] Add tiptap for editing
+- [x] Add event bus for communication (mitt)
 - [ ] Add Full Document view
+- [ ] Add Node Document view
+- [ ] Add Node Icons & Actions
+- [ ] Add professional UI (drawers, etc.)
 - [ ] Add zoomable D3 views (circle-pack, sunburst, treemap, ...)
 - [ ] Add AI chat integration
 - [ ] Add toolbar and menu
