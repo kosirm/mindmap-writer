@@ -132,12 +132,14 @@ export const eventBus: Emitter<MindmapEvents> = mitt<MindmapEvents>();
  *
  * This wildcard listener logs every event that passes through the event bus.
  * Very useful for debugging reactivity issues and understanding event flow.
+ *
+ * Uncomment the block below to enable event bus logging.
  */
-if (import.meta.env.DEV) {
-  eventBus.on('*', (type, payload) => {
-    console.log(`[Event Bus] ${String(type)}`, payload);
-  });
-}
+// if (import.meta.env.DEV) {
+//   eventBus.on('*', (type, payload) => {
+//     console.log(`[Event Bus] ${String(type)}`, payload);
+//   });
+// }
 
 /**
  * Composable for using the event bus
