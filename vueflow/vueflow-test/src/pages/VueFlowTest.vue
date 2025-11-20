@@ -189,94 +189,113 @@
 
             <!-- D3 Parameters Tab -->
             <q-tab-panel name="params">
-              <div class="text-h6 q-mb-md">D3 Simulation Control</div>
+              <div class="text-h6 q-mb-md">Layout Controls</div>
 
-              <!-- D3 Mode Selection -->
-              <div class="param-control mode-control">
-                <div class="text-subtitle2 q-mb-sm">Simulation Mode</div>
-                <q-option-group
-                  v-model="d3Mode"
-                  :options="[
-                    { label: 'OFF - Full Manual Control', value: 'off', description: 'Nodes can overlap, you control everything' },
-                    { label: 'Manual - Run on Demand', value: 'manual', description: 'Click button to prevent overlaps' },
-                    { label: 'AUTO - Always Active', value: 'auto', description: 'Automatic collision prevention' }
-                  ]"
-                  color="primary"
-                  @update:model-value="onModeChange"
-                >
-                  <template v-slot:label="opt">
-                    <div class="mode-option">
-                      <div class="mode-label">{{ opt.label }}</div>
-                      <div class="mode-description">{{ opt.description }}</div>
-                    </div>
-                  </template>
-                </q-option-group>
-              </div>
-
-              <!-- Run Simulation Button (only in manual mode) -->
-              <div v-if="d3Mode === 'manual'" class="q-mb-md">
+              <!-- D3 Force Layout -->
+              <div class="q-mb-lg">
+                <div class="text-subtitle2 q-mb-sm">D3 Force Layout</div>
                 <q-btn
-                  label="Run D3 Simulation Once"
+                  label="D3 FORCE"
                   color="primary"
-                  icon="play_arrow"
+                  icon="scatter_plot"
                   class="full-width"
-                  @click="runSimulation"
+                  @click="runD3ForceOnce"
                   :disable="isSimulationRunning"
-                />
+                  :loading="isSimulationRunning"
+                >
+                  <template v-slot:loading>
+                    <q-spinner-dots />
+                  </template>
+                </q-btn>
+                <div class="text-caption text-grey-7 q-mt-sm">
+                  Organize connected nodes using force-directed layout
+                </div>
               </div>
 
               <q-separator class="q-my-md" />
 
-              <!-- Collision Radius (always active) -->
-              <div class="param-control">
-                <div class="param-label">Collision Radius (Density)</div>
-                <div class="param-value">{{ forceParams.collisionRadius }}px</div>
-                <q-slider
-                  v-model="forceParams.collisionRadius"
-                  :min="30"
-                  :max="120"
-                  :step="5"
-                  color="primary"
-                  label
-                />
-                <div class="param-hint">Minimum distance between nodes (lower = denser map)</div>
-              </div>
+              <!-- Matter.js Collision Detection -->
+              <div class="q-mb-lg">
+                <div class="text-subtitle2 q-mb-md">Matter.js Collision Detection</div>
 
-              <div class="param-control">
-                <div class="param-label">Alpha Decay (speed)</div>
-                <div class="param-value">{{ forceParams.alphaDecay }}</div>
-                <q-slider
-                  v-model="forceParams.alphaDecay"
-                  :min="0.01"
-                  :max="0.2"
-                  :step="0.01"
-                  color="primary"
-                  label
-                />
-                <div class="param-hint">Higher = faster simulation (less smooth)</div>
+                <!-- Matter.js ON/OFF Toggle -->
+                <div class="q-mb-md">
+                  <q-toggle
+                    v-model="matterEnabled"
+                    label="Matter.js Collision Detection"
+                    color="positive"
+                    left-label
+                    class="full-width"
+                  />
+                  <div class="text-caption text-grey-7 q-mt-xs">
+                    When ON: Nodes push each other away while dragging
+                  </div>
+                </div>
+
+                <!-- Resolve Overlaps Button (only visible when Matter.js is OFF) -->
+                <div v-if="!matterEnabled" class="q-mb-md">
+                  <q-btn
+                    label="RESOLVE OVERLAPS"
+                    color="secondary"
+                    icon="auto_fix_high"
+                    class="full-width"
+                    @click="resolveOverlapsOnce"
+                  />
+                  <div class="text-caption text-grey-7 q-mt-sm">
+                    Run physics simulation once to separate overlapping nodes
+                  </div>
+                </div>
               </div>
 
               <q-separator class="q-my-md" />
 
-              <!-- Link Distance (always visible) -->
-              <div class="param-control">
-                <div class="param-label">Link Distance</div>
-                <div class="param-value">{{ forceParams.linkDistance }}px</div>
-                <q-slider
-                  v-model="forceParams.linkDistance"
-                  :min="50"
-                  :max="300"
-                  :step="10"
-                  color="primary"
-                  label
-                />
-                <div class="param-hint">Desired distance between connected nodes</div>
+              <!-- Info Section -->
+              <div class="text-caption text-grey-7">
+                <div class="q-mb-sm"><strong>D3 FORCE:</strong> Organizes connected nodes using force-directed layout algorithm</div>
+                <div class="q-mb-sm"><strong>Matter.js ON:</strong> Real-time collision detection while dragging nodes</div>
+                <div><strong>RESOLVE OVERLAPS:</strong> One-time physics simulation to fix overlapping nodes</div>
               </div>
 
-              <!-- Advanced Force Settings (only when simulation is active) -->
-              <template v-if="d3Mode !== 'off'">
-                <q-separator class="q-my-md" />
-                <div class="text-subtitle2 q-mb-md text-grey-7">Advanced Force Settings</div>
+              <!-- Hidden sliders for future use (keep the params but don't show UI) -->
+              <div style="display: none;">
+                <div class="param-control">
+                  <div class="param-label">Collision Radius (Density)</div>
+                  <div class="param-value">{{ forceParams.collisionRadius }}px</div>
+                  <q-slider
+                    v-model="forceParams.collisionRadius"
+                    :min="30"
+                    :max="120"
+                    :step="5"
+                    color="primary"
+                    label
+                  />
+                </div>
+
+                <div class="param-control">
+                  <div class="param-label">Alpha Decay (speed)</div>
+                  <div class="param-value">{{ forceParams.alphaDecay }}</div>
+                  <q-slider
+                    v-model="forceParams.alphaDecay"
+                    :min="0.01"
+                    :max="0.2"
+                    :step="0.01"
+                    color="primary"
+                    label
+                  />
+                </div>
+
+                <div class="param-control">
+                  <div class="param-label">Link Distance</div>
+                  <div class="param-value">{{ forceParams.linkDistance }}px</div>
+                  <q-slider
+                    v-model="forceParams.linkDistance"
+                    :min="50"
+                    :max="300"
+                    :step="10"
+                    color="primary"
+                    label
+                  />
+                </div>
 
                 <div class="param-control">
                   <div class="param-label">Charge Strength (repulsion)</div>
@@ -289,7 +308,6 @@
                     color="primary"
                     label
                   />
-                  <div class="param-hint">Higher = stronger repulsion between nodes</div>
                 </div>
 
                 <div class="param-control">
@@ -303,18 +321,8 @@
                     color="primary"
                     label
                   />
-                  <div class="param-hint">How strongly nodes stick to intended position</div>
                 </div>
-
-                <q-btn
-                  label="Apply Parameters"
-                  color="secondary"
-                  outline
-                  class="full-width q-mt-md"
-                  @click="applyForceParams"
-                  :disable="isSimulationRunning"
-                />
-              </template>
+              </div>
             </q-tab-panel>
 
             <!-- Instructions Tab -->
@@ -557,7 +565,11 @@ const isSimulationRunning = ref(false);
 const d3Mode = ref<'off' | 'manual' | 'auto'>('off'); // Default to OFF (full manual control)
 
 // Matter.js collision state
+const matterEnabled = ref(true); // Matter.js collision detection ON by default
 const isAltKeyPressed = ref(false); // Track Alt key for disabling collision while dragging
+
+// Debug logging toggle (set to false to reduce console noise in production)
+const MATTER_DEBUG_LOGGING = false;
 
 // D3 Force parameters (adjustable)
 const forceParams = ref({
@@ -666,7 +678,27 @@ function initSimulation() {
 // Called when simulation finishes
 function onSimulationEnd() {
   isSimulationRunning.value = false;
-  console.log('Simulation finished - nodes can be dragged again');
+  // console.log('[D3 Force] Simulation finished - nodes can be dragged again');
+
+  // If Matter.js is enabled, sync all bodies with new positions from D3
+  if (matterEnabled.value) {
+    // console.log('[D3 Force] Syncing Matter.js bodies with new D3 positions...');
+
+    // Wait for next tick to ensure DOM is updated with new positions
+    void nextTick(() => {
+      // Sync all Matter.js body POSITIONS (not dimensions) with new node positions from D3
+      nodes.value.forEach(node => {
+        // Update Matter.js body position to match the new VueFlow position from D3
+        updateMatterBodyPosition(node.id, node.position.x, node.position.y);
+      });
+
+      // Run physics engine once to resolve any overlaps (if any)
+      // This is just to make sure nodes don't overlap after D3 layout
+      runMatterEngineToResolveOverlaps();
+
+      // console.log('[D3 Force] ✅ Matter.js bodies synced with D3 positions and overlaps resolved');
+    });
+  }
 }
 
 // Update node positions from simulation
@@ -716,8 +748,48 @@ function runSimulation() {
   simulation.alpha(0.3).restart();
 }
 
+// Run D3 Force layout once
+function runD3ForceOnce() {
+  // console.log('[D3 Force] Starting D3 Force layout...');
+
+  // If Matter.js is enabled, we need to sync bodies after D3 completes
+  const wasMatterEnabled = matterEnabled.value;
+
+  // Run the simulation
+  runSimulation();
+
+  // Note: The simulation will automatically call runMatterEngineToResolveOverlaps()
+  // when it ends (see onSimulationEnd function) if Matter.js is enabled
+  if (wasMatterEnabled) {
+    // console.log('[D3 Force] Matter.js is enabled - will sync bodies after D3 completes');
+  }
+}
+
+// Resolve overlaps once using Matter.js physics engine
+function resolveOverlapsOnce() {
+  console.log('[Matter.js] Running physics engine once to resolve overlaps...');
+  runMatterEngineToResolveOverlaps();
+}
+
 // ============================================================================
 // Matter.js Physics Engine for Collision Avoidance
+// ============================================================================
+//
+// ARCHITECTURE:
+// - Matter.js is used for collision detection and resolution
+// - Can be toggled ON/OFF via matterEnabled ref
+// - When ON: Real-time collision detection during drag
+// - When OFF: Manual "RESOLVE OVERLAPS" button available
+// - Integrates with D3 Force: syncs bodies after D3 layout completes
+//
+// KEY OPTIMIZATIONS:
+// 1. Always read actual dimensions from DOM using nextTick() (no hardcoded sizes)
+// 2. Cascading collision detection with infinite loop prevention (Set<string>)
+// 3. Multi-node drag optimization (collision disabled during drag, resolved at end)
+// 4. Alt key override to temporarily disable collision
+// 5. Conditional debug logging (MATTER_DEBUG_LOGGING flag)
+// 6. Sync all body positions before running physics engine (prevents position reset bug)
+//
 // ============================================================================
 
 // Default node dimensions - ONLY used as fallback when DOM is not yet rendered
@@ -726,8 +798,8 @@ const DEFAULT_NODE_WIDTH = 80;
 const DEFAULT_NODE_HEIGHT = 40;
 
 // Minimum spacing between nodes (in pixels)
-const MIN_HORIZONTAL_GAP = 3;  // 10px horizontal spacing between nodes
-const MIN_VERTICAL_GAP = 3;    // 10px vertical spacing between nodes
+const MIN_HORIZONTAL_GAP = 3;  // 3px horizontal spacing between nodes
+const MIN_VERTICAL_GAP = 3;    // 3px vertical spacing between nodes
 
 // Small epsilon value for floating point comparison (to handle floating point errors)
 const EPSILON = 0.1;
@@ -741,11 +813,15 @@ function getNodeDimensions(nodeId: string): { width: number, height: number } {
     const customNode = vueFlowNode.querySelector('.custom-node');
     if (customNode) {
       const rect = customNode.getBoundingClientRect();
-      console.log(`[DEBUG] getNodeDimensions for node ${nodeId}:`, rect.width, 'x', rect.height);
+      if (MATTER_DEBUG_LOGGING) {
+        console.log(`[Matter.js] getNodeDimensions for node ${nodeId}:`, rect.width, 'x', rect.height);
+      }
       return { width: rect.width, height: rect.height };
     }
   }
-  console.log(`[DEBUG] getNodeDimensions for node ${nodeId}: using defaults`);
+  if (MATTER_DEBUG_LOGGING) {
+    console.log(`[Matter.js] getNodeDimensions for node ${nodeId}: using defaults`);
+  }
   return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
 }
 
@@ -786,10 +862,12 @@ function createMatterBody(node: Node) {
   const centerX = node.position.x + dimensions.width / 2;
   const centerY = node.position.y + dimensions.height / 2;
 
-  console.log(`[DEBUG] createMatterBody for node ${node.id}:`);
-  console.log(`[DEBUG]   VueFlow position (top-left): (${node.position.x}, ${node.position.y})`);
-  console.log(`[DEBUG]   Dimensions from DOM: ${dimensions.width} x ${dimensions.height}`);
-  console.log(`[DEBUG]   Matter.js center: (${centerX}, ${centerY})`);
+  if (MATTER_DEBUG_LOGGING) {
+    console.log(`[Matter.js] createMatterBody for node ${node.id}:`);
+    console.log(`[Matter.js]   VueFlow position (top-left): (${node.position.x}, ${node.position.y})`);
+    console.log(`[Matter.js]   Dimensions from DOM: ${dimensions.width} x ${dimensions.height}`);
+    console.log(`[Matter.js]   Matter.js center: (${centerX}, ${centerY})`);
+  }
 
   // Create a rectangular body at the node's CENTER position
   const body = Matter.Bodies.rectangle(
@@ -813,9 +891,11 @@ function createMatterBody(node: Node) {
   // Store reference
   nodeBodies.set(node.id, body);
 
-  // Log the actual body bounds after creation
-  console.log(`[DEBUG]   Matter.js body bounds: left=${body.bounds.min.x}, right=${body.bounds.max.x}, top=${body.bounds.min.y}, bottom=${body.bounds.max.y}`);
-  console.log(`[DEBUG]   Matter.js body size: ${body.bounds.max.x - body.bounds.min.x} x ${body.bounds.max.y - body.bounds.min.y}`);
+  if (MATTER_DEBUG_LOGGING) {
+    // Log the actual body bounds after creation
+    console.log(`[Matter.js]   Body bounds: left=${body.bounds.min.x}, right=${body.bounds.max.x}, top=${body.bounds.min.y}, bottom=${body.bounds.max.y}`);
+    console.log(`[Matter.js]   Body size: ${body.bounds.max.x - body.bounds.min.x} x ${body.bounds.max.y - body.bounds.min.y}`);
+  }
 }
 
 // Remove a Matter.js body for a node (will be used for node deletion in the future)
@@ -852,25 +932,25 @@ function updateMatterBodyDimensions(nodeId: string) {
   const body = nodeBodies.get(nodeId);
   if (!body || !matterWorld) return;
 
-  console.log(`[DEBUG] updateMatterBodyDimensions called for node ${nodeId}`);
+  if (MATTER_DEBUG_LOGGING) {
+    console.log(`[Matter.js] updateMatterBodyDimensions called for node ${nodeId}`);
+  }
 
   // Get current dimensions from body
   const oldBounds = body.bounds;
   const oldWidth = oldBounds.max.x - oldBounds.min.x;
   const oldHeight = oldBounds.max.y - oldBounds.min.y;
-  console.log(`[DEBUG] Old body dimensions: ${oldWidth}x${oldHeight}`);
 
   // Wait for DOM to update after Tiptap is removed
   setTimeout(() => {
-    console.log(`[DEBUG] After timeout, getting new dimensions from DOM...`);
-
     // Get actual dimensions from DOM
     const dimensions = getNodeDimensions(nodeId);
-    console.log(`[DEBUG] New dimensions from DOM: ${dimensions.width}x${dimensions.height}`);
 
     // Check if dimensions actually changed
     if (Math.abs(oldWidth - dimensions.width) < 2 && Math.abs(oldHeight - dimensions.height) < 2) {
-      console.log(`[DEBUG] Dimensions didn't change significantly, skipping update`);
+      if (MATTER_DEBUG_LOGGING) {
+        console.log(`[Matter.js] Dimensions didn't change significantly, skipping update`);
+      }
       return;
     }
 
@@ -883,9 +963,9 @@ function updateMatterBodyDimensions(nodeId: string) {
     const newCenterX = node.position.x + dimensions.width / 2;
     const newCenterY = node.position.y + dimensions.height / 2;
 
-    console.log(`[DEBUG] Node ${nodeId} VueFlow position (top-left): (${node.position.x}, ${node.position.y})`);
-    console.log(`[DEBUG] Node ${nodeId} new Matter.js center: (${newCenterX}, ${newCenterY})`);
-    console.log(`[DEBUG] Node ${nodeId} new size: (${dimensions.width}, ${dimensions.height})`);
+    if (MATTER_DEBUG_LOGGING) {
+      console.log(`[Matter.js] Node ${nodeId} updated: ${oldWidth}x${oldHeight} → ${dimensions.width}x${dimensions.height}`);
+    }
 
     // Remove old body
     Matter.World.remove(matterWorld!, body);
@@ -910,13 +990,7 @@ function updateMatterBodyDimensions(nodeId: string) {
     Matter.World.add(matterWorld!, newBody);
     nodeBodies.set(nodeId, newBody);
 
-    // Log the new body bounds
-    const newBounds = newBody.bounds;
-    console.log(`[DEBUG] New Matter.js body bounds: left=${newBounds.min.x}, right=${newBounds.max.x}, top=${newBounds.min.y}, bottom=${newBounds.max.y}`);
-    console.log(`[DEBUG] ✅ Updated Matter.js body dimensions for node ${nodeId}: ${oldWidth}x${oldHeight} → ${dimensions.width}x${dimensions.height}`);
-
     // Let Matter.js naturally resolve overlaps by running the engine for a few steps
-    console.log(`[DEBUG] Running Matter.js engine to resolve overlaps after resize`);
     runMatterEngineToResolveOverlaps();
   }, 100); // Increased delay to ensure DOM is fully updated
 }
@@ -925,14 +999,23 @@ function updateMatterBodyDimensions(nodeId: string) {
 function runMatterEngineToResolveOverlaps() {
   if (!matterEngine || !matterWorld) return;
 
-  console.log(`[DEBUG] Running Matter.js engine to resolve overlaps...`);
+  if (MATTER_DEBUG_LOGGING) {
+    console.log(`[Matter.js] Running physics engine to resolve overlaps...`);
+  }
+
+  // CRITICAL: First sync all Matter.js body positions with CURRENT node positions
+  // This ensures Matter.js starts from the current state, not old cached positions
+  nodes.value.forEach(node => {
+    updateMatterBodyPosition(node.id, node.position.x, node.position.y);
+  });
 
   // Run the engine for 60 steps (1 second at 60fps) to let physics resolve overlaps
   for (let i = 0; i < 60; i++) {
     Matter.Engine.update(matterEngine, 1000 / 60); // 16.67ms per step
   }
 
-  // Sync all VueFlow node positions with Matter.js body positions
+  // Sync all VueFlow node positions with Matter.js body positions (after physics simulation)
+  let movedCount = 0;
   nodeBodies.forEach((body, nodeId) => {
     const node = nodes.value.find(n => n.id === nodeId);
     if (node) {
@@ -949,12 +1032,17 @@ function runMatterEngineToResolveOverlaps() {
       if (Math.abs(newX - oldX) > 0.1 || Math.abs(newY - oldY) > 0.1) {
         node.position.x = newX;
         node.position.y = newY;
-        console.log(`[DEBUG]   Node ${nodeId} moved from (${oldX.toFixed(2)}, ${oldY.toFixed(2)}) to (${newX.toFixed(2)}, ${newY.toFixed(2)})`);
+        movedCount++;
+        if (MATTER_DEBUG_LOGGING) {
+          console.log(`[Matter.js]   Node ${nodeId} moved from (${oldX.toFixed(2)}, ${oldY.toFixed(2)}) to (${newX.toFixed(2)}, ${newY.toFixed(2)})`);
+        }
       }
     }
   });
 
-  console.log(`[DEBUG] Matter.js engine finished resolving overlaps`);
+  if (MATTER_DEBUG_LOGGING || movedCount > 0) {
+    console.log(`[Matter.js] ✅ Resolved overlaps - ${movedCount} node(s) moved`);
+  }
 }
 
 
@@ -969,6 +1057,11 @@ function pushNodesAwayFromPosition(
   targetHeight?: number,
   alreadyPushedNodes: Set<string> = new Set()
 ) {
+  // Skip if Matter.js is disabled
+  if (!matterEnabled.value) {
+    return;
+  }
+
   if (!matterEngine || !matterWorld) {
     initMatterEngine();
     if (!matterEngine || !matterWorld) return;
@@ -1009,15 +1102,8 @@ function pushNodesAwayFromPosition(
   // Track which nodes were pushed (for cascading collision detection)
   const pushedNodes: Array<{ nodeId: string, newX: number, newY: number }> = [];
 
-  console.log(`[DEBUG] pushNodesAwayFromPosition: target=(${targetX}, ${targetY}), targetHalfSize=(${targetHalfWidth}, ${targetHalfHeight}), excludeNodeId=${excludeNodeId}, alreadyPushed=[${Array.from(alreadyPushedNodes).join(', ')}]`);
-
-  // If excludeNodeId is provided, log its bounds for debugging
-  if (excludeNodeId) {
-    const excludeBody = nodeBodies.get(excludeNodeId);
-    if (excludeBody) {
-      const bounds = excludeBody.bounds;
-      console.log(`[DEBUG]   Exclude node ${excludeNodeId} bounds: left=${bounds.min.x}, right=${bounds.max.x}, top=${bounds.min.y}, bottom=${bounds.max.y}`);
-    }
+  if (MATTER_DEBUG_LOGGING) {
+    console.log(`[Matter.js] pushNodesAwayFromPosition: target=(${targetX}, ${targetY}), targetHalfSize=(${targetHalfWidth}, ${targetHalfHeight}), excludeNodeId=${excludeNodeId}`);
   }
 
   // Check for collisions and push nodes away
@@ -1049,12 +1135,13 @@ function pushNodesAwayFromPosition(
     const overlapX = minDistanceX - absDx;
     const overlapY = minDistanceY - absDy;
 
-    console.log(`[DEBUG]   Checking node ${nodeId}: pos=(${body.position.x}, ${body.position.y}), size=(${bodyWidth}, ${bodyHeight}), dx=${dx}, dy=${dy}, absDx=${absDx}, absDy=${absDy}, minDistX=${minDistanceX}, minDistY=${minDistanceY}, overlapX=${overlapX}, overlapY=${overlapY}`);
-
     // Only push if overlapping on BOTH axes (use EPSILON to handle floating point errors)
     // This ensures we maintain spacing even when nodes are very close (within floating point precision)
     if (overlapX > -EPSILON && overlapY > -EPSILON) {
-      console.log(`[DEBUG]   ✅ COLLISION DETECTED with node ${nodeId}!`);
+      if (MATTER_DEBUG_LOGGING) {
+        console.log(`[Matter.js]   ✅ Collision detected with node ${nodeId}`);
+      }
+
       let newX = body.position.x;
       let newY = body.position.y;
 
@@ -1094,7 +1181,7 @@ function pushNodesAwayFromPosition(
     const pushedWidth = pushedBounds.max.x - pushedBounds.min.x;
     const pushedHeight = pushedBounds.max.y - pushedBounds.min.y;
 
-    console.log(`[DEBUG]   Cascading check for pushed node ${nodeId} at (${newX}, ${newY})`);
+    // console.log(`[DEBUG]   Cascading check for pushed node ${nodeId} at (${newX}, ${newY})`);
 
     // Recursively call pushNodesAwayFromPosition for this pushed node
     // Pass the alreadyPushedNodes set to prevent infinite recursion
@@ -1244,7 +1331,7 @@ function onPaneClick(mouseEvent: MouseEvent) {
       const centerX = mousePosition.x;  // Mouse is already at center
       const centerY = mousePosition.y;
 
-      console.log(`[DEBUG] Ctrl+Click createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at mouse (${centerX}, ${centerY})`);
+      // console.log(`[DEBUG] Ctrl+Click createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at mouse (${centerX}, ${centerY})`);
 
       // Push away any overlapping nodes using the ACTUAL dimensions
       pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
@@ -1443,7 +1530,7 @@ function onConnectEnd(event?: MouseEvent) {
     const centerX = position.x + dimensions.width / 2;
     const centerY = position.y + dimensions.height / 2;
 
-    console.log(`[DEBUG] Connection drop createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
+    // console.log(`[DEBUG] Connection drop createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
 
     // Push away any overlapping nodes using the ACTUAL dimensions
     pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
@@ -1460,6 +1547,11 @@ function onConnectEnd(event?: MouseEvent) {
 
 // Handle node drag - push overlapping nodes away in real-time using Matter.js
 function onNodeDrag(event: { node: Node }) {
+  // Skip collision detection if Matter.js is disabled
+  if (!matterEnabled.value) {
+    return;
+  }
+
   const draggedNode = event.node;
 
   // Get number of selected nodes
@@ -1471,7 +1563,7 @@ function onNodeDrag(event: { node: Node }) {
     selectedNodes.forEach(node => {
       updateMatterBodyPosition(node.id, node.position.x, node.position.y);
     });
-    console.log(`[DEBUG] Multiple nodes selected (${selectedNodes.length}) - updated all Matter.js bodies, skipping collision detection during drag`);
+    // console.log(`[DEBUG] Multiple nodes selected (${selectedNodes.length}) - updated all Matter.js bodies, skipping collision detection during drag`);
     return;
   }
 
@@ -1480,7 +1572,7 @@ function onNodeDrag(event: { node: Node }) {
 
   // Skip collision detection if Alt key is pressed (manual override)
   if (isAltKeyPressed.value) {
-    console.log('[DEBUG] Alt key pressed - skipping collision detection for node', draggedNode.id);
+    // console.log('[DEBUG] Alt key pressed - skipping collision detection for node', draggedNode.id);
     return;
   }
 
@@ -1499,6 +1591,11 @@ function onNodeDrag(event: { node: Node }) {
 
 // Handle node drag stop - run Matter.js engine to resolve any overlaps
 function onNodeDragStop() {
+  // Skip if Matter.js is disabled
+  if (!matterEnabled.value) {
+    return;
+  }
+
   // Get number of selected nodes
   const selectedNodes = getSelectedNodes.value;
   const multipleNodesSelected = selectedNodes.length > 1;
@@ -1516,14 +1613,12 @@ function onNodeDragStop() {
   }
 }
 
-// Handle mode change
-function onModeChange(newMode: 'off' | 'manual' | 'auto') {
-  console.log('D3 Mode changed to:', newMode);
-  // No automatic action needed - simulation will run based on mode
-}
+// Note: onModeChange and applyForceParams functions removed as they're no longer needed
+// with the simplified UI (no mode selection, no parameter sliders)
 
-// Apply force parameters and re-run simulation
-function applyForceParams() {
+// Keeping this for backward compatibility if needed in the future
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function applyForceParamsLegacy() {
   // Reinitialize simulation with new parameters
   if (simulation) {
     simulation.stop();
