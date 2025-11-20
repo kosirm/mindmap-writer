@@ -468,8 +468,6 @@
       <span>Layout in progress... (nodes locked)</span>
     </div>
 
-
-
     <VueFlow
       v-model:nodes="nodes"
       v-model:edges="edges"
@@ -483,6 +481,7 @@
       class="vue-flow-container"
       @pane-click="onPaneClick"
       @node-click="onNodeClick"
+      @node-drag="onNodeDrag"
       @node-drag-stop="onNodeDragStop"
       @connect="onConnect"
       @connect-start="onConnectStart"
@@ -504,7 +503,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { VueFlow, useVueFlow, ConnectionLineType } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
@@ -513,6 +512,7 @@ import * as d3 from 'd3-force';
 import { Notify } from 'quasar';
 import { eventBus } from '../composables/useEventBus';
 import CustomNode from '../components/CustomNode.vue';
+import Matter from 'matter-js';
 
 // Import Vue Flow styles
 import '@vue-flow/core/dist/style.css';
@@ -555,6 +555,9 @@ const isSimulationRunning = ref(false);
 
 // D3 Mode: 'off' | 'manual' | 'auto'
 const d3Mode = ref<'off' | 'manual' | 'auto'>('off'); // Default to OFF (full manual control)
+
+// Matter.js collision state
+const isAltKeyPressed = ref(false); // Track Alt key for disabling collision while dragging
 
 // D3 Force parameters (adjustable)
 const forceParams = ref({
@@ -713,13 +716,402 @@ function runSimulation() {
   simulation.alpha(0.3).restart();
 }
 
+// ============================================================================
+// Matter.js Physics Engine for Collision Avoidance
+// ============================================================================
+
+// Default node dimensions - ONLY used as fallback when DOM is not yet rendered
+// These should match the approximate size of a new node with default title "Node X"
+const DEFAULT_NODE_WIDTH = 80;
+const DEFAULT_NODE_HEIGHT = 40;
+
+// Minimum spacing between nodes (in pixels)
+const MIN_HORIZONTAL_GAP = 3;  // 10px horizontal spacing between nodes
+const MIN_VERTICAL_GAP = 3;    // 10px vertical spacing between nodes
+
+// Small epsilon value for floating point comparison (to handle floating point errors)
+const EPSILON = 0.1;
+
+// Get actual node dimensions from DOM
+function getNodeDimensions(nodeId: string): { width: number, height: number } {
+  // First try to find the VueFlow node wrapper
+  const vueFlowNode = document.querySelector(`[data-id="${nodeId}"]`);
+  if (vueFlowNode) {
+    // Then find the actual .custom-node element inside it
+    const customNode = vueFlowNode.querySelector('.custom-node');
+    if (customNode) {
+      const rect = customNode.getBoundingClientRect();
+      console.log(`[DEBUG] getNodeDimensions for node ${nodeId}:`, rect.width, 'x', rect.height);
+      return { width: rect.width, height: rect.height };
+    }
+  }
+  console.log(`[DEBUG] getNodeDimensions for node ${nodeId}: using defaults`);
+  return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
+}
+
+// Matter.js engine and world (using shallowRef to avoid Vue reactivity issues)
+// See: https://github.com/liabru/matter-js/issues/1001#issuecomment-998911435
+let matterEngine: Matter.Engine | null = null;
+let matterWorld: Matter.World | null = null;
+
+// Map to track Matter.js bodies for each node
+const nodeBodies = new Map<string, Matter.Body>();
+
+// Initialize Matter.js physics engine
+function initMatterEngine() {
+  // Create engine with no gravity (we want horizontal/vertical movement only)
+  matterEngine = Matter.Engine.create({
+    gravity: { x: 0, y: 0, scale: 0 }
+  });
+
+  matterWorld = matterEngine.world;
+
+  // Create bodies for all existing nodes
+  nodes.value.forEach(node => {
+    createMatterBody(node);
+  });
+
+  console.log('Matter.js engine initialized');
+}
+
+// Create a Matter.js body for a node
+function createMatterBody(node: Node) {
+  if (!matterWorld) return;
+
+  // Try to get actual dimensions from DOM, fallback to defaults
+  const dimensions = getNodeDimensions(node.id);
+
+  // VueFlow uses top-left positioning, but Matter.js uses center positioning
+  // Convert from top-left to center
+  const centerX = node.position.x + dimensions.width / 2;
+  const centerY = node.position.y + dimensions.height / 2;
+
+  console.log(`[DEBUG] createMatterBody for node ${node.id}:`);
+  console.log(`[DEBUG]   VueFlow position (top-left): (${node.position.x}, ${node.position.y})`);
+  console.log(`[DEBUG]   Dimensions from DOM: ${dimensions.width} x ${dimensions.height}`);
+  console.log(`[DEBUG]   Matter.js center: (${centerX}, ${centerY})`);
+
+  // Create a rectangular body at the node's CENTER position
+  const body = Matter.Bodies.rectangle(
+    centerX,
+    centerY,
+    dimensions.width,
+    dimensions.height,
+    {
+      isStatic: false,
+      friction: 0.1,
+      frictionAir: 0.3,  // Air resistance for smooth deceleration
+      restitution: 0.1,  // Low bounciness
+      density: 0.001,
+      label: node.id
+    }
+  );
+
+  // Add body to world
+  Matter.World.add(matterWorld, body);
+
+  // Store reference
+  nodeBodies.set(node.id, body);
+
+  // Log the actual body bounds after creation
+  console.log(`[DEBUG]   Matter.js body bounds: left=${body.bounds.min.x}, right=${body.bounds.max.x}, top=${body.bounds.min.y}, bottom=${body.bounds.max.y}`);
+  console.log(`[DEBUG]   Matter.js body size: ${body.bounds.max.x - body.bounds.min.x} x ${body.bounds.max.y - body.bounds.min.y}`);
+}
+
+// Remove a Matter.js body for a node (will be used for node deletion in the future)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function removeMatterBody(nodeId: string) {
+  if (!matterWorld) return;
+
+  const body = nodeBodies.get(nodeId);
+  if (body) {
+    Matter.World.remove(matterWorld, body);
+    nodeBodies.delete(nodeId);
+  }
+}
+
+// Update Matter.js body position when node is dragged
+function updateMatterBodyPosition(nodeId: string, topLeftX: number, topLeftY: number) {
+  const body = nodeBodies.get(nodeId);
+  if (body) {
+    // VueFlow uses top-left positioning, but Matter.js uses center positioning
+    // Convert from top-left to center
+    const bodyBounds = body.bounds;
+    const bodyWidth = bodyBounds.max.x - bodyBounds.min.x;
+    const bodyHeight = bodyBounds.max.y - bodyBounds.min.y;
+    const centerX = topLeftX + bodyWidth / 2;
+    const centerY = topLeftY + bodyHeight / 2;
+
+    Matter.Body.setPosition(body, { x: centerX, y: centerY });
+    Matter.Body.setVelocity(body, { x: 0, y: 0 });  // Reset velocity when manually positioned
+  }
+}
+
+// Update Matter.js body dimensions after editing (when Tiptap is closed)
+function updateMatterBodyDimensions(nodeId: string) {
+  const body = nodeBodies.get(nodeId);
+  if (!body || !matterWorld) return;
+
+  console.log(`[DEBUG] updateMatterBodyDimensions called for node ${nodeId}`);
+
+  // Get current dimensions from body
+  const oldBounds = body.bounds;
+  const oldWidth = oldBounds.max.x - oldBounds.min.x;
+  const oldHeight = oldBounds.max.y - oldBounds.min.y;
+  console.log(`[DEBUG] Old body dimensions: ${oldWidth}x${oldHeight}`);
+
+  // Wait for DOM to update after Tiptap is removed
+  setTimeout(() => {
+    console.log(`[DEBUG] After timeout, getting new dimensions from DOM...`);
+
+    // Get actual dimensions from DOM
+    const dimensions = getNodeDimensions(nodeId);
+    console.log(`[DEBUG] New dimensions from DOM: ${dimensions.width}x${dimensions.height}`);
+
+    // Check if dimensions actually changed
+    if (Math.abs(oldWidth - dimensions.width) < 2 && Math.abs(oldHeight - dimensions.height) < 2) {
+      console.log(`[DEBUG] Dimensions didn't change significantly, skipping update`);
+      return;
+    }
+
+    // Get the VueFlow node to get its top-left position
+    const node = nodes.value.find(n => n.id === nodeId);
+    if (!node) return;
+
+    // VueFlow uses top-left positioning, but Matter.js uses center positioning
+    // When a node grows, VueFlow top-left stays the same, so we recalculate the center
+    const newCenterX = node.position.x + dimensions.width / 2;
+    const newCenterY = node.position.y + dimensions.height / 2;
+
+    console.log(`[DEBUG] Node ${nodeId} VueFlow position (top-left): (${node.position.x}, ${node.position.y})`);
+    console.log(`[DEBUG] Node ${nodeId} new Matter.js center: (${newCenterX}, ${newCenterY})`);
+    console.log(`[DEBUG] Node ${nodeId} new size: (${dimensions.width}, ${dimensions.height})`);
+
+    // Remove old body
+    Matter.World.remove(matterWorld!, body);
+    nodeBodies.delete(nodeId);
+
+    // Create new body with updated dimensions at the NEW center position
+    const newBody = Matter.Bodies.rectangle(
+      newCenterX,
+      newCenterY,
+      dimensions.width,
+      dimensions.height,
+      {
+        isStatic: false,
+        friction: 0.1,
+        frictionAir: 0.3,
+        restitution: 0.1,
+        density: 0.001,
+        label: nodeId
+      }
+    );
+
+    Matter.World.add(matterWorld!, newBody);
+    nodeBodies.set(nodeId, newBody);
+
+    // Log the new body bounds
+    const newBounds = newBody.bounds;
+    console.log(`[DEBUG] New Matter.js body bounds: left=${newBounds.min.x}, right=${newBounds.max.x}, top=${newBounds.min.y}, bottom=${newBounds.max.y}`);
+    console.log(`[DEBUG] ✅ Updated Matter.js body dimensions for node ${nodeId}: ${oldWidth}x${oldHeight} → ${dimensions.width}x${dimensions.height}`);
+
+    // Let Matter.js naturally resolve overlaps by running the engine for a few steps
+    console.log(`[DEBUG] Running Matter.js engine to resolve overlaps after resize`);
+    runMatterEngineToResolveOverlaps();
+  }, 100); // Increased delay to ensure DOM is fully updated
+}
+
+// Run Matter.js engine for a few steps to naturally resolve overlaps after resize
+function runMatterEngineToResolveOverlaps() {
+  if (!matterEngine || !matterWorld) return;
+
+  console.log(`[DEBUG] Running Matter.js engine to resolve overlaps...`);
+
+  // Run the engine for 60 steps (1 second at 60fps) to let physics resolve overlaps
+  for (let i = 0; i < 60; i++) {
+    Matter.Engine.update(matterEngine, 1000 / 60); // 16.67ms per step
+  }
+
+  // Sync all VueFlow node positions with Matter.js body positions
+  nodeBodies.forEach((body, nodeId) => {
+    const node = nodes.value.find(n => n.id === nodeId);
+    if (node) {
+      // Convert from Matter.js center to VueFlow top-left
+      const bodyBounds = body.bounds;
+      const bodyWidth = bodyBounds.max.x - bodyBounds.min.x;
+      const bodyHeight = bodyBounds.max.y - bodyBounds.min.y;
+
+      const oldX = node.position.x;
+      const oldY = node.position.y;
+      const newX = body.position.x - bodyWidth / 2;
+      const newY = body.position.y - bodyHeight / 2;
+
+      if (Math.abs(newX - oldX) > 0.1 || Math.abs(newY - oldY) > 0.1) {
+        node.position.x = newX;
+        node.position.y = newY;
+        console.log(`[DEBUG]   Node ${nodeId} moved from (${oldX.toFixed(2)}, ${oldY.toFixed(2)}) to (${newX.toFixed(2)}, ${newY.toFixed(2)})`);
+      }
+    }
+  });
+
+  console.log(`[DEBUG] Matter.js engine finished resolving overlaps`);
+}
+
+
+
+// Push nodes away from a position (used when creating new nodes or dragging)
+// alreadyPushedNodes: Set of node IDs that have already been pushed in this chain (to prevent infinite recursion)
+function pushNodesAwayFromPosition(
+  targetX: number,
+  targetY: number,
+  excludeNodeId?: string,
+  targetWidth?: number,
+  targetHeight?: number,
+  alreadyPushedNodes: Set<string> = new Set()
+) {
+  if (!matterEngine || !matterWorld) {
+    initMatterEngine();
+    if (!matterEngine || !matterWorld) return;
+  }
+
+  // Add the excluded node to the already-pushed set to prevent circular pushing
+  if (excludeNodeId) {
+    alreadyPushedNodes.add(excludeNodeId);
+  }
+
+  // Get dimensions of the target position
+  // Priority: 1) Use provided dimensions, 2) Extract from excludeNodeId body, 3) Use defaults
+  let targetHalfWidth: number;
+  let targetHalfHeight: number;
+
+  if (targetWidth !== undefined && targetHeight !== undefined) {
+    // Use provided dimensions (highest priority)
+    targetHalfWidth = targetWidth / 2;
+    targetHalfHeight = targetHeight / 2;
+  } else if (excludeNodeId) {
+    // Try to extract from excludeNodeId body
+    const excludeBody = nodeBodies.get(excludeNodeId);
+    if (excludeBody) {
+      const bounds = excludeBody.bounds;
+      targetHalfWidth = (bounds.max.x - bounds.min.x) / 2;
+      targetHalfHeight = (bounds.max.y - bounds.min.y) / 2;
+    } else {
+      // Fallback to defaults
+      targetHalfWidth = DEFAULT_NODE_WIDTH / 2;
+      targetHalfHeight = DEFAULT_NODE_HEIGHT / 2;
+    }
+  } else {
+    // No dimensions provided and no excludeNodeId - use defaults
+    targetHalfWidth = DEFAULT_NODE_WIDTH / 2;
+    targetHalfHeight = DEFAULT_NODE_HEIGHT / 2;
+  }
+
+  // Track which nodes were pushed (for cascading collision detection)
+  const pushedNodes: Array<{ nodeId: string, newX: number, newY: number }> = [];
+
+  console.log(`[DEBUG] pushNodesAwayFromPosition: target=(${targetX}, ${targetY}), targetHalfSize=(${targetHalfWidth}, ${targetHalfHeight}), excludeNodeId=${excludeNodeId}, alreadyPushed=[${Array.from(alreadyPushedNodes).join(', ')}]`);
+
+  // If excludeNodeId is provided, log its bounds for debugging
+  if (excludeNodeId) {
+    const excludeBody = nodeBodies.get(excludeNodeId);
+    if (excludeBody) {
+      const bounds = excludeBody.bounds;
+      console.log(`[DEBUG]   Exclude node ${excludeNodeId} bounds: left=${bounds.min.x}, right=${bounds.max.x}, top=${bounds.min.y}, bottom=${bounds.max.y}`);
+    }
+  }
+
+  // Check for collisions and push nodes away
+  nodeBodies.forEach((body, nodeId) => {
+    if (excludeNodeId && nodeId === excludeNodeId) return;
+
+    // Skip nodes that have already been pushed in this chain (prevent infinite recursion)
+    if (alreadyPushedNodes.has(nodeId)) return;
+
+    // Get actual dimensions from Matter.js body bounds (no DOM access needed!)
+    const bodyBounds = body.bounds;
+    const bodyWidth = bodyBounds.max.x - bodyBounds.min.x;
+    const bodyHeight = bodyBounds.max.y - bodyBounds.min.y;
+    const bodyHalfWidth = bodyWidth / 2;
+    const bodyHalfHeight = bodyHeight / 2;
+
+    const dx = body.position.x - targetX;
+    const dy = body.position.y - targetY;
+
+    // Calculate absolute distances
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Calculate minimum distances for each axis (half-widths + gap)
+    const minDistanceX = targetHalfWidth + bodyHalfWidth + MIN_HORIZONTAL_GAP;
+    const minDistanceY = targetHalfHeight + bodyHalfHeight + MIN_VERTICAL_GAP;
+
+    // Check if there's overlap on both axes (AABB collision detection)
+    const overlapX = minDistanceX - absDx;
+    const overlapY = minDistanceY - absDy;
+
+    console.log(`[DEBUG]   Checking node ${nodeId}: pos=(${body.position.x}, ${body.position.y}), size=(${bodyWidth}, ${bodyHeight}), dx=${dx}, dy=${dy}, absDx=${absDx}, absDy=${absDy}, minDistX=${minDistanceX}, minDistY=${minDistanceY}, overlapX=${overlapX}, overlapY=${overlapY}`);
+
+    // Only push if overlapping on BOTH axes (use EPSILON to handle floating point errors)
+    // This ensures we maintain spacing even when nodes are very close (within floating point precision)
+    if (overlapX > -EPSILON && overlapY > -EPSILON) {
+      console.log(`[DEBUG]   ✅ COLLISION DETECTED with node ${nodeId}!`);
+      let newX = body.position.x;
+      let newY = body.position.y;
+
+      // Push along the axis with smallest overlap (shortest separation)
+      if (overlapX < overlapY) {
+        // Push horizontally
+        const pushDirection = dx > 0 ? 1 : -1;
+        newX = body.position.x + pushDirection * overlapX;
+      } else {
+        // Push vertically
+        const pushDirection = dy > 0 ? 1 : -1;
+        newY = body.position.y + pushDirection * overlapY;
+      }
+
+      // Update Matter.js body position (center)
+      Matter.Body.setPosition(body, { x: newX, y: newY });
+
+      // Update the VueFlow node position (top-left)
+      // Convert from Matter.js center to VueFlow top-left
+      const node = nodes.value.find(n => n.id === nodeId);
+      if (node) {
+        node.position.x = newX - bodyHalfWidth;
+        node.position.y = newY - bodyHalfHeight;
+      }
+
+      // Track this pushed node for cascading collision detection
+      pushedNodes.push({ nodeId, newX, newY });
+    }
+  });
+
+  // Cascading collision detection: recursively push nodes that collide with pushed nodes
+  pushedNodes.forEach(({ nodeId, newX, newY }) => {
+    const pushedBody = nodeBodies.get(nodeId);
+    if (!pushedBody) return;
+
+    const pushedBounds = pushedBody.bounds;
+    const pushedWidth = pushedBounds.max.x - pushedBounds.min.x;
+    const pushedHeight = pushedBounds.max.y - pushedBounds.min.y;
+
+    console.log(`[DEBUG]   Cascading check for pushed node ${nodeId} at (${newX}, ${newY})`);
+
+    // Recursively call pushNodesAwayFromPosition for this pushed node
+    // Pass the alreadyPushedNodes set to prevent infinite recursion
+    pushNodesAwayFromPosition(newX, newY, nodeId, pushedWidth, pushedHeight, alreadyPushedNodes);
+  });
+}
+
 // Create a new node at the given position
+// NOTE: Caller must add the node to nodes.value array AFTER calling this function
+// so that the node renders in DOM and we can read its actual dimensions
 function createNode(x: number, y: number, label?: string, parentId?: string): Node {
   const id = String(nodeCounter++);
-  return {
+
+  const newNode: Node = {
     id,
     type: 'custom',
-    position: { x, y },
+    position: { x, y },  // VueFlow uses top-left
     data: {
       label: label || `Node ${id}`,  // Fallback label for display (will be removed later)
       // Custom fields for our mindmap
@@ -728,6 +1120,8 @@ function createNode(x: number, y: number, label?: string, parentId?: string): No
       title: label || `Node ${id}`,  // Node title (editable with Tiptap) - initialize with label
     },
   };
+
+  return newNode;
 }
 
 // Create an edge between two nodes (always center to center, straight line)
@@ -805,6 +1199,10 @@ function removeOldParentRelationship(childId: string): string | null {
 function onPaneClick(mouseEvent: MouseEvent) {
   // Ctrl+Click to create a new node (but not if we're dragging a connection)
   if (mouseEvent.ctrlKey && !isDraggingConnection.value) {
+    // Prevent event from bubbling/firing multiple times
+    mouseEvent.stopPropagation();
+    mouseEvent.preventDefault();
+
     // Get the bounding rect of the Vue Flow container
     const flowElement = vueFlowRef.value;
     if (!flowElement) return;
@@ -815,17 +1213,50 @@ function onPaneClick(mouseEvent: MouseEvent) {
     const x = mouseEvent.clientX - rect.left;
     const y = mouseEvent.clientY - rect.top;
 
-    // Convert to flow coordinates
-    const position = project({ x, y });
+    // Convert to flow coordinates (this is where the mouse is)
+    const mousePosition = project({ x, y });
 
-    // Create a new node at the clicked position
-    const newNode = createNode(position.x, position.y);
+    // Center the node on the mouse position using estimated dimensions
+    // We'll adjust after DOM renders with actual dimensions
+    const estimatedWidth = DEFAULT_NODE_WIDTH;
+    const estimatedHeight = DEFAULT_NODE_HEIGHT;
+    const topLeftX = mousePosition.x - estimatedWidth / 2;
+    const topLeftY = mousePosition.y - estimatedHeight / 2;
+
+    // Create a new node centered on the mouse position
+    const newNode = createNode(topLeftX, topLeftY);
     nodes.value.push(newNode);
 
-    // Run simulation to avoid collisions (only in AUTO mode)
-    if (d3Mode.value === 'auto') {
-      runSimulation();
-    }
+    // Wait for DOM to render, then read actual dimensions and adjust position
+    void nextTick(() => {
+      // Get actual dimensions from DOM
+      const dimensions = getNodeDimensions(newNode.id);
+
+      // Adjust position to center on mouse using ACTUAL dimensions
+      const adjustedTopLeftX = mousePosition.x - dimensions.width / 2;
+      const adjustedTopLeftY = mousePosition.y - dimensions.height / 2;
+
+      // Update node position
+      newNode.position.x = adjustedTopLeftX;
+      newNode.position.y = adjustedTopLeftY;
+
+      // Calculate center position using ACTUAL dimensions
+      const centerX = mousePosition.x;  // Mouse is already at center
+      const centerY = mousePosition.y;
+
+      console.log(`[DEBUG] Ctrl+Click createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at mouse (${centerX}, ${centerY})`);
+
+      // Push away any overlapping nodes using the ACTUAL dimensions
+      pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
+
+      // Create Matter.js body with actual dimensions at adjusted position
+      createMatterBody(newNode);
+
+      // Run simulation to avoid collisions (only in AUTO mode)
+      if (d3Mode.value === 'auto') {
+        runSimulation();
+      }
+    });
   } else {
     // Regular click - emit event to deselect all nodes
     eventBus.emit('canvas:pane-clicked', {});
@@ -1003,14 +1434,83 @@ function onConnectEnd(event?: MouseEvent) {
   const newEdge = createEdge(startHandle.nodeId, newNode.id, 'hierarchy');
   edges.value.push(newEdge);
 
-  // Run simulation to avoid collisions (only in AUTO mode)
-  if (d3Mode.value === 'auto') {
-    runSimulation();
+  // Wait for DOM to render, then read actual dimensions and create Matter.js body
+  void nextTick(() => {
+    // Get actual dimensions from DOM
+    const dimensions = getNodeDimensions(newNode.id);
+
+    // Calculate center position using ACTUAL dimensions
+    const centerX = position.x + dimensions.width / 2;
+    const centerY = position.y + dimensions.height / 2;
+
+    console.log(`[DEBUG] Connection drop createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
+
+    // Push away any overlapping nodes using the ACTUAL dimensions
+    pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
+
+    // Create Matter.js body with actual dimensions
+    createMatterBody(newNode);
+
+    // Run simulation to avoid collisions (only in AUTO mode)
+    if (d3Mode.value === 'auto') {
+      runSimulation();
+    }
+  });
+}
+
+// Handle node drag - push overlapping nodes away in real-time using Matter.js
+function onNodeDrag(event: { node: Node }) {
+  const draggedNode = event.node;
+
+  // Get number of selected nodes
+  const selectedNodes = getSelectedNodes.value;
+  const multipleNodesSelected = selectedNodes.length > 1;
+
+  // If multiple nodes are selected, update ALL their Matter.js body positions
+  if (multipleNodesSelected) {
+    selectedNodes.forEach(node => {
+      updateMatterBodyPosition(node.id, node.position.x, node.position.y);
+    });
+    console.log(`[DEBUG] Multiple nodes selected (${selectedNodes.length}) - updated all Matter.js bodies, skipping collision detection during drag`);
+    return;
+  }
+
+  // Single node drag: update Matter.js body position
+  updateMatterBodyPosition(draggedNode.id, draggedNode.position.x, draggedNode.position.y);
+
+  // Skip collision detection if Alt key is pressed (manual override)
+  if (isAltKeyPressed.value) {
+    console.log('[DEBUG] Alt key pressed - skipping collision detection for node', draggedNode.id);
+    return;
+  }
+
+  // Get the Matter.js body to get its center position and dimensions
+  const body = nodeBodies.get(draggedNode.id);
+  if (body) {
+    // Get actual body dimensions from Matter.js
+    const bodyBounds = body.bounds;
+    const bodyWidth = bodyBounds.max.x - bodyBounds.min.x;
+    const bodyHeight = bodyBounds.max.y - bodyBounds.min.y;
+
+    // Push away any nodes that overlap with the dragged node's current position (using center and actual dimensions)
+    pushNodesAwayFromPosition(body.position.x, body.position.y, draggedNode.id, bodyWidth, bodyHeight);
   }
 }
 
-// Handle node drag stop - run simulation to push other nodes (only in AUTO mode)
+// Handle node drag stop - run Matter.js engine to resolve any overlaps
 function onNodeDragStop() {
+  // Get number of selected nodes
+  const selectedNodes = getSelectedNodes.value;
+  const multipleNodesSelected = selectedNodes.length > 1;
+
+  // If Alt key was pressed OR multiple nodes were dragged, run Matter.js engine once to resolve overlaps
+  if (isAltKeyPressed.value || multipleNodesSelected) {
+    const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
+    console.log(`[DEBUG] Drag ended with ${reason} - running Matter.js engine to resolve overlaps`);
+    runMatterEngineToResolveOverlaps();
+  }
+
+  // Run D3 simulation if in AUTO mode
   if (d3Mode.value === 'auto') {
     runSimulation();
   }
@@ -1034,6 +1534,22 @@ function applyForceParams() {
   // Re-run simulation with current nodes (if not in OFF mode)
   if (d3Mode.value !== 'off') {
     runSimulation();
+  }
+}
+
+// Handle Alt key press - disable collision detection while dragging
+function onAltKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Alt') {
+    isAltKeyPressed.value = true;
+    console.log('[DEBUG] Alt key pressed - collision detection DISABLED while dragging');
+  }
+}
+
+// Handle Alt key release - re-enable collision detection
+function onAltKeyUp(event: KeyboardEvent) {
+  if (event.key === 'Alt') {
+    isAltKeyPressed.value = false;
+    console.log('[DEBUG] Alt key released - collision detection ENABLED');
   }
 }
 
@@ -1145,10 +1661,28 @@ function onKeyDown(event: KeyboardEvent) {
   const newEdge = createEdge(selectedNodeId.value, newNode.id, 'hierarchy');
   edges.value.push(newEdge);
 
-  // Run simulation to avoid collisions (only in AUTO mode)
-  if (d3Mode.value === 'auto') {
-    runSimulation();
-  }
+  // Wait for DOM to render, then read actual dimensions and create Matter.js body
+  void nextTick(() => {
+    // Get actual dimensions from DOM
+    const dimensions = getNodeDimensions(newNode.id);
+
+    // Calculate center position using ACTUAL dimensions
+    const centerX = newX + dimensions.width / 2;
+    const centerY = newY + dimensions.height / 2;
+
+    console.log(`[DEBUG] Tab key createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
+
+    // Push away any overlapping nodes using the ACTUAL dimensions
+    pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
+
+    // Create Matter.js body with actual dimensions
+    createMatterBody(newNode);
+
+    // Run simulation to avoid collisions (only in AUTO mode)
+    if (d3Mode.value === 'auto') {
+      runSimulation();
+    }
+  });
 }
 
 // Export data model as JSON
@@ -1318,6 +1852,23 @@ function loadMindmap(id: string) {
     const maxId = Math.max(...nodes.value.map(n => parseInt(n.id) || 0), 0);
     nodeCounter = maxId + 1;
 
+    // Create Matter.js bodies for all loaded nodes after DOM renders
+    if (matterEngine && matterWorld) {
+      // Clear existing bodies
+      nodeBodies.forEach((body) => {
+        Matter.World.remove(matterWorld!, body);
+      });
+      nodeBodies.clear();
+
+      // Wait for DOM to render, then create bodies with actual dimensions
+      void nextTick(() => {
+        nodes.value.forEach(node => {
+          createMatterBody(node);
+        });
+        console.log(`Created Matter.js bodies for ${nodes.value.length} loaded nodes`);
+      });
+    }
+
     // Clear selection
     selectedNodeId.value = null;
 
@@ -1426,6 +1977,34 @@ function handleCanvasNodeSelected({ nodeId }: { nodeId: string }) {
   selectedNodeId.value = nodeId; // Update for keyboard shortcuts
 }
 
+// Handle node edit end event - update Matter.js body dimensions
+function handleNodeEditEnd({ nodeId }: { nodeId: string }) {
+  // Clear any pending debounced update
+  if (titleUpdateDebounceTimer) {
+    clearTimeout(titleUpdateDebounceTimer);
+    titleUpdateDebounceTimer = null;
+  }
+  updateMatterBodyDimensions(nodeId);
+}
+
+// Debounce timer for real-time dimension updates while typing
+let titleUpdateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Handle node title updated event - update dimensions in real-time while typing (debounced)
+function handleNodeTitleUpdated({ nodeId }: { nodeId: string; title: string }) {
+  // Clear previous timer
+  if (titleUpdateDebounceTimer) {
+    clearTimeout(titleUpdateDebounceTimer);
+  }
+
+  // Set new timer - update dimensions after 1 second of no typing
+  titleUpdateDebounceTimer = setTimeout(() => {
+    console.log(`[DEBUG] Real-time dimension update for node ${nodeId} while typing`);
+    updateMatterBodyDimensions(nodeId);
+    titleUpdateDebounceTimer = null;
+  }, 1000); // 1 second debounce
+}
+
 // Handle canvas pane click event - deselect all
 function handleCanvasPaneClicked() {
   // Deselect all nodes in canvas
@@ -1453,12 +2032,19 @@ onMounted(() => {
   eventBus.on('tree:node-selected', handleTreeNodeSelected);
   eventBus.on('canvas:node-selected', handleCanvasNodeSelected);
   eventBus.on('canvas:pane-clicked', handleCanvasPaneClicked);
+  eventBus.on('node:edit-end', handleNodeEditEnd);
+  eventBus.on('node:title-updated', handleNodeTitleUpdated);
 
-  // Register keyboard event listener
+  // Register keyboard event listeners
   window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keydown', onAltKeyDown);
+  window.addEventListener('keyup', onAltKeyUp);
 
   // Initialize D3 simulation
   initSimulation();
+
+  // Initialize Matter.js physics engine
+  initMatterEngine();
 
   // Load list of saved mindmaps
   loadMindmapsList();
@@ -1470,13 +2056,32 @@ onBeforeUnmount(() => {
   eventBus.off('tree:node-selected', handleTreeNodeSelected);
   eventBus.off('canvas:node-selected', handleCanvasNodeSelected);
   eventBus.off('canvas:pane-clicked', handleCanvasPaneClicked);
+  eventBus.off('node:edit-end', handleNodeEditEnd);
+  eventBus.off('node:title-updated', handleNodeTitleUpdated);
 
-  // Remove keyboard event listener
+  // Clear any pending debounced update
+  if (titleUpdateDebounceTimer) {
+    clearTimeout(titleUpdateDebounceTimer);
+    titleUpdateDebounceTimer = null;
+  }
+
+  // Remove keyboard event listeners
   window.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('keydown', onAltKeyDown);
+  window.removeEventListener('keyup', onAltKeyUp);
 
   // Stop D3 simulation
   if (simulation) {
     simulation.stop();
+  }
+
+  // Clean up Matter.js engine
+  if (matterEngine && matterWorld) {
+    Matter.World.clear(matterWorld, false);
+    Matter.Engine.clear(matterEngine);
+    matterEngine = null;
+    matterWorld = null;
+    nodeBodies.clear();
   }
 });
 </script>
@@ -1616,6 +2221,8 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   animation: pulse 2s ease-in-out infinite;
 }
+
+
 
 @keyframes pulse {
   0%, 100% {
