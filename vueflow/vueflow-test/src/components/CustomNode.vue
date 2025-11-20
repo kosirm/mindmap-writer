@@ -78,7 +78,7 @@ const emit = defineEmits<{
 const localEditor = ref<Editor | null>(null);
 const isEditing = computed(() => {
   const active = activeNodeId.value === props.id;
-  console.log('[CustomNode] isEditing computed for node:', props.id, 'active:', active, 'activeNodeId:', activeNodeId.value);
+  // console.log('[CustomNode] isEditing computed for node:', props.id, 'active:', active, 'activeNodeId:', activeNodeId.value);
   return active;
 });
 
@@ -94,17 +94,17 @@ function handleEditStart({ nodeId }: { nodeId: string }) {
   // Only handle if this is the node being edited
   if (nodeId !== props.id) return;
 
-  console.log('[CustomNode] Edit start for node:', props.id, 'displayTitle:', displayTitle.value);
+  // console.log('[CustomNode] Edit start for node:', props.id, 'displayTitle:', displayTitle.value);
 
   // Set this node as active
   activeNodeId.value = props.id;
 
-  console.log('[CustomNode] Set activeNodeId to:', activeNodeId.value);
+  // console.log('[CustomNode] Set activeNodeId to:', activeNodeId.value);
 
   // Wait for reactivity to update and create editor
   void nextTick(() => {
-    console.log('[CustomNode] After nextTick, isEditing:', isEditing.value, 'for node:', props.id);
-    console.log('[CustomNode] activeNodeId.value:', activeNodeId.value, 'props.id:', props.id, 'equal?', activeNodeId.value === props.id);
+    // console.log('[CustomNode] After nextTick, isEditing:', isEditing.value, 'for node:', props.id);
+    // console.log('[CustomNode] activeNodeId.value:', activeNodeId.value, 'props.id:', props.id, 'equal?', activeNodeId.value === props.id);
 
     // Create Tiptap editor and store it locally
     localEditor.value = createTitleEditor(
@@ -113,8 +113,8 @@ function handleEditStart({ nodeId }: { nodeId: string }) {
       handleBlur
     );
 
-    console.log('[CustomNode] Editor created:', localEditor.value);
-    console.log('[CustomNode] localEditor.value:', localEditor.value, 'isEditing:', isEditing.value);
+    // console.log('[CustomNode] Editor created:', localEditor.value);
+    // console.log('[CustomNode] localEditor.value:', localEditor.value, 'isEditing:', isEditing.value);
   });
 }
 
@@ -163,7 +163,7 @@ onBeforeUnmount(() => {
 
 // Watch for external editor destruction (e.g., another node was double-clicked)
 watch(isEditing, (newValue) => {
-  console.log('[CustomNode] isEditing changed:', newValue, 'for node:', props.id);
+  // console.log('[CustomNode] isEditing changed:', newValue, 'for node:', props.id);
   if (!newValue && localEditor.value) {
     // This node is no longer active, clear local editor
     localEditor.value = null;
@@ -171,14 +171,14 @@ watch(isEditing, (newValue) => {
 });
 
 // Watch localEditor changes
-watch(localEditor, (newValue) => {
-  console.log('[CustomNode] localEditor changed:', newValue, 'for node:', props.id);
-});
+// watch(localEditor, (newValue) => {
+//   console.log('[CustomNode] localEditor changed:', newValue, 'for node:', props.id);
+// });
 
-// Watch activeNodeId changes
-watch(activeNodeId, (newValue) => {
-  console.log('[CustomNode] activeNodeId changed:', newValue, 'for node:', props.id);
-});
+// // Watch activeNodeId changes
+// watch(activeNodeId, (newValue) => {
+//   console.log('[CustomNode] activeNodeId changed:', newValue, 'for node:', props.id);
+// });
 </script>
 
 <style scoped>
