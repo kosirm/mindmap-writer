@@ -37,6 +37,12 @@ export type MindmapEvents = {
    */
   'canvas:pane-clicked': Record<string, never>; // Empty object for events with no payload
 
+  /**
+   * Emitted when a node is selected from any view (generic selection event)
+   * Payload: nodeId of the selected node
+   */
+  'node:select': string;
+
   // ============================================================================
   // NODE LIFECYCLE EVENTS (Future)
   // ============================================================================
@@ -76,6 +82,12 @@ export type MindmapEvents = {
   'node:content-updated': { nodeId: string; content: string };
 
   /**
+   * Emitted when a node is updated (generic update event)
+   * Payload: nodeId and updated fields (title, content, etc.)
+   */
+  'node:update': { nodeId: string; title?: string; content?: string };
+
+  /**
    * Emitted when a node exits edit mode (Tiptap editor is destroyed)
    * Payload: nodeId
    */
@@ -88,7 +100,7 @@ export type MindmapEvents = {
   'node:resize-requested': { nodeId: string; dimensions: { width: number; height: number } };
 
   // ============================================================================
-  // WRITER PANEL EVENTS (Future)
+  // WRITER PANEL EVENTS
   // ============================================================================
 
   /**
@@ -102,6 +114,24 @@ export type MindmapEvents = {
    * Payload: array of nodeIds in new order
    */
   'writer:order-changed': { nodeIds: string[] };
+
+  /**
+   * Emitted when a node's hierarchy changes in Writer (drag-and-drop)
+   * Payload: nodeId, new parentId (null for root), and new order
+   */
+  'writer:hierarchy-changed': { nodeId: string; newParentId: string | null; newOrder: number };
+
+  /**
+   * Emitted when the tree structure is restructured in Writer (drag-and-drop)
+   * This triggers a full rebuild of the hierarchy from the modified tree
+   */
+  'writer:tree-restructured': { draggedNodeIds: string[]; newParentId: string | null };
+
+  /**
+   * Emitted when a node is selected in Writer
+   * Payload: nodeId (null to deselect), scrollIntoView flag, and source of the selection
+   */
+  'writer:node-selected': { nodeId: string | null; scrollIntoView: boolean; source: 'writer' | 'canvas' | 'tree' };
 };
 
 /**

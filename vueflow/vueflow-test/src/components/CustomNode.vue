@@ -60,7 +60,6 @@ import {
 interface Props {
   id: string;
   data: {
-    label: string;
     title: string;
     content: string;
     parentId: string | null;

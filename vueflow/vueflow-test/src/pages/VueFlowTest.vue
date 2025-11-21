@@ -1,5 +1,5 @@
 <template>
-  <q-page class="vueflow-test-page">
+  <q-page class="vueflow-test-page" style="height: calc(100vh - 50px)">
     <!-- Left Drawer -->
     <q-drawer
       v-model="leftDrawerOpen"
@@ -476,37 +476,157 @@
       <span>Layout in progress... (nodes locked)</span>
     </div>
 
-    <VueFlow
-      v-model:nodes="nodes"
-      v-model:edges="edges"
-      :default-viewport="{ zoom: 1, x: 0, y: 0 }"
-      :default-edge-options="defaultEdgeOptions"
-      :nodes-draggable="!isSimulationRunning"
-      :min-zoom="0.2"
-      :max-zoom="4"
-      :connection-line-type="ConnectionLineType.Straight"
-      :disable-keyboard-a11y="true"
-      class="vue-flow-container"
-      @pane-click="onPaneClick"
-      @node-click="onNodeClick"
-      @node-drag="onNodeDrag"
-      @node-drag-stop="onNodeDragStop"
-      @connect="onConnect"
-      @connect-start="onConnectStart"
-      @connect-end="onConnectEnd"
-    >
-      <Background />
-      <Controls />
+    <!-- Split view container -->
+    <div class="split-view-container">
+      <!-- Split view with resizable panels -->
+      <q-splitter
+        v-if="viewMode === 'split'"
+        v-model="splitterModel"
+        class="split-view"
+      >
+        <!-- Mindmap panel -->
+        <template #before>
+          <div class="panel-container">
+            <div class="panel-header">
+              <span class="panel-title">Mindmap View</span>
+              <q-btn
+                flat
+                dense
+                round
+                size="sm"
+                icon="fullscreen"
+                @click="viewMode = 'mindmap'"
+              >
+                <q-tooltip>Maximize Mindmap</q-tooltip>
+              </q-btn>
+            </div>
+            <div class="mindmap-container">
+              <VueFlow
+                v-model:nodes="nodes"
+                v-model:edges="edges"
+                :default-viewport="{ zoom: 1, x: 0, y: 0 }"
+                :default-edge-options="defaultEdgeOptions"
+                :nodes-draggable="!isSimulationRunning"
+                :min-zoom="0.2"
+                :max-zoom="4"
+                :connection-line-type="ConnectionLineType.Straight"
+                :disable-keyboard-a11y="true"
+                class="vue-flow-container"
+                @pane-click="onPaneClick"
+                @node-click="onNodeClick"
+                @node-drag="onNodeDrag"
+                @node-drag-stop="onNodeDragStop"
+                @connect="onConnect"
+                @connect-start="onConnectStart"
+                @connect-end="onConnectEnd"
+              >
+                <Background />
 
-      <!-- Custom node template using CustomNode component -->
-      <template #node-custom="nodeProps">
-        <CustomNode
-          :id="nodeProps.id"
-          :data="nodeProps.data"
-          @update:data="(newData) => updateNodeData(nodeProps.id, newData)"
-        />
-      </template>
-    </VueFlow>
+                <!-- Custom node template using CustomNode component -->
+                <template #node-custom="nodeProps">
+                  <CustomNode
+                    :id="nodeProps.id"
+                    :data="nodeProps.data"
+                    @update:data="(newData) => updateNodeData(nodeProps.id, newData)"
+                  />
+                </template>
+              </VueFlow>
+            </div>
+          </div>
+        </template>
+
+        <!-- Writer panel -->
+        <template #after>
+          <div class="panel-container">
+            <div class="panel-header">
+              <span class="panel-title">Writer</span>
+              <q-btn
+                flat
+                dense
+                round
+                size="sm"
+                icon="fullscreen"
+                @click="viewMode = 'writer'"
+              >
+                <q-tooltip>Maximize Writer</q-tooltip>
+              </q-btn>
+            </div>
+            <WriterEditor :nodes="nodesWithChildren" />
+          </div>
+        </template>
+      </q-splitter>
+
+      <!-- Mindmap only view -->
+      <div v-else-if="viewMode === 'mindmap'" class="full-view">
+        <div class="panel-container">
+          <div class="panel-header">
+            <span class="panel-title">Mindmap View</span>
+            <q-btn
+              flat
+              dense
+              round
+              size="sm"
+              icon="fullscreen_exit"
+              @click="viewMode = 'split'"
+            >
+              <q-tooltip>Back to Split View</q-tooltip>
+            </q-btn>
+          </div>
+          <div class="mindmap-container">
+            <VueFlow
+              v-model:nodes="nodes"
+              v-model:edges="edges"
+              :default-viewport="{ zoom: 1, x: 0, y: 0 }"
+              :default-edge-options="defaultEdgeOptions"
+              :nodes-draggable="!isSimulationRunning"
+              :min-zoom="0.2"
+              :max-zoom="4"
+              :connection-line-type="ConnectionLineType.Straight"
+              :disable-keyboard-a11y="true"
+              class="vue-flow-container"
+              @pane-click="onPaneClick"
+              @node-click="onNodeClick"
+              @node-drag="onNodeDrag"
+              @node-drag-stop="onNodeDragStop"
+              @connect="onConnect"
+              @connect-start="onConnectStart"
+              @connect-end="onConnectEnd"
+            >
+              <Background />
+
+              <!-- Custom node template using CustomNode component -->
+              <template #node-custom="nodeProps">
+                <CustomNode
+                  :id="nodeProps.id"
+                  :data="nodeProps.data"
+                  @update:data="(newData) => updateNodeData(nodeProps.id, newData)"
+                />
+              </template>
+            </VueFlow>
+          </div>
+        </div>
+      </div>
+
+      <!-- Writer only view -->
+      <div v-else-if="viewMode === 'writer'" class="full-view">
+        <div class="panel-container">
+          <div class="panel-header">
+            <span class="panel-title">Writer</span>
+            <q-btn
+              flat
+              dense
+              round
+              size="sm"
+              icon="fullscreen_exit"
+              @click="viewMode = 'split'"
+            >
+              <q-tooltip>Back to Split View</q-tooltip>
+            </q-btn>
+          </div>
+          <WriterEditor :nodes="nodesWithChildren" />
+        </div>
+      </div>
+    </div>
   </q-page>
 </template>
 
@@ -514,11 +634,11 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { VueFlow, useVueFlow, ConnectionLineType } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
-import { Controls } from '@vue-flow/controls';
 import type { Node, Edge } from '@vue-flow/core';
 import { Notify } from 'quasar';
 import { eventBus } from '../composables/useEventBus';
 import CustomNode from '../components/CustomNode.vue';
+import WriterEditor from '../components/WriterEditor.vue';
 import { useD3Force, type D3ForceParams } from '../composables/useD3Force';
 import { useMatterCollision, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../composables/useMatterCollision';
 import Matter from 'matter-js';
@@ -540,6 +660,12 @@ const defaultEdgeOptions = {
 // UI state
 const leftDrawerOpen = ref(true);
 const activeTab = ref('tree'); // Default to Tree tab
+
+// View mode: 'split', 'mindmap', 'writer'
+const viewMode = ref<'split' | 'mindmap' | 'writer'>('split');
+
+// Splitter model (percentage for left panel)
+const splitterModel = ref(50);
 
 // Selected node tracking
 const selectedNodeId = ref<string | null>(null);
@@ -613,10 +739,10 @@ function resolveOverlapsOnce() {
 }
 
 // Node counter for unique IDs
-let nodeCounter = 2;
+let nodeCounter = 1;
 
 // Get Vue Flow instance
-const { project, vueFlowRef, connectionStartHandle, getSelectedNodes, getSelectedEdges, addSelectedNodes, removeSelectedNodes } = useVueFlow();
+const { project, vueFlowRef, connectionStartHandle, getSelectedNodes, getSelectedEdges, addSelectedNodes, removeSelectedNodes, setCenter, getViewport } = useVueFlow();
 
 // Track if we're currently dragging a connection
 const isDraggingConnection = ref(false);
@@ -627,6 +753,9 @@ const isShiftPressed = ref(false);
 // Track selected nodes in tree view (supports multiple selection)
 const selectedTreeNodeIds = ref<string[]>([]);
 
+// Track if tree selection change is programmatic (to prevent circular events)
+const isTreeSelectionProgrammatic = ref(false);
+
 // Computed: Find all root nodes (nodes with no parent)
 const rootNodes = computed(() => {
   return nodes.value.filter(node => !node.data.parentId);
@@ -635,9 +764,16 @@ const rootNodes = computed(() => {
 // Tree node interface for q-tree component
 interface TreeNode {
   id: string;
-  label: string;
+  label: string;  // q-tree requires 'label' property for display
   children?: TreeNode[] | undefined;
   childCount: number;
+}
+
+// Helper function to strip HTML tags from text
+function stripHtml(html: string): string {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
 }
 
 // Computed: Build tree data structure for q-tree component
@@ -646,11 +782,14 @@ const treeData = computed(() => {
   function buildTree(parentId: string | null): TreeNode[] {
     const children = nodes.value.filter(node => node.data.parentId === parentId);
 
+    // Sort children by order
+    children.sort((a, b) => (a.data.order || 0) - (b.data.order || 0));
+
     return children.map(node => {
       const nodeChildren = buildTree(node.id);
       const treeNode: TreeNode = {
         id: node.id,
-        label: node.data.label || `Node ${node.id}`,
+        label: stripHtml(node.data.title || 'Untitled'),  // Strip HTML tags from title
         childCount: nodeChildren.length,
       };
 
@@ -667,11 +806,45 @@ const treeData = computed(() => {
   return buildTree(null);
 });
 
+// Computed: Build nodes with children array for Writer component
+const nodesWithChildren = computed(() => {
+  // Create a deep copy of nodes to avoid mutating the original
+  const nodesCopy = nodes.value.map(node => ({
+    ...node,
+    data: {
+      ...node.data,
+      children: [] as Node[],
+    },
+  }));
+
+  // Build a map for quick lookup
+  const nodeMap = new Map<string, Node>();
+  nodesCopy.forEach(node => nodeMap.set(node.id, node));
+
+  // Populate children arrays
+  nodesCopy.forEach(node => {
+    if (node.data.parentId) {
+      const parent = nodeMap.get(node.data.parentId);
+      if (parent && parent.data.children) {
+        parent.data.children.push(node);
+      }
+    }
+  });
+
+  // Sort children by order
+  nodesCopy.forEach(node => {
+    if (node.data.children && node.data.children.length > 0) {
+      node.data.children.sort((a: Node, b: Node) => (a.data.order || 0) - (b.data.order || 0));
+    }
+  });
+
+  return nodesCopy;
+});
 
 // Create a new node at the given position
 // NOTE: Caller must add the node to nodes.value array AFTER calling this function
 // so that the node renders in DOM and we can read its actual dimensions
-function createNode(x: number, y: number, label?: string, parentId?: string): Node {
+function createNode(x: number, y: number, title?: string, parentId?: string): Node {
   const id = String(nodeCounter++);
 
   const newNode: Node = {
@@ -679,11 +852,11 @@ function createNode(x: number, y: number, label?: string, parentId?: string): No
     type: 'custom',
     position: { x, y },  // VueFlow uses top-left
     data: {
-      label: label || `Node ${id}`,  // Fallback label for display (will be removed later)
       // Custom fields for our mindmap
       parentId: parentId || null,  // For hierarchy - which node is the parent
       content: '',  // Rich text content (will be HTML from Tiptap later)
-      title: label || `Node ${id}`,  // Node title (editable with Tiptap) - initialize with label
+      title: title || '',  // Node title (editable with Tiptap) - empty by default (common mindmap practice)
+      order: 0,  // Order within parent (or among root nodes) - will be set correctly when added
     },
   };
 
@@ -836,7 +1009,7 @@ function onNodeClick(event: { node: Node }) {
 }
 
 // Update node data (called from CustomNode component when title is edited)
-function updateNodeData(nodeId: string, newData: { label: string; title: string; content: string; parentId: string | null }) {
+function updateNodeData(nodeId: string, newData: { title: string; content: string; parentId: string | null }) {
   const node = nodes.value.find(n => n.id === nodeId);
   if (node) {
     node.data = newData;
@@ -1126,8 +1299,16 @@ function onAltKeyUp(event: KeyboardEvent) {
 
 // Handle keyboard shortcuts (Ctrl + Arrow keys and Delete)
 function onKeyDown(event: KeyboardEvent) {
+  // Don't handle keyboard shortcuts if user is typing in an input/textarea/contenteditable
+  // This prevents conflicts with Writer's Tiptap editors
+  const target = event.target as HTMLElement;
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+    return;
+  }
+
   // Handle Delete key - delete selected nodes and edges
   if (event.key === 'Delete' || event.key === 'Backspace') {
+
     event.preventDefault();
 
     // Get selected nodes and edges
@@ -1178,8 +1359,8 @@ function onKeyDown(event: KeyboardEvent) {
     return;
   }
 
-  // Handle E key - start editing selected node
-  if (event.key === 'e' || event.key === 'E') {
+  // Handle F2 key - start editing selected node
+  if (event.key === 'F2') {
     // Only if a single node is selected
     if (selectedNodeId.value) {
       event.preventDefault();
@@ -1513,6 +1694,12 @@ function formatDate(timestamp: number): string {
 
 // Handle tree node selection - emit event instead of directly manipulating canvas
 function onTreeNodeSelected(nodeId: string | null) {
+  // If this is a programmatic change (from canvas or writer), don't emit event
+  if (isTreeSelectionProgrammatic.value) {
+    // Don't reset flag here - let the caller handle it with nextTick
+    return;
+  }
+
   // Emit event - canvas will listen and update itself
   eventBus.emit('tree:node-selected', { nodeId });
 }
@@ -1521,13 +1708,15 @@ function onTreeNodeSelected(nodeId: string | null) {
 // EVENT BUS HANDLERS
 // ============================================================================
 
-// Handle tree node selection event - update canvas
+// Handle tree node selection event - update canvas and writer
 function handleTreeNodeSelected({ nodeId }: { nodeId: string | null }) {
   if (!nodeId) {
     // Deselect all nodes in canvas
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     removeSelectedNodes(nodes.value as any);
     selectedNodeId.value = null; // Clear for keyboard shortcuts
+    // Notify writer to clear selection
+    eventBus.emit('writer:node-selected', { nodeId: null, scrollIntoView: false, source: 'tree' });
     return;
   }
 
@@ -1538,14 +1727,91 @@ function handleTreeNodeSelected({ nodeId }: { nodeId: string | null }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     addSelectedNodes([node as any]);
     selectedNodeId.value = nodeId; // Update for keyboard shortcuts
+
+    // Notify writer to select this node and scroll into view (tree selection should scroll writer)
+    eventBus.emit('writer:node-selected', { nodeId, scrollIntoView: true, source: 'tree' });
+
+    // Bring node into view in mindmap (tree selection should center canvas on node)
+    bringNodeIntoView(nodeId);
   }
 }
 
-// Handle canvas node selection event - update tree
+// Handle canvas node selection event - update tree and writer
 function handleCanvasNodeSelected({ nodeId }: { nodeId: string }) {
+  const node = nodes.value.find(n => n.id === nodeId);
+  if (!node) return;
+
+  // Check if node is already selected
+  const alreadySelected = getSelectedNodes.value.some(n => n.id === nodeId);
+
+  // Only call addSelectedNodes if not already selected (Vue Flow auto-selects on click)
+  if (!alreadySelected) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addSelectedNodes([node as any]);
+  }
+
+  // Set flag to prevent tree from emitting event (avoid circular loop)
+  isTreeSelectionProgrammatic.value = true;
+
   // Update tree selection to match canvas selection
   selectedTreeNodeIds.value = [nodeId];
   selectedNodeId.value = nodeId; // Update for keyboard shortcuts
+
+  // Reset flag after Vue updates the tree (use nextTick to ensure proper timing)
+  void nextTick(() => {
+    isTreeSelectionProgrammatic.value = false;
+  });
+
+  // Notify writer to select this node and scroll into view (canvas selection should scroll writer)
+  eventBus.emit('writer:node-selected', { nodeId, scrollIntoView: true, source: 'canvas' });
+
+  // Scroll tree node into view (canvas selection should scroll tree)
+  scrollTreeNodeIntoView(nodeId);
+
+  // Do NOT move the canvas - the node is already visible since user clicked it
+}
+
+// Handle writer node selection event - update tree and canvas
+function handleWriterNodeSelected({ nodeId, source }: { nodeId: string | null; source: 'writer' | 'canvas' | 'tree' }) {
+  if (!nodeId) {
+    // Deselect all
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    removeSelectedNodes(nodes.value as any);
+    selectedTreeNodeIds.value = [];
+    selectedNodeId.value = null;
+    return;
+  }
+
+  const node = nodes.value.find(n => n.id === nodeId);
+  if (node) {
+    // Only update canvas and tree if source is 'writer' (not 'canvas' or 'tree')
+    if (source === 'writer') {
+      // Select in canvas
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      addSelectedNodes([node as any]);
+
+      // Set flag to prevent tree from emitting event (avoid circular loop)
+      isTreeSelectionProgrammatic.value = true;
+
+      // Select in tree
+      selectedTreeNodeIds.value = [nodeId];
+      selectedNodeId.value = nodeId;
+
+      // Reset flag after Vue updates the tree
+      void nextTick(() => {
+        isTreeSelectionProgrammatic.value = false;
+      });
+
+      // Bring node into view in mindmap (writer selection should scroll mindmap)
+      bringNodeIntoView(nodeId);
+
+      // Scroll tree node into view (writer selection should scroll tree)
+      scrollTreeNodeIntoView(nodeId);
+    } else {
+      console.log('[DEBUG] Source is', source, '- writer will handle its own scrolling via event listener');
+      // Writer component will handle scrolling itself via the event listener
+    }
+  }
 }
 
 // Handle node edit end event - update Matter.js body dimensions
@@ -1576,6 +1842,104 @@ function handleNodeTitleUpdated({ nodeId }: { nodeId: string; title: string }) {
   }, 1000); // 1 second debounce
 }
 
+// Handle node update event from Writer - update node data
+function handleNodeUpdate({ nodeId, title, content }: { nodeId: string; title?: string; content?: string }) {
+  const node = nodes.value.find(n => n.id === nodeId);
+  if (!node) return;
+
+  // Update the fields that were provided
+  if (title !== undefined) {
+    node.data.title = title;
+    // Also trigger dimension update for Matter.js
+    handleNodeTitleUpdated({ nodeId, title });
+  }
+  if (content !== undefined) {
+    node.data.content = content;
+  }
+}
+
+// Handle hierarchy change from Writer drag-and-drop
+// This updates the node's parentId and creates/removes hierarchy edges
+function updateNodeHierarchy(nodeId: string, newParentId: string | null) {
+  const node = nodes.value.find(n => n.id === nodeId);
+  if (!node) return;
+
+  const oldParentId = node.data.parentId;
+
+  // Check for circular reference if setting a new parent
+  if (newParentId && wouldCreateCircularReference(newParentId, nodeId)) {
+    Notify.create({
+      type: 'negative',
+      message: 'Cannot move node: This would create a circular reference!',
+      position: 'top',
+      timeout: 3000,
+    });
+    return false;
+  }
+
+  // Remove old hierarchy edge if exists
+  if (oldParentId) {
+    const edgeIndex = edges.value.findIndex(
+      edge => edge.data?.edgeType === 'hierarchy' &&
+              edge.source === oldParentId &&
+              edge.target === nodeId
+    );
+    if (edgeIndex !== -1) {
+      edges.value.splice(edgeIndex, 1);
+    }
+  }
+
+  // Update parentId
+  node.data.parentId = newParentId;
+
+  // Create new hierarchy edge if new parent exists
+  if (newParentId) {
+    const newEdge = createEdge(newParentId, nodeId, 'hierarchy');
+    edges.value.push(newEdge);
+  }
+
+  return true;
+}
+
+// Bring a node into view in the mindmap (VueFlow)
+function bringNodeIntoView(nodeId: string) {
+  console.log('[DEBUG] bringNodeIntoView called for nodeId:', nodeId);
+  console.trace('[DEBUG] Stack trace:');
+
+  const node = nodes.value.find(n => n.id === nodeId);
+  if (!node) return;
+
+  // Get current zoom level to preserve it
+  const currentViewport = getViewport();
+
+  console.log('[DEBUG] Calling setCenter with position:', node.position.x, node.position.y, 'zoom:', currentViewport.zoom);
+
+  // Use setCenter to pan to the node while preserving zoom level
+  void nextTick(() => {
+    void setCenter(node.position.x, node.position.y, {
+      duration: 300,
+      zoom: currentViewport.zoom, // Explicitly preserve current zoom
+    });
+  });
+}
+
+// Scroll tree node into view in the tree panel
+function scrollTreeNodeIntoView(nodeId: string) {
+  // The tree uses default-expand-all, so all nodes are already visible
+  // We just need to scroll the selected node into view
+  void nextTick(() => {
+    // Find the tree node element by looking for the node with matching id
+    // The q-tree component renders nodes with data attributes we can use
+    const treeElement = document.querySelector(`[data-node-id="${nodeId}"]`);
+    if (treeElement) {
+      treeElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  });
+}
+
 // Handle canvas pane click event - deselect all
 function handleCanvasPaneClicked() {
   // Deselect all nodes in canvas
@@ -1584,6 +1948,8 @@ function handleCanvasPaneClicked() {
   // Clear tree selection
   selectedTreeNodeIds.value = [];
   selectedNodeId.value = null; // Clear for keyboard shortcuts
+  // Notify writer to clear selection
+  eventBus.emit('writer:node-selected', { nodeId: null, scrollIntoView: false, source: 'canvas' });
 }
 
 // Watch for canvas selection changes - sync to tree
@@ -1602,9 +1968,20 @@ onMounted(() => {
   // Register event bus listeners
   eventBus.on('tree:node-selected', handleTreeNodeSelected);
   eventBus.on('canvas:node-selected', handleCanvasNodeSelected);
+  eventBus.on('writer:node-selected', handleWriterNodeSelected);
   eventBus.on('canvas:pane-clicked', handleCanvasPaneClicked);
   eventBus.on('node:edit-end', handleNodeEditEnd);
   eventBus.on('node:title-updated', handleNodeTitleUpdated);
+  eventBus.on('node:update', handleNodeUpdate);
+  eventBus.on('writer:hierarchy-changed', ({ nodeId, newParentId, newOrder }) => {
+    updateNodeHierarchy(nodeId, newParentId);
+
+    // Update the order field
+    const node = nodes.value.find(n => n.id === nodeId);
+    if (node) {
+      node.data.order = newOrder;
+    }
+  });
 
   // Register keyboard event listeners
   window.addEventListener('keydown', onKeyDown);
@@ -1626,9 +2003,12 @@ onBeforeUnmount(() => {
   // Remove event bus listeners
   eventBus.off('tree:node-selected', handleTreeNodeSelected);
   eventBus.off('canvas:node-selected', handleCanvasNodeSelected);
+  eventBus.off('writer:node-selected', handleWriterNodeSelected);
   eventBus.off('canvas:pane-clicked', handleCanvasPaneClicked);
   eventBus.off('node:edit-end', handleNodeEditEnd);
   eventBus.off('node:title-updated', handleNodeTitleUpdated);
+  eventBus.off('node:update', handleNodeUpdate);
+  // Note: Arrow function listeners can't be removed, but they'll be garbage collected
 
   // Clear any pending debounced update
   if (titleUpdateDebounceTimer) {
@@ -1650,13 +2030,16 @@ onBeforeUnmount(() => {
 <style scoped>
 .vueflow-test-page {
   position: relative;
-  height: 100vh;
+  height: 100%;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .vue-flow-container {
-  height: 100vh;
+  height: 100%;
   width: 100%;
+  flex: 1;
 }
 
 /* Drawer styling */
@@ -1812,6 +2195,64 @@ onBeforeUnmount(() => {
 /* Override Quasar's default selection styling */
 :deep(.q-tree__node--selected .q-tree__node-header) {
   color: inherit !important;
+}
+
+/* Prevent text selection in tree view */
+:deep(.q-tree) {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Split view styles */
+.split-view-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.split-view {
+  height: 100%;
+}
+
+.full-view {
+  width: 100%;
+  height: 100%;
+}
+
+.panel-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #ffffff;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  background-color: #fafafa;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.87);
+}
+
+.mindmap-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.mindmap-container .vue-flow-container {
+  width: 100%;
+  height: 100%;
 }
 </style>
 
