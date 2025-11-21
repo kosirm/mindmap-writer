@@ -39,35 +39,37 @@
       :width="leftDrawerWidth"
       :breakpoint="0"
       bordered
-      class="bg-grey-1"
+      class="bg-grey-1 left-drawer-container"
     >
-      <q-scroll-area class="fit">
-        <div class="q-pa-md">
-          <q-tabs
-            v-model="activeTab"
-            dense
-            class="text-grey"
-            active-color="primary"
-            indicator-color="primary"
-            align="justify"
-          >
-            <q-tab name="tree" icon="account_tree">
-              <q-tooltip>Tree View</q-tooltip>
-            </q-tab>
-            <q-tab name="data" icon="data_object">
-              <q-tooltip>Data Export</q-tooltip>
-            </q-tab>
-            <q-tab name="params" icon="scatter_plot">
-              <q-tooltip>D3 Parameters</q-tooltip>
-            </q-tab>
-            <q-tab name="instructions" icon="help_outline">
-              <q-tooltip>Instructions</q-tooltip>
-            </q-tab>
-          </q-tabs>
+      <!-- Fixed tabs header -->
+      <div class="drawer-tabs-header">
+        <q-tabs
+          v-model="activeTab"
+          dense
+          class="text-grey"
+          active-color="primary"
+          indicator-color="primary"
+          align="justify"
+        >
+          <q-tab name="tree" icon="account_tree" class="drawer-tab">
+            <q-tooltip>Tree View</q-tooltip>
+          </q-tab>
+          <q-tab name="data" icon="data_object" class="drawer-tab">
+            <q-tooltip>Data Export</q-tooltip>
+          </q-tab>
+          <q-tab name="params" icon="scatter_plot" class="drawer-tab">
+            <q-tooltip>D3 Parameters</q-tooltip>
+          </q-tab>
+          <q-tab name="instructions" icon="help_outline" class="drawer-tab">
+            <q-tooltip>Instructions</q-tooltip>
+          </q-tab>
+        </q-tabs>
+        <q-separator />
+      </div>
 
-          <q-separator class="q-my-md" />
-
-          <q-tab-panels v-model="activeTab" animated>
+      <!-- Scrollable tab content -->
+      <div class="drawer-tabs-content">
+        <q-tab-panels v-model="activeTab" animated class="q-pa-md">
             <!-- Tree Tab -->
             <q-tab-panel name="tree">
               <div class="text-h6 q-mb-md">Hierarchy Tree</div>
@@ -502,13 +504,11 @@
               </div>
             </q-tab-panel>
           </q-tab-panels>
-        </div>
-      </q-scroll-area>
+      </div>
 
       <!-- Resizer for left drawer -->
       <div
-        autofocus
-        tabindex="0"
+        tabindex="-1"
         v-touch-pan.preserveCursor.prevent.mouse.horizontal="resizeLeftDrawer"
         @keydown="resizeLeftDrawer"
         class="q-drawer__resizer"
@@ -535,8 +535,7 @@
 
       <!-- Resizer for right drawer -->
       <div
-        autofocus
-        tabindex="0"
+        tabindex="-1"
         v-touch-pan.preserveCursor.prevent.mouse.horizontal="resizeRightDrawer"
         @keydown="resizeRightDrawer"
         class="q-drawer__resizer q-drawer__resizer--right"
@@ -2468,6 +2467,49 @@ onBeforeUnmount(() => {
 .mindmap-container .vue-flow-container {
   width: 100%;
   height: 100%;
+}
+
+/* Left drawer layout */
+.left-drawer-container {
+  height: calc(100vh - 50px) !important;
+}
+
+.left-drawer-container :deep(.q-drawer__content) {
+  display: flex;
+  flex-direction: column;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.drawer-tabs-header {
+  flex-shrink: 0;
+  background-color: #fff;
+}
+
+.drawer-tabs-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* Ensure tab panels don't have their own scroll */
+.drawer-tabs-content :deep(.q-tab-panels) {
+  overflow: visible;
+}
+
+.drawer-tabs-content :deep(.q-tab-panel) {
+  overflow: visible;
+}
+
+/* Smaller tab icons */
+.drawer-tab :deep(.q-tab__icon) {
+  font-size: 18px;
+}
+
+.drawer-tab {
+  min-width: 30px;
+  padding: 8px 4px;
 }
 
 /* Drawer resizer styles */
