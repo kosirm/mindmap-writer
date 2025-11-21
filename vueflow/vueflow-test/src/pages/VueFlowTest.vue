@@ -1,11 +1,43 @@
 <template>
-  <q-page class="vueflow-test-page" style="height: calc(100vh - 50px)">
-    <!-- Left Drawer -->
+  <q-layout view="hHh LpR fff">
+    <!-- Header -->
+    <q-header elevated class="bg-primary text-white">
+      <q-toolbar>
+        <q-btn
+          dense
+          flat
+          round
+          icon="menu"
+          @click="toggleLeftDrawer"
+        >
+          <q-tooltip>Toggle Left Panel</q-tooltip>
+        </q-btn>
+
+        <q-toolbar-title>
+          <q-avatar size="32px">
+            <q-icon name="account_tree" />
+          </q-avatar>
+          Mindmap Writer
+        </q-toolbar-title>
+
+        <q-btn
+          dense
+          flat
+          round
+          icon="menu"
+          @click="toggleRightDrawer"
+        >
+          <q-tooltip>Toggle Right Panel</q-tooltip>
+        </q-btn>
+      </q-toolbar>
+    </q-header>
+
+    <!-- Left Drawer (Resizable) -->
     <q-drawer
       v-model="leftDrawerOpen"
       show-if-above
-      :width="350"
-      :breakpoint="500"
+      :width="leftDrawerWidth"
+      :breakpoint="0"
       bordered
       class="bg-grey-1"
     >
@@ -472,16 +504,56 @@
           </q-tab-panels>
         </div>
       </q-scroll-area>
+
+      <!-- Resizer for left drawer -->
+      <div
+        autofocus
+        tabindex="0"
+        v-touch-pan.preserveCursor.prevent.mouse.horizontal="resizeLeftDrawer"
+        @keydown="resizeLeftDrawer"
+        class="q-drawer__resizer"
+      />
     </q-drawer>
 
-    <!-- Simulation running indicator -->
-    <div v-if="isSimulationRunning" class="simulation-indicator">
-      <q-spinner-dots color="primary" size="20px" />
-      <span>Layout in progress... (nodes locked)</span>
-    </div>
+    <!-- Right Drawer -->
+    <q-drawer
+      v-model="rightDrawerOpen"
+      :width="rightDrawerWidth"
+      :breakpoint="0"
+      side="right"
+      bordered
+      class="bg-grey-1"
+    >
+      <q-scroll-area class="fit">
+        <div class="q-pa-md">
+          <div class="text-h6 q-mb-md">Right Panel</div>
+          <div class="text-grey-7">
+            Future features will be added here (e.g., properties panel, formatting tools, etc.)
+          </div>
+        </div>
+      </q-scroll-area>
 
-    <!-- Split view container -->
-    <div class="split-view-container">
+      <!-- Resizer for right drawer -->
+      <div
+        autofocus
+        tabindex="0"
+        v-touch-pan.preserveCursor.prevent.mouse.horizontal="resizeRightDrawer"
+        @keydown="resizeRightDrawer"
+        class="q-drawer__resizer q-drawer__resizer--right"
+      />
+    </q-drawer>
+
+    <!-- Page Container -->
+    <q-page-container>
+      <q-page class="vueflow-test-page">
+        <!-- Simulation running indicator -->
+        <div v-if="isSimulationRunning" class="simulation-indicator">
+          <q-spinner-dots color="primary" size="20px" />
+          <span>Layout in progress... (nodes locked)</span>
+        </div>
+
+        <!-- Split view container -->
+        <div class="split-view-container">
       <!-- Split view with resizable panels -->
       <q-splitter
         v-if="viewMode === 'split'"
@@ -630,8 +702,10 @@
           <WriterEditor :nodes="nodesWithChildren" />
         </div>
       </div>
-    </div>
-  </q-page>
+        </div>
+      </q-page>
+    </q-page-container>
+  </q-layout>
 </template>
 
 <script setup lang="ts">
@@ -663,13 +737,83 @@ const defaultEdgeOptions = {
 
 // UI state
 const leftDrawerOpen = ref(true);
+const rightDrawerOpen = ref(false);
 const activeTab = ref('tree'); // Default to Tree tab
+
+// Drawer widths (for resizing)
+const leftDrawerWidth = ref(350);
+const rightDrawerWidth = ref(300);
+let initialLeftDrawerWidth = 350;
+let initialRightDrawerWidth = 300;
 
 // View mode: 'split', 'mindmap', 'writer'
 const viewMode = ref<'split' | 'mindmap' | 'writer'>('split');
 
 // Splitter model (percentage for left panel)
 const splitterModel = ref(50);
+
+// Drawer toggle functions
+function toggleLeftDrawer() {
+  leftDrawerOpen.value = !leftDrawerOpen.value;
+}
+
+function toggleRightDrawer() {
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+}
+
+// Drawer resize functions
+interface TouchPanEvent {
+  evt?: Event;
+  touch?: boolean;
+  mouse?: boolean;
+  position?: { top?: number; left?: number };
+  direction?: 'left' | 'right' | 'up' | 'down';
+  isFirst?: boolean;
+  isFinal?: boolean;
+  duration?: number;
+  distance?: { x?: number; y?: number };
+  offset?: { x?: number; y?: number };
+  delta?: { x?: number; y?: number };
+}
+
+function resizeLeftDrawer(ev: KeyboardEvent | TouchPanEvent) {
+  if ('code' in ev) {
+    // Keyboard event
+    if (ev.code === 'ArrowLeft') {
+      leftDrawerWidth.value -= 1;
+    } else if (ev.code === 'ArrowRight') {
+      leftDrawerWidth.value += 1;
+    }
+  } else {
+    // Touch pan event
+    if (ev.isFirst === true) {
+      initialLeftDrawerWidth = leftDrawerWidth.value;
+    }
+    leftDrawerWidth.value = initialLeftDrawerWidth + (ev.offset?.x ?? 0);
+  }
+  // Constrain width between 200px and 800px
+  leftDrawerWidth.value = Math.max(200, Math.min(800, leftDrawerWidth.value));
+}
+
+function resizeRightDrawer(ev: KeyboardEvent | TouchPanEvent) {
+  if ('code' in ev) {
+    // Keyboard event
+    if (ev.code === 'ArrowLeft') {
+      rightDrawerWidth.value += 1;
+    } else if (ev.code === 'ArrowRight') {
+      rightDrawerWidth.value -= 1;
+    }
+  } else {
+    // Touch pan event
+    if (ev.isFirst === true) {
+      initialRightDrawerWidth = rightDrawerWidth.value;
+    }
+    // For right drawer, we subtract the offset (dragging right decreases width)
+    rightDrawerWidth.value = initialRightDrawerWidth - (ev.offset?.x ?? 0);
+  }
+  // Constrain width between 200px and 800px
+  rightDrawerWidth.value = Math.max(200, Math.min(800, rightDrawerWidth.value));
+}
 
 // Selected node tracking
 const selectedNodeId = ref<string | null>(null);
@@ -2324,6 +2468,41 @@ onBeforeUnmount(() => {
 .mindmap-container .vue-flow-container {
   width: 100%;
   height: 100%;
+}
+
+/* Drawer resizer styles */
+.q-drawer__resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -2px;
+  width: 4px;
+  background-color: #ebe4e4;
+  cursor: ew-resize;
+  z-index: 1000;
+}
+
+.q-drawer__resizer:after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  height: 30px;
+  left: -5px;
+  right: -5px;
+  transform: translateY(-50%);
+  background-color: inherit;
+  border-radius: 4px;
+}
+
+/* Right drawer resizer (on the left side of right drawer) */
+.q-drawer__resizer--right {
+  left: -2px;
+  right: auto;
+}
+
+/* Page styles */
+.vueflow-test-page {
+  height: calc(100vh - 50px);
 }
 </style>
 
