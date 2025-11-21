@@ -46,17 +46,21 @@
 
               <div v-else>
                 <q-tree
+                  ref="treeRef"
                   :nodes="treeData as any"
                   node-key="id"
                   :selected="selectedTreeNodeIds"
+                  :expanded="expandedTreeNodeIds"
                   default-expand-all
                   no-connectors
                   @update:selected="onTreeNodeSelected"
+                  @update:expanded="onTreeExpanded"
                 >
                   <template v-slot:default-header="prop">
                     <div
                       class="row items-center tree-node-header"
                       :class="{ 'tree-node-selected': selectedTreeNodeIds.includes(prop.node.id) }"
+                      :data-node-id="prop.node.id"
                     >
                       <div class="text-weight-medium">{{ prop.node.label }}</div>
                       <q-badge v-if="prop.node.childCount > 0" color="primary" class="q-ml-sm">
@@ -753,6 +757,13 @@ const isShiftPressed = ref(false);
 // Track selected nodes in tree view (supports multiple selection)
 const selectedTreeNodeIds = ref<string[]>([]);
 
+// Track expanded nodes in tree view
+const expandedTreeNodeIds = ref<string[]>([]);
+
+// Reference to the q-tree component
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const treeRef = ref<any>(null);
+
 // Track if tree selection change is programmatic (to prevent circular events)
 const isTreeSelectionProgrammatic = ref(false);
 
@@ -1265,21 +1276,6 @@ function onNodeDragStop() {
   }
 }
 
-// Note: onModeChange and applyForceParams functions removed as they're no longer needed
-// with the simplified UI (no mode selection, no parameter sliders)
-
-// Keeping this for backward compatibility if needed in the future
-// NOTE: This function is no longer needed since D3 simulation is now in a composable
-// and parameters are reactive. Keeping it commented out for reference.
-// function applyForceParamsLegacy() {
-//   // Reinitialize simulation with new parameters
-//   initSimulation();
-//
-//   // Re-run simulation with current nodes (if not in OFF mode)
-//   if (d3Mode.value !== 'off') {
-//     runSimulation();
-//   }
-// }
 
 // Handle Alt key press - disable collision detection while dragging
 function onAltKeyDown(event: KeyboardEvent) {
@@ -1704,6 +1700,11 @@ function onTreeNodeSelected(nodeId: string | null) {
   eventBus.emit('tree:node-selected', { nodeId });
 }
 
+// Handle tree expansion changes
+function onTreeExpanded(expanded: readonly string[]) {
+  expandedTreeNodeIds.value = [...expanded];
+}
+
 // ============================================================================
 // EVENT BUS HANDLERS
 // ============================================================================
@@ -1923,20 +1924,41 @@ function bringNodeIntoView(nodeId: string) {
   });
 }
 
+// Helper function to get all ancestor node IDs for a given node
+function getAncestorNodeIds(nodeId: string): string[] {
+  const ancestors: string[] = [];
+  let currentNode = nodes.value.find(n => n.id === nodeId);
+
+  while (currentNode?.data?.parentId) {
+    ancestors.push(currentNode.data.parentId);
+    currentNode = nodes.value.find(n => n.id === currentNode!.data.parentId);
+  }
+
+  return ancestors;
+}
+
 // Scroll tree node into view in the tree panel
 function scrollTreeNodeIntoView(nodeId: string) {
-  // The tree uses default-expand-all, so all nodes are already visible
-  // We just need to scroll the selected node into view
+  // First, expand all ancestor nodes to make sure the target node is visible
+  const ancestors = getAncestorNodeIds(nodeId);
+
+  // Add all ancestors to the expanded list if they're not already there
+  const newExpandedIds = new Set([...expandedTreeNodeIds.value, ...ancestors]);
+  expandedTreeNodeIds.value = Array.from(newExpandedIds);
+
+  // Wait for the tree to update and then scroll
   void nextTick(() => {
-    // Find the tree node element by looking for the node with matching id
-    // The q-tree component renders nodes with data attributes we can use
-    const treeElement = document.querySelector(`[data-node-id="${nodeId}"]`);
-    if (treeElement) {
-      treeElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
+    // Give the tree a moment to render the expanded nodes
+    setTimeout(() => {
+      // Find the tree node element by looking for the node with matching id
+      const treeElement = document.querySelector(`[data-node-id="${nodeId}"]`);
+      if (treeElement) {
+        treeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }
+    }, 100); // Small delay to ensure DOM is updated
   });
 }
 
