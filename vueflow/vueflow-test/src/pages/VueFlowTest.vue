@@ -1601,6 +1601,11 @@ function loadMindmap(id: string) {
     nodeCounter = maxId + 1;
 
     // Create Matter.js bodies for all loaded nodes after DOM renders
+    // Initialize Matter.js engine if it doesn't exist yet
+    if (!matterEngine || !matterWorld) {
+      initMatterEngine();
+    }
+
     if (matterEngine && matterWorld) {
       // Clear existing bodies
       nodeBodies.forEach((body) => {
@@ -1614,6 +1619,10 @@ function loadMindmap(id: string) {
           createMatterBody(node);
         });
         console.log(`Created Matter.js bodies for ${nodes.value.length} loaded nodes`);
+
+        // Run Matter.js collision resolution once to sync positions
+        // This ensures collision detection works properly for loaded nodes
+        runMatterEngineToResolveOverlaps();
       });
     }
 
