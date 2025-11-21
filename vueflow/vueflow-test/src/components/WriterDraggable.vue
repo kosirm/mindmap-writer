@@ -78,13 +78,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, nextTick, onBeforeUnmount, watch, inject } from 'vue';
 import { useDraggable } from '@vue-dnd-kit/core';
 import { EditorContent, Editor } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { eventBus } from '../composables/useEventBus';
+import { createKeyboardHandler } from '../composables/useWriterKeyboardHandlers';
 import type { TreeItem } from './WriterTree.vue';
+import type { useWriterNavigation } from '../composables/useWriterNavigation';
 
 const props = defineProps<{
   node: TreeItem;
@@ -92,6 +94,9 @@ const props = defineProps<{
   source: TreeItem[];
   depth: number;
 }>();
+
+// Inject navigation from parent (WriterEditor)
+const navigation = inject<ReturnType<typeof useWriterNavigation>>('writerNavigation');
 
 // Indentation
 const indentSize = computed(() => props.depth * 10);
@@ -183,8 +188,24 @@ function handleWrapperClick() {
   eventBus.emit('writer:node-selected', { nodeId: props.node.id, scrollIntoView: false, source: 'writer' });
 }
 
+// Helper function to navigate to a specific field in another node
+function navigateToField(nodeId: string, field: 'title' | 'content', cursorPosition: 'start' | 'end') {
+  // First, select the target node (scrollIntoView: false to prevent jumping in Writer view)
+  // The selection will still trigger scrolling in tree and centering in mindmap
+  eventBus.emit('writer:node-selected', { nodeId, scrollIntoView: false, source: 'writer' });
+
+  // Then, emit an event for the target node to open the appropriate field
+  void nextTick(() => {
+    eventBus.emit('writer:open-field', { nodeId, field, cursorPosition });
+  });
+}
+
 // Title editing
 function handleTitleClick() {
+  openTitleEditor('end');
+}
+
+function openTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (isTitleEditing.value) return;
 
   // Select this node when starting to edit
@@ -193,11 +214,11 @@ function handleTitleClick() {
   isTitleEditing.value = true;
 
   void nextTick(() => {
-    createTitleEditor();
+    createTitleEditor(cursorPosition);
   });
 }
 
-function createTitleEditor() {
+function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (titleEditorInstance.value) return;
 
   titleEditorInstance.value = new Editor({
@@ -216,7 +237,57 @@ function createTitleEditor() {
       }),
     ],
     content: displayTitle.value,
-    autofocus: 'end',
+    autofocus: cursorPosition,
+    editorProps: {
+      handleKeyDown: createKeyboardHandler({
+        onEnterKey: () => {
+          // Enter in title always moves to content
+          openContentEditor('start');
+        },
+        onRightArrowAtEnd: () => {
+          // Right arrow at end of title always goes to content
+          openContentEditor('start');
+        },
+        onLeftArrowAtStart: () => {
+          // Left arrow at start of title goes to previous node's content
+          if (navigation) {
+            // Get the previous field in the flattened list
+            const prevField = navigation.getPreviousField(props.node.id, 'title');
+            if (prevField) {
+              // If previous field is a title, we need to go to that node's content instead
+              if (prevField.field === 'title') {
+                // Navigate to content of the previous node
+                navigateToField(prevField.nodeId, 'content', 'end');
+              } else {
+                // Previous field is already content, navigate to it
+                navigateToField(prevField.nodeId, prevField.field, 'end');
+              }
+            }
+          }
+        },
+        onUpArrowAtFirstLine: () => {
+          // Up arrow at first line of title goes to previous node's content
+          if (navigation) {
+            // Get the previous field in the flattened list
+            const prevField = navigation.getPreviousField(props.node.id, 'title');
+            if (prevField) {
+              // If previous field is a title, we need to go to that node's content instead
+              if (prevField.field === 'title') {
+                // Navigate to content of the previous node
+                navigateToField(prevField.nodeId, 'content', 'end');
+              } else {
+                // Previous field is already content, navigate to it
+                navigateToField(prevField.nodeId, prevField.field, 'end');
+              }
+            }
+          }
+        },
+        onDownArrowAtLastLine: () => {
+          // Down arrow at last line of title always goes to content
+          openContentEditor('start');
+        },
+      }),
+    },
     onUpdate: ({ editor }) => {
       // Emit update event (don't mutate props directly)
       const html = editor.getHTML();
@@ -238,6 +309,10 @@ function destroyTitleEditor() {
 
 // Content editing
 function handleContentClick() {
+  openContentEditor('end');
+}
+
+function openContentEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (isContentEditing.value) return;
 
   // Select this node when starting to edit
@@ -246,11 +321,11 @@ function handleContentClick() {
   isContentEditing.value = true;
 
   void nextTick(() => {
-    createContentEditor();
+    createContentEditor(cursorPosition);
   });
 }
 
-function createContentEditor() {
+function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (contentEditorInstance.value) return;
 
   contentEditorInstance.value = new Editor({
@@ -261,7 +336,39 @@ function createContentEditor() {
       }),
     ],
     content: props.node.data.content || '',
-    autofocus: 'end',
+    autofocus: cursorPosition,
+    editorProps: {
+      handleKeyDown: createKeyboardHandler({
+        onLeftArrowAtStart: () => {
+          // Left arrow at start of content goes to title of same node
+          openTitleEditor('end');
+        },
+        onRightArrowAtEnd: () => {
+          // Right arrow at end of content goes to next node's title
+          // Note: We use 'title' to find next field because content might be empty and not in flattened list
+          if (navigation) {
+            const nextField = navigation.getNextField(props.node.id, 'title');
+            if (nextField) {
+              navigateToField(nextField.nodeId, nextField.field, 'start');
+            }
+          }
+        },
+        onUpArrowAtFirstLine: () => {
+          // Up arrow at first line of content goes to title of same node
+          openTitleEditor('end');
+        },
+        onDownArrowAtLastLine: () => {
+          // Down arrow at last line of content goes to next node's title
+          // Note: We use 'title' to find next field because content might be empty and not in flattened list
+          if (navigation) {
+            const nextField = navigation.getNextField(props.node.id, 'title');
+            if (nextField) {
+              navigateToField(nextField.nodeId, nextField.field, 'start');
+            }
+          }
+        },
+      }),
+    },
     onUpdate: ({ editor }) => {
       // Emit update event (don't mutate props directly)
       const html = editor.getHTML();
@@ -280,6 +387,20 @@ function destroyContentEditor() {
   }
   isContentEditing.value = false;
 }
+
+// Listen for field navigation events
+eventBus.on('writer:open-field', (event) => {
+  // Only handle events for this node
+  if (event.nodeId === props.node.id) {
+    if (event.field === 'title') {
+      // Open title editor
+      openTitleEditor(event.cursorPosition);
+    } else {
+      // Open content editor
+      openContentEditor(event.cursorPosition);
+    }
+  }
+});
 
 // Cleanup on unmount
 onBeforeUnmount(() => {

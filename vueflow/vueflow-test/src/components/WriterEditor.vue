@@ -15,10 +15,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, provide } from 'vue';
 import type { Node } from '@vue-flow/core';
 import WriterTree, { type TreeItem } from './WriterTree.vue';
 import { eventBus } from '../composables/useEventBus';
+import { useWriterNavigation } from '../composables/useWriterNavigation';
 
 const props = defineProps<{
   nodes: Node[];
@@ -26,6 +27,10 @@ const props = defineProps<{
 
 // Reactive tree data that persists across renders
 const treeData = ref<TreeItem[]>([]);
+
+// Initialize navigation composable and provide it to child components
+const navigation = useWriterNavigation(() => treeData.value);
+provide('writerNavigation', navigation);
 
 // Function to build tree from Vue Flow nodes
 function buildTreeFromNodes(nodes: Node[]): TreeItem[] {
