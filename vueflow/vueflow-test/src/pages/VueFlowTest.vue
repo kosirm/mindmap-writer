@@ -2065,15 +2065,33 @@ onBeforeUnmount(() => {
   width: 100%;
   display: flex;
   flex-direction: column;
+  /* Prevent text selection when shift-dragging in VueFlow */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .vue-flow-container {
   height: 100%;
   width: 100%;
   flex: 1;
+  /* Prevent text selection during shift-drag selection */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 /* Drawer styling */
+/* Allow text selection in left drawer */
+:deep(.q-drawer) {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
 .param-control {
   margin-bottom: 24px;
 }
@@ -2257,6 +2275,11 @@ onBeforeUnmount(() => {
   flex-direction: column;
   height: 100%;
   background-color: #ffffff;
+  /* Allow text selection in Writer panel */
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .panel-header {

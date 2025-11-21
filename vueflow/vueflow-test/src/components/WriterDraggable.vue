@@ -187,6 +187,9 @@ function handleWrapperClick() {
 function handleTitleClick() {
   if (isTitleEditing.value) return;
 
+  // Select this node when starting to edit
+  eventBus.emit('writer:node-selected', { nodeId: props.node.id, scrollIntoView: false, source: 'writer' });
+
   isTitleEditing.value = true;
 
   void nextTick(() => {
@@ -236,6 +239,9 @@ function destroyTitleEditor() {
 // Content editing
 function handleContentClick() {
   if (isContentEditing.value) return;
+
+  // Select this node when starting to edit
+  eventBus.emit('writer:node-selected', { nodeId: props.node.id, scrollIntoView: false, source: 'writer' });
 
   isContentEditing.value = true;
 
@@ -349,6 +355,7 @@ onBeforeUnmount(() => {
   color: rgba(0, 0, 0, 0.38);
   border-radius: 4px;
   padding: 0;
+  opacity: 0;
   transition: all 0.2s ease;
 
   &:hover {
@@ -358,6 +365,12 @@ onBeforeUnmount(() => {
 
   &:active {
     cursor: grabbing;
+  }
+
+  // Show drag handle when node is hovered or selected
+  .node-wrapper.is-hovered &,
+  .node-wrapper.is-selected & {
+    opacity: 1;
   }
 }
 
