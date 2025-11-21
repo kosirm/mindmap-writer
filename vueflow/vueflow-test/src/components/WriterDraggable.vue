@@ -104,15 +104,20 @@ const indentSize = computed(() => props.depth * 10);
 // Hover state
 const isHovered = ref(false);
 
-// Selection state
-const selectedNodeId = ref<string | null>(null);
+// Selection state - support multiple selection
+const selectedNodeIds = ref<string[]>([]);
 const isSelected = computed(() => {
-  return selectedNodeId.value === props.node.id;
+  return selectedNodeIds.value.includes(props.node.id);
 });
 
 // Listen for selection changes from other views
 eventBus.on('writer:node-selected', ({ nodeId, scrollIntoView }) => {
-  selectedNodeId.value = nodeId;
+  // Handle single selection (backward compatibility)
+  if (nodeId === null) {
+    selectedNodeIds.value = [];
+  } else {
+    selectedNodeIds.value = [nodeId];
+  }
 
   // Scroll into view if requested and this is the selected node
   if (scrollIntoView && nodeId === props.node.id && elementRef.value) {
@@ -121,6 +126,11 @@ eventBus.on('writer:node-selected', ({ nodeId, scrollIntoView }) => {
       block: 'center',
     });
   }
+});
+
+// Listen for multiple selection changes from other views
+eventBus.on('writer:nodes-selected', ({ nodeIds }) => {
+  selectedNodeIds.value = nodeIds;
 });
 
 // Display title

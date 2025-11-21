@@ -1983,11 +1983,28 @@ function handleCanvasPaneClicked() {
   eventBus.emit('writer:node-selected', { nodeId: null, scrollIntoView: false, source: 'canvas' });
 }
 
-// Watch for canvas selection changes - sync to tree
+// Watch for canvas selection changes - sync to tree and writer
 // This watcher is still needed to handle multi-select and other Vue Flow selection changes
 watch(getSelectedNodes, (selectedNodes) => {
+  const selectedIds = selectedNodes.map(node => node.id);
+
   // Update tree selection to match canvas selection
-  selectedTreeNodeIds.value = selectedNodes.map(node => node.id);
+  selectedTreeNodeIds.value = selectedIds;
+
+  // Update writer selection to match canvas selection (support multi-select)
+  if (selectedIds.length === 0) {
+    // No selection - clear writer
+    eventBus.emit('writer:node-selected', { nodeId: null, scrollIntoView: false, source: 'canvas' });
+  } else if (selectedIds.length === 1) {
+    // Single selection - use existing event (backward compatibility)
+    const firstId = selectedIds[0];
+    if (firstId) {
+      eventBus.emit('writer:node-selected', { nodeId: firstId, scrollIntoView: false, source: 'canvas' });
+    }
+  } else {
+    // Multiple selection - use new multi-select event
+    eventBus.emit('writer:nodes-selected', { nodeIds: selectedIds });
+  }
 }, { deep: true });
 
 // ============================================================================

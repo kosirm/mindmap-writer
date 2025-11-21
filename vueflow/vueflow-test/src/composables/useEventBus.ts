@@ -134,6 +134,12 @@ export type MindmapEvents = {
   'writer:node-selected': { nodeId: string | null; scrollIntoView: boolean; source: 'writer' | 'canvas' | 'tree' };
 
   /**
+   * Emitted when multiple nodes are selected (from canvas or tree)
+   * Payload: array of selected node IDs
+   */
+  'writer:nodes-selected': { nodeIds: string[] };
+
+  /**
    * Emitted to open a specific field (title or content) in a node for editing
    * Used for keyboard navigation between fields across nodes
    * Payload: nodeId, field type, and cursor position
