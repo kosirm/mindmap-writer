@@ -132,6 +132,13 @@ export type MindmapEvents = {
    * Payload: nodeId (null to deselect), scrollIntoView flag, and source of the selection
    */
   'writer:node-selected': { nodeId: string | null; scrollIntoView: boolean; source: 'writer' | 'canvas' | 'tree' };
+
+  /**
+   * Emitted to open a specific field (title or content) in a node for editing
+   * Used for keyboard navigation between fields across nodes
+   * Payload: nodeId, field type, and cursor position
+   */
+  'writer:open-field': { nodeId: string; field: 'title' | 'content'; cursorPosition: 'start' | 'end' };
 };
 
 /**
