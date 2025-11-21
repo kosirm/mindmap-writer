@@ -20,6 +20,11 @@
           Mindmap Writer
         </q-toolbar-title>
 
+        <!-- Top bar menu -->
+        <TopBarMenu />
+
+        <q-space />
+
         <q-btn
           dense
           flat
@@ -564,6 +569,8 @@
           <div class="panel-container">
             <div class="panel-header">
               <span class="panel-title">Mindmap View</span>
+              <ToolBar :items="mindmapToolbarItems" />
+              <q-space />
               <q-btn
                 flat
                 dense
@@ -615,6 +622,8 @@
           <div class="panel-container">
             <div class="panel-header">
               <span class="panel-title">Writer</span>
+              <ToolBar :items="writerToolbarItems" />
+              <q-space />
               <q-btn
                 flat
                 dense
@@ -636,6 +645,8 @@
         <div class="panel-container">
           <div class="panel-header">
             <span class="panel-title">Mindmap View</span>
+            <ToolBar :items="mindmapToolbarItems" />
+            <q-space />
             <q-btn
               flat
               dense
@@ -687,6 +698,8 @@
         <div class="panel-container">
           <div class="panel-header">
             <span class="panel-title">Writer</span>
+            <ToolBar :items="writerToolbarItems" />
+            <q-space />
             <q-btn
               flat
               dense
@@ -720,9 +733,23 @@ import { useD3Force, type D3ForceParams } from '../composables/useD3Force';
 import { useMatterCollision, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../composables/useMatterCollision';
 import Matter from 'matter-js';
 
+// Menu system imports
+import TopBarMenu from '../components/menus/TopBarMenu.vue';
+import ToolBar from '../components/menus/ToolBar.vue';
+import { useMenuSystem } from '../composables/useMenuSystem';
+
 // Import Vue Flow styles
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
+
+// Initialize menu system
+const {
+  mindmapToolbarItems,
+  writerToolbarItems,
+} = useMenuSystem();
+
+// Import command system to update context
+import { updateContext } from '../composables/useCommands';
 
 // Nodes and edges - start with empty canvas
 const nodes = ref<Node[]>([]);
@@ -836,7 +863,7 @@ const savedMindmaps = ref<SavedMindmap[]>([]);
 const d3Mode = ref<'off' | 'manual' | 'auto'>('off'); // Default to OFF (full manual control)
 
 // Matter.js collision state
-const matterEnabled = ref(true); // Matter.js collision detection ON by default
+const matterEnabled = ref(false); // Matter.js collision detection OFF by default
 const isAltKeyPressed = ref(false); // Track Alt key for disabling collision while dragging
 
 // D3 Force parameters (adjustable)
@@ -1655,6 +1682,157 @@ function createNewMindmap() {
   });
 }
 
+// Command wrappers for menu system
+function toggleMatterCollisions() {
+  matterEnabled.value = !matterEnabled.value;
+  updateCommandContext();
+
+  Notify.create({
+    type: 'info',
+    message: `Collision detection ${matterEnabled.value ? 'enabled' : 'disabled'}`,
+    position: 'top',
+    timeout: 1500,
+  });
+}
+
+function showOpenDialog() {
+  // TODO: Show a dialog with list of saved mindmaps
+  console.log('Show open dialog - for now, check left drawer Data Export tab');
+  Notify.create({
+    type: 'info',
+    message: 'Open mindmap from left drawer → Data Export tab',
+    position: 'top',
+    timeout: 2000,
+  });
+}
+
+function showSaveAsDialog() {
+  // For now, just prompt for a new name
+  const newName = prompt('Enter mindmap name:', currentMindmapName.value);
+  if (newName && newName.trim()) {
+    currentMindmapName.value = newName.trim();
+    // Create new ID for "Save As"
+    currentMindmapId.value = `mindmap-${Date.now()}`;
+    saveCurrentMindmap();
+  }
+}
+
+function exportAsJSON() {
+  try {
+    const dataToExport = {
+      name: currentMindmapName.value,
+      nodes: nodes.value,
+      edges: edges.value,
+    };
+
+    const dataStr = JSON.stringify(dataToExport, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${currentMindmapName.value}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    Notify.create({
+      type: 'positive',
+      message: 'Mindmap exported as JSON',
+      position: 'top',
+      timeout: 2000,
+    });
+  } catch (error) {
+    console.error('Error exporting JSON:', error);
+    Notify.create({
+      type: 'negative',
+      message: 'Failed to export JSON',
+      position: 'top',
+      timeout: 2000,
+    });
+  }
+}
+
+function importFromJSON() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+
+        if (data.nodes && data.edges) {
+          nodes.value = data.nodes;
+          edges.value = data.edges;
+          currentMindmapName.value = data.name || 'Imported Mindmap';
+          currentMindmapId.value = `mindmap-${Date.now()}`;
+
+          // Recreate Matter.js bodies
+          void nextTick(() => {
+            if (matterEngine && matterWorld) {
+              nodeBodies.forEach((body) => {
+                Matter.World.remove(matterWorld, body);
+              });
+              nodeBodies.clear();
+
+              nodes.value.forEach(node => {
+                createMatterBody(node);
+              });
+              runMatterEngineToResolveOverlaps();
+            }
+          });
+
+          Notify.create({
+            type: 'positive',
+            message: 'Mindmap imported successfully',
+            position: 'top',
+            timeout: 2000,
+          });
+        } else {
+          throw new Error('Invalid mindmap format');
+        }
+      } catch (error) {
+        console.error('Error importing JSON:', error);
+        Notify.create({
+          type: 'negative',
+          message: 'Failed to import JSON',
+          position: 'top',
+          timeout: 2000,
+        });
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// Update command context with current state
+function updateCommandContext() {
+  updateContext({
+    selectedNodeIds: getSelectedNodes.value.map(n => n.id),
+    activeView: 'mindmap', // TODO: Track actual active view
+    matterEnabled: matterEnabled.value,
+    // Command function references
+    runD3ForceOnce,
+    toggleMatterCollisions,
+    resolveOverlapsOnce,
+    createNewMindmap,
+    showOpenDialog,
+    saveCurrentMindmap,
+    showSaveAsDialog,
+    exportAsJSON,
+    importFromJSON,
+  });
+}
+
+// Watch for changes that affect command availability (with flush: 'post' to avoid blocking UI)
+watch([() => getSelectedNodes.value.length, matterEnabled], () => {
+  updateCommandContext();
+}, { flush: 'post' });
+
 // Save current mindmap to localStorage
 function saveCurrentMindmap() {
   try {
@@ -2187,6 +2365,9 @@ onMounted(() => {
 
   // Load list of saved mindmaps
   loadMindmapsList();
+
+  // Initialize command context
+  updateCommandContext();
 });
 
 // Clean up event listeners
@@ -2445,17 +2626,19 @@ onBeforeUnmount(() => {
 .panel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
-  background-color: #fafafa;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background-color: #ffffff;
   flex-shrink: 0;
+  min-height: 44px;
 }
 
 .panel-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: rgba(0, 0, 0, 0.87);
+  font-weight: 500;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.7);
+  margin-right: 8px;
 }
 
 .mindmap-container {
