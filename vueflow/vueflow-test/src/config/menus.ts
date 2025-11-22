@@ -56,9 +56,7 @@ export const topBarMenus = {
       label: 'Orientation',
       submenu: [
         { command: 'view.orientation.clockwise' },
-        { command: 'view.orientation.anticlockwise' },
-        { command: 'view.orientation.leftRight' },
-        { command: 'view.orientation.rightLeft' },
+        { command: 'view.orientation.counterclockwise' },
       ],
     },
   ] as MenuItem[],
@@ -81,6 +79,19 @@ export const toolbarMenus = {
     { command: 'mindmap.runLayout' },
     { command: 'mindmap.toggleCollisions' },
     { command: 'mindmap.resolveOverlaps' }, // Only shown when collisions are OFF
+    {
+      command: 'view.orientation.clockwise',
+      group: 'layout',
+      splitButton: true,
+      submenu: [
+        { command: 'view.orientation.clockwise' },
+        { command: 'view.orientation.counterclockwise' },
+      ],
+      activeCommandGetter: (context) => {
+        const mode = context?.orientationMode || 'clockwise';
+        return `view.orientation.${mode}`;
+      },
+    },
   ] as MenuItem[],
   
   writer: [

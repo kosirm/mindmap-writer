@@ -26,6 +26,7 @@ export interface CommandContext {
   activeView?: 'mindmap' | 'writer' | 'tree';
   clipboardData?: unknown;
   matterEnabled?: boolean;
+  orientationMode?: 'clockwise' | 'counterclockwise';
   // Function references for command execution
   runD3ForceOnce?: () => void;
   toggleMatterCollisions?: () => void;
@@ -36,6 +37,8 @@ export interface CommandContext {
   showSaveAsDialog?: () => void;
   exportAsJSON?: () => void;
   importFromJSON?: () => void;
+  setOrientationClockwise?: () => void;
+  setOrientationCounterclockwise?: () => void;
   [key: string]: unknown;
 }
 
@@ -92,21 +95,27 @@ export type MenuGroup =
 export interface MenuItem {
   /** Command ID to execute */
   command: string;
-  
+
   /** Optional condition expression (command ID or function) */
   when?: string | ((context?: CommandContext) => boolean);
-  
+
   /** Optional group for organizing with separators */
   group?: MenuGroup;
-  
+
   /** Optional submenu items (for dropdown menus) */
   submenu?: MenuItem[];
-  
+
   /** Optional custom label (overrides command label) */
   label?: string;
-  
+
   /** Optional custom icon (overrides command icon) */
   icon?: string;
+
+  /** Optional: render as split button with dropdown (for toolbar) */
+  splitButton?: boolean;
+
+  /** Optional: function to determine which command in submenu is currently active */
+  activeCommandGetter?: (context: CommandContext) => string;
 }
 
 /**

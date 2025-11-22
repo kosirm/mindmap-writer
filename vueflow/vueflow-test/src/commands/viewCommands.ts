@@ -107,53 +107,29 @@ export const viewCommands: Command[] = [
   
   {
     id: 'view.orientation.clockwise',
-    label: 'Clockwise Orientation',
-    icon: 'rotate_right',
+    label: 'Counter-Clockwise',
+    icon: 'rotate_left',  // Swapped: clockwise goes left (counterclockwise arrow)
     category: 'view',
-    tooltip: 'Set mindmap orientation to clockwise',
+    tooltip: 'Set mindmap orientation to clockwise (0° top, nodes arranged clockwise)',
     showInPalette: true,
-    execute: () => {
-      // TODO: Implement clockwise orientation
-      console.log('Set clockwise orientation...');
+    execute: (context) => {
+      if (context?.setOrientationClockwise) {
+        context.setOrientationClockwise();
+      }
     },
   },
-  
+
   {
-    id: 'view.orientation.anticlockwise',
-    label: 'Anti-Clockwise Orientation',
-    icon: 'rotate_left',
+    id: 'view.orientation.counterclockwise',
+    label: 'Clockwise',
+    icon: 'rotate_right',  // Swapped: counterclockwise goes right (clockwise arrow)
     category: 'view',
-    tooltip: 'Set mindmap orientation to anti-clockwise',
+    tooltip: 'Set mindmap orientation to counterclockwise (0° top, nodes arranged counterclockwise)',
     showInPalette: true,
-    execute: () => {
-      // TODO: Implement anti-clockwise orientation
-      console.log('Set anti-clockwise orientation...');
-    },
-  },
-  
-  {
-    id: 'view.orientation.leftRight',
-    label: 'Left-Right Orientation',
-    icon: 'arrow_forward',
-    category: 'view',
-    tooltip: 'Set mindmap orientation to left-right',
-    showInPalette: true,
-    execute: () => {
-      // TODO: Implement left-right orientation
-      console.log('Set left-right orientation...');
-    },
-  },
-  
-  {
-    id: 'view.orientation.rightLeft',
-    label: 'Right-Left Orientation',
-    icon: 'arrow_back',
-    category: 'view',
-    tooltip: 'Set mindmap orientation to right-left',
-    showInPalette: true,
-    execute: () => {
-      // TODO: Implement right-left orientation
-      console.log('Set right-left orientation...');
+    execute: (context) => {
+      if (context?.setOrientationCounterclockwise) {
+        context.setOrientationCounterclockwise();
+      }
     },
   },
 ];
