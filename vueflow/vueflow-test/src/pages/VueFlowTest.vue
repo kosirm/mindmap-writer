@@ -568,7 +568,7 @@
         <template #before>
           <div class="panel-container">
             <div class="panel-header">
-              <span class="panel-title">Mindmap View</span>
+              <q-icon name="account_tree" class="view-icon" />
               <ToolBar :items="mindmapToolbarItems" />
               <q-space />
               <q-btn
@@ -621,7 +621,7 @@
         <template #after>
           <div class="panel-container">
             <div class="panel-header">
-              <span class="panel-title">Writer</span>
+              <q-icon name="edit" class="view-icon" />
               <ToolBar :items="writerToolbarItems" />
               <q-space />
               <q-btn
@@ -644,7 +644,7 @@
       <div v-else-if="viewMode === 'mindmap'" class="full-view">
         <div class="panel-container">
           <div class="panel-header">
-            <span class="panel-title">Mindmap View</span>
+            <q-icon name="account_tree" class="view-icon" />
             <ToolBar :items="mindmapToolbarItems" />
             <q-space />
             <q-btn
@@ -697,7 +697,7 @@
       <div v-else-if="viewMode === 'writer'" class="full-view">
         <div class="panel-container">
           <div class="panel-header">
-            <span class="panel-title">Writer</span>
+            <q-icon name="edit" class="view-icon" />
             <ToolBar :items="writerToolbarItems" />
             <q-space />
             <q-btn
@@ -2638,6 +2638,29 @@ onBeforeUnmount(() => {
   font-weight: 500;
   font-size: 13px;
   color: rgba(0, 0, 0, 0.7);
+  margin-right: 8px;
+}
+
+.view-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #1976d2;
+  color: white !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.view-icon {
+  color: #1976d2;
+  font-size: 20px;
+  padding: 6px;
+  border: 2px solid #1976d2;
+  border-radius: 50%;
   margin-right: 8px;
 }
 
