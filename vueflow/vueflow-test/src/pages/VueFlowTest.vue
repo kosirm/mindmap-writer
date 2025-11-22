@@ -586,7 +586,7 @@
               <VueFlow
                 v-model:nodes="nodes"
                 v-model:edges="edges"
-                :default-viewport="{ zoom: 1, x: 0, y: 0 }"
+                :default-viewport="initialViewport"
                 :default-edge-options="defaultEdgeOptions"
                 :nodes-draggable="!isSimulationRunning"
                 :min-zoom="0.2"
@@ -603,6 +603,16 @@
                 @connect-end="onConnectEnd"
               >
                 <Background />
+
+                <!-- Center marker at flow coordinates (0, 0) -->
+                <CenterMarker
+                  :visible="showCenterMarker"
+                  color="#1976d2"
+                  :size="30"
+                  :line-width="1"
+                  :circle-size="1"
+                  :opacity="0.5"
+                />
 
                 <!-- Custom node template using CustomNode component -->
                 <template #node-custom="nodeProps">
@@ -662,7 +672,7 @@
             <VueFlow
               v-model:nodes="nodes"
               v-model:edges="edges"
-              :default-viewport="{ zoom: 1, x: 0, y: 0 }"
+              :default-viewport="initialViewport"
               :default-edge-options="defaultEdgeOptions"
               :nodes-draggable="!isSimulationRunning"
               :min-zoom="0.2"
@@ -679,6 +689,16 @@
               @connect-end="onConnectEnd"
             >
               <Background />
+
+              <!-- Center marker at flow coordinates (0, 0) -->
+              <CenterMarker
+                :visible="showCenterMarker"
+                color="#1976d2"
+                :size="40"
+                :line-width="2"
+                :circle-size="6"
+                :opacity="0.5"
+              />
 
               <!-- Custom node template using CustomNode component -->
               <template #node-custom="nodeProps">
@@ -728,10 +748,12 @@ import type { Node, Edge } from '@vue-flow/core';
 import { Notify } from 'quasar';
 import { eventBus } from '../composables/useEventBus';
 import CustomNode from '../components/CustomNode.vue';
+import CenterMarker from '../components/CenterMarker.vue';
 import WriterEditor from '../components/WriterEditor.vue';
 import { useD3Force, type D3ForceParams } from '../composables/useD3Force';
 import { useMatterCollision, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../composables/useMatterCollision';
 import Matter from 'matter-js';
+import { useOrientationLayout, type OrientationMode } from '../composables/useOrientationLayout';
 
 // Menu system imports
 import TopBarMenu from '../components/menus/TopBarMenu.vue';
@@ -747,6 +769,18 @@ const {
   mindmapToolbarItems,
   writerToolbarItems,
 } = useMenuSystem();
+
+// Initialize orientation layout system
+const {
+  orientationMode,
+  setOrientationMode,
+  calculateAngle,  // Used by updateOrderFromPosition() on drag end and node creation
+  // calculatePositionFromAngle,  // Not needed - mirrorNodePositions() just flips X coordinate
+  // calculatePositionFromOrder,  // TODO: Uncomment when implementing applyOrientationLayout
+  // calculateAverageRadius,      // TODO: Uncomment when implementing applyOrientationLayout
+  // mirrorAngle,                 // Not needed - mirrorNodePositions() just flips X coordinate
+  sortChildrenByAngle,
+} = useOrientationLayout();
 
 // Import command system to update context
 import { updateContext } from '../composables/useCommands';
@@ -844,6 +878,9 @@ function resizeRightDrawer(ev: KeyboardEvent | TouchPanEvent) {
 // Selected node tracking
 const selectedNodeId = ref<string | null>(null);
 
+// UI Settings
+const showCenterMarker = ref(true); // Show/hide center cross marker
+
 // Mindmap management state
 const currentMindmapName = ref('Untitled Mindmap');
 const currentMindmapId = ref<string | null>(null);
@@ -855,6 +892,7 @@ interface SavedMindmap {
   nodeCount: number;
   nodes: Node[];
   edges: Edge[];
+  orientationMode?: OrientationMode; // Optional for backward compatibility
 }
 
 const savedMindmaps = ref<SavedMindmap[]>([]);
@@ -917,6 +955,10 @@ let nodeCounter = 1;
 
 // Get Vue Flow instance
 const { project, vueFlowRef, connectionStartHandle, getSelectedNodes, getSelectedEdges, addSelectedNodes, removeSelectedNodes, setCenter, getViewport } = useVueFlow();
+
+// Initial viewport - center the canvas (0, 0) in the middle of the viewport
+// This will be calculated once the component mounts and we know the container size
+const initialViewport = ref({ zoom: 1, x: 400, y: 300 });
 
 // Track if we're currently dragging a connection
 const isDraggingConnection = ref(false);
@@ -1172,6 +1214,9 @@ function onPaneClick(mouseEvent: MouseEvent) {
       // Create Matter.js body with actual dimensions at adjusted position
       createMatterBody(newNode);
 
+      // Update order based on position (Canvas → Store)
+      updateOrderFromPosition();
+
       // Run simulation to avoid collisions (only in AUTO mode)
       if (d3Mode.value === 'auto') {
         runSimulation();
@@ -1398,6 +1443,9 @@ function onConnectEnd(event?: MouseEvent) {
     // Create Matter.js body with actual dimensions
     createMatterBody(newNode);
 
+    // Update order based on position (Canvas → Store)
+    updateOrderFromPosition();
+
     // Run simulation to avoid collisions (only in AUTO mode)
     if (d3Mode.value === 'auto') {
       runSimulation();
@@ -1451,6 +1499,9 @@ function onNodeDrag(event: { node: Node }) {
 
 // Handle node drag stop - run Matter.js engine to resolve any overlaps
 function onNodeDragStop() {
+  // Update order based on position (Canvas → Store)
+  updateOrderFromPosition();
+
   // Skip if Matter.js is disabled
   if (!matterEnabled.value) {
     return;
@@ -1622,6 +1673,9 @@ function onKeyDown(event: KeyboardEvent) {
 
     // Create Matter.js body with actual dimensions
     createMatterBody(newNode);
+
+    // Update order based on position (Canvas → Store)
+    updateOrderFromPosition();
 
     // Run simulation to avoid collisions (only in AUTO mode)
     if (d3Mode.value === 'auto') {
@@ -1836,12 +1890,234 @@ function importFromJSON() {
   input.click();
 }
 
+// ============================================================================
+// ORIENTATION LAYOUT FUNCTIONS
+// ============================================================================
+
+/**
+ * Mirror all node positions around vertical axis through canvas center (0, 0)
+ * This is a simple operation: flip the X coordinate of every node's center
+ * Works for all nodes regardless of parent-child relationships
+ */
+function mirrorNodePositions() {
+  console.log('=== MIRROR NODE POSITIONS START ===');
+  console.log('Current orientation:', orientationMode.value);
+  console.log('Total nodes:', nodes.value.length);
+
+  // Mirror every node around the vertical axis through (0, 0)
+  // Simply flip the X coordinate of each node's center
+  nodes.value.forEach(node => {
+    // Get current center
+    const centerX = node.position.x + DEFAULT_NODE_WIDTH / 2;
+    const centerY = node.position.y + DEFAULT_NODE_HEIGHT / 2;
+
+    // Mirror X coordinate (flip sign)
+    const newCenterX = -centerX;
+    const newCenterY = centerY; // Y stays the same
+
+    // Convert back to top-left position
+    node.position = {
+      x: newCenterX - DEFAULT_NODE_WIDTH / 2,
+      y: newCenterY - DEFAULT_NODE_HEIGHT / 2,
+    };
+
+    console.log(`Node ${node.id}: oldCenter=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}) -> newCenter=(${newCenterX.toFixed(1)}, ${newCenterY.toFixed(1)})`);
+  });
+
+  // Update Matter.js bodies
+  if (matterEngine && matterWorld) {
+    nodes.value.forEach(node => {
+      const body = nodeBodies.get(node.id);
+      if (body) {
+        Matter.Body.setPosition(body, {
+          x: node.position.x + DEFAULT_NODE_WIDTH / 2,
+          y: node.position.y + DEFAULT_NODE_HEIGHT / 2,
+        });
+      }
+    });
+  }
+
+  // Calculate geometric center of root nodes for debugging
+  const rootNodes = nodes.value.filter(n => !n.data.parentId);
+  if (rootNodes.length > 0) {
+    const sumX = rootNodes.reduce((sum, n) => sum + n.position.x + DEFAULT_NODE_WIDTH / 2, 0);
+    const sumY = rootNodes.reduce((sum, n) => sum + n.position.y + DEFAULT_NODE_HEIGHT / 2, 0);
+    const centerX = sumX / rootNodes.length;
+    const centerY = sumY / rootNodes.length;
+    const distance = Math.sqrt(centerX * centerX + centerY * centerY);
+    console.log(`\n📍 Root nodes geometric center: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`);
+    console.log(`📏 Distance from canvas center (0, 0): ${distance.toFixed(1)} pixels`);
+  }
+
+  console.log('=== MIRROR NODE POSITIONS END ===\n');
+}
+
+/**
+ * Apply orientation layout to all nodes based on their order
+ * This implements Store → Canvas synchronization
+ *
+ * TODO: Call this function when nodes are reordered in Writer view
+ * to update their positions on the canvas based on the new order
+ */
+/* COMMENTED OUT - Will be used when implementing Writer reordering
+function applyOrientationLayout() {
+  // Group nodes by parent
+  const nodesByParent = new Map<string | null, Node[]>();
+
+  nodes.value.forEach(node => {
+    const parentId = node.data.parentId || null;
+    if (!nodesByParent.has(parentId)) {
+      nodesByParent.set(parentId, []);
+    }
+    nodesByParent.get(parentId)!.push(node);
+  });
+
+  // Layout each group
+  nodesByParent.forEach((children, parentId) => {
+    if (children.length === 0) return;
+
+    // Sort by order field
+    children.sort((a, b) => (a.data.order || 0) - (b.data.order || 0));
+
+    // Get parent position (or canvas center for root nodes)
+    const parentPos = parentId
+      ? nodes.value.find(n => n.id === parentId)?.position || { x: 0, y: 0 }
+      : { x: 0, y: 0 }; // TODO: Get actual canvas center
+
+    // Calculate average radius or use default
+    const radius = calculateAverageRadius(children, parentPos);
+
+    // Position each child based on its order
+    children.forEach((child, index) => {
+      const newPos = calculatePositionFromOrder(
+        parentPos,
+        index,
+        children.length,
+        radius,
+        orientationMode.value
+      );
+      child.position = newPos;
+    });
+  });
+
+  // Update Matter.js bodies
+  if (matterEngine && matterWorld) {
+    nodes.value.forEach(node => {
+      const body = nodeBodies.get(node.id);
+      if (body) {
+        Matter.Body.setPosition(body, {
+          x: node.position.x + DEFAULT_NODE_WIDTH / 2,
+          y: node.position.y + DEFAULT_NODE_HEIGHT / 2,
+        });
+      }
+    });
+  }
+
+  // Run collision resolution once
+  runMatterEngineToResolveOverlaps();
+}
+*/
+
+/**
+ * Update order field based on node positions (Canvas → Store)
+ * Called after dragging nodes or creating new nodes
+ * This implements Position → Order conversion using the reusable sortChildrenByAngle function
+ */
+function updateOrderFromPosition() {
+  // Group nodes by parent
+  const nodesByParent = new Map<string | null, Node[]>();
+
+  nodes.value.forEach(node => {
+    const parentId = node.data.parentId || null;
+    if (!nodesByParent.has(parentId)) {
+      nodesByParent.set(parentId, []);
+    }
+    nodesByParent.get(parentId)!.push(node);
+  });
+
+  // Update order for each group based on angle
+  nodesByParent.forEach((children, parentId) => {
+    if (children.length === 0) return;
+
+    // Get parent position (or canvas center for root nodes)
+    const parentPos = parentId
+      ? nodes.value.find(n => n.id === parentId)?.position || { x: 0, y: 0 }
+      : { x: 0, y: 0 }; // TODO: Get actual canvas center
+
+    // Calculate angle for each child
+    const childrenWithAngles = children.map(child => ({
+      node: child,
+      angle: calculateAngle(parentPos, child.position),
+    }));
+
+    // Sort children by angle using the reusable function
+    const sortedChildren = sortChildrenByAngle(childrenWithAngles, orientationMode.value);
+
+    // Update order field
+    sortedChildren.forEach((item) => {
+      item.node.data.order = item.order;
+    });
+  });
+}
+
+// Orientation mode functions for commands
+function setOrientationClockwise() {
+  const previousMode = orientationMode.value;
+
+  console.log('\n🔄 SWITCHING TO CLOCKWISE');
+  console.log('Previous mode:', previousMode);
+
+  // Only switch if not already in clockwise mode
+  if (previousMode === 'clockwise') {
+    console.log('Already in clockwise mode, skipping');
+    return;
+  }
+
+  setOrientationMode('clockwise');
+
+  // Mirror all node positions (switching from counterclockwise)
+  mirrorNodePositions();
+
+  Notify.create({
+    type: 'info',
+    message: 'Orientation set to Clockwise',
+    position: 'top',
+    timeout: 1500,
+  });
+}
+
+function setOrientationCounterclockwise() {
+  const previousMode = orientationMode.value;
+
+  console.log('\n🔄 SWITCHING TO COUNTERCLOCKWISE');
+  console.log('Previous mode:', previousMode);
+
+  // Only switch if not already in counterclockwise mode
+  if (previousMode === 'counterclockwise') {
+    console.log('Already in counterclockwise mode, skipping');
+    return;
+  }
+
+  setOrientationMode('counterclockwise');
+
+  // Mirror all node positions (switching from clockwise)
+  mirrorNodePositions();
+
+  Notify.create({
+    type: 'info',
+    message: 'Orientation set to Counterclockwise',
+    position: 'top',
+    timeout: 1500,
+  });
+}
+
 // Update command context with current state
 function updateCommandContext() {
   updateContext({
     selectedNodeIds: getSelectedNodes.value.map(n => n.id),
     activeView: 'mindmap', // TODO: Track actual active view
     matterEnabled: matterEnabled.value,
+    orientationMode: orientationMode.value,
     // Command function references
     runD3ForceOnce,
     toggleMatterCollisions,
@@ -1852,11 +2128,13 @@ function updateCommandContext() {
     showSaveAsDialog,
     exportAsJSON,
     importFromJSON,
+    setOrientationClockwise,
+    setOrientationCounterclockwise,
   });
 }
 
 // Watch for changes that affect command availability (with flush: 'post' to avoid blocking UI)
-watch([() => getSelectedNodes.value.length, matterEnabled], () => {
+watch([() => getSelectedNodes.value.length, matterEnabled, orientationMode], () => {
   updateCommandContext();
 }, { flush: 'post' });
 
@@ -1885,6 +2163,7 @@ function saveCurrentMindmap() {
       nodeCount: nodes.value.length,
       nodes: nodes.value,
       edges: edges.value,
+      orientationMode: orientationMode.value,
     };
 
     // Save the mindmap data
@@ -1943,6 +2222,9 @@ function loadMindmap(id: string) {
     edges.value = mindmap.edges;
     currentMindmapId.value = mindmap.id;
     currentMindmapName.value = mindmap.name;
+
+    // Load orientation mode (default to 'clockwise' for backward compatibility)
+    setOrientationMode(mindmap.orientationMode || 'clockwise');
 
     // Update node counter to avoid ID conflicts
     const maxId = Math.max(...nodes.value.map(n => parseInt(n.id) || 0), 0);
@@ -2204,7 +2486,7 @@ function handleWriterNodeSelected({ nodeId, source }: { nodeId: string | null; s
       // Scroll tree node into view (writer selection should scroll tree)
       scrollTreeNodeIntoView(nodeId);
     } else {
-      console.log('[DEBUG] Source is', source, '- writer will handle its own scrolling via event listener');
+      // console.log('[DEBUG] Source is', source, '- writer will handle its own scrolling via event listener');
       // Writer component will handle scrolling itself via the event listener
     }
   }
@@ -2232,7 +2514,7 @@ function handleNodeTitleUpdated({ nodeId }: { nodeId: string; title: string }) {
 
   // Set new timer - update dimensions after 1 second of no typing
   titleUpdateDebounceTimer = setTimeout(() => {
-    console.log(`[DEBUG] Real-time dimension update for node ${nodeId} while typing`);
+    // console.log(`[DEBUG] Real-time dimension update for node ${nodeId} while typing`);
     updateMatterBodyDimensions(nodeId);
     titleUpdateDebounceTimer = null;
   }, 1000); // 1 second debounce
@@ -2399,6 +2681,26 @@ watch(getSelectedNodes, (selectedNodes) => {
 
 // Register event listeners and keyboard handler
 onMounted(() => {
+  // Calculate initial viewport to center the canvas (0, 0) in the viewport
+  void nextTick(() => {
+    const flowElement = vueFlowRef.value;
+    if (flowElement) {
+      const rect = flowElement.getBoundingClientRect();
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
+      // Update initial viewport to center (0, 0) at the viewport center
+      initialViewport.value = {
+        zoom: 1,
+        x: centerX,
+        y: centerY,
+      };
+
+      // Apply the viewport immediately
+      void setCenter(0, 0, { zoom: 1, duration: 0 });
+    }
+  });
+
   // Register event bus listeners
   eventBus.on('tree:node-selected', handleTreeNodeSelected);
   eventBus.on('canvas:node-selected', handleCanvasNodeSelected);

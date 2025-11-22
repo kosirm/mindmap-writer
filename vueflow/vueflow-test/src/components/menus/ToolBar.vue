@@ -7,9 +7,17 @@
         vertical
         class="toolbar-separator"
       />
-      
-      <!-- Toolbar button -->
+
+      <!-- Split button (with dropdown) -->
+      <ToolBarSplitButton
+        v-if="item.splitButton && item.submenu"
+        :items="item.submenu"
+        v-bind="item.activeCommandGetter ? { activeCommandGetter: item.activeCommandGetter } : {}"
+      />
+
+      <!-- Regular toolbar button -->
       <q-btn
+        v-else
         flat
         dense
         round
@@ -33,6 +41,7 @@
 import { computed } from 'vue';
 import { useCommands } from '../../composables/useCommands';
 import type { MenuItem } from '../../commands/types';
+import ToolBarSplitButton from './ToolBarSplitButton.vue';
 
 interface Props {
   items: MenuItem[];

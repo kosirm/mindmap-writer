@@ -33,6 +33,7 @@ export function useMenuSystem() {
       toolbarMenus.mindmap[9], // runLayout
       toolbarMenus.mindmap[10], // toggleCollisions
       toolbarMenus.mindmap[11], // resolveOverlaps (conditional - only when collisions OFF)
+      toolbarMenus.mindmap[12], // orientation split button
     ];
     return items.filter((item): item is MenuItem => item !== undefined);
   });

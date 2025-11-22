@@ -19,6 +19,7 @@
     <!-- Node content -->
     <div
       class="node-content"
+      @dblclick.stop="handleDoubleClick"
     >
       <!-- Static HTML (when not editing) -->
       <div
@@ -87,7 +88,18 @@ const displayTitle = computed(() => {
 });
 
 /**
- * Handle edit start event (triggered by E key)
+ * Handle double-click on node - start editing
+ */
+function handleDoubleClick() {
+  // Don't start editing if already editing
+  if (isEditing.value) return;
+
+  // Emit event to start editing this node
+  eventBus.emit('node:edit-start', { nodeId: props.id });
+}
+
+/**
+ * Handle edit start event (triggered by F2 key or double-click)
  */
 function handleEditStart({ nodeId }: { nodeId: string }) {
   // Only handle if this is the node being edited
@@ -184,7 +196,7 @@ watch(isEditing, (newValue) => {
 .custom-node {
   position: relative;
   background: white;
-  border: 2px solid #1976d2;
+  border: 1px solid #1976d2;
   border-radius: 8px;
   padding: 4px 12px;
   /* min-width: 120px; */
