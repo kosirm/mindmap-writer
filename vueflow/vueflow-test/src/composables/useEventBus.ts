@@ -33,6 +33,12 @@ export type MindmapEvents = {
   'canvas:node-selected': { nodeId: string };
 
   /**
+   * Emitted when multiple nodes are selected in the canvas (e.g., Shift+Click to select with children)
+   * Payload: array of nodeIds to select
+   */
+  'canvas:nodes-selected': { nodeIds: string[] };
+
+  /**
    * Emitted when the canvas pane (background) is clicked to deselect all nodes
    */
   'canvas:pane-clicked': Record<string, never>; // Empty object for events with no payload
@@ -134,14 +140,13 @@ export type MindmapEvents = {
   'writer:node-selected': { nodeId: string | null; scrollIntoView: boolean; source: 'writer' | 'canvas' | 'tree' };
 
   /**
-   * Emitted when multiple nodes are selected (from canvas or tree)
-   * Payload: array of selected node IDs
+   * Emitted when multiple nodes are selected in Writer
+   * Payload: array of nodeIds to select
    */
   'writer:nodes-selected': { nodeIds: string[] };
 
   /**
-   * Emitted to open a specific field (title or content) in a node for editing
-   * Used for keyboard navigation between fields across nodes
+   * Emitted when a field should be opened for editing in Writer
    * Payload: nodeId, field type, and cursor position
    */
   'writer:open-field': { nodeId: string; field: 'title' | 'content'; cursorPosition: 'start' | 'end' };
