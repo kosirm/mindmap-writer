@@ -1183,10 +1183,37 @@ function onPaneClick(mouseEvent: MouseEvent) {
   }
 }
 
+/**
+ * Get all descendant node IDs recursively
+ */
+function getAllDescendants(nodeId: string): string[] {
+  const descendants: string[] = [];
+  const children = nodes.value.filter(n => n.data.parentId === nodeId);
+
+  for (const child of children) {
+    descendants.push(child.id);
+    // Recursively get descendants of this child
+    descendants.push(...getAllDescendants(child.id));
+  }
+
+  return descendants;
+}
+
 // Handle node click (select node) - emit event instead of directly updating state
-function onNodeClick(event: { node: Node }) {
-  // Emit event - tree will listen and update itself
-  eventBus.emit('canvas:node-selected', { nodeId: event.node.id });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function onNodeClick(event: any) {
+  // Check if Shift key is pressed
+  const mouseEvent = event.event as MouseEvent | TouchEvent;
+  const isShiftClick = mouseEvent && 'shiftKey' in mouseEvent ? mouseEvent.shiftKey : false;
+
+  if (isShiftClick) {
+    // Shift+Click: Select node with all its children
+    const nodeIds = [event.node.id, ...getAllDescendants(event.node.id)];
+    eventBus.emit('canvas:nodes-selected', { nodeIds });
+  } else {
+    // Regular click: Select single node
+    eventBus.emit('canvas:node-selected', { nodeId: event.node.id });
+  }
 }
 
 // Update node data (called from CustomNode component when title is edited)
@@ -2102,6 +2129,44 @@ function handleCanvasNodeSelected({ nodeId }: { nodeId: string }) {
   // Do NOT move the canvas - the node is already visible since user clicked it
 }
 
+// Handle canvas multi-node selection event (e.g., Shift+Click to select with children)
+function handleCanvasNodesSelected({ nodeIds }: { nodeIds: string[] }) {
+  if (nodeIds.length === 0) return;
+
+  // Find all nodes to select
+  const nodesToSelect = nodes.value.filter(n => nodeIds.includes(n.id));
+  if (nodesToSelect.length === 0) return;
+
+  // Select all nodes in canvas
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addSelectedNodes(nodesToSelect as any);
+
+  // Set flag to prevent tree from emitting event (avoid circular loop)
+  isTreeSelectionProgrammatic.value = true;
+
+  // Update tree selection to match canvas selection (multi-select)
+  selectedTreeNodeIds.value = nodeIds;
+  selectedNodeId.value = nodeIds[0] || null; // Set first node for keyboard shortcuts
+
+  // Reset flag after Vue updates the tree
+  void nextTick(() => {
+    isTreeSelectionProgrammatic.value = false;
+  });
+
+  // Notify writer about multi-selection
+  eventBus.emit('writer:nodes-selected', { nodeIds });
+
+  // Scroll first node into view in tree
+  if (nodeIds[0]) {
+    scrollTreeNodeIntoView(nodeIds[0]);
+  }
+
+  // Center first node in canvas
+  if (nodeIds[0]) {
+    bringNodeIntoView(nodeIds[0]);
+  }
+}
+
 // Handle writer node selection event - update tree and canvas
 function handleWriterNodeSelected({ nodeId, source }: { nodeId: string | null; source: 'writer' | 'canvas' | 'tree' }) {
   if (!nodeId) {
@@ -2337,6 +2402,7 @@ onMounted(() => {
   // Register event bus listeners
   eventBus.on('tree:node-selected', handleTreeNodeSelected);
   eventBus.on('canvas:node-selected', handleCanvasNodeSelected);
+  eventBus.on('canvas:nodes-selected', handleCanvasNodesSelected);
   eventBus.on('writer:node-selected', handleWriterNodeSelected);
   eventBus.on('canvas:pane-clicked', handleCanvasPaneClicked);
   eventBus.on('node:edit-end', handleNodeEditEnd);
@@ -2375,6 +2441,7 @@ onBeforeUnmount(() => {
   // Remove event bus listeners
   eventBus.off('tree:node-selected', handleTreeNodeSelected);
   eventBus.off('canvas:node-selected', handleCanvasNodeSelected);
+  eventBus.off('canvas:nodes-selected', handleCanvasNodesSelected);
   eventBus.off('writer:node-selected', handleWriterNodeSelected);
   eventBus.off('canvas:pane-clicked', handleCanvasPaneClicked);
   eventBus.off('node:edit-end', handleNodeEditEnd);
