@@ -67,9 +67,7 @@ export const topBarMenus = {
  */
 export const toolbarMenus = {
   mindmap: [
-    { command: 'mindmap.addNode' },
-    { command: 'mindmap.addChildNode' },
-    { command: 'mindmap.addSiblingNode' },
+    // Removed: addNode, addChildNode, addSiblingNode (may be added back later as a group)
     { command: 'mindmap.connectNodes' },
     { command: 'mindmap.editNode' },
     { command: 'edit.delete' },
@@ -79,6 +77,7 @@ export const toolbarMenus = {
     { command: 'mindmap.runLayout' },
     { command: 'mindmap.toggleCollisions' },
     { command: 'mindmap.resolveOverlaps' }, // Only shown when collisions are OFF
+    { command: 'view.toggleMinimap' }, // Show/hide minimap
     {
       command: 'view.orientation.clockwise',
       group: 'layout',

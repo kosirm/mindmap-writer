@@ -608,11 +608,14 @@
                 <CenterMarker
                   :visible="showCenterMarker"
                   color="#1976d2"
-                  :size="30"
+                  :size="15"
                   :line-width="1"
                   :circle-size="1"
                   :opacity="0.5"
                 />
+
+                <!-- MiniMap -->
+                <MiniMap v-if="showMinimap" />
 
                 <!-- Custom node template using CustomNode component -->
                 <template #node-custom="nodeProps">
@@ -700,6 +703,9 @@
                 :opacity="0.5"
               />
 
+              <!-- MiniMap -->
+              <MiniMap v-if="showMinimap" />
+
               <!-- Custom node template using CustomNode component -->
               <template #node-custom="nodeProps">
                 <CustomNode
@@ -744,6 +750,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { VueFlow, useVueFlow, ConnectionLineType } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
+import { MiniMap } from '@vue-flow/minimap';
 import type { Node, Edge } from '@vue-flow/core';
 import { Notify } from 'quasar';
 import { eventBus } from '../composables/useEventBus';
@@ -763,6 +770,7 @@ import { useMenuSystem } from '../composables/useMenuSystem';
 // Import Vue Flow styles
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
+import '@vue-flow/minimap/dist/style.css';
 
 // Initialize menu system
 const {
@@ -880,6 +888,7 @@ const selectedNodeId = ref<string | null>(null);
 
 // UI Settings
 const showCenterMarker = ref(true); // Show/hide center cross marker
+const showMinimap = ref(false); // Show/hide minimap (default: hidden)
 
 // Mindmap management state
 const currentMindmapName = ref('Untitled Mindmap');
@@ -1415,32 +1424,44 @@ function onConnectEnd(event?: MouseEvent) {
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
 
-  // Convert to flow coordinates
-  const position = project({ x, y });
+  // Convert to flow coordinates (this is where the mouse is)
+  const mousePosition = project({ x, y });
 
-  // Create a new node at the drop position with parent reference
-  const newNode = createNode(position.x, position.y, undefined, startHandle.nodeId);
+  // Center the node on the mouse position using estimated dimensions
+  // We'll adjust after DOM renders with actual dimensions
+  const estimatedWidth = DEFAULT_NODE_WIDTH;
+  const estimatedHeight = DEFAULT_NODE_HEIGHT;
+  const topLeftX = mousePosition.x - estimatedWidth / 2;
+  const topLeftY = mousePosition.y - estimatedHeight / 2;
+
+  // Create a new node centered on the drop position with parent reference
+  const newNode = createNode(topLeftX, topLeftY, undefined, startHandle.nodeId);
   nodes.value.push(newNode);
 
   // Create hierarchy edge from source node to new node
   const newEdge = createEdge(startHandle.nodeId, newNode.id, 'hierarchy');
   edges.value.push(newEdge);
 
-  // Wait for DOM to render, then read actual dimensions and create Matter.js body
+  // Wait for DOM to render, then read actual dimensions and adjust position
   void nextTick(() => {
     // Get actual dimensions from DOM
     const dimensions = getNodeDimensions(newNode.id);
 
-    // Calculate center position using ACTUAL dimensions
-    const centerX = position.x + dimensions.width / 2;
-    const centerY = position.y + dimensions.height / 2;
+    // Adjust position to center on mouse using ACTUAL dimensions
+    const adjustedTopLeftX = mousePosition.x - dimensions.width / 2;
+    const adjustedTopLeftY = mousePosition.y - dimensions.height / 2;
+    newNode.position = { x: adjustedTopLeftX, y: adjustedTopLeftY };
 
-    // console.log(`[DEBUG] Connection drop createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
+    // Calculate center position (mouse is already at center)
+    const centerX = mousePosition.x;
+    const centerY = mousePosition.y;
+
+    // console.log(`[DEBUG] Connection drop createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at drop position (${centerX}, ${centerY})`);
 
     // Push away any overlapping nodes using the ACTUAL dimensions
     pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
 
-    // Create Matter.js body with actual dimensions
+    // Create Matter.js body with actual dimensions at adjusted position
     createMatterBody(newNode);
 
     // Update order based on position (Canvas → Store)
@@ -1771,6 +1792,18 @@ function toggleMatterCollisions() {
   Notify.create({
     type: 'info',
     message: `Collision detection ${matterEnabled.value ? 'enabled' : 'disabled'}`,
+    position: 'top',
+    timeout: 1500,
+  });
+}
+
+function toggleMinimap() {
+  showMinimap.value = !showMinimap.value;
+  updateCommandContext();
+
+  Notify.create({
+    type: 'info',
+    message: `Minimap ${showMinimap.value ? 'shown' : 'hidden'}`,
     position: 'top',
     timeout: 1500,
   });
@@ -2117,10 +2150,12 @@ function updateCommandContext() {
     selectedNodeIds: getSelectedNodes.value.map(n => n.id),
     activeView: 'mindmap', // TODO: Track actual active view
     matterEnabled: matterEnabled.value,
+    showMinimap: showMinimap.value,
     orientationMode: orientationMode.value,
     // Command function references
     runD3ForceOnce,
     toggleMatterCollisions,
+    toggleMinimap,
     resolveOverlapsOnce,
     createNewMindmap,
     showOpenDialog,
@@ -2134,7 +2169,7 @@ function updateCommandContext() {
 }
 
 // Watch for changes that affect command availability (with flush: 'post' to avoid blocking UI)
-watch([() => getSelectedNodes.value.length, matterEnabled, orientationMode], () => {
+watch([() => getSelectedNodes.value.length, matterEnabled, showMinimap, orientationMode], () => {
   updateCommandContext();
 }, { flush: 'post' });
 

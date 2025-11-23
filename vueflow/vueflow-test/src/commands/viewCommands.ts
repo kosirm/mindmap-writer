@@ -132,5 +132,19 @@ export const viewCommands: Command[] = [
       }
     },
   },
+
+  {
+    id: 'view.toggleMinimap',
+    label: 'Toggle Minimap',
+    icon: 'map',
+    category: 'view',
+    tooltip: 'Show/hide minimap',
+    showInPalette: true,
+    execute: (context) => {
+      if (context?.toggleMinimap) {
+        context.toggleMinimap();
+      }
+    },
+  },
 ];
 
