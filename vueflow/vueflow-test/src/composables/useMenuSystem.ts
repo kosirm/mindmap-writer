@@ -23,17 +23,16 @@ export function useMenuSystem() {
   const mindmapToolbarItems = computed<MenuItem[]>(() => {
     // Return only the most essential commands for a clean toolbar
     const items = [
-      toolbarMenus.mindmap[0], // addNode
-      toolbarMenus.mindmap[1], // addChildNode
-      toolbarMenus.mindmap[2], // addSiblingNode
-      toolbarMenus.mindmap[5], // delete
-      toolbarMenus.mindmap[6], // zoomIn
-      toolbarMenus.mindmap[7], // zoomOut
-      toolbarMenus.mindmap[8], // zoomToFit
-      toolbarMenus.mindmap[9], // runLayout
-      toolbarMenus.mindmap[10], // toggleCollisions
-      toolbarMenus.mindmap[11], // resolveOverlaps (conditional - only when collisions OFF)
-      toolbarMenus.mindmap[12], // orientation split button
+      // Removed: addNode, addChildNode, addSiblingNode (indices 0-2)
+      toolbarMenus.mindmap[2], // delete
+      toolbarMenus.mindmap[3], // zoomIn
+      toolbarMenus.mindmap[4], // zoomOut
+      toolbarMenus.mindmap[5], // zoomToFit
+      toolbarMenus.mindmap[6], // runLayout
+      toolbarMenus.mindmap[7], // toggleCollisions
+      toolbarMenus.mindmap[8], // resolveOverlaps (conditional - only when collisions OFF)
+      toolbarMenus.mindmap[9], // toggleMinimap
+      toolbarMenus.mindmap[10], // orientation split button
     ];
     return items.filter((item): item is MenuItem => item !== undefined);
   });

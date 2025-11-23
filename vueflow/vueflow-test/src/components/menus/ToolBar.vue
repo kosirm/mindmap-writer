@@ -70,11 +70,18 @@ function getCommandKeybinding(commandId: string): string {
 }
 
 function isCommandActive(commandId: string): boolean {
+  const context = getContext();
+
   // Special case: collision toggle button is active when collisions are enabled
   if (commandId === 'mindmap.toggleCollisions') {
-    const context = getContext();
     return context.matterEnabled === true;
   }
+
+  // Special case: minimap toggle button is active when minimap is shown
+  if (commandId === 'view.toggleMinimap') {
+    return context.showMinimap === true;
+  }
+
   return false;
 }
 

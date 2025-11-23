@@ -26,10 +26,12 @@ export interface CommandContext {
   activeView?: 'mindmap' | 'writer' | 'tree';
   clipboardData?: unknown;
   matterEnabled?: boolean;
+  showMinimap?: boolean;
   orientationMode?: 'clockwise' | 'counterclockwise';
   // Function references for command execution
   runD3ForceOnce?: () => void;
   toggleMatterCollisions?: () => void;
+  toggleMinimap?: () => void;
   resolveOverlapsOnce?: () => void;
   createNewMindmap?: () => void;
   showOpenDialog?: () => void;
