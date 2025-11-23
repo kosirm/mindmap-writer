@@ -292,6 +292,72 @@
 
               <q-separator class="q-my-md" />
 
+              <!-- Planck.js Collision Detection (Box2D) -->
+              <div class="q-mb-lg">
+                <div class="text-subtitle2 q-mb-md">Planck.js Collision Detection (Box2D)</div>
+
+                <!-- Planck.js ON/OFF Toggle -->
+                <div class="q-mb-md">
+                  <q-toggle
+                    v-model="planckEnabled"
+                    label="Planck.js Collision Detection"
+                    color="positive"
+                    left-label
+                    class="full-width"
+                  />
+                  <div class="text-caption text-grey-7 q-mt-xs">
+                    Box2D-based physics engine (more accurate than Matter.js)
+                  </div>
+                </div>
+
+                <!-- Corner Radius Slider -->
+                <div class="param-control q-mb-md">
+                  <div class="param-label">Corner Radius</div>
+                  <div class="param-value">{{ planckCornerRadius }}px</div>
+                  <q-slider
+                    v-model="planckCornerRadius"
+                    :min="0"
+                    :max="30"
+                    :step="1"
+                    color="primary"
+                    label
+                  />
+                  <div class="text-caption text-grey-7 q-mt-xs">
+                    Corner rounding for collision bodies
+                  </div>
+                </div>
+
+                <!-- Test Button -->
+                <div class="q-mb-md">
+                  <q-btn
+                    label="TEST PLANCK.JS"
+                    color="primary"
+                    icon="science"
+                    class="full-width"
+                    @click="testPlanckCollision"
+                  />
+                  <div class="text-caption text-grey-7 q-mt-sm">
+                    Create test bodies and run physics simulation
+                  </div>
+                </div>
+
+                <!-- Resolve Overlaps Button (only visible when Planck.js is OFF) -->
+                <div v-if="!planckEnabled" class="q-mb-md">
+                  <q-btn
+                    label="RESOLVE OVERLAPS (Planck)"
+                    color="secondary"
+                    icon="auto_fix_high"
+                    class="full-width"
+                    @click="resolvePlanckOverlapsOnce"
+                  />
+                  <div class="text-caption text-grey-7 q-mt-sm">
+                    Run Planck.js physics simulation once to separate overlapping nodes
+                  </div>
+                </div>
+              </div>
+
+              <q-separator class="q-my-md" />
+
               <!-- Info Section -->
               <div class="text-caption text-grey-7">
                 <div class="q-mb-sm"><strong>D3 FORCE:</strong> Organizes connected nodes using force-directed layout algorithm</div>
@@ -760,6 +826,7 @@ import WriterEditor from '../components/WriterEditor.vue';
 import { useD3Force, type D3ForceParams } from '../composables/useD3Force';
 import { useMatterCollision, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../composables/useMatterCollision';
 import Matter from 'matter-js';
+import { usePlanckCollision } from '../composables/usePlanckCollision';
 import { useOrientationLayout, type OrientationMode } from '../composables/useOrientationLayout';
 
 // Menu system imports
@@ -913,6 +980,10 @@ const d3Mode = ref<'off' | 'manual' | 'auto'>('off'); // Default to OFF (full ma
 const matterEnabled = ref(false); // Matter.js collision detection OFF by default
 const isAltKeyPressed = ref(false); // Track Alt key for disabling collision while dragging
 
+// Planck.js collision state
+const planckEnabled = ref(false); // Planck.js collision detection OFF by default
+const planckCornerRadius = ref(10); // Corner radius for rounded rectangle collision bodies (0-30px range)
+
 // D3 Force parameters (adjustable)
 const forceParams = ref<D3ForceParams>({
   chargeStrength: -300,      // How strongly nodes repel each other
@@ -937,6 +1008,17 @@ const {
   cleanup: cleanupMatter,
 } = useMatterCollision(nodes, matterEnabled);
 
+// Initialize Planck.js composable
+const {
+  planckWorld,
+  nodeBodies: planckNodeBodies,
+  initPlanckWorld,
+  createPlanckBody,
+  updatePlanckBodyPosition,
+  updatePlanckBodyDimensions,
+  runPlanckSimulation,
+} = usePlanckCollision(nodes, planckEnabled, planckCornerRadius);
+
 // Initialize D3 Force composable
 const {
   isSimulationRunning,
@@ -957,6 +1039,55 @@ const {
 function resolveOverlapsOnce() {
   console.log('[Matter.js] Running physics engine once to resolve overlaps...');
   runMatterEngineToResolveOverlaps();
+}
+
+// Test Planck.js collision detection
+function testPlanckCollision() {
+  console.log('[Planck.js] Testing collision detection...');
+
+  if (!planckWorld) {
+    initPlanckWorld();
+  }
+
+  // Create bodies for all existing nodes
+  nodes.value.forEach(node => {
+    if (!planckNodeBodies.has(node.id)) {
+      createPlanckBody(node);
+    }
+  });
+
+  console.log(`[Planck.js] Created ${planckNodeBodies.size} bodies`);
+
+  Notify.create({
+    type: 'positive',
+    message: `Planck.js initialized with ${planckNodeBodies.size} bodies`,
+    position: 'top'
+  });
+}
+
+// Resolve overlaps once using Planck.js physics engine
+function resolvePlanckOverlapsOnce() {
+  console.log('[Planck.js] Running physics engine once to resolve overlaps...');
+
+  if (!planckWorld) {
+    initPlanckWorld();
+  }
+
+  // Create bodies for all existing nodes if not already created
+  nodes.value.forEach(node => {
+    if (!planckNodeBodies.has(node.id)) {
+      createPlanckBody(node);
+    }
+  });
+
+  // Run simulation
+  runPlanckSimulation(30);
+
+  Notify.create({
+    type: 'positive',
+    message: 'Planck.js simulation complete',
+    position: 'top'
+  });
 }
 
 // Node counter for unique IDs
@@ -1476,67 +1607,89 @@ function onConnectEnd(event?: MouseEvent) {
 
 // Handle node drag - push overlapping nodes away in real-time using Matter.js
 function onNodeDrag(event: { node: Node }) {
-  // Skip collision detection if Matter.js is disabled
-  if (!matterEnabled.value) {
-    return;
-  }
-
   const draggedNode = event.node;
-
-  // Get number of selected nodes
   const selectedNodes = getSelectedNodes.value;
   const multipleNodesSelected = selectedNodes.length > 1;
 
-  // If multiple nodes are selected, update ALL their Matter.js body positions
-  if (multipleNodesSelected) {
-    selectedNodes.forEach(node => {
-      updateMatterBodyPosition(node.id, node.position.x, node.position.y);
-    });
-    // console.log(`[DEBUG] Multiple nodes selected (${selectedNodes.length}) - updated all Matter.js bodies, skipping collision detection during drag`);
-    return;
+  // Handle Matter.js collision detection
+  if (matterEnabled.value) {
+    // If multiple nodes are selected, update ALL their Matter.js body positions
+    if (multipleNodesSelected) {
+      selectedNodes.forEach(node => {
+        updateMatterBodyPosition(node.id, node.position.x, node.position.y);
+      });
+      return;
+    }
+
+    // Single node drag: update Matter.js body position
+    updateMatterBodyPosition(draggedNode.id, draggedNode.position.x, draggedNode.position.y);
+
+    // Skip collision detection if Alt key is pressed (manual override)
+    if (isAltKeyPressed.value) {
+      return;
+    }
+
+    // Get the Matter.js body to get its center position and dimensions
+    const body = nodeBodies.get(draggedNode.id);
+    if (body) {
+      const bodyBounds = body.bounds;
+      const bodyWidth = bodyBounds.max.x - bodyBounds.min.x;
+      const bodyHeight = bodyBounds.max.y - bodyBounds.min.y;
+
+      // Push other nodes away from the dragged node's position
+      pushNodesAwayFromPosition(body.position.x, body.position.y, draggedNode.id, bodyWidth, bodyHeight);
+    }
   }
 
-  // Single node drag: update Matter.js body position
-  updateMatterBodyPosition(draggedNode.id, draggedNode.position.x, draggedNode.position.y);
+  // Handle Planck.js collision detection
+  if (planckEnabled.value) {
+    // If multiple nodes are selected, update ALL their Planck.js body positions
+    if (multipleNodesSelected) {
+      selectedNodes.forEach(node => {
+        updatePlanckBodyPosition(node.id, node.position.x, node.position.y);
+      });
+      return;
+    }
 
-  // Skip collision detection if Alt key is pressed (manual override)
-  if (isAltKeyPressed.value) {
-    // console.log('[DEBUG] Alt key pressed - skipping collision detection for node', draggedNode.id);
-    return;
-  }
+    // Single node drag: update Planck.js body position and run simulation
+    updatePlanckBodyPosition(draggedNode.id, draggedNode.position.x, draggedNode.position.y);
 
-  // Get the Matter.js body to get its center position and dimensions
-  const body = nodeBodies.get(draggedNode.id);
-  if (body) {
-    // Get actual body dimensions from Matter.js
-    const bodyBounds = body.bounds;
-    const bodyWidth = bodyBounds.max.x - bodyBounds.min.x;
-    const bodyHeight = bodyBounds.max.y - bodyBounds.min.y;
+    // Skip collision detection if Alt key is pressed (manual override)
+    if (isAltKeyPressed.value) {
+      return;
+    }
 
-    // Push away any nodes that overlap with the dragged node's current position (using center and actual dimensions)
-    pushNodesAwayFromPosition(body.position.x, body.position.y, draggedNode.id, bodyWidth, bodyHeight);
+    // Run a few simulation steps to push other nodes away
+    runPlanckSimulation(3);
   }
 }
 
-// Handle node drag stop - run Matter.js engine to resolve any overlaps
+// Handle node drag stop - run Matter.js or Planck.js engine to resolve any overlaps
 function onNodeDragStop() {
   // Update order based on position (Canvas → Store)
   updateOrderFromPosition();
 
-  // Skip if Matter.js is disabled
-  if (!matterEnabled.value) {
-    return;
-  }
-
-  // Get number of selected nodes
   const selectedNodes = getSelectedNodes.value;
   const multipleNodesSelected = selectedNodes.length > 1;
 
-  // If Alt key was pressed OR multiple nodes were dragged, run Matter.js engine once to resolve overlaps
-  if (isAltKeyPressed.value || multipleNodesSelected) {
-    const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
-    console.log(`[DEBUG] Drag ended with ${reason} - running Matter.js engine to resolve overlaps`);
-    runMatterEngineToResolveOverlaps();
+  // Handle Matter.js collision resolution
+  if (matterEnabled.value) {
+    // If Alt key was pressed OR multiple nodes were dragged, run Matter.js engine once to resolve overlaps
+    if (isAltKeyPressed.value || multipleNodesSelected) {
+      const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
+      console.log(`[DEBUG] Drag ended with ${reason} - running Matter.js engine to resolve overlaps`);
+      runMatterEngineToResolveOverlaps();
+    }
+  }
+
+  // Handle Planck.js collision resolution
+  if (planckEnabled.value) {
+    // If Alt key was pressed OR multiple nodes were dragged, run Planck.js simulation to resolve overlaps
+    if (isAltKeyPressed.value || multipleNodesSelected) {
+      const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
+      console.log(`[DEBUG] Drag ended with ${reason} - running Planck.js simulation to resolve overlaps`);
+      runPlanckSimulation(10);
+    }
   }
 
   // Run D3 simulation if in AUTO mode
@@ -2168,6 +2321,25 @@ function updateCommandContext() {
   });
 }
 
+// Watch for Planck.js toggle - initialize when enabled
+watch(planckEnabled, (enabled) => {
+  if (enabled) {
+    console.log('[Planck.js] Enabled - initializing world and creating bodies...');
+    if (!planckWorld) {
+      initPlanckWorld();
+    }
+    // Create bodies for all existing nodes
+    nodes.value.forEach(node => {
+      if (!planckNodeBodies.has(node.id)) {
+        createPlanckBody(node);
+      }
+    });
+    console.log(`[Planck.js] Initialized with ${planckNodeBodies.size} bodies`);
+  } else {
+    console.log('[Planck.js] Disabled');
+  }
+});
+
 // Watch for changes that affect command availability (with flush: 'post' to avoid blocking UI)
 watch([() => getSelectedNodes.value.length, matterEnabled, showMinimap, orientationMode], () => {
   updateCommandContext();
@@ -2535,6 +2707,7 @@ function handleNodeEditEnd({ nodeId }: { nodeId: string }) {
     titleUpdateDebounceTimer = null;
   }
   updateMatterBodyDimensions(nodeId);
+  updatePlanckBodyDimensions(nodeId);
 }
 
 // Debounce timer for real-time dimension updates while typing
@@ -2551,6 +2724,7 @@ function handleNodeTitleUpdated({ nodeId }: { nodeId: string; title: string }) {
   titleUpdateDebounceTimer = setTimeout(() => {
     // console.log(`[DEBUG] Real-time dimension update for node ${nodeId} while typing`);
     updateMatterBodyDimensions(nodeId);
+    updatePlanckBodyDimensions(nodeId);
     titleUpdateDebounceTimer = null;
   }, 1000); // 1 second debounce
 }
