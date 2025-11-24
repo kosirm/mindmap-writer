@@ -488,7 +488,7 @@
                   </q-item-section>
                   <q-item-section>
                     <q-item-label><strong>Ctrl + Arrow keys</strong></q-item-label>
-                    <q-item-label caption>Create connected child nodes (Up/Down/Left/Right)</q-item-label>
+                    <q-item-label caption>Rapid node creation: Left/Right = child/parent, Up/Down = sibling above/below</q-item-label>
                   </q-item-section>
                 </q-item>
 
@@ -507,8 +507,8 @@
                     <q-icon color="primary" name="timeline" />
                   </q-item-section>
                   <q-item-section>
-                    <q-item-label><strong>Drag from connection point</strong></q-item-label>
-                    <q-item-label caption>Create reference connection (orange dashed)</q-item-label>
+                    <q-item-label><strong>Hold Shift/Alt/C + Hover node center</strong></q-item-label>
+                    <q-item-label caption>Show connection point (crosshair cursor)</q-item-label>
                   </q-item-section>
                 </q-item>
 
@@ -525,6 +525,16 @@
                 <q-item>
                   <q-item-section avatar>
                     <q-icon color="primary" name="add_link" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label><strong>C + Drag connection point to node</strong></q-item-label>
+                    <q-item-label caption>Create reference connection (orange dashed)</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="add_circle" />
                   </q-item-section>
                   <q-item-section>
                     <q-item-label><strong>Shift + Drag connection to empty space</strong></q-item-label>
@@ -1003,6 +1013,7 @@ const d3Mode = ref<'off' | 'manual' | 'auto'>('off'); // Default to OFF (full ma
 // Matter.js collision state
 const matterEnabled = ref(false); // Matter.js collision detection OFF by default
 const isAltKeyPressed = ref(false); // Track Alt key for disabling collision while dragging
+const isCKeyPressed = ref(false); // Track C key for reference connections
 
 // Planck.js collision state
 const planckEnabled = ref(false); // Planck.js collision detection OFF by default
@@ -1177,8 +1188,11 @@ const initialViewport = ref({ zoom: 1, x: 400, y: 300 });
 // Track if we're currently dragging a connection
 const isDraggingConnection = ref(false);
 
-// Track if Alt key is pressed during connection drag
+// Track if Alt key is pressed during connection drag (for hierarchy connections)
 const isAltPressedDuringConnection = ref(false);
+
+// Track if C key is pressed during connection drag (for reference connections)
+const isCKeyPressedDuringConnection = ref(false);
 
 // Track selected nodes in tree view (supports multiple selection)
 const selectedTreeNodeIds = ref<string[]>([]);
@@ -1487,8 +1501,12 @@ function updateNodeData(nodeId: string, newData: { title: string; content: strin
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function onConnectStart(connectionEvent: any) {
   isDraggingConnection.value = true;
-  // Track if Alt key is pressed when starting the connection
+  // Track if Alt key is pressed when starting the connection (for hierarchy)
   isAltPressedDuringConnection.value = connectionEvent?.event?.altKey || false;
+  // Track if C key is pressed when starting the connection (for reference)
+  isCKeyPressedDuringConnection.value = isCKeyPressed.value;
+
+  console.log('[DEBUG] Connection start - Alt:', isAltPressedDuringConnection.value, 'C:', isCKeyPressedDuringConnection.value);
 }
 
 // Handle connection between nodes
@@ -1504,7 +1522,7 @@ function onConnect(params: { source: string; target: string; sourceHandle?: stri
   const parentId = params.target;  // The node you dragged FROM (should be parent)
   const childId = params.source;   // The node you dragged TO (should be child)
 
-  // Check if Alt key was pressed - this determines hierarchy vs reference
+  // Check if Alt key was pressed - this determines hierarchy connection
   if (isAltPressedDuringConnection.value) {
     // ALT + DRAG = HIERARCHY CONNECTION
 
@@ -1567,34 +1585,51 @@ function onConnect(params: { source: string; target: string; sourceHandle?: stri
     return;
   }
 
-  // NO ALT KEY = REFERENCE CONNECTION
+  // Check if C key was pressed - this determines reference connection
+  if (isCKeyPressedDuringConnection.value) {
+    // C + DRAG = REFERENCE CONNECTION
 
-  // Check if connection already exists (prevent duplicates)
-  const connectionExists = edges.value.some(edge =>
-    (edge.source === params.source && edge.target === params.target) ||
-    (edge.source === params.target && edge.target === params.source)
-  );
+    // Check if connection already exists (prevent duplicates)
+    const connectionExists = edges.value.some(edge =>
+      (edge.source === params.source && edge.target === params.target) ||
+      (edge.source === params.target && edge.target === params.source)
+    );
 
-  if (connectionExists) {
-    console.log('Connection already exists, skipping duplicate');
+    if (connectionExists) {
+      console.log('Connection already exists, skipping duplicate');
+      isCKeyPressedDuringConnection.value = false;
+      return;
+    }
+
+    // Create a new reference edge
+    const newEdge: Edge = {
+      id: `e${params.source}-${params.target}-${Date.now()}`,
+      source: params.source,
+      target: params.target,
+      sourceHandle: params.sourceHandle || null,
+      targetHandle: params.targetHandle || null,
+      type: 'straight',
+      class: 'edge-reference',  // Add class for styling
+      data: {
+        edgeType: 'reference',  // Manual connections are references, not hierarchy
+      },
+    };
+
+    edges.value.push(newEdge);
+
+    Notify.create({
+      type: 'positive',
+      message: 'Reference connection created',
+      position: 'top',
+      timeout: 2000,
+    });
+
+    isCKeyPressedDuringConnection.value = false;
     return;
   }
 
-  // Create a new reference edge
-  const newEdge: Edge = {
-    id: `e${params.source}-${params.target}-${Date.now()}`,
-    source: params.source,
-    target: params.target,
-    sourceHandle: params.sourceHandle || null,
-    targetHandle: params.targetHandle || null,
-    type: 'straight',
-    class: 'edge-reference',  // Add class for styling
-    data: {
-      edgeType: 'reference',  // Manual connections are references, not hierarchy
-    },
-  };
-
-  edges.value.push(newEdge);
+  // NO KEY PRESSED = Do nothing (connection is ignored)
+  console.log('No modifier key pressed during connection - ignoring');
 }
 
 
@@ -1779,6 +1814,10 @@ function onAltKeyDown(event: KeyboardEvent) {
     isAltKeyPressed.value = true;
     console.log('[DEBUG] Alt key pressed - collision detection DISABLED while dragging');
   }
+  if (event.key === 'c' || event.key === 'C') {
+    isCKeyPressed.value = true;
+    console.log('[DEBUG] C key pressed - reference connection mode ENABLED');
+  }
 }
 
 // Handle Alt key release - re-enable collision detection
@@ -1786,6 +1825,10 @@ function onAltKeyUp(event: KeyboardEvent) {
   if (event.key === 'Alt') {
     isAltKeyPressed.value = false;
     console.log('[DEBUG] Alt key released - collision detection ENABLED');
+  }
+  if (event.key === 'c' || event.key === 'C') {
+    isCKeyPressed.value = false;
+    console.log('[DEBUG] C key released - reference connection mode DISABLED');
   }
 }
 
@@ -1865,7 +1908,7 @@ function onKeyDown(event: KeyboardEvent) {
   // Handle arrow keys
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 
-    // Ctrl + Arrow keys: Create connected nodes
+    // Ctrl + Arrow keys: Rapid node creation (child, sibling, parent)
     if (event.ctrlKey && selectedNodeId.value) {
       event.preventDefault();
 
@@ -1873,61 +1916,138 @@ function onKeyDown(event: KeyboardEvent) {
       const selectedNode = nodes.value.find(n => n.id === selectedNodeId.value);
       if (!selectedNode) return;
 
-      // Calculate new node position based on arrow key
-      // Connection will always be center to center
-      // Use linkDistance parameter for initial placement
-      const offset = forceParams.value.linkDistance;
-      let newX = selectedNode.position.x;
-      let newY = selectedNode.position.y;
+      // Determine if node is on left or right side
+      const isLeftSide = (() => {
+        const parentId = selectedNode.data.parentId;
+        if (!parentId) {
+          // Root node: check position relative to canvas center (0, 0)
+          return selectedNode.position.x < 0;
+        }
+        // Child node: check position relative to parent
+        const parent = nodes.value.find(n => n.id === parentId);
+        if (!parent) return false;
+        return selectedNode.position.x < parent.position.x;
+      })();
 
-      switch (event.key) {
-        case 'ArrowUp':
-          newY -= offset;
-          break;
-        case 'ArrowDown':
-          newY += offset;
-          break;
-        case 'ArrowLeft':
-          newX -= offset;
-          break;
-        case 'ArrowRight':
-          newX += offset;
-          break;
+      // Offsets for node creation
+      const siblingOffset = 10; // Small offset for siblings (will overlap, Matter.js pushes others away)
+      const hierarchyOffset = 80; // Larger offset for child/parent nodes (more spacing)
+      let newNode: Node | null = null;
+      let newEdge: Edge | null = null;
+
+      // Determine action based on arrow key, side, and orientation
+      if (event.key === 'ArrowLeft') {
+        if (isLeftSide) {
+          // Left side + Left arrow = Create child node (80px to the left)
+          const newX = selectedNode.position.x - hierarchyOffset;
+          const newY = selectedNode.position.y;
+          newNode = createNode(newX, newY, undefined, selectedNodeId.value);
+          newEdge = createEdge(selectedNodeId.value, newNode.id, 'hierarchy');
+        } else {
+          // Right side + Left arrow = Create parent node and reparent (80px to the left)
+          const newX = selectedNode.position.x - hierarchyOffset;
+          const newY = selectedNode.position.y;
+          const oldParentId = selectedNode.data.parentId;
+          newNode = createNode(newX, newY, undefined, oldParentId);
+          // Reparent current node to new node
+          selectedNode.data.parentId = newNode.id;
+          // Remove old edge if exists
+          if (oldParentId) {
+            edges.value = edges.value.filter(e => !(e.source === oldParentId && e.target === selectedNodeId.value));
+          }
+          // Create new edges
+          newEdge = createEdge(newNode.id, selectedNodeId.value, 'hierarchy');
+          if (oldParentId) {
+            const parentEdge = createEdge(oldParentId, newNode.id, 'hierarchy');
+            edges.value.push(parentEdge);
+          }
+        }
+      } else if (event.key === 'ArrowRight') {
+        if (isLeftSide) {
+          // Left side + Right arrow = Create parent node and reparent (80px to the right)
+          const newX = selectedNode.position.x + hierarchyOffset;
+          const newY = selectedNode.position.y;
+          const oldParentId = selectedNode.data.parentId;
+          newNode = createNode(newX, newY, undefined, oldParentId);
+          // Reparent current node to new node
+          selectedNode.data.parentId = newNode.id;
+          // Remove old edge if exists
+          if (oldParentId) {
+            edges.value = edges.value.filter(e => !(e.source === oldParentId && e.target === selectedNodeId.value));
+          }
+          // Create new edges
+          newEdge = createEdge(newNode.id, selectedNodeId.value, 'hierarchy');
+          if (oldParentId) {
+            const parentEdge = createEdge(oldParentId, newNode.id, 'hierarchy');
+            edges.value.push(parentEdge);
+          }
+        } else {
+          // Right side + Right arrow = Create child node (80px to the right)
+          const newX = selectedNode.position.x + hierarchyOffset;
+          const newY = selectedNode.position.y;
+          newNode = createNode(newX, newY, undefined, selectedNodeId.value);
+          newEdge = createEdge(selectedNodeId.value, newNode.id, 'hierarchy');
+        }
+      } else if (event.key === 'ArrowUp') {
+        // Create sibling above (10px above to ensure overlap, Matter.js pushes others away)
+        const newX = selectedNode.position.x;
+        const newY = selectedNode.position.y - siblingOffset;
+        newNode = createNode(newX, newY, undefined, selectedNode.data.parentId);
+        if (selectedNode.data.parentId) {
+          newEdge = createEdge(selectedNode.data.parentId, newNode.id, 'hierarchy');
+        }
+      } else if (event.key === 'ArrowDown') {
+        // Create sibling below (10px below to ensure overlap, Matter.js pushes others away)
+        const newX = selectedNode.position.x;
+        const newY = selectedNode.position.y + siblingOffset;
+        newNode = createNode(newX, newY, undefined, selectedNode.data.parentId);
+        if (selectedNode.data.parentId) {
+          newEdge = createEdge(selectedNode.data.parentId, newNode.id, 'hierarchy');
+        }
       }
 
-      // Create new node with parent reference
-      const newNode = createNode(newX, newY, undefined, selectedNodeId.value);
-      nodes.value.push(newNode);
-
-      // Create hierarchy edge from selected node to new node (center to center)
-      const newEdge = createEdge(selectedNodeId.value, newNode.id, 'hierarchy');
-      edges.value.push(newEdge);
-
-      // Wait for DOM to render, then read actual dimensions and create Matter.js body
-      void nextTick(() => {
-        // Get actual dimensions from DOM
-        const dimensions = getNodeDimensions(newNode.id);
-
-        // Calculate center position using ACTUAL dimensions
-        const centerX = newX + dimensions.width / 2;
-        const centerY = newY + dimensions.height / 2;
-
-        console.log(`[DEBUG] Ctrl+Arrow createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
-
-        // Push away any overlapping nodes using the ACTUAL dimensions
-        pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
-
-        // Create Matter.js body with actual dimensions
-        createMatterBody(newNode);
-
-        // Update order based on position (Canvas → Store)
-        updateOrderFromPosition();
-
-        // Run simulation to avoid collisions (only in AUTO mode)
-        if (d3Mode.value === 'auto') {
-          runSimulation();
+      // Add new node and edge to the graph
+      if (newNode) {
+        nodes.value.push(newNode);
+        if (newEdge) {
+          edges.value.push(newEdge);
         }
-      });
+
+        // Wait for DOM to render, then create Matter.js body and resolve overlaps
+        const createdNode = newNode; // Capture for closure
+        void nextTick(() => {
+          // Get actual dimensions from DOM
+          const dimensions = getNodeDimensions(createdNode.id);
+
+          console.log(`[DEBUG] Ctrl+Arrow rapid creation ${createdNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
+
+          // Create Matter.js body with actual dimensions
+          createMatterBody(createdNode);
+
+          // Update order based on position (Canvas → Store)
+          updateOrderFromPosition();
+
+          // Run Matter.js physics engine once to resolve overlaps
+          runMatterEngineToResolveOverlaps();
+
+          // Select the newly created node
+          removeSelectedNodes(getSelectedNodes.value);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          addSelectedNodes([createdNode as any]);
+          selectedNodeId.value = createdNode.id;
+
+          // Update tree selection
+          isTreeSelectionProgrammatic.value = true;
+          selectedTreeNodeIds.value = [createdNode.id];
+          void nextTick(() => {
+            isTreeSelectionProgrammatic.value = false;
+          });
+
+          // Notify writer
+          eventBus.emit('writer:node-selected', { nodeId: createdNode.id, scrollIntoView: true, source: 'canvas' });
+          scrollTreeNodeIntoView(createdNode.id);
+        });
+      }
 
       return;
     }
