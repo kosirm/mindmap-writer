@@ -1,19 +1,22 @@
 <template>
   <div class="custom-node">
     <!-- Vue Flow handles (invisible, center-positioned) -->
+    <!-- Only connectable when Shift or Alt key is pressed -->
     <Handle
       type="source"
       :position="Position.Top"
       id="center"
-      class="center-handle"
+      :class="['center-handle', { 'show-crosshair': isConnectionKeyPressed }]"
       :style="{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }"
+      :connectableStart="isConnectionKeyPressed"
     />
     <Handle
       type="target"
       :position="Position.Top"
       id="center"
-      class="center-handle"
+      :class="['center-handle', { 'show-crosshair': isConnectionKeyPressed }]"
       :style="{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }"
+      :connectableEnd="isConnectionKeyPressed"
     />
 
     <!-- Node content -->
@@ -76,6 +79,8 @@ const emit = defineEmits<{
 
 // Local state
 const localEditor = ref<Editor | null>(null);
+const isConnectionKeyPressed = ref(false); // Track if Shift or Alt key is pressed
+
 const isEditing = computed(() => {
   const active = activeNodeId.value === props.id;
   // console.log('[CustomNode] isEditing computed for node:', props.id, 'active:', active, 'activeNodeId:', activeNodeId.value);
@@ -86,6 +91,21 @@ const isEditing = computed(() => {
 const displayTitle = computed(() => {
   return props.data.title || 'Untitled';
 });
+
+/**
+ * Track Shift/Alt/C key state for connection handle visibility
+ */
+function onKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Shift' || event.key === 'Alt' || event.key === 'c' || event.key === 'C') {
+    isConnectionKeyPressed.value = true;
+  }
+}
+
+function onKeyUp(event: KeyboardEvent) {
+  if (event.key === 'Shift' || event.key === 'Alt' || event.key === 'c' || event.key === 'C') {
+    isConnectionKeyPressed.value = false;
+  }
+}
 
 /**
  * Handle double-click on node - start editing
@@ -157,14 +177,22 @@ function handleBlur() {
   eventBus.emit('node:edit-end', { nodeId: props.id });
 }
 
-// Listen for edit start events
+// Listen for edit start events and keyboard events
 onMounted(() => {
   eventBus.on('node:edit-start', handleEditStart);
+
+  // Add keyboard listeners for Shift/Alt key tracking
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
 });
 
 // Clean up on unmount
 onBeforeUnmount(() => {
   eventBus.off('node:edit-start', handleEditStart);
+
+  // Remove keyboard listeners
+  window.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('keyup', onKeyUp);
 
   if (activeNodeId.value === props.id) {
     localEditor.value = null;
@@ -215,6 +243,11 @@ watch(isEditing, (newValue) => {
   background: transparent !important;
   border: none !important;
   opacity: 0 !important;
+  cursor: default !important; /* Default cursor when no key is pressed */
+}
+
+/* Show crosshair cursor only when Shift or Alt key is pressed */
+.center-handle.show-crosshair {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><line x1="8" y1="0" x2="8" y2="16" stroke="%231976D2" stroke-width="3"/><line x1="0" y1="8" x2="16" y2="8" stroke="%231976D2" stroke-width="3"/></svg>') 8 8, crosshair !important;
 }
 
