@@ -182,5 +182,37 @@ export const mindmapCommands: Command[] = [
       }
     },
   },
+
+  {
+    id: 'mindmap.alignHorizontal',
+    label: 'Align Horizontal',
+    icon: 'align_vertical_center',
+    category: 'mindmap',
+    tooltip: 'Align selected nodes horizontally with even spacing',
+    showInPalette: true,
+    when: (context) => (context?.selectedNodeIds?.length ?? 0) >= 2,
+    execute: (context) => {
+      // Call the horizontal alignment function from context
+      if (context?.alignNodesHorizontal) {
+        context.alignNodesHorizontal();
+      }
+    },
+  },
+
+  {
+    id: 'mindmap.alignVertical',
+    label: 'Align Vertical',
+    icon: 'align_horizontal_center',
+    category: 'mindmap',
+    tooltip: 'Align selected nodes vertically with even spacing',
+    showInPalette: true,
+    when: (context) => (context?.selectedNodeIds?.length ?? 0) >= 2,
+    execute: (context) => {
+      // Call the vertical alignment function from context
+      if (context?.alignNodesVertical) {
+        context.alignNodesVertical();
+      }
+    },
+  },
 ];
 

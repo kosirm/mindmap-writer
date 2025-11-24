@@ -80,7 +80,7 @@
               <div class="text-h6 q-mb-md">Hierarchy Tree</div>
 
               <div v-if="rootNodes.length === 0" class="text-center text-grey-7 q-pa-md">
-                No nodes yet. Create some nodes and connect them with Shift+Drag to build a hierarchy.
+                No nodes yet. Create some nodes and connect them with Alt+Drag to build a hierarchy.
               </div>
 
               <div v-else>
@@ -238,10 +238,10 @@
               <div class="q-mb-lg">
                 <div class="text-subtitle2 q-mb-sm">D3 Force Layout</div>
                 <q-btn
-                  label="D3 FORCE"
+                  label="D3 FORCE (All Nodes)"
                   color="primary"
                   icon="scatter_plot"
-                  class="full-width"
+                  class="full-width q-mb-sm"
                   @click="runD3ForceOnce"
                   :disable="isSimulationRunning"
                   :loading="isSimulationRunning"
@@ -250,8 +250,21 @@
                     <q-spinner-dots />
                   </template>
                 </q-btn>
+                <q-btn
+                  label="D3 FORCE (Selected Branch)"
+                  color="secondary"
+                  icon="account_tree"
+                  class="full-width"
+                  @click="runD3ForceOnBranchWrapper"
+                  :disable="isSimulationRunning || getSelectedNodes.length === 0"
+                  :loading="isSimulationRunning"
+                >
+                  <template v-slot:loading>
+                    <q-spinner-dots />
+                  </template>
+                </q-btn>
                 <div class="text-caption text-grey-7 q-mt-sm">
-                  Organize connected nodes using force-directed layout
+                  Organize nodes using force-directed layout. Select a branch first to organize only that branch.
                 </div>
               </div>
 
@@ -464,8 +477,18 @@
                     <q-icon color="primary" name="keyboard" />
                   </q-item-section>
                   <q-item-section>
+                    <q-item-label><strong>Arrow keys</strong></q-item-label>
+                    <q-item-label caption>Navigate between nodes (Left/Right = hierarchy, Up/Down = siblings)</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="keyboard" />
+                  </q-item-section>
+                  <q-item-section>
                     <q-item-label><strong>Ctrl + Arrow keys</strong></q-item-label>
-                    <q-item-label caption>Create connected nodes (Up/Down/Left/Right)</q-item-label>
+                    <q-item-label caption>Create connected child nodes (Up/Down/Left/Right)</q-item-label>
                   </q-item-section>
                 </q-item>
 
@@ -494,7 +517,7 @@
                     <q-icon color="primary" name="account_tree" />
                   </q-item-section>
                   <q-item-section>
-                    <q-item-label><strong>Shift + Drag connection point to node</strong></q-item-label>
+                    <q-item-label><strong>Alt + Drag connection point to node</strong></q-item-label>
                     <q-item-label caption>Create hierarchy (parent→child). Auto-reparents if child already has parent.</q-item-label>
                   </q-item-section>
                 </q-item>
@@ -504,7 +527,7 @@
                     <q-icon color="primary" name="add_link" />
                   </q-item-section>
                   <q-item-section>
-                    <q-item-label><strong>Alt + Drag connection to empty space</strong></q-item-label>
+                    <q-item-label><strong>Shift + Drag connection to empty space</strong></q-item-label>
                     <q-item-label caption>Create new child node at drop position</q-item-label>
                   </q-item-section>
                 </q-item>
@@ -531,7 +554,7 @@
                   </q-item-section>
                   <q-item-section>
                     <q-item-label><strong>Hierarchy (Blue Solid)</strong></q-item-label>
-                    <q-item-label caption>Parent-child relationships (Ctrl+Arrow, Alt+Drag)</q-item-label>
+                    <q-item-label caption>Parent-child relationships (Ctrl+Arrow, Shift+Drag)</q-item-label>
                   </q-item-section>
                 </q-item>
 
@@ -828,6 +851,7 @@ import { useMatterCollision, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../
 import Matter from 'matter-js';
 import { usePlanckCollision } from '../composables/usePlanckCollision';
 import { useOrientationLayout, type OrientationMode } from '../composables/useOrientationLayout';
+import { useKeyboardNavigation } from '../composables/useKeyboardNavigation';
 
 // Menu system imports
 import TopBarMenu from '../components/menus/TopBarMenu.vue';
@@ -1025,6 +1049,7 @@ const {
   initSimulation,
   runSimulation,
   runD3ForceOnce,
+  runD3ForceOnBranch,
   cleanup: cleanupD3,
 } = useD3Force(
   nodes,
@@ -1034,6 +1059,47 @@ const {
   updateMatterBodyPosition,
   runMatterEngineToResolveOverlaps
 );
+
+// Run D3 Force on selected branch only
+function runD3ForceOnBranchWrapper() {
+  const selectedNodes = getSelectedNodes.value;
+
+  if (selectedNodes.length === 0) {
+    Notify.create({
+      type: 'warning',
+      message: 'No nodes selected. Select a branch first (Shift+Click on a node).',
+      position: 'top',
+    });
+    return;
+  }
+
+  // Find the root node of the selection (the node with no parent in the selection)
+  const selectedNodeIds = selectedNodes.map(n => n.id);
+  let rootNodeId: string | null = null;
+
+  for (const node of selectedNodes) {
+    if (!node.data.parentId || !selectedNodeIds.includes(node.data.parentId)) {
+      rootNodeId = node.id;
+      break;
+    }
+  }
+
+  if (!rootNodeId) {
+    Notify.create({
+      type: 'warning',
+      message: 'Could not determine root node of selection.',
+      position: 'top',
+    });
+    return;
+  }
+
+  console.log('[D3 Force Branch] Organizing branch:', {
+    selectedNodeIds,
+    rootNodeId,
+  });
+
+  runD3ForceOnBranch(selectedNodeIds, rootNodeId);
+}
 
 // Resolve overlaps once using Matter.js physics engine
 function resolveOverlapsOnce() {
@@ -1096,6 +1162,14 @@ let nodeCounter = 1;
 // Get Vue Flow instance
 const { project, vueFlowRef, connectionStartHandle, getSelectedNodes, getSelectedEdges, addSelectedNodes, removeSelectedNodes, setCenter, getViewport } = useVueFlow();
 
+// Initialize keyboard navigation composable
+const {
+  navigateLeft,
+  navigateRight,
+  navigateUp,
+  navigateDown,
+} = useKeyboardNavigation(nodes);
+
 // Initial viewport - center the canvas (0, 0) in the middle of the viewport
 // This will be calculated once the component mounts and we know the container size
 const initialViewport = ref({ zoom: 1, x: 400, y: 300 });
@@ -1103,8 +1177,8 @@ const initialViewport = ref({ zoom: 1, x: 400, y: 300 });
 // Track if we're currently dragging a connection
 const isDraggingConnection = ref(false);
 
-// Track if Shift key is pressed during connection drag
-const isShiftPressed = ref(false);
+// Track if Alt key is pressed during connection drag
+const isAltPressedDuringConnection = ref(false);
 
 // Track selected nodes in tree view (supports multiple selection)
 const selectedTreeNodeIds = ref<string[]>([]);
@@ -1413,8 +1487,8 @@ function updateNodeData(nodeId: string, newData: { title: string; content: strin
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function onConnectStart(connectionEvent: any) {
   isDraggingConnection.value = true;
-  // Track if Shift key is pressed when starting the connection
-  isShiftPressed.value = connectionEvent?.event?.shiftKey || false;
+  // Track if Alt key is pressed when starting the connection
+  isAltPressedDuringConnection.value = connectionEvent?.event?.altKey || false;
 }
 
 // Handle connection between nodes
@@ -1430,9 +1504,9 @@ function onConnect(params: { source: string; target: string; sourceHandle?: stri
   const parentId = params.target;  // The node you dragged FROM (should be parent)
   const childId = params.source;   // The node you dragged TO (should be child)
 
-  // Check if Shift key was pressed - this determines hierarchy vs reference
-  if (isShiftPressed.value) {
-    // SHIFT + DRAG = HIERARCHY CONNECTION
+  // Check if Alt key was pressed - this determines hierarchy vs reference
+  if (isAltPressedDuringConnection.value) {
+    // ALT + DRAG = HIERARCHY CONNECTION
 
     // Check for circular reference
     if (wouldCreateCircularReference(parentId, childId)) {
@@ -1442,7 +1516,7 @@ function onConnect(params: { source: string; target: string; sourceHandle?: stri
         position: 'top',
         timeout: 3000,
       });
-      isShiftPressed.value = false;
+      isAltPressedDuringConnection.value = false;
       return;
     }
 
@@ -1489,11 +1563,11 @@ function onConnect(params: { source: string; target: string; sourceHandle?: stri
       });
     }
 
-    isShiftPressed.value = false;
+    isAltPressedDuringConnection.value = false;
     return;
   }
 
-  // NO SHIFT KEY = REFERENCE CONNECTION
+  // NO ALT KEY = REFERENCE CONNECTION
 
   // Check if connection already exists (prevent duplicates)
   const connectionExists = edges.value.some(edge =>
@@ -1532,8 +1606,8 @@ function onConnectEnd(event?: MouseEvent) {
 
   if (!event) return;
 
-  // Only create node if Alt is pressed
-  if (!event.altKey) return;
+  // Only create node if Shift is pressed
+  if (!event.shiftKey) return;
 
   // Get the connection start handle info
   const startHandle = connectionStartHandle.value;
@@ -1715,7 +1789,7 @@ function onAltKeyUp(event: KeyboardEvent) {
   }
 }
 
-// Handle keyboard shortcuts (Ctrl + Arrow keys and Delete)
+// Handle keyboard shortcuts (Arrow keys for navigation, Ctrl + Arrow keys for creating nodes, Delete)
 function onKeyDown(event: KeyboardEvent) {
   // Don't handle keyboard shortcuts if user is typing in an input/textarea/contenteditable
   // This prevents conflicts with Writer's Tiptap editors
@@ -1788,74 +1862,132 @@ function onKeyDown(event: KeyboardEvent) {
     return;
   }
 
-  // Handle Ctrl + Arrow keys for creating connected nodes
-  // Only handle if Ctrl is pressed and a node is selected
-  if (!event.ctrlKey || !selectedNodeId.value) return;
+  // Handle arrow keys
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 
-  // Only handle arrow keys
-  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    // Ctrl + Arrow keys: Create connected nodes
+    if (event.ctrlKey && selectedNodeId.value) {
+      event.preventDefault();
 
-  event.preventDefault();
+      // Find the selected node
+      const selectedNode = nodes.value.find(n => n.id === selectedNodeId.value);
+      if (!selectedNode) return;
 
-  // Find the selected node
-  const selectedNode = nodes.value.find(n => n.id === selectedNodeId.value);
-  if (!selectedNode) return;
+      // Calculate new node position based on arrow key
+      // Connection will always be center to center
+      // Use linkDistance parameter for initial placement
+      const offset = forceParams.value.linkDistance;
+      let newX = selectedNode.position.x;
+      let newY = selectedNode.position.y;
 
-  // Calculate new node position based on arrow key
-  // Connection will always be center to center
-  // Use linkDistance parameter for initial placement
-  const offset = forceParams.value.linkDistance;
-  let newX = selectedNode.position.x;
-  let newY = selectedNode.position.y;
+      switch (event.key) {
+        case 'ArrowUp':
+          newY -= offset;
+          break;
+        case 'ArrowDown':
+          newY += offset;
+          break;
+        case 'ArrowLeft':
+          newX -= offset;
+          break;
+        case 'ArrowRight':
+          newX += offset;
+          break;
+      }
 
-  switch (event.key) {
-    case 'ArrowUp':
-      newY -= offset;
-      break;
-    case 'ArrowDown':
-      newY += offset;
-      break;
-    case 'ArrowLeft':
-      newX -= offset;
-      break;
-    case 'ArrowRight':
-      newX += offset;
-      break;
-  }
+      // Create new node with parent reference
+      const newNode = createNode(newX, newY, undefined, selectedNodeId.value);
+      nodes.value.push(newNode);
 
-  // Create new node with parent reference
-  const newNode = createNode(newX, newY, undefined, selectedNodeId.value);
-  nodes.value.push(newNode);
+      // Create hierarchy edge from selected node to new node (center to center)
+      const newEdge = createEdge(selectedNodeId.value, newNode.id, 'hierarchy');
+      edges.value.push(newEdge);
 
-  // Create hierarchy edge from selected node to new node (center to center)
-  const newEdge = createEdge(selectedNodeId.value, newNode.id, 'hierarchy');
-  edges.value.push(newEdge);
+      // Wait for DOM to render, then read actual dimensions and create Matter.js body
+      void nextTick(() => {
+        // Get actual dimensions from DOM
+        const dimensions = getNodeDimensions(newNode.id);
 
-  // Wait for DOM to render, then read actual dimensions and create Matter.js body
-  void nextTick(() => {
-    // Get actual dimensions from DOM
-    const dimensions = getNodeDimensions(newNode.id);
+        // Calculate center position using ACTUAL dimensions
+        const centerX = newX + dimensions.width / 2;
+        const centerY = newY + dimensions.height / 2;
 
-    // Calculate center position using ACTUAL dimensions
-    const centerX = newX + dimensions.width / 2;
-    const centerY = newY + dimensions.height / 2;
+        console.log(`[DEBUG] Ctrl+Arrow createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
 
-    console.log(`[DEBUG] Tab key createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
+        // Push away any overlapping nodes using the ACTUAL dimensions
+        pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
 
-    // Push away any overlapping nodes using the ACTUAL dimensions
-    pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
+        // Create Matter.js body with actual dimensions
+        createMatterBody(newNode);
 
-    // Create Matter.js body with actual dimensions
-    createMatterBody(newNode);
+        // Update order based on position (Canvas → Store)
+        updateOrderFromPosition();
 
-    // Update order based on position (Canvas → Store)
-    updateOrderFromPosition();
+        // Run simulation to avoid collisions (only in AUTO mode)
+        if (d3Mode.value === 'auto') {
+          runSimulation();
+        }
+      });
 
-    // Run simulation to avoid collisions (only in AUTO mode)
-    if (d3Mode.value === 'auto') {
-      runSimulation();
+      return;
     }
-  });
+
+    // Arrow keys without Ctrl: Navigate between nodes
+    // Only navigate if exactly one node is selected
+    const selectedNodes = getSelectedNodes.value;
+    if (selectedNodes.length !== 1) return;
+
+    event.preventDefault();
+
+    const currentNode = selectedNodes[0];
+    if (!currentNode) return;
+
+    let targetNode: Node | null = null;
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        targetNode = navigateLeft(currentNode);
+        break;
+      case 'ArrowRight':
+        targetNode = navigateRight(currentNode);
+        break;
+      case 'ArrowUp':
+        targetNode = navigateUp(currentNode);
+        break;
+      case 'ArrowDown':
+        targetNode = navigateDown(currentNode);
+        break;
+    }
+
+    if (targetNode) {
+      // Clear current selection and select target node
+      removeSelectedNodes(selectedNodes);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      addSelectedNodes([targetNode as any]);
+      selectedNodeId.value = targetNode.id;
+
+      // Set flag to prevent tree from emitting event (avoid circular loop)
+      isTreeSelectionProgrammatic.value = true;
+
+      // Update tree selection to match canvas selection
+      selectedTreeNodeIds.value = [targetNode.id];
+
+      // Reset flag after Vue updates the tree
+      void nextTick(() => {
+        isTreeSelectionProgrammatic.value = false;
+      });
+
+      // Notify writer to select this node and scroll into view (canvas navigation should scroll writer)
+      eventBus.emit('writer:node-selected', { nodeId: targetNode.id, scrollIntoView: true, source: 'canvas' });
+
+      // Scroll tree node into view (canvas navigation should scroll tree)
+      scrollTreeNodeIntoView(targetNode.id);
+
+      // Do NOT move the canvas - keep current view intact when navigating within mindmap
+    }
+
+    return;
+  }
 }
 
 // Export data model as JSON
@@ -2297,6 +2429,118 @@ function setOrientationCounterclockwise() {
   });
 }
 
+/**
+ * Align selected nodes horizontally with even spacing
+ * - Aligns all nodes to the average Y position (horizontal line)
+ * - Spreads them evenly along X axis
+ * - Leftmost and rightmost nodes stay in place
+ */
+function alignNodesHorizontal() {
+  const selectedNodes = getSelectedNodes.value;
+
+  if (selectedNodes.length < 2) {
+    Notify.create({
+      type: 'warning',
+      message: 'Select at least 2 nodes to align',
+      position: 'top',
+    });
+    return;
+  }
+
+  // Calculate average Y position (horizontal line)
+  const avgY = selectedNodes.reduce((sum, node) => sum + node.position.y, 0) / selectedNodes.length;
+
+  // Sort nodes by X position (left to right)
+  const sortedNodes = [...selectedNodes].sort((a, b) => a.position.x - b.position.x);
+
+  // Get leftmost and rightmost X positions
+  const leftmostX = sortedNodes[0]!.position.x;
+  const rightmostX = sortedNodes[sortedNodes.length - 1]!.position.x;
+
+  // Calculate even spacing
+  const totalDistance = rightmostX - leftmostX;
+  const spacing = totalDistance / (sortedNodes.length - 1);
+
+  // Update positions
+  sortedNodes.forEach((node, index) => {
+    const actualNode = nodes.value.find(n => n.id === node.id);
+    if (actualNode) {
+      actualNode.position = {
+        x: leftmostX + (spacing * index),
+        y: avgY,
+      };
+
+      // Update Matter.js body position if collision detection is enabled
+      if (matterEnabled.value) {
+        updateMatterBodyPosition(actualNode.id, actualNode.position.x, actualNode.position.y);
+      }
+    }
+  });
+
+  Notify.create({
+    type: 'positive',
+    message: `Aligned ${selectedNodes.length} nodes horizontally`,
+    position: 'top',
+    timeout: 1500,
+  });
+}
+
+/**
+ * Align selected nodes vertically with even spacing
+ * - Aligns all nodes to the average X position (vertical line)
+ * - Spreads them evenly along Y axis
+ * - Topmost and bottommost nodes stay in place
+ */
+function alignNodesVertical() {
+  const selectedNodes = getSelectedNodes.value;
+
+  if (selectedNodes.length < 2) {
+    Notify.create({
+      type: 'warning',
+      message: 'Select at least 2 nodes to align',
+      position: 'top',
+    });
+    return;
+  }
+
+  // Calculate average X position (vertical line)
+  const avgX = selectedNodes.reduce((sum, node) => sum + node.position.x, 0) / selectedNodes.length;
+
+  // Sort nodes by Y position (top to bottom)
+  const sortedNodes = [...selectedNodes].sort((a, b) => a.position.y - b.position.y);
+
+  // Get topmost and bottommost Y positions
+  const topmostY = sortedNodes[0]!.position.y;
+  const bottommostY = sortedNodes[sortedNodes.length - 1]!.position.y;
+
+  // Calculate even spacing
+  const totalDistance = bottommostY - topmostY;
+  const spacing = totalDistance / (sortedNodes.length - 1);
+
+  // Update positions
+  sortedNodes.forEach((node, index) => {
+    const actualNode = nodes.value.find(n => n.id === node.id);
+    if (actualNode) {
+      actualNode.position = {
+        x: avgX,
+        y: topmostY + (spacing * index),
+      };
+
+      // Update Matter.js body position if collision detection is enabled
+      if (matterEnabled.value) {
+        updateMatterBodyPosition(actualNode.id, actualNode.position.x, actualNode.position.y);
+      }
+    }
+  });
+
+  Notify.create({
+    type: 'positive',
+    message: `Aligned ${selectedNodes.length} nodes vertically`,
+    position: 'top',
+    timeout: 1500,
+  });
+}
+
 // Update command context with current state
 function updateCommandContext() {
   updateContext({
@@ -2318,6 +2562,8 @@ function updateCommandContext() {
     importFromJSON,
     setOrientationClockwise,
     setOrientationCounterclockwise,
+    alignNodesHorizontal,
+    alignNodesVertical,
   });
 }
 

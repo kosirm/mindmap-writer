@@ -41,6 +41,8 @@ export interface CommandContext {
   importFromJSON?: () => void;
   setOrientationClockwise?: () => void;
   setOrientationCounterclockwise?: () => void;
+  alignNodesHorizontal?: () => void;
+  alignNodesVertical?: () => void;
   [key: string]: unknown;
 }
 

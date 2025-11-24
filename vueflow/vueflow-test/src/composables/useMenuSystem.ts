@@ -25,14 +25,16 @@ export function useMenuSystem() {
     const items = [
       // Removed: addNode, addChildNode, addSiblingNode (indices 0-2)
       toolbarMenus.mindmap[2], // delete
-      toolbarMenus.mindmap[3], // zoomIn
-      toolbarMenus.mindmap[4], // zoomOut
-      toolbarMenus.mindmap[5], // zoomToFit
-      toolbarMenus.mindmap[6], // runLayout
-      toolbarMenus.mindmap[7], // toggleCollisions
-      toolbarMenus.mindmap[8], // resolveOverlaps (conditional - only when collisions OFF)
-      toolbarMenus.mindmap[9], // toggleMinimap
-      toolbarMenus.mindmap[10], // orientation split button
+      toolbarMenus.mindmap[3], // alignHorizontal (conditional - only when 2+ nodes selected)
+      toolbarMenus.mindmap[4], // alignVertical (conditional - only when 2+ nodes selected)
+      toolbarMenus.mindmap[5], // zoomIn
+      toolbarMenus.mindmap[6], // zoomOut
+      toolbarMenus.mindmap[7], // zoomToFit
+      toolbarMenus.mindmap[8], // runLayout
+      toolbarMenus.mindmap[9], // toggleCollisions
+      toolbarMenus.mindmap[10], // resolveOverlaps (conditional - only when collisions OFF)
+      toolbarMenus.mindmap[11], // toggleMinimap
+      toolbarMenus.mindmap[12], // orientation split button
     ];
     return items.filter((item): item is MenuItem => item !== undefined);
   });

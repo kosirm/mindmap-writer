@@ -152,6 +152,62 @@ export function useD3Force(
     }
   }
 
+  // Run D3 Force layout on selected branch only
+  function runD3ForceOnBranch(selectedNodeIds: string[], rootNodeId: string) {
+    console.log('[D3 Force] Starting D3 Force layout on branch:', { selectedNodeIds, rootNodeId });
+
+    if (!simulation) {
+      initSimulation();
+    }
+
+    if (!simulation) return;
+
+    // Mark simulation as running
+    isSimulationRunning.value = true;
+
+    // Get all nodes (both selected and non-selected)
+    const allNodes = nodes.value;
+
+    // Prepare nodes for D3
+    const d3Nodes: SimulationNode[] = allNodes.map(node => {
+      const isInBranch = selectedNodeIds.includes(node.id);
+      const isRoot = node.id === rootNodeId;
+
+      return {
+        id: node.id,
+        x: node.position.x,
+        y: node.position.y,
+        // Fix nodes that are NOT in the selected branch
+        fx: isInBranch ? undefined : node.position.x,
+        fy: isInBranch ? undefined : node.position.y,
+        // Also fix the root node of the branch
+        ...(isRoot ? { fx: node.position.x, fy: node.position.y } : {}),
+      };
+    });
+
+    // Update simulation with new nodes
+    simulation.nodes(d3Nodes);
+
+    // Only create links for edges within the selected branch
+    const branchLinks: SimulationLink[] = edges.value
+      .filter(edge => selectedNodeIds.includes(edge.source) && selectedNodeIds.includes(edge.target))
+      .map(edge => ({
+        source: edge.source,
+        target: edge.target,
+      }));
+
+    // Update link force with branch-only links
+    simulation.force('link', d3.forceLink<SimulationNode, SimulationLink>(branchLinks)
+      .id((d: SimulationNode) => d.id)
+      .distance(forceParams.value.linkDistance)
+      .strength(0.5));
+
+    // Restart simulation
+    simulation.alpha(0.3).restart();
+
+    console.log('[D3 Force] Branch layout started with', selectedNodeIds.length, 'nodes and', branchLinks.length, 'links');
+  }
+
   // Cleanup function
   function cleanup() {
     // Stop D3 simulation
@@ -166,6 +222,7 @@ export function useD3Force(
     initSimulation,
     runSimulation,
     runD3ForceOnce,
+    runD3ForceOnBranch,
     cleanup,
   };
 }

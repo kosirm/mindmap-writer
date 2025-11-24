@@ -198,9 +198,9 @@ watch(isEditing, (newValue) => {
   background: white;
   border: 1px solid #1976d2;
   border-radius: 8px;
-  padding: 4px 12px;
+  padding: 2px 8px;
   /* min-width: 120px; */
-  max-width: 300px;
+  max-width: 200px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: box-shadow 0.2s;
 }

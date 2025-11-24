@@ -71,6 +71,8 @@ export const toolbarMenus = {
     { command: 'mindmap.connectNodes' },
     { command: 'mindmap.editNode' },
     { command: 'edit.delete' },
+    { command: 'mindmap.alignHorizontal' }, // Align nodes horizontally with even spacing
+    { command: 'mindmap.alignVertical' }, // Align nodes vertically with even spacing
     { command: 'view.zoomIn' },
     { command: 'view.zoomOut' },
     { command: 'view.zoomToFit' },
