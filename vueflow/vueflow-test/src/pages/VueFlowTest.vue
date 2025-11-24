@@ -354,6 +354,196 @@
                     Run Planck.js physics simulation once to separate overlapping nodes
                   </div>
                 </div>
+
+                <!-- Physics Mode Toggle -->
+                <div class="q-mb-md">
+                  <q-toggle
+                    v-model="planckPhysicsEnabled"
+                    label="Physics Mode (Springs + Anti-Gravity)"
+                    color="secondary"
+                    left-label
+                    class="full-width"
+                  />
+                  <div class="text-caption text-grey-7 q-mt-xs">
+                    Enable automatic layout with springs and anti-gravity from center
+                  </div>
+                </div>
+
+                <!-- Debug Circles Toggle (only visible when physics mode is ON) -->
+                <div v-if="planckPhysicsEnabled" class="q-mb-md">
+                  <q-toggle
+                    v-model="showDebugCircles"
+                    label="Show Debug Circles"
+                    color="accent"
+                    left-label
+                    class="full-width"
+                  />
+                  <div class="text-caption text-grey-7 q-mt-xs">
+                    Show colored circles for each depth level (Red=roots, Blue=children, Green=grandchildren, etc.)
+                  </div>
+                </div>
+
+                <!-- Physics Parameters (only visible when physics mode is ON) -->
+                <div v-if="planckPhysicsEnabled" class="q-mb-md">
+                  <!-- Circle Attraction Strength Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Circle Attraction Strength</div>
+                    <div class="param-value">{{ planckRadialConstraintStrength.toFixed(0) }}</div>
+                    <q-slider
+                      v-model="planckRadialConstraintStrength"
+                      :min="100"
+                      :max="10000"
+                      :step="100"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      Pulls nodes toward their target circle radius (locks to specific circle)
+                    </div>
+                  </div>
+
+                  <!-- Point Attraction Strength Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Point Attraction Strength</div>
+                    <div class="param-value">{{ planckAngularConstraintStrength.toFixed(0) }}</div>
+                    <q-slider
+                      v-model="planckAngularConstraintStrength"
+                      :min="0"
+                      :max="1000"
+                      :step="10"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      Pulls nodes toward parent's angle (0 = no pull, higher = tighter grouping)
+                    </div>
+                  </div>
+
+                  <!-- Sibling Collision Strength Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Sibling Collision Strength</div>
+                    <div class="param-value">{{ planckSiblingCollisionStrength.toFixed(1) }}</div>
+                    <q-slider
+                      v-model="planckSiblingCollisionStrength"
+                      :min="0"
+                      :max="100"
+                      :step="0.5"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      Collision strength between siblings (same parent) - prevents overlap
+                    </div>
+                  </div>
+
+                  <!-- Inter-Group Collision Strength Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Inter-Group Collision Strength</div>
+                    <div class="param-value">{{ planckInterGroupCollisionStrength.toFixed(1) }}</div>
+                    <q-slider
+                      v-model="planckInterGroupCollisionStrength"
+                      :min="0"
+                      :max="100"
+                      :step="0.5"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      Collision strength between different groups (0 = pass through, higher = collide)
+                    </div>
+                  </div>
+
+                  <!-- Minimum Node Distance Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Minimum Node Distance</div>
+                    <div class="param-value">{{ planckMinNodeDistance.toFixed(0) }}px</div>
+                    <q-slider
+                      v-model="planckMinNodeDistance"
+                      :min="0"
+                      :max="200"
+                      :step="5"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      Minimum gap between node edges on the circle (prevents overlap)
+                    </div>
+                  </div>
+
+                  <!-- Spring Length Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Spring Length</div>
+                    <div class="param-value">{{ planckSpringLength }}px</div>
+                    <q-slider
+                      v-model="planckSpringLength"
+                      :min="50"
+                      :max="500"
+                      :step="10"
+                      color="secondary"
+                    />
+                  </div>
+
+                  <!-- Linear Damping Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Linear Damping (Air Resistance)</div>
+                    <div class="param-value">{{ planckLinearDamping.toFixed(2) }}</div>
+                    <q-slider
+                      v-model="planckLinearDamping"
+                      :min="0.0"
+                      :max="5.0"
+                      :step="0.1"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      Higher = stops oscillation/pendulum faster (2.0 recommended)
+                    </div>
+                  </div>
+
+                  <!-- Physics Time Step Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Physics Speed</div>
+                    <div class="param-value">{{ planckPhysicsTimeStep.toFixed(1) }}x</div>
+                    <q-slider
+                      v-model="planckPhysicsTimeStep"
+                      :min="10"
+                      :max="50"
+                      :step="1"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      Higher = faster simulation (30x recommended)
+                    </div>
+                  </div>
+
+
+
+                  <!-- Velocity Threshold Slider -->
+                  <div class="param-control q-mb-md">
+                    <div class="param-label">Sleep Threshold</div>
+                    <div class="param-value">{{ planckVelocityThreshold.toFixed(1) }}</div>
+                    <q-slider
+                      v-model="planckVelocityThreshold"
+                      :min="0.1"
+                      :max="5.0"
+                      :step="0.1"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      Lower = physics stops sooner when nodes settle
+                    </div>
+                  </div>
+
+                  <!-- Parent Density Multiplier -->
+                  <div class="q-mb-md">
+                    <div class="param-label">Parent Density Multiplier</div>
+                    <div class="param-value">{{ planckParentDensityMultiplier.toFixed(0) }}x</div>
+                    <q-slider
+                      v-model="planckParentDensityMultiplier"
+                      :min="1"
+                      :max="100"
+                      :step="1"
+                      color="secondary"
+                    />
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      How much heavier parents are than children (higher = children can't pull parents)
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <q-separator class="q-my-md" />
@@ -680,6 +870,65 @@
                   :opacity="0.5"
                 />
 
+                <!-- Debug circles for physics mode (concentric circles for each depth level) -->
+                <svg
+                  v-if="planckPhysicsEnabled && showDebugCircles"
+                  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;"
+                >
+                  <g :transform="`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`">
+                    <!-- Circle for depth 0 (root nodes) - Red -->
+                    <circle
+                      cx="0"
+                      cy="0"
+                      :r="planckSpringLength * 1"
+                      fill="none"
+                      stroke="#ff5252"
+                      :stroke-width="2 / viewport.zoom"
+                      opacity="0.5"
+                    />
+                    <!-- Circle for depth 1 (children) - Blue -->
+                    <circle
+                      cx="0"
+                      cy="0"
+                      :r="planckSpringLength * 2"
+                      fill="none"
+                      stroke="#2196f3"
+                      :stroke-width="2 / viewport.zoom"
+                      opacity="0.5"
+                    />
+                    <!-- Circle for depth 2 (grandchildren) - Green -->
+                    <circle
+                      cx="0"
+                      cy="0"
+                      :r="planckSpringLength * 3"
+                      fill="none"
+                      stroke="#4caf50"
+                      :stroke-width="2 / viewport.zoom"
+                      opacity="0.5"
+                    />
+                    <!-- Circle for depth 3 - Orange -->
+                    <circle
+                      cx="0"
+                      cy="0"
+                      :r="planckSpringLength * 4"
+                      fill="none"
+                      stroke="#ff9800"
+                      :stroke-width="2 / viewport.zoom"
+                      opacity="0.5"
+                    />
+                    <!-- Circle for depth 4 - Purple -->
+                    <circle
+                      cx="0"
+                      cy="0"
+                      :r="planckSpringLength * 5"
+                      fill="none"
+                      stroke="#9c27b0"
+                      :stroke-width="2 / viewport.zoom"
+                      opacity="0.5"
+                    />
+                  </g>
+                </svg>
+
                 <!-- MiniMap -->
                 <MiniMap v-if="showMinimap" />
 
@@ -688,6 +937,7 @@
                   <CustomNode
                     :id="nodeProps.id"
                     :data="nodeProps.data"
+                    :debug-color="getDebugColor(nodeProps.id)"
                     @update:data="(newData) => updateNodeData(nodeProps.id, newData)"
                   />
                 </template>
@@ -769,6 +1019,65 @@
                 :opacity="0.5"
               />
 
+              <!-- Debug circles for physics mode (concentric circles for each depth level) -->
+              <svg
+                v-if="planckPhysicsEnabled && showDebugCircles"
+                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;"
+              >
+                <g :transform="`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`">
+                  <!-- Circle for depth 0 (root nodes) - Red -->
+                  <circle
+                    cx="0"
+                    cy="0"
+                    :r="planckSpringLength * 1"
+                    fill="none"
+                    stroke="#ff5252"
+                    :stroke-width="2 / viewport.zoom"
+                    opacity="0.5"
+                  />
+                  <!-- Circle for depth 1 (children) - Blue -->
+                  <circle
+                    cx="0"
+                    cy="0"
+                    :r="planckSpringLength * 2"
+                    fill="none"
+                    stroke="#2196f3"
+                    :stroke-width="2 / viewport.zoom"
+                    opacity="0.5"
+                  />
+                  <!-- Circle for depth 2 (grandchildren) - Green -->
+                  <circle
+                    cx="0"
+                    cy="0"
+                    :r="planckSpringLength * 3"
+                    fill="none"
+                    stroke="#4caf50"
+                    :stroke-width="2 / viewport.zoom"
+                    opacity="0.5"
+                  />
+                  <!-- Circle for depth 3 - Orange -->
+                  <circle
+                    cx="0"
+                    cy="0"
+                    :r="planckSpringLength * 4"
+                    fill="none"
+                    stroke="#ff9800"
+                    :stroke-width="2 / viewport.zoom"
+                    opacity="0.5"
+                  />
+                  <!-- Circle for depth 4 - Purple -->
+                  <circle
+                    cx="0"
+                    cy="0"
+                    :r="planckSpringLength * 5"
+                    fill="none"
+                    stroke="#9c27b0"
+                    :stroke-width="2 / viewport.zoom"
+                    opacity="0.5"
+                  />
+                </g>
+              </svg>
+
               <!-- MiniMap -->
               <MiniMap v-if="showMinimap" />
 
@@ -777,6 +1086,7 @@
                 <CustomNode
                   :id="nodeProps.id"
                   :data="nodeProps.data"
+                  :debug-color="getDebugColor(nodeProps.id)"
                   @update:data="(newData) => updateNodeData(nodeProps.id, newData)"
                 />
               </template>
@@ -887,6 +1197,9 @@ const viewMode = ref<'split' | 'mindmap' | 'writer'>('split');
 // Splitter model (percentage for left panel)
 const splitterModel = ref(50);
 
+// Debug circles toggle
+const showDebugCircles = ref(true); // Show by default when physics mode is on
+
 // Drawer toggle functions
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value;
@@ -983,6 +1296,21 @@ const isAltKeyPressed = ref(false); // Track Alt key for disabling collision whi
 // Planck.js collision state
 const planckEnabled = ref(false); // Planck.js collision detection OFF by default
 const planckCornerRadius = ref(10); // Corner radius for rounded rectangle collision bodies (0-30px range)
+const planckPhysicsEnabled = ref(false); // Planck.js physics mode (springs + anti-gravity) OFF by default
+
+// Planck.js physics parameters
+const planckSpringLength = ref(100); // Spring length in pixels (50-500)
+const planckRadialConstraintStrength = ref(1000); // Circle attraction strength (100-5000)
+const planckAngularConstraintStrength = ref(500); // Point attraction strength (0-1000) - increased to 500 so children follow parent
+const planckSiblingCollisionStrength = ref(10.0); // Sibling collision strength (0-100) - increased to 10 for stronger repulsion
+const planckInterGroupCollisionStrength = ref(0.0); // Inter-group collision strength (0-100)
+const planckMinNodeDistance = ref(30); // Minimum distance between node edges (0-200px) - increased to 30 for better spacing
+const planckSpringStiffness = ref(1); // Spring stiffness (0.01-30 Hz)
+const planckSpringDamping = ref(0.3); // Spring damping (0.0-1.0)
+const planckLinearDamping = ref(2.0); // Air resistance (increased to 2.0 to stop oscillation faster)
+const planckPhysicsTimeStep = ref(30.0); // Physics speed multiplier (10-50, higher = faster simulation)
+const planckVelocityThreshold = ref(0.5); // Sleep threshold (0.1-5.0)
+const planckParentDensityMultiplier = ref(10); // Parent density multiplier (1-100)
 
 // D3 Force parameters (adjustable)
 const forceParams = ref<D3ForceParams>({
@@ -1017,6 +1345,24 @@ const {
   updatePlanckBodyPosition,
   updatePlanckBodyDimensions,
   runPlanckSimulation,
+  disableInterGroupCollisionTemporarily,
+  // Physics mode
+  startPhysicsMode,
+  stopPhysicsMode,
+  updatePhysicsSprings,
+  // Physics parameters
+  RADIAL_CONSTRAINT_STRENGTH,
+  ANGULAR_CONSTRAINT_STRENGTH,
+  SIBLING_COLLISION_STRENGTH,
+  INTER_GROUP_COLLISION_STRENGTH,
+  MIN_NODE_DISTANCE,
+  SPRING_STIFFNESS,
+  SPRING_LENGTH_PARENT_CHILD,
+  SPRING_DAMPING,
+  LINEAR_DAMPING,
+  PHYSICS_TIME_STEP,
+  VELOCITY_THRESHOLD,
+  PARENT_DENSITY_MULTIPLIER,
 } = usePlanckCollision(nodes, planckEnabled, planckCornerRadius);
 
 // Initialize D3 Force composable
@@ -1096,6 +1442,9 @@ let nodeCounter = 1;
 // Get Vue Flow instance
 const { project, vueFlowRef, connectionStartHandle, getSelectedNodes, getSelectedEdges, addSelectedNodes, removeSelectedNodes, setCenter, getViewport } = useVueFlow();
 
+// Get current viewport for debug circles
+const viewport = computed(() => getViewport());
+
 // Initial viewport - center the canvas (0, 0) in the middle of the viewport
 // This will be calculated once the component mounts and we know the container size
 const initialViewport = ref({ zoom: 1, x: 400, y: 300 });
@@ -1123,6 +1472,37 @@ const isTreeSelectionProgrammatic = ref(false);
 const rootNodes = computed(() => {
   return nodes.value.filter(node => !node.data.parentId);
 });
+
+// Helper: Calculate depth of a node (how many generations from root)
+function getNodeDepth(nodeId: string): number {
+  let depth = 0;
+  let currentNode = nodes.value.find(n => n.id === nodeId);
+
+  while (currentNode?.data?.parentId) {
+    depth++;
+    currentNode = nodes.value.find(n => n.id === currentNode!.data.parentId);
+  }
+
+  return depth;
+}
+
+// Helper: Get debug color for a node based on its depth
+function getDebugColor(nodeId: string): string {
+  if (!showDebugCircles.value || !planckPhysicsEnabled.value) {
+    return 'transparent'; // No color when debug is off
+  }
+
+  const depth = getNodeDepth(nodeId);
+  const colors = [
+    'rgba(255, 82, 82, 0.1)',   // Red (depth 0 - roots)
+    'rgba(33, 150, 243, 0.1)',  // Blue (depth 1 - children)
+    'rgba(76, 175, 80, 0.1)',   // Green (depth 2 - grandchildren)
+    'rgba(255, 152, 0, 0.1)',   // Orange (depth 3)
+    'rgba(156, 39, 176, 0.1)',  // Purple (depth 4)
+  ];
+
+  return colors[depth] || 'transparent';
+}
 
 // Tree node interface for q-tree component
 interface TreeNode {
@@ -1353,6 +1733,17 @@ function onPaneClick(mouseEvent: MouseEvent) {
 
       // Create Matter.js body with actual dimensions at adjusted position
       createMatterBody(newNode);
+
+      // Create Planck.js body if collision detection or physics mode is enabled
+      if (planckEnabled.value || planckPhysicsEnabled.value) {
+        createPlanckBody(newNode);
+
+        // If physics mode is active, update physics (no-op since we use radial constraints)
+        if (planckPhysicsEnabled.value) {
+          console.log('[DEBUG] New node created during physics mode - body added to simulation');
+          updatePhysicsSprings(edges.value);
+        }
+      }
 
       // Update order based on position (Canvas → Store)
       updateOrderFromPosition();
@@ -1590,10 +1981,25 @@ function onConnectEnd(event?: MouseEvent) {
     // console.log(`[DEBUG] Connection drop createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at drop position (${centerX}, ${centerY})`);
 
     // Push away any overlapping nodes using the ACTUAL dimensions
-    pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
+    // Skip if physics mode is active (physics will handle collision naturally)
+    if (!planckPhysicsEnabled.value) {
+      pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
+    }
 
     // Create Matter.js body with actual dimensions at adjusted position
     createMatterBody(newNode);
+
+    // Create Planck.js body if collision detection or physics mode is enabled
+    if (planckEnabled.value || planckPhysicsEnabled.value) {
+      createPlanckBody(newNode);
+
+      // If physics mode is active, recreate springs to include the new node and edge
+      // Pass skipRadialPositioning=true to avoid repositioning all nodes
+      if (planckPhysicsEnabled.value) {
+        console.log('[DEBUG] New child node (Alt+Drag) created during physics mode - adding to simulation...');
+        updatePhysicsSprings(edges.value, true);
+      }
+    }
 
     // Update order based on position (Canvas → Store)
     updateOrderFromPosition();
@@ -1641,8 +2047,8 @@ function onNodeDrag(event: { node: Node }) {
     }
   }
 
-  // Handle Planck.js collision detection
-  if (planckEnabled.value) {
+  // Handle Planck.js collision detection (but NOT physics mode - physics handles its own updates)
+  if (planckEnabled.value && !planckPhysicsEnabled.value) {
     // If multiple nodes are selected, update ALL their Planck.js body positions
     if (multipleNodesSelected) {
       selectedNodes.forEach(node => {
@@ -1662,12 +2068,31 @@ function onNodeDrag(event: { node: Node }) {
     // Run a few simulation steps to push other nodes away
     runPlanckSimulation(3);
   }
+
+  // Handle Planck.js physics mode - update body position when dragging
+  if (planckPhysicsEnabled.value) {
+    // Update the Planck.js body position to match the dragged node
+    // This allows the user to "stretch" the springs by dragging
+    if (multipleNodesSelected) {
+      selectedNodes.forEach(node => {
+        updatePlanckBodyPosition(node.id, node.position.x, node.position.y);
+      });
+    } else {
+      updatePlanckBodyPosition(draggedNode.id, draggedNode.position.x, draggedNode.position.y);
+    }
+  }
 }
 
 // Handle node drag stop - run Matter.js or Planck.js engine to resolve any overlaps
 function onNodeDragStop() {
   // Update order based on position (Canvas → Store)
   updateOrderFromPosition();
+
+  // If physics mode is enabled, temporarily disable inter-group collision
+  // to allow children to follow their parent without getting stuck
+  if (planckPhysicsEnabled.value) {
+    disableInterGroupCollisionTemporarily(3000); // 3 seconds
+  }
 
   const selectedNodes = getSelectedNodes.value;
   const multipleNodesSelected = selectedNodes.length > 1;
@@ -1843,10 +2268,25 @@ function onKeyDown(event: KeyboardEvent) {
     console.log(`[DEBUG] Tab key createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
 
     // Push away any overlapping nodes using the ACTUAL dimensions
-    pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
+    // Skip if physics mode is active (physics will handle collision naturally)
+    if (!planckPhysicsEnabled.value) {
+      pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
+    }
 
     // Create Matter.js body with actual dimensions
     createMatterBody(newNode);
+
+    // Create Planck.js body if collision detection or physics mode is enabled
+    if (planckEnabled.value || planckPhysicsEnabled.value) {
+      createPlanckBody(newNode);
+
+      // If physics mode is active, recreate springs to include the new node and edge
+      // Pass skipRadialPositioning=true to avoid repositioning all nodes
+      if (planckPhysicsEnabled.value) {
+        console.log('[DEBUG] New child node (Ctrl+Arrow) created during physics mode - adding to simulation...');
+        updatePhysicsSprings(edges.value, true);
+      }
+    }
 
     // Update order based on position (Canvas → Store)
     updateOrderFromPosition();
@@ -2338,6 +2778,92 @@ watch(planckEnabled, (enabled) => {
   } else {
     console.log('[Planck.js] Disabled');
   }
+});
+
+// Watch for Planck.js physics mode toggle - start/stop physics
+watch(planckPhysicsEnabled, (enabled) => {
+  if (enabled) {
+    console.log('[Planck.js Physics] Starting physics mode...');
+    startPhysicsMode(edges.value);
+  } else {
+    console.log('[Planck.js Physics] Stopping physics mode...');
+    stopPhysicsMode();
+  }
+});
+
+// Watch for physics parameter changes and sync with composable
+watch(planckSpringLength, (value) => {
+  console.log(`[DEBUG] Spring length changed to: ${value}`);
+  SPRING_LENGTH_PARENT_CHILD.value = value;
+  // Note: Using radial constraints, not springs - changes take effect immediately
+});
+
+watch(planckSpringStiffness, (value) => {
+  console.log(`[DEBUG] Spring stiffness changed to: ${value}`);
+  SPRING_STIFFNESS.value = value;
+  // Note: Using radial constraints, not springs - parameter kept for compatibility
+});
+
+watch(planckSpringDamping, (value) => {
+  console.log(`[DEBUG] Spring damping changed to: ${value}`);
+  SPRING_DAMPING.value = value;
+  // Note: Using radial constraints, not springs - parameter kept for compatibility
+});
+
+watch(planckRadialConstraintStrength, (value) => {
+  console.log(`[DEBUG] Circle attraction strength changed to: ${value}`);
+  RADIAL_CONSTRAINT_STRENGTH.value = value;
+  // Applied in animation loop, no need to recreate anything
+});
+
+watch(planckAngularConstraintStrength, (value) => {
+  console.log(`[DEBUG] Point attraction strength changed to: ${value}`);
+  ANGULAR_CONSTRAINT_STRENGTH.value = value;
+  // Applied in animation loop, no need to recreate anything
+});
+
+watch(planckSiblingCollisionStrength, (value) => {
+  console.log(`[DEBUG] Sibling collision strength changed to: ${value}`);
+  SIBLING_COLLISION_STRENGTH.value = value;
+  // Applied in pre-solve collision listener, takes effect immediately
+});
+
+watch(planckInterGroupCollisionStrength, (value) => {
+  console.log(`[DEBUG] Inter-group collision strength changed to: ${value}`);
+  INTER_GROUP_COLLISION_STRENGTH.value = value;
+  // Applied in pre-solve collision listener, takes effect immediately
+});
+
+watch(planckMinNodeDistance, (value) => {
+  console.log(`[DEBUG] Minimum node distance changed to: ${value}`);
+  MIN_NODE_DISTANCE.value = value;
+});
+
+watch(planckLinearDamping, (value) => {
+  console.log(`[DEBUG] Linear damping changed to: ${value}`);
+  LINEAR_DAMPING.value = value;
+  // Note: Linear damping is set during body creation and cannot be changed on existing bodies
+  // To apply new damping, you need to restart physics mode (turn off and on again)
+});
+
+watch(planckPhysicsTimeStep, (value) => {
+  console.log(`[DEBUG] Physics time step changed to: ${value}`);
+  PHYSICS_TIME_STEP.value = value;
+  // Applied in animation loop, no need to recreate anything
+});
+
+watch(planckVelocityThreshold, (value) => {
+  console.log(`[DEBUG] Velocity threshold changed to: ${value}`);
+  VELOCITY_THRESHOLD.value = value;
+  // Applied in physics world, no need to recreate anything
+});
+
+watch(planckParentDensityMultiplier, (value) => {
+  console.log(`[DEBUG] Parent density multiplier changed to: ${value}`);
+  PARENT_DENSITY_MULTIPLIER.value = value;
+  // Need to recreate bodies with new density
+  // For now, bodies will use new value on next creation
+  // TODO: Recreate all bodies to apply new density immediately
 });
 
 // Watch for changes that affect command availability (with flush: 'post' to avoid blocking UI)

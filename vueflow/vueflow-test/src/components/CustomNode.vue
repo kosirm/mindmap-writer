@@ -1,5 +1,5 @@
 <template>
-  <div class="custom-node">
+  <div class="custom-node" :style="{ backgroundColor: debugColor }">
     <!-- Vue Flow handles (invisible, center-positioned) -->
     <Handle
       type="source"
@@ -65,9 +65,12 @@ interface Props {
     content: string;
     parentId: string | null;
   };
+  debugColor?: string; // Optional debug color for physics mode visualization
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  debugColor: 'transparent'
+});
 
 // Emit to update node data
 const emit = defineEmits<{
@@ -198,7 +201,7 @@ watch(isEditing, (newValue) => {
   background: white;
   border: 1px solid #1976d2;
   border-radius: 8px;
-  padding: 4px 12px;
+  padding: 0px 6px;
   /* min-width: 120px; */
   max-width: 300px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
