@@ -474,11 +474,45 @@
 
                 <q-item>
                   <q-item-section avatar>
+                    <q-icon color="primary" name="info" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label><strong>Navigation Modes</strong></q-item-label>
+                    <q-item-label caption>
+                      <strong>Single Selection:</strong> Arrow keys clear previous selection (default after click or Escape)<br>
+                      <strong>Multi-Selection:</strong> Shift+Arrow toggles selection (add/remove nodes)<br>
+                      <strong>Half Navigation:</strong> Arrow keys preserve selection without adding (after releasing Shift)
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
                     <q-icon color="primary" name="keyboard" />
                   </q-item-section>
                   <q-item-section>
                     <q-item-label><strong>Arrow keys</strong></q-item-label>
-                    <q-item-label caption>Navigate between nodes (Left/Right = hierarchy, Up/Down = siblings)</q-item-label>
+                    <q-item-label caption>Navigate between nodes (Left/Right = hierarchy, Up/Down = siblings). Behavior depends on navigation mode.</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="select_all" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label><strong>Shift + Arrow keys</strong></q-item-label>
+                    <q-item-label caption>Multi-Selection mode: Navigate and toggle selection (add/remove nodes from selection)</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="clear" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label><strong>Escape</strong></q-item-label>
+                    <q-item-label caption>Clear all selections except current node, switch to Single Selection mode</q-item-label>
                   </q-item-section>
                 </q-item>
 
@@ -1019,6 +1053,10 @@ const isCKeyPressed = ref(false); // Track C key for reference connections
 const planckEnabled = ref(false); // Planck.js collision detection OFF by default
 const planckCornerRadius = ref(10); // Corner radius for rounded rectangle collision bodies (0-30px range)
 
+// Navigation modes
+type NavigationMode = 'single' | 'multi' | 'half';
+const navigationMode = ref<NavigationMode>('single'); // Default to single selection mode
+
 // D3 Force parameters (adjustable)
 const forceParams = ref<D3ForceParams>({
   chargeStrength: -300,      // How strongly nodes repel each other
@@ -1480,11 +1518,15 @@ function onNodeClick(event: any) {
   const isShiftClick = mouseEvent && 'shiftKey' in mouseEvent ? mouseEvent.shiftKey : false;
 
   if (isShiftClick) {
-    // Shift+Click: Select node with all its children
+    // Shift+Click: Select node with all its children, switch to multi mode
+    navigationMode.value = 'multi';
     const nodeIds = [event.node.id, ...getAllDescendants(event.node.id)];
     eventBus.emit('canvas:nodes-selected', { nodeIds });
   } else {
-    // Regular click: Select single node
+    // Regular click: Clear all selections and select only this node, switch to single mode
+    navigationMode.value = 'single';
+    const selectedNodes = getSelectedNodes.value;
+    removeSelectedNodes(selectedNodes);
     eventBus.emit('canvas:node-selected', { nodeId: event.node.id });
   }
 }
@@ -1905,6 +1947,35 @@ function onKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  // Handle Escape key - clear all selections except current node, switch to Single Selection mode
+  if (event.key === 'Escape') {
+    event.preventDefault();
+
+    const selectedNodes = getSelectedNodes.value;
+
+    console.log('[DEBUG] Escape: Before clear - selected nodes:', selectedNodes.map(n => n.id));
+
+    // Clear all selections
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    selectedNodes.forEach(n => (n as any).selected = false);
+
+    // If there's a current node, select only that node
+    if (selectedNodeId.value) {
+      const currentNode = nodes.value.find(n => n.id === selectedNodeId.value);
+      if (currentNode) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (currentNode as any).selected = true;
+      }
+    }
+
+    // Switch to Single Selection mode
+    navigationMode.value = 'single';
+
+    console.log('[DEBUG] Escape: After clear - mode:', navigationMode.value, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
+
+    return;
+  }
+
   // Handle arrow keys
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 
@@ -2053,13 +2124,15 @@ function onKeyDown(event: KeyboardEvent) {
     }
 
     // Arrow keys without Ctrl: Navigate between nodes
-    // Only navigate if exactly one node is selected
+    // Navigate from the currently active node (selectedNodeId)
     const selectedNodes = getSelectedNodes.value;
-    if (selectedNodes.length !== 1) return;
+
+    // If no node is selected, do nothing
+    if (!selectedNodeId.value) return;
 
     event.preventDefault();
 
-    const currentNode = selectedNodes[0];
+    const currentNode = nodes.value.find(n => n.id === selectedNodeId.value);
     if (!currentNode) return;
 
     let targetNode: Node | null = null;
@@ -2080,28 +2153,92 @@ function onKeyDown(event: KeyboardEvent) {
     }
 
     if (targetNode) {
-      // Clear current selection and select target node
-      removeSelectedNodes(selectedNodes);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      addSelectedNodes([targetNode as any]);
-      selectedNodeId.value = targetNode.id;
+      // Check if Shift key is pressed
+      if (event.shiftKey) {
+        // SHIFT + ARROW: Multi-Selection Mode
+        // Strategy: Toggle the TARGET node (the one we're arriving at)
+        // Keep the CURRENT node's selection state unchanged
+        // This creates a "painting" effect - you paint selection/deselection as you move
+        navigationMode.value = 'multi';
 
-      // Set flag to prevent tree from emitting event (avoid circular loop)
-      isTreeSelectionProgrammatic.value = true;
+        console.log('[DEBUG] Shift+Arrow (Multi-Selection): Before toggle - current node:', selectedNodeId.value, 'target node:', targetNode.id, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
 
-      // Update tree selection to match canvas selection
-      selectedTreeNodeIds.value = [targetNode.id];
+        // Toggle the TARGET node's selection state
+        const isTargetSelected = selectedNodes.some(n => n.id === targetNode.id);
 
-      // Reset flag after Vue updates the tree
+        if (isTargetSelected) {
+          // Target is already selected → Deselect it
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (targetNode as any).selected = false;
+          console.log('[DEBUG] Shift+Arrow: Deselected target node', targetNode.id);
+        } else {
+          // Target is not selected → Select it
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (targetNode as any).selected = true;
+          console.log('[DEBUG] Shift+Arrow: Selected target node', targetNode.id);
+        }
+
+        // Update current node (cursor position) - move to target
+        selectedNodeId.value = targetNode.id;
+
+        console.log('[DEBUG] Shift+Arrow: After toggle - selected nodes:', getSelectedNodes.value.map(n => n.id));
+
+        // Check if all nodes are now deselected - if so, switch to Single Selection mode
+        void nextTick(() => {
+          const remainingSelected = getSelectedNodes.value;
+          if (remainingSelected.length === 0) {
+            console.log('[DEBUG] Shift+Arrow: All nodes deselected - switching to Single Selection mode');
+            navigationMode.value = 'single';
+            // Select the current node (which is now the target node)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (targetNode as any).selected = true;
+          }
+        });
+
+      } else {
+        // ARROW WITHOUT SHIFT: Behavior depends on current navigation mode
+
+        if (navigationMode.value === 'single') {
+          // SINGLE SELECTION MODE: Clear previous selection, select only target node
+          console.log('[DEBUG] Arrow (Single Selection): Before navigation - selected nodes:', getSelectedNodes.value.map(n => n.id));
+
+          // Clear all selections
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          selectedNodes.forEach(n => (n as any).selected = false);
+
+          // Select only target node
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (targetNode as any).selected = true;
+
+          console.log('[DEBUG] Arrow (Single Selection): Cleared previous selection, selected node', targetNode.id);
+
+        } else if (navigationMode.value === 'multi') {
+          // HALF/NORMAL NAVIGATION MODE: Just released Shift key
+          // Switch to half mode - preserve selection, don't add new nodes
+          navigationMode.value = 'half';
+          console.log('[DEBUG] Arrow (Half Navigation): Switched from multi to half mode - selected nodes:', getSelectedNodes.value.map(n => n.id));
+
+          // Don't change selection - just move cursor
+
+        } else {
+          // ALREADY IN HALF NAVIGATION MODE: Just move cursor, don't change selection
+          console.log('[DEBUG] Arrow (Half Navigation): Moving cursor - selected nodes:', getSelectedNodes.value.map(n => n.id));
+
+          // Don't change selection - just move cursor
+        }
+
+        // Update current node (cursor position)
+        selectedNodeId.value = targetNode.id;
+
+        console.log('[DEBUG] Arrow: After navigation - mode:', navigationMode.value, 'active node:', selectedNodeId.value, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
+      }
+
+      // Wait for VueFlow to update selection state before syncing to tree/writer
+      // The watcher on getSelectedNodes (lines 3289-3309) will automatically sync multi-selection to tree and writer
       void nextTick(() => {
-        isTreeSelectionProgrammatic.value = false;
+        // Scroll tree node into view (canvas navigation should scroll tree)
+        scrollTreeNodeIntoView(targetNode.id);
       });
-
-      // Notify writer to select this node and scroll into view (canvas navigation should scroll writer)
-      eventBus.emit('writer:node-selected', { nodeId: targetNode.id, scrollIntoView: true, source: 'canvas' });
-
-      // Scroll tree node into view (canvas navigation should scroll tree)
-      scrollTreeNodeIntoView(targetNode.id);
 
       // Do NOT move the canvas - keep current view intact when navigating within mindmap
     }
@@ -3226,13 +3363,57 @@ function handleCanvasPaneClicked() {
   eventBus.emit('writer:node-selected', { nodeId: null, scrollIntoView: false, source: 'canvas' });
 }
 
+// Watch for active node changes - update node classes for styling
+watch(selectedNodeId, (newId, oldId) => {
+  console.log('[DEBUG] Active node changed from', oldId, 'to', newId);
+
+  // Remove active-node class from old node
+  if (oldId) {
+    const oldNode = nodes.value.find(n => n.id === oldId);
+    if (oldNode) {
+      const currentClass = oldNode.class;
+      if (typeof currentClass === 'string') {
+        const newClass = currentClass.replace('active-node', '').trim();
+        if (newClass) {
+          oldNode.class = newClass;
+        } else {
+          delete oldNode.class;
+        }
+      }
+    }
+  }
+
+  // Add active-node class to new node
+  if (newId) {
+    const newNode = nodes.value.find(n => n.id === newId);
+    if (newNode) {
+      const currentClass = newNode.class;
+      if (typeof currentClass === 'string') {
+        newNode.class = `${currentClass} active-node`;
+      } else {
+        newNode.class = 'active-node';
+      }
+    }
+  }
+});
+
 // Watch for canvas selection changes - sync to tree and writer
-// This watcher is still needed to handle multi-select and other Vue Flow selection changes
+// This watcher handles multi-select from VueFlow (Ctrl+Click, Shift+Drag, Shift+Arrow)
 watch(getSelectedNodes, (selectedNodes) => {
   const selectedIds = selectedNodes.map(node => node.id);
 
+  console.log('[DEBUG] Selection watcher triggered - selected nodes:', selectedIds);
+
+  // Set flag to prevent tree from emitting event (avoid circular loop)
+  isTreeSelectionProgrammatic.value = true;
+
   // Update tree selection to match canvas selection
   selectedTreeNodeIds.value = selectedIds;
+
+  // Reset flag after Vue updates the tree
+  void nextTick(() => {
+    isTreeSelectionProgrammatic.value = false;
+  });
 
   // Update writer selection to match canvas selection (support multi-select)
   if (selectedIds.length === 0) {
@@ -3425,10 +3606,21 @@ onBeforeUnmount(() => {
   font-style: italic;
 }
 
-/* Selected node styling - subtle background change */
+/* Active node styling - when NOT selected (half/normal navigation mode) - orange border */
+:deep(.vue-flow__node.active-node:not(.selected)) .custom-node {
+  box-shadow: 0 0 0 2px #ff9800 !important;
+}
+
+/* Selected node styling - light blue background for all selected nodes */
 :deep(.vue-flow__node.selected) .custom-node {
-  background: #e3f2fd;
-  box-shadow: 0 0 0 2px #1976d2;
+  background: #e3f2fd !important;
+  box-shadow: 0 0 0 2px #1976d2 !important;
+}
+
+/* Active node styling - darker blue background and thicker border for the current/active node (when selected) */
+:deep(.vue-flow__node.selected.active-node) .custom-node {
+  background: #bbdefb !important;
+  box-shadow: 0 0 0 3px #1565c0 !important;
 }
 
 /* Center handle - invisible but functional */

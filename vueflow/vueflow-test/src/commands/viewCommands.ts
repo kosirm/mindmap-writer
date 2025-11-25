@@ -110,7 +110,7 @@ export const viewCommands: Command[] = [
     label: 'Counter-Clockwise',
     icon: 'rotate_left',  // Swapped: clockwise goes left (counterclockwise arrow)
     category: 'view',
-    tooltip: 'Set mindmap orientation to clockwise (0° top, nodes arranged clockwise)',
+    tooltip: 'Map Orientation',
     showInPalette: true,
     execute: (context) => {
       if (context?.setOrientationClockwise) {
@@ -124,7 +124,7 @@ export const viewCommands: Command[] = [
     label: 'Clockwise',
     icon: 'rotate_right',  // Swapped: counterclockwise goes right (clockwise arrow)
     category: 'view',
-    tooltip: 'Set mindmap orientation to counterclockwise (0° top, nodes arranged counterclockwise)',
+    tooltip: 'Map orientation',
     showInPalette: true,
     execute: (context) => {
       if (context?.setOrientationCounterclockwise) {
