@@ -480,7 +480,8 @@
                     <q-item-label><strong>Navigation Modes</strong></q-item-label>
                     <q-item-label caption>
                       <strong>Single Selection:</strong> Arrow keys clear previous selection (default after click or Escape)<br>
-                      <strong>Multi-Selection:</strong> Shift+Arrow toggles selection (add/remove nodes)<br>
+                      <strong>Selection Painting:</strong> Hold Shift+Arrow to paint selection as you navigate<br>
+                      <strong>Deselection Painting:</strong> Hold Shift+Y+Arrow to paint deselection as you navigate<br>
                       <strong>Half Navigation:</strong> Arrow keys preserve selection without adding (after releasing Shift)
                     </q-item-label>
                   </q-item-section>
@@ -502,7 +503,17 @@
                   </q-item-section>
                   <q-item-section>
                     <q-item-label><strong>Shift + Arrow keys</strong></q-item-label>
-                    <q-item-label caption>Multi-Selection mode: Navigate and toggle selection (add/remove nodes from selection)</q-item-label>
+                    <q-item-label caption>Selection Painting: Hold Shift and navigate with arrows to paint selection (both current and target nodes get selected)</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="remove_circle" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label><strong>Shift + Y + Arrow keys</strong></q-item-label>
+                    <q-item-label caption>Deselection Painting: Hold Shift+Y and navigate with arrows to paint deselection (both current and target nodes get deselected)</q-item-label>
                   </q-item-section>
                 </q-item>
 
@@ -1048,6 +1059,7 @@ const d3Mode = ref<'off' | 'manual' | 'auto'>('off'); // Default to OFF (full ma
 const matterEnabled = ref(false); // Matter.js collision detection OFF by default
 const isAltKeyPressed = ref(false); // Track Alt key for disabling collision while dragging
 const isCKeyPressed = ref(false); // Track C key for reference connections
+const isYKeyPressed = ref(false); // Track Y key for deselection mode (Shift+Y+Arrow)
 
 // Planck.js collision state
 const planckEnabled = ref(false); // Planck.js collision detection OFF by default
@@ -1860,6 +1872,10 @@ function onAltKeyDown(event: KeyboardEvent) {
     isCKeyPressed.value = true;
     console.log('[DEBUG] C key pressed - reference connection mode ENABLED');
   }
+  if (event.key === 'y' || event.key === 'Y') {
+    isYKeyPressed.value = true;
+    console.log('[DEBUG] Y key pressed - deselection mode ENABLED (use with Shift+Arrow)');
+  }
 }
 
 // Handle Alt key release - re-enable collision detection
@@ -1871,6 +1887,10 @@ function onAltKeyUp(event: KeyboardEvent) {
   if (event.key === 'c' || event.key === 'C') {
     isCKeyPressed.value = false;
     console.log('[DEBUG] C key released - reference connection mode DISABLED');
+  }
+  if (event.key === 'y' || event.key === 'Y') {
+    isYKeyPressed.value = false;
+    console.log('[DEBUG] Y key released - deselection mode DISABLED');
   }
 }
 
@@ -2155,45 +2175,61 @@ function onKeyDown(event: KeyboardEvent) {
     if (targetNode) {
       // Check if Shift key is pressed
       if (event.shiftKey) {
-        // SHIFT + ARROW: Multi-Selection Mode
-        // Strategy: Toggle the TARGET node (the one we're arriving at)
-        // Keep the CURRENT node's selection state unchanged
-        // This creates a "painting" effect - you paint selection/deselection as you move
+        // SHIFT + ARROW: Selection/Deselection Painting Mode
+        // - Shift+Arrow = paint selection (force both current and target to selected)
+        // - Shift+Y+Arrow = paint deselection (force both current and target to deselected)
         navigationMode.value = 'multi';
 
-        console.log('[DEBUG] Shift+Arrow (Multi-Selection): Before toggle - current node:', selectedNodeId.value, 'target node:', targetNode.id, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
+        // Capture the deselection mode state NOW (before nextTick)
+        const isDeselectionMode = isYKeyPressed.value;
 
-        // Toggle the TARGET node's selection state
-        const isTargetSelected = selectedNodes.some(n => n.id === targetNode.id);
+        if (isDeselectionMode) {
+          // DESELECTION MODE: Shift+Y+Arrow - paint deselection
+          console.log('[DEBUG] Shift+Y+Arrow (Deselection): Before paint - current node:', selectedNodeId.value, 'target node:', targetNode.id, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
 
-        if (isTargetSelected) {
-          // Target is already selected → Deselect it
+          // Force CURRENT node to deselected
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (currentNode as any).selected = false;
+
+          // Force TARGET node to deselected
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (targetNode as any).selected = false;
-          console.log('[DEBUG] Shift+Arrow: Deselected target node', targetNode.id);
+
+          console.log('[DEBUG] Shift+Y+Arrow: Painted deselection on current and target nodes');
         } else {
-          // Target is not selected → Select it
+          // SELECTION MODE: Shift+Arrow - paint selection
+          console.log('[DEBUG] Shift+Arrow (Selection): Before paint - current node:', selectedNodeId.value, 'target node:', targetNode.id, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
+
+          // Force CURRENT node to selected
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (currentNode as any).selected = true;
+
+          // Force TARGET node to selected
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (targetNode as any).selected = true;
-          console.log('[DEBUG] Shift+Arrow: Selected target node', targetNode.id);
+
+          console.log('[DEBUG] Shift+Arrow: Painted selection on current and target nodes');
         }
 
         // Update current node (cursor position) - move to target
         selectedNodeId.value = targetNode.id;
 
-        console.log('[DEBUG] Shift+Arrow: After toggle - selected nodes:', getSelectedNodes.value.map(n => n.id));
+        console.log('[DEBUG] Shift+Arrow: After paint - selected nodes:', getSelectedNodes.value.map(n => n.id));
 
-        // Check if all nodes are now deselected - if so, switch to Single Selection mode
-        void nextTick(() => {
-          const remainingSelected = getSelectedNodes.value;
-          if (remainingSelected.length === 0) {
-            console.log('[DEBUG] Shift+Arrow: All nodes deselected - switching to Single Selection mode');
-            navigationMode.value = 'single';
-            // Select the current node (which is now the target node)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (targetNode as any).selected = true;
-          }
-        });
+        // Check if all nodes are now deselected (check immediately, not in nextTick)
+        // We need to check synchronously because user might press next arrow key before nextTick executes
+        // Use getSelectedNodes computed to get the current selection state
+        const remainingSelected = getSelectedNodes.value;
+        if (remainingSelected.length === 0) {
+          // When all nodes are deselected (either via selection or deselection mode),
+          // switch to single selection mode and re-select the current node.
+          // This prevents fighting with VueFlow's native selection system.
+          console.log('[DEBUG] Shift+Arrow/Shift+Y+Arrow: All nodes deselected - switching to Single Selection mode');
+          navigationMode.value = 'single';
+          // Select the current node (which is now the target node)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (targetNode as any).selected = true;
+        }
 
       } else {
         // ARROW WITHOUT SHIFT: Behavior depends on current navigation mode
