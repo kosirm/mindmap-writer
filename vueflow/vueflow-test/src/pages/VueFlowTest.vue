@@ -532,6 +532,16 @@
                     <q-icon color="primary" name="keyboard" />
                   </q-item-section>
                   <q-item-section>
+                    <q-item-label><strong>Alt + Arrow keys</strong></q-item-label>
+                    <q-item-label caption>Physical node movement: Move selected node(s) 10px in arrow direction (supports multi-node movement)</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="drag_indicator" />
+                  </q-item-section>
+                  <q-item-section>
                     <q-item-label><strong>Ctrl + Arrow keys</strong></q-item-label>
                     <q-item-label caption>Rapid node creation: Left/Right = child/parent, Up/Down = sibling above/below</q-item-label>
                   </q-item-section>
@@ -1998,6 +2008,68 @@ function onKeyDown(event: KeyboardEvent) {
 
   // Handle arrow keys
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+
+    // Alt + Arrow keys: Physical node movement (10px in arrow direction)
+    if (event.altKey) {
+      event.preventDefault();
+
+      // Get all selected nodes (support multi-node movement)
+      const selectedNodes = getSelectedNodes.value;
+      if (selectedNodes.length === 0) return;
+
+      console.log('[DEBUG] Alt+Arrow: Moving', selectedNodes.length, 'node(s) in direction:', event.key);
+
+      // Calculate movement delta based on arrow key
+      let deltaX = 0;
+      let deltaY = 0;
+      const moveDistance = 10; // pixels
+
+      switch (event.key) {
+        case 'ArrowUp':
+          deltaY = -moveDistance;
+          break;
+        case 'ArrowDown':
+          deltaY = moveDistance;
+          break;
+        case 'ArrowLeft':
+          deltaX = -moveDistance;
+          break;
+        case 'ArrowRight':
+          deltaX = moveDistance;
+          break;
+      }
+
+      // Move all selected nodes
+      selectedNodes.forEach(node => {
+        node.position.x += deltaX;
+        node.position.y += deltaY;
+
+        // Update Matter.js body position if collision detection is enabled
+        if (matterEnabled.value) {
+          updateMatterBodyPosition(node.id, node.position.x, node.position.y);
+        }
+
+        // Update Planck.js body position if physics is enabled
+        if (planckEnabled.value) {
+          updatePlanckBodyPosition(node.id, node.position.x, node.position.y);
+        }
+      });
+
+      // Update order based on new positions (Canvas → Store)
+      updateOrderFromPosition();
+
+      // Run collision detection if enabled
+      if (matterEnabled.value) {
+        runMatterEngineToResolveOverlaps();
+      }
+      if (planckEnabled.value) {
+        runPlanckSimulation(3);
+      }
+
+      console.log('[DEBUG] Alt+Arrow: Moved nodes by', deltaX, deltaY);
+
+      return;
+    }
 
     // Ctrl + Arrow keys: Rapid node creation (child, sibling, parent)
     if (event.ctrlKey && selectedNodeId.value) {
