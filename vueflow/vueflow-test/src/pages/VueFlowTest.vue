@@ -811,7 +811,7 @@
 
                 <!-- Center marker at flow coordinates (0, 0) -->
                 <CenterMarker
-                  :visible="showCenterMarker"
+                  :visible="settings.mindmap.showCenterMarker"
                   color="#1976d2"
                   :size="15"
                   :line-width="1"
@@ -900,7 +900,7 @@
 
               <!-- Center marker at flow coordinates (0, 0) -->
               <CenterMarker
-                :visible="showCenterMarker"
+                :visible="settings.mindmap.showCenterMarker"
                 color="#1976d2"
                 :size="40"
                 :line-width="2"
@@ -948,6 +948,9 @@
         </div>
       </q-page>
     </q-page-container>
+
+    <!-- Settings Dialog -->
+    <SettingsDialog v-model="showSettingsDialog" />
   </q-layout>
 </template>
 
@@ -962,6 +965,7 @@ import { eventBus } from '../composables/useEventBus';
 import CustomNode from '../components/CustomNode.vue';
 import CenterMarker from '../components/CenterMarker.vue';
 import WriterEditor from '../components/WriterEditor.vue';
+import SettingsDialog from '../components/SettingsDialog.vue';
 import { useD3Force, type D3ForceParams } from '../composables/useD3Force';
 import { useMatterCollision, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '../composables/useMatterCollision';
 import Matter from 'matter-js';
@@ -973,6 +977,10 @@ import { useKeyboardNavigation } from '../composables/useKeyboardNavigation';
 import TopBarMenu from '../components/menus/TopBarMenu.vue';
 import ToolBar from '../components/menus/ToolBar.vue';
 import { useMenuSystem } from '../composables/useMenuSystem';
+
+// Settings
+import { useSettings } from '../composables/useSettings';
+const { settings } = useSettings();
 
 // Import Vue Flow styles
 import '@vue-flow/core/dist/style.css';
@@ -1101,8 +1109,8 @@ function resizeRightDrawer(ev: KeyboardEvent | TouchPanEvent) {
 const selectedNodeId = ref<string | null>(null);
 
 // UI Settings
-const showCenterMarker = ref(true); // Show/hide center cross marker
 const showMinimap = ref(false); // Show/hide minimap (default: hidden)
+const showSettingsDialog = ref(false); // Show/hide settings dialog
 
 // Mindmap management state
 const currentMindmapName = ref('Untitled Mindmap');
@@ -1981,6 +1989,20 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.altKey && !event.ctrlKey && !event.shiftKey && (event.key === 'q' || event.key === 'Q')) {
     event.preventDefault();
     toggleContext();
+    return;
+  }
+
+  // Ctrl+ = Zoom in (global shortcut, affects mindmap only)
+  if (event.ctrlKey && !event.altKey && !event.shiftKey && (event.key === '+' || event.key === '=')) {
+    event.preventDefault();
+    zoomIn();
+    return;
+  }
+
+  // Ctrl- = Zoom out (global shortcut, affects mindmap only)
+  if (event.ctrlKey && !event.altKey && !event.shiftKey && (event.key === '-' || event.key === '_')) {
+    event.preventDefault();
+    zoomOut();
     return;
   }
 
@@ -3040,6 +3062,13 @@ function alignNodesVertical() {
   });
 }
 
+/**
+ * Open settings dialog
+ */
+function navigateToSettings() {
+  showSettingsDialog.value = true;
+}
+
 // Update command context with current state
 function updateCommandContext() {
   updateContext({
@@ -3063,6 +3092,7 @@ function updateCommandContext() {
     setOrientationCounterclockwise,
     alignNodesHorizontal,
     alignNodesVertical,
+    navigateToSettings,
   });
 }
 
@@ -3535,6 +3565,12 @@ function updateNodeHierarchy(nodeId: string, newParentId: string | null) {
 
 // Bring a node into view in the mindmap (VueFlow)
 function bringNodeIntoView(nodeId: string) {
+  // Check if centerOnSelection is enabled in settings
+  if (!settings.value.mindmap.centerOnSelection) {
+    console.log('[DEBUG] bringNodeIntoView skipped - centerOnSelection is disabled');
+    return;
+  }
+
   console.log('[DEBUG] bringNodeIntoView called for nodeId:', nodeId);
   console.trace('[DEBUG] Stack trace:');
 
@@ -3553,6 +3589,44 @@ function bringNodeIntoView(nodeId: string) {
       zoom: currentViewport.zoom, // Explicitly preserve current zoom
     });
   });
+}
+
+/**
+ * Zoom in the mindmap viewport
+ * Increases zoom by 20% (multiplies by 1.2)
+ */
+function zoomIn() {
+  const currentViewport = getViewport();
+  const newZoom = Math.min(currentViewport.zoom * 1.2, 4); // Max zoom is 4
+
+  void setViewport({
+    x: currentViewport.x,
+    y: currentViewport.y,
+    zoom: newZoom,
+  }, {
+    duration: 200,
+  });
+
+  console.log('[Zoom] Zoom in:', currentViewport.zoom.toFixed(2), '→', newZoom.toFixed(2));
+}
+
+/**
+ * Zoom out the mindmap viewport
+ * Decreases zoom by 20% (divides by 1.2)
+ */
+function zoomOut() {
+  const currentViewport = getViewport();
+  const newZoom = Math.max(currentViewport.zoom / 1.2, 0.2); // Min zoom is 0.2
+
+  void setViewport({
+    x: currentViewport.x,
+    y: currentViewport.y,
+    zoom: newZoom,
+  }, {
+    duration: 200,
+  });
+
+  console.log('[Zoom] Zoom out:', currentViewport.zoom.toFixed(2), '→', newZoom.toFixed(2));
 }
 
 // Helper function to get all ancestor node IDs for a given node

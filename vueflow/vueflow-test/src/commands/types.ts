@@ -43,6 +43,7 @@ export interface CommandContext {
   setOrientationCounterclockwise?: () => void;
   alignNodesHorizontal?: () => void;
   alignNodesVertical?: () => void;
+  navigateToSettings?: () => void;
   [key: string]: unknown;
 }
 

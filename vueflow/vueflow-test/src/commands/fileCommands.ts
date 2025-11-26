@@ -139,5 +139,21 @@ export const fileCommands: Command[] = [
       }
     },
   },
+
+  {
+    id: 'file.settings',
+    label: 'Settings',
+    icon: 'settings',
+    category: 'file',
+    keybinding: 'Ctrl+,',
+    tooltip: 'Open application settings',
+    showInPalette: true,
+    execute: (context) => {
+      // Navigate to settings page
+      if (context?.navigateToSettings) {
+        context.navigateToSettings();
+      }
+    },
+  },
 ];
 
