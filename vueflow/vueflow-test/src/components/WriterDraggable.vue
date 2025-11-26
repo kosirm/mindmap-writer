@@ -231,6 +231,9 @@ function openTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
 function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (titleEditorInstance.value) return;
 
+  // Check if title is "Untitled" - if so, we'll select all text after editor is created
+  const isUntitled = displayTitle.value === 'Untitled';
+
   titleEditorInstance.value = new Editor({
     extensions: [
       StarterKit.configure({
@@ -307,6 +310,16 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
       destroyTitleEditor();
     },
   });
+
+  // If title is "Untitled", select all text so user can immediately start typing to replace it
+  if (isUntitled) {
+    void nextTick(() => {
+      if (titleEditorInstance.value) {
+        titleEditorInstance.value.commands.selectAll();
+        console.log('[WriterDraggable] Selected all text in "Untitled" title');
+      }
+    });
+  }
 }
 
 function destroyTitleEditor() {
@@ -354,13 +367,33 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
           openTitleEditor('end');
         },
         onRightArrowAtEnd: () => {
+          console.log('[WriterDraggable] ========== onRightArrowAtEnd TRIGGERED ==========');
+          console.log('[WriterDraggable] Current node:', props.node.id);
           // Right arrow at end of content goes to next node's title
-          // Note: We use 'title' to find next field because content might be empty and not in flattened list
           if (navigation) {
-            const nextField = navigation.getNextField(props.node.id, 'title');
+            // Check if content is empty
+            const hasContent = props.node.data.content && (() => {
+              const tmp = document.createElement('div');
+              tmp.innerHTML = props.node.data.content;
+              const textContent = tmp.textContent || '';
+              return textContent.trim() !== '';
+            })();
+
+            console.log('[WriterDraggable] Content is empty:', !hasContent);
+
+            // If content is empty, use 'title' to find next field (because empty content is not in flattened list)
+            // If content has text, use 'content' to find next field
+            const currentField = hasContent ? 'content' : 'title';
+            const nextField = navigation.getNextField(props.node.id, currentField);
+            console.log('[WriterDraggable] Next field:', nextField);
             if (nextField) {
+              console.log('[WriterDraggable] Navigating to:', nextField.nodeId, nextField.field, 'start');
               navigateToField(nextField.nodeId, nextField.field, 'start');
+            } else {
+              console.log('[WriterDraggable] ❌ No next field found');
             }
+          } else {
+            console.log('[WriterDraggable] ❌ Navigation composable not available');
           }
         },
         onUpArrowAtFirstLine: () => {
@@ -368,13 +401,33 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
           openTitleEditor('end');
         },
         onDownArrowAtLastLine: () => {
+          console.log('[WriterDraggable] ========== onDownArrowAtLastLine TRIGGERED ==========');
+          console.log('[WriterDraggable] Current node:', props.node.id);
           // Down arrow at last line of content goes to next node's title
-          // Note: We use 'title' to find next field because content might be empty and not in flattened list
           if (navigation) {
-            const nextField = navigation.getNextField(props.node.id, 'title');
+            // Check if content is empty
+            const hasContent = props.node.data.content && (() => {
+              const tmp = document.createElement('div');
+              tmp.innerHTML = props.node.data.content;
+              const textContent = tmp.textContent || '';
+              return textContent.trim() !== '';
+            })();
+
+            console.log('[WriterDraggable] Content is empty:', !hasContent);
+
+            // If content is empty, use 'title' to find next field (because empty content is not in flattened list)
+            // If content has text, use 'content' to find next field
+            const currentField = hasContent ? 'content' : 'title';
+            const nextField = navigation.getNextField(props.node.id, currentField);
+            console.log('[WriterDraggable] Next field:', nextField);
             if (nextField) {
+              console.log('[WriterDraggable] Navigating to:', nextField.nodeId, nextField.field, 'start');
               navigateToField(nextField.nodeId, nextField.field, 'start');
+            } else {
+              console.log('[WriterDraggable] ❌ No next field found');
             }
+          } else {
+            console.log('[WriterDraggable] ❌ Navigation composable not available');
           }
         },
       }),
