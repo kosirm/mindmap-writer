@@ -16,7 +16,7 @@ export const topBarMenus = {
     { command: 'file.open', group: 'file' },
     { command: 'file.save', group: 'file' },
     { command: 'file.saveAs', group: 'file' },
-    { 
+    {
       command: 'file.export.json',
       group: 'export',
       label: 'Export',
@@ -28,6 +28,7 @@ export const topBarMenus = {
       ],
     },
     { command: 'file.import.json', group: 'export' },
+    { command: 'file.settings', group: 'preferences' },
   ] as MenuItem[],
   
   edit: [
