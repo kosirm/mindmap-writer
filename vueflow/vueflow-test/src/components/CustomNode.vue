@@ -119,7 +119,7 @@ function handleDoubleClick() {
 }
 
 /**
- * Handle edit start event (triggered by F2 key or double-click)
+ * Handle edit start event (triggered by F2 key, double-click, or Ctrl+Arrow)
  */
 function handleEditStart({ nodeId }: { nodeId: string }) {
   // Only handle if this is the node being edited
@@ -137,16 +137,37 @@ function handleEditStart({ nodeId }: { nodeId: string }) {
     // console.log('[CustomNode] After nextTick, isEditing:', isEditing.value, 'for node:', props.id);
     // console.log('[CustomNode] activeNodeId.value:', activeNodeId.value, 'props.id:', props.id, 'equal?', activeNodeId.value === props.id);
 
+    // Check if title is "Untitled" - if so, select all text
+    const isUntitled = displayTitle.value === 'Untitled' || displayTitle.value === '<p>Untitled</p>';
+
     // Create Tiptap editor and store it locally
     localEditor.value = createTitleEditor(
       displayTitle.value,
       handleTitleUpdate,
-      handleBlur
+      handleBlur,
+      handleEscape,
+      isUntitled // Select all text if "Untitled"
     );
 
     // console.log('[CustomNode] Editor created:', localEditor.value);
     // console.log('[CustomNode] localEditor.value:', localEditor.value, 'isEditing:', isEditing.value);
   });
+}
+
+/**
+ * Handle Escape key - exit editing mode but keep node selected
+ */
+function handleEscape() {
+  // Clear local editor reference
+  localEditor.value = null;
+
+  // Destroy editor (this will clear activeNodeId)
+  destroyActiveEditor();
+
+  // Emit event
+  eventBus.emit('node:edit-end', { nodeId: props.id });
+
+  // Note: Node stays selected because we don't clear the VueFlow selection
 }
 
 /**

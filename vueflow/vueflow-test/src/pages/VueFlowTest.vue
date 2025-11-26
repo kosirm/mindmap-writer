@@ -539,6 +539,16 @@
 
                 <q-item>
                   <q-item-section avatar>
+                    <q-icon color="primary" name="pan_tool" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label><strong>Spacebar + Arrow keys</strong></q-item-label>
+                    <q-item-label caption>Rapid panning: Pan canvas viewport 50px in arrow direction</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
                     <q-icon color="primary" name="drag_indicator" />
                   </q-item-section>
                   <q-item-section>
@@ -1070,6 +1080,7 @@ const matterEnabled = ref(false); // Matter.js collision detection OFF by defaul
 const isAltKeyPressed = ref(false); // Track Alt key for disabling collision while dragging
 const isCKeyPressed = ref(false); // Track C key for reference connections
 const isYKeyPressed = ref(false); // Track Y key for deselection mode (Shift+Y+Arrow)
+const isSpacebarPressed = ref(false); // Track Spacebar key for panning mode (Spacebar+Arrow)
 
 // Planck.js collision state
 const planckEnabled = ref(false); // Planck.js collision detection OFF by default
@@ -1231,7 +1242,7 @@ function resolvePlanckOverlapsOnce() {
 let nodeCounter = 1;
 
 // Get Vue Flow instance
-const { project, vueFlowRef, connectionStartHandle, getSelectedNodes, getSelectedEdges, addSelectedNodes, removeSelectedNodes, setCenter, getViewport } = useVueFlow();
+const { project, vueFlowRef, connectionStartHandle, getSelectedNodes, getSelectedEdges, addSelectedNodes, removeSelectedNodes, setCenter, getViewport, setViewport } = useVueFlow();
 
 // Initialize keyboard navigation composable
 const {
@@ -1886,6 +1897,10 @@ function onAltKeyDown(event: KeyboardEvent) {
     isYKeyPressed.value = true;
     console.log('[DEBUG] Y key pressed - deselection mode ENABLED (use with Shift+Arrow)');
   }
+  if (event.key === ' ') {
+    isSpacebarPressed.value = true;
+    console.log('[DEBUG] Spacebar pressed - panning mode ENABLED (use with Arrow keys)');
+  }
 }
 
 // Handle Alt key release - re-enable collision detection
@@ -1901,6 +1916,10 @@ function onAltKeyUp(event: KeyboardEvent) {
   if (event.key === 'y' || event.key === 'Y') {
     isYKeyPressed.value = false;
     console.log('[DEBUG] Y key released - deselection mode DISABLED');
+  }
+  if (event.key === ' ') {
+    isSpacebarPressed.value = false;
+    console.log('[DEBUG] Spacebar released - panning mode DISABLED');
   }
 }
 
@@ -2008,6 +2027,47 @@ function onKeyDown(event: KeyboardEvent) {
 
   // Handle arrow keys
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+
+    // Spacebar + Arrow keys: Pan the viewport (50px in arrow direction)
+    if (isSpacebarPressed.value) {
+      event.preventDefault();
+
+      console.log('[DEBUG] Spacebar+Arrow: Panning viewport in direction:', event.key);
+
+      // Get current viewport
+      const currentViewport = getViewport();
+
+      // Calculate pan delta based on arrow key
+      let deltaX = 0;
+      let deltaY = 0;
+      const panDistance = 50; // pixels
+
+      switch (event.key) {
+        case 'ArrowUp':
+          deltaY = panDistance; // Pan up = increase y (viewport moves up)
+          break;
+        case 'ArrowDown':
+          deltaY = -panDistance; // Pan down = decrease y (viewport moves down)
+          break;
+        case 'ArrowLeft':
+          deltaX = panDistance; // Pan left = increase x (viewport moves left)
+          break;
+        case 'ArrowRight':
+          deltaX = -panDistance; // Pan right = decrease x (viewport moves right)
+          break;
+      }
+
+      // Apply new viewport position
+      void setViewport({
+        x: currentViewport.x + deltaX,
+        y: currentViewport.y + deltaY,
+        zoom: currentViewport.zoom,
+      });
+
+      console.log('[DEBUG] Spacebar+Arrow: Panned viewport by', deltaX, deltaY);
+
+      return;
+    }
 
     // Alt + Arrow keys: Physical node movement (10px in arrow direction)
     if (event.altKey) {
@@ -2209,6 +2269,12 @@ function onKeyDown(event: KeyboardEvent) {
           // Notify writer
           eventBus.emit('writer:node-selected', { nodeId: createdNode.id, scrollIntoView: true, source: 'canvas' });
           scrollTreeNodeIntoView(createdNode.id);
+
+          // Auto-enter editing mode for rapid editing (after another nextTick to ensure node is fully rendered)
+          void nextTick(() => {
+            console.log('[DEBUG] Ctrl+Arrow: Auto-entering editing mode for node:', createdNode.id);
+            eventBus.emit('node:edit-start', { nodeId: createdNode.id });
+          });
         });
       }
 
