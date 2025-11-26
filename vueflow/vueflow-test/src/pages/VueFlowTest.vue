@@ -621,6 +621,47 @@
 
                 <q-separator class="q-my-md" />
 
+                <q-item-label header class="text-weight-bold">Keyboard Context Switching</q-item-label>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="swap_horiz" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label><strong>Alt+Q</strong></q-item-label>
+                    <q-item-label caption>Toggle between Canvas and Writer contexts (most ergonomic shortcut!)</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="info" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label caption><strong>Canvas context:</strong> Arrow navigation, Ctrl+Arrow create nodes, Alt+Arrow move nodes, Spacebar+Arrow pan canvas</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="info" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label caption><strong>Writer context:</strong> Arrow navigation between title/content fields, immediate editing of selected node</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-item>
+                  <q-item-section avatar>
+                    <q-icon color="primary" name="lightbulb" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label caption>Active context is shown by highlighted panel header (light blue background). Context automatically switches when changing views. When switching to Writer, the selected node's title is focused and ready for editing!</q-item-label>
+                  </q-item-section>
+                </q-item>
+
+                <q-separator class="q-my-md" />
+
                 <q-item-label header class="text-weight-bold">Connection Types</q-item-label>
 
                 <q-item>
@@ -730,8 +771,8 @@
       >
         <!-- Mindmap panel -->
         <template #before>
-          <div class="panel-container">
-            <div class="panel-header">
+          <div class="panel-container" @click.capture="switchToCanvasContext">
+            <div class="panel-header" :class="{ 'panel-header-active': activeContext === 'canvas' }">
               <q-icon name="account_tree" class="view-icon" />
               <ToolBar :items="mindmapToolbarItems" />
               <q-space />
@@ -796,8 +837,8 @@
 
         <!-- Writer panel -->
         <template #after>
-          <div class="panel-container">
-            <div class="panel-header">
+          <div class="panel-container" @click.capture="switchToWriterContext">
+            <div class="panel-header" :class="{ 'panel-header-active': activeContext === 'writer' }">
               <q-icon name="edit" class="view-icon" />
               <ToolBar :items="writerToolbarItems" />
               <q-space />
@@ -818,9 +859,9 @@
       </q-splitter>
 
       <!-- Mindmap only view -->
-      <div v-else-if="viewMode === 'mindmap'" class="full-view">
+      <div v-else-if="viewMode === 'mindmap'" class="full-view" @click.capture="switchToCanvasContext">
         <div class="panel-container">
-          <div class="panel-header">
+          <div class="panel-header" :class="{ 'panel-header-active': activeContext === 'canvas' }">
             <q-icon name="account_tree" class="view-icon" />
             <ToolBar :items="mindmapToolbarItems" />
             <q-space />
@@ -884,9 +925,9 @@
       </div>
 
       <!-- Writer only view -->
-      <div v-else-if="viewMode === 'writer'" class="full-view">
+      <div v-else-if="viewMode === 'writer'" class="full-view" @click.capture="switchToWriterContext">
         <div class="panel-container">
-          <div class="panel-header">
+          <div class="panel-header" :class="{ 'panel-header-active': activeContext === 'writer' }">
             <q-icon name="edit" class="view-icon" />
             <ToolBar :items="writerToolbarItems" />
             <q-space />
@@ -982,6 +1023,13 @@ let initialRightDrawerWidth = 300;
 
 // View mode: 'split', 'mindmap', 'writer'
 const viewMode = ref<'split' | 'mindmap' | 'writer'>('split');
+
+// Keyboard context: determines which keyboard shortcuts are active
+// 'canvas' = mindmap keyboard shortcuts (Arrow navigation, Ctrl+Arrow, Alt+Arrow, etc.)
+// 'writer' = writer keyboard shortcuts (will be added later)
+// 'tree' = tree view keyboard shortcuts (if needed)
+type KeyboardContext = 'canvas' | 'writer' | 'tree';
+const activeContext = ref<KeyboardContext>('canvas');
 
 // Splitter model (percentage for left panel)
 const splitterModel = ref(50);
@@ -1925,6 +1973,26 @@ function onAltKeyUp(event: KeyboardEvent) {
 
 // Handle keyboard shortcuts (Arrow keys for navigation, Ctrl + Arrow keys for creating nodes, Delete)
 function onKeyDown(event: KeyboardEvent) {
+  // ============================================================================
+  // GLOBAL KEYBOARD SHORTCUTS (work in all contexts)
+  // ============================================================================
+
+  // Alt+Q = Toggle between Canvas and Writer contexts (most ergonomic shortcut)
+  if (event.altKey && !event.ctrlKey && !event.shiftKey && (event.key === 'q' || event.key === 'Q')) {
+    event.preventDefault();
+    toggleContext();
+    return;
+  }
+
+  // ============================================================================
+  // CANVAS CONTEXT KEYBOARD SHORTCUTS
+  // ============================================================================
+
+  // Only handle Canvas shortcuts if Canvas context is active
+  if (activeContext.value !== 'canvas') {
+    return;
+  }
+
   // Don't handle keyboard shortcuts if user is typing in an input/textarea/contenteditable
   // This prevents conflicts with Writer's Tiptap editors
   const target = event.target as HTMLElement;
@@ -3606,6 +3674,138 @@ watch(getSelectedNodes, (selectedNodes) => {
 }, { deep: true });
 
 // ============================================================================
+// KEYBOARD CONTEXT MANAGEMENT
+// ============================================================================
+
+/**
+ * Automatically update keyboard context based on view mode
+ * - 'mindmap' view → 'canvas' context
+ * - 'writer' view → 'writer' context
+ * - 'split' view → 'canvas' context (default, can be manually switched)
+ */
+watch(viewMode, (newMode) => {
+  if (newMode === 'mindmap') {
+    activeContext.value = 'canvas';
+    console.log('[Context] Auto-switched to Canvas context (mindmap view)');
+  } else if (newMode === 'writer') {
+    activeContext.value = 'writer';
+    console.log('[Context] Auto-switched to Writer context (writer view)');
+  } else if (newMode === 'split') {
+    // In split view, default to canvas context
+    // User can manually switch with keyboard shortcuts
+    activeContext.value = 'canvas';
+    console.log('[Context] Auto-switched to Canvas context (split view)');
+  }
+});
+
+/**
+ * Toggle between Canvas and Writer contexts with Alt+Q
+ * This is the most ergonomic keyboard shortcut for rapid context switching
+ */
+function toggleContext() {
+  if (activeContext.value === 'canvas') {
+    // Switch to Writer context
+    switchToWriterContextInternal(true); // true = with focus management
+  } else {
+    // Switch to Canvas context
+    switchToCanvasContextInternal(true); // true = with focus management
+  }
+}
+
+/**
+ * Internal function to switch to Canvas context
+ * @param withFocusManagement - If true, also manages focus (blur Writer, focus Canvas)
+ */
+function switchToCanvasContextInternal(withFocusManagement = false) {
+  if (activeContext.value === 'canvas') return; // Already in Canvas context
+
+  activeContext.value = 'canvas';
+  console.log('[Context] Switched to Canvas context', withFocusManagement ? '(with focus management)' : '(mouse click)');
+
+  // Focus management: Blur Writer editors and focus Canvas (only if requested)
+  if (withFocusManagement) {
+    void nextTick(() => {
+      focusCanvasForSelectedNode();
+    });
+  }
+}
+
+/**
+ * Internal function to switch to Writer context
+ * @param withFocusManagement - If true, also manages focus (focus selected node's title)
+ */
+function switchToWriterContextInternal(withFocusManagement = false) {
+  if (activeContext.value === 'writer') return; // Already in Writer context
+
+  activeContext.value = 'writer';
+  console.log('[Context] Switched to Writer context', withFocusManagement ? '(with focus management)' : '(mouse click)');
+
+  // Focus management: Focus selected node's title in Writer (only if requested)
+  if (withFocusManagement) {
+    void nextTick(() => {
+      focusWriterForSelectedNode();
+    });
+  }
+}
+
+/**
+ * Click handler to switch to Canvas context (for mouse clicks)
+ */
+function switchToCanvasContext() {
+  switchToCanvasContextInternal(false);
+}
+
+/**
+ * Click handler to switch to Writer context (for mouse clicks)
+ */
+function switchToWriterContext() {
+  switchToWriterContextInternal(false);
+}
+
+/**
+ * Focus management for Canvas context
+ * - Blur/unload Tiptap editor in Writer
+ * - Focus on selected node in Canvas so arrow keys work immediately
+ */
+function focusCanvasForSelectedNode() {
+  // Blur any active Tiptap editor in Writer
+  const activeElement = document.activeElement as HTMLElement;
+  if (activeElement && activeElement.isContentEditable) {
+    activeElement.blur();
+    console.log('[Context] Blurred Tiptap editor in Writer');
+  }
+
+  // Focus on the Canvas container so keyboard shortcuts work
+  const canvasContainer = document.querySelector('.vue-flow-container') as HTMLElement;
+  if (canvasContainer) {
+    canvasContainer.focus();
+    console.log('[Context] Focused Canvas container');
+  }
+}
+
+/**
+ * Focus management for Writer context
+ * - Focus selected node's title in Writer
+ * - Load Tiptap editor
+ * - Place cursor at end (or select all if 'Untitled')
+ */
+function focusWriterForSelectedNode() {
+  if (!selectedNodeId.value) {
+    console.log('[Context] No node selected - cannot focus Writer');
+    return;
+  }
+
+  // Emit event to Writer to focus the selected node's title
+  eventBus.emit('writer:open-field', {
+    nodeId: selectedNodeId.value,
+    field: 'title',
+    cursorPosition: 'end', // Will be handled by WriterDraggable to select all if 'Untitled'
+  });
+
+  console.log('[Context] Requested Writer to focus node:', selectedNodeId.value);
+}
+
+// ============================================================================
 // LIFECYCLE HOOKS
 // ============================================================================
 
@@ -3942,6 +4142,13 @@ onBeforeUnmount(() => {
   background-color: #ffffff;
   flex-shrink: 0;
   min-height: 44px;
+  transition: background-color 0.2s ease;
+}
+
+/* Active context indicator - subtle background highlight */
+.panel-header-active {
+  background-color: #e3f2fd !important; /* Light blue background */
+  border-bottom: 2px solid #1976d2 !important; /* Stronger border */
 }
 
 .panel-title {
