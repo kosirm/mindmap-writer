@@ -44,12 +44,16 @@ export function isNodeActive(nodeId: string): boolean {
  * @param content - Initial HTML content
  * @param onUpdate - Callback when content changes
  * @param onBlur - Callback when editor loses focus
+ * @param onEscape - Optional callback when Escape key is pressed
+ * @param selectAll - If true, select all text when editor is created (for "Untitled" nodes)
  * @returns Editor instance
  */
 export function createTitleEditor(
   content: string,
   onUpdate: (html: string) => void,
-  onBlur: () => void
+  onBlur: () => void,
+  onEscape?: () => void,
+  selectAll = false
 ): Editor {
   // Destroy any existing editor first (but keep activeNodeId)
   if (activeTitleEditor.value) {
@@ -74,6 +78,17 @@ export function createTitleEditor(
         class: 'tiptap-editor',
         spellcheck: 'false',
       },
+      handleKeyDown: (view, event) => {
+        // Handle Escape key - exit editing mode
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          if (onEscape) {
+            onEscape();
+          }
+          return true;
+        }
+        return false;
+      },
     },
     onUpdate: ({ editor }) => {
       onUpdate(editor.getHTML());
@@ -83,6 +98,12 @@ export function createTitleEditor(
     },
     // Auto-focus when created
     autofocus: 'end',
+    onCreate: ({ editor }) => {
+      // If selectAll is true, select all text after editor is created
+      if (selectAll) {
+        editor.commands.selectAll();
+      }
+    },
   });
 
   activeTitleEditor.value = editor;
