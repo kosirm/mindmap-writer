@@ -1,0 +1,949 @@
+<template>
+  <div class="app-container">
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+      <h2>Nested Layout Test</h2>
+      <div class="controls">
+        <button @click="addRootNode" class="btn btn-primary">
+          Add Root Node
+        </button>
+        <button @click="toggleBoundingBoxes" class="btn">
+          {{ showBoundingBoxes ? 'Hide' : 'Show' }} Bounding Boxes
+        </button>
+        <button @click="resolveOverlapsManually" class="btn">
+          Resolve Overlaps
+        </button>
+        <button @click="generateTestData" class="btn btn-secondary">
+          Generate Test Data (50 nodes)
+        </button>
+      </div>
+      <div class="stats">
+        <div>Total Nodes: {{ nodes.length }}</div>
+        <div>Root Nodes: {{ rootNodes.length }}</div>
+        <div>Algorithm: AABB</div>
+      </div>
+      <div class="instructions">
+        <h3>Instructions:</h3>
+        <ul>
+          <li>Right-click on a node to add child/sibling</li>
+          <li>Drag nodes to move them</li>
+          <li>Bounding boxes show hierarchy containment</li>
+          <li>Overlaps are resolved on drag end</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- VueFlow Canvas -->
+    <div class="canvas-container">
+      <VueFlow
+        :nodes="vueFlowNodes"
+        :edges="visibleEdges"
+        :default-viewport="{ zoom: 1, x: 0, y: 0 }"
+        @node-drag-start="onNodeDragStart"
+        @node-drag="onNodeDrag"
+        @node-drag-stop="onNodeDragStop"
+        @node-context-menu="onNodeContextMenu"
+        @pane-click="closeContextMenu"
+      >
+        <Background />
+        
+        <!-- Custom Node Template -->
+        <template #node-custom="{ data, id }">
+          <CustomNode :data="data" @toggle-collapse="toggleCollapse(id)" />
+        </template>
+      </VueFlow>
+
+      <!-- Overlays - Outside VueFlow but synced with viewport -->
+      <svg class="canvas-overlay">
+        <g :style="{ transform: viewportTransform }">
+          <!-- Center Cross Marker -->
+          <line x1="-20" y1="0" x2="20" y2="0" stroke="#ff6b6b" stroke-width="2" />
+          <line x1="0" y1="-20" x2="0" y2="20" stroke="#ff6b6b" stroke-width="2" />
+          <circle cx="0" cy="0" r="3" fill="#ff6b6b" />
+
+          <!-- Bounding Boxes -->
+          <g v-if="showBoundingBoxes">
+            <rect
+              v-for="bound in boundingBoxes"
+              :key="bound.nodeId"
+              :x="bound.x"
+              :y="bound.y"
+              :width="bound.width"
+              :height="bound.height"
+              fill="none"
+              :stroke="getNodeDepth(bound.nodeId) === 0 ? '#ff6b6b' : '#4dabf7'"
+              stroke-width="2"
+              stroke-dasharray="5,5"
+              opacity="0.5"
+            />
+            <text
+              v-for="bound in boundingBoxes"
+              :key="`text-${bound.nodeId}`"
+              :x="bound.x + 5"
+              :y="bound.y + 15"
+              font-size="10"
+              fill="#666"
+            >
+              {{ bound.nodeId }}
+            </text>
+          </g>
+        </g>
+      </svg>
+
+      <!-- Context Menu -->
+      <div
+        v-if="contextMenu.visible"
+        class="context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+      >
+        <!-- Root node menu: Add Child Left/Right -->
+        <template v-if="isRootNode(contextMenu.nodeId)">
+          <div class="context-menu-item" @click="addChildLeft">
+            Add Child Left
+          </div>
+          <div class="context-menu-item" @click="addChildRight">
+            Add Child Right
+          </div>
+        </template>
+
+        <!-- Child node menu: Add Child only -->
+        <template v-else>
+          <div class="context-menu-item" @click="addChild">
+            Add Child
+          </div>
+        </template>
+
+        <div class="context-menu-item" @click="addSibling">
+          Add Sibling
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, triggerRef } from 'vue'
+import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { Background } from '@vue-flow/background'
+import type { Node, Edge, NodeDragEvent } from '@vue-flow/core'
+import CustomNode from './components/CustomNode.vue'
+import type { NodeData, ContextMenuState, BoundingRect } from './types'
+import { calculateBoundingRect, resolveAllOverlaps, getAllDescendants, moveNodeAndDescendants } from './layout'
+
+// VueFlow instance
+const { viewport } = useVueFlow()
+
+// State
+const nodes = ref<NodeData[]>([])
+const edges = ref<Edge[]>([])
+const vueFlowNodes = ref<Node[]>([])
+const showBoundingBoxes = ref(true)
+const contextMenu = ref<ContextMenuState>({
+  visible: false,
+  x: 0,
+  y: 0,
+  nodeId: null
+})
+
+// Track previous positions for drag delta calculation
+const dragStartPositions = ref<Map<string, { x: number; y: number }>>(new Map())
+
+let nodeCounter = 1
+
+// Compute viewport transform for SVG
+const viewportTransform = computed(() => {
+  const { x, y, zoom } = viewport.value
+  return `translate(${x}px, ${y}px) scale(${zoom})`
+})
+
+// Calculate bounding boxes for visualization
+const boundingBoxes = computed<BoundingRect[]>(() => {
+  if (!showBoundingBoxes.value) return []
+
+  // Force recalculation by accessing nodes.value
+  const currentNodes = nodes.value
+  return currentNodes.map(node => calculateBoundingRect(node, currentNodes))
+})
+
+// Helper function to recalculate all bounding boxes
+function recalculateBoundingBoxes() {
+  // Trigger computed property recalculation by triggering nodes ref
+  triggerRef(nodes)
+}
+
+// Get root nodes
+const rootNodes = computed(() => nodes.value.filter(n => n.parentId === null))
+
+// Get visible edges (only edges where both nodes are visible)
+const visibleEdges = computed(() => {
+  const visibleNodeIds = new Set(vueFlowNodes.value.map(n => n.id))
+  return edges.value.filter(edge =>
+    visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
+  )
+})
+
+// Get direct children of a node
+function getDirectChildren(nodeId: string): NodeData[] {
+  return nodes.value.filter(n => n.parentId === nodeId)
+}
+
+// Get all visible descendants (excluding collapsed branches)
+function getVisibleDescendants(nodeId: string): NodeData[] {
+  const node = nodes.value.find(n => n.id === nodeId)
+  if (!node || node.collapsed) return []
+
+  const children = getDirectChildren(nodeId)
+  const descendants: NodeData[] = [...children]
+
+  for (const child of children) {
+    descendants.push(...getVisibleDescendants(child.id))
+  }
+
+  return descendants
+}
+
+// Determine which side children are on relative to root
+function getChildrenSide(nodeId: string): 'left' | 'right' | null {
+  const node = nodes.value.find(n => n.id === nodeId)
+  if (!node) return null
+
+  const children = getDirectChildren(nodeId)
+  if (children.length === 0) return null
+
+  // For root nodes, check first child position
+  if (!node.parentId) {
+    return children[0].x < node.x ? 'left' : 'right'
+  }
+
+  // For non-root nodes, check relative to root
+  const root = getRootNode(nodeId)
+  if (!root) return null
+
+  return node.x < root.x ? 'left' : 'right'
+}
+
+// Sync our data model to VueFlow nodes (only visible nodes)
+function syncToVueFlow() {
+  // console.log('syncToVueFlow: nodes.value.length =', nodes.value.length)
+
+  // Filter to only show visible nodes (not in collapsed branches)
+  const visibleNodes = nodes.value.filter(node => {
+    if (!node.parentId) return true // Root nodes always visible
+
+    // Check if any ancestor is collapsed
+    let current = node
+    while (current.parentId) {
+      const parent = nodes.value.find(n => n.id === current.parentId)
+      if (!parent) break
+      if (parent.collapsed) return false // Hidden by collapsed parent
+      current = parent
+    }
+
+    return true
+  })
+
+  vueFlowNodes.value = visibleNodes.map(node => {
+    const childCount = getDirectChildren(node.id).length
+    const childrenSide = getChildrenSide(node.id)
+
+    return {
+      id: node.id,
+      type: 'custom',
+      position: { x: node.x, y: node.y },
+      data: {
+        label: node.label,
+        parentId: node.parentId,
+        childCount,
+        collapsed: node.collapsed,
+        childrenSide
+      }
+    }
+  })
+
+  // console.log('syncToVueFlow: vueFlowNodes.value.length =', vueFlowNodes.value.length)
+}
+
+// Sync VueFlow nodes back to our data model
+function syncFromVueFlow() {
+  console.log('syncFromVueFlow: vueFlowNodes.value.length =', vueFlowNodes.value.length)
+  vueFlowNodes.value.forEach(vfNode => {
+    const node = nodes.value.find(n => n.id === vfNode.id)
+    if (node) {
+      node.x = vfNode.position.x
+      node.y = vfNode.position.y
+    }
+  })
+  // Force reactivity update
+  triggerRef(nodes)
+  console.log('syncFromVueFlow: nodes.value.length =', nodes.value.length)
+}
+
+// Helper functions
+function isRootNode(nodeId: string | null): boolean {
+  if (!nodeId) return false
+  const node = nodes.value.find(n => n.id === nodeId)
+  return node ? node.parentId === null : false
+}
+
+function getRootNode(nodeId: string): NodeData | null {
+  let current = nodes.value.find(n => n.id === nodeId)
+  if (!current) return null
+
+  // Traverse up to find root
+  while (current.parentId) {
+    const parent = nodes.value.find(n => n.id === current.parentId)
+    if (!parent) break
+    current = parent
+  }
+
+  return current
+}
+
+function isNodeOnLeftOfRoot(node: NodeData): boolean {
+  const root = getRootNode(node.id)
+  if (!root) return false
+  return node.x < root.x
+}
+
+// Mirror all descendants of a node across the node's x position
+function mirrorDescendantsAcrossNode(node: NodeData) {
+  const descendants = getAllDescendants(node.id, nodes.value)
+
+  descendants.forEach(descendant => {
+    // Calculate distance from parent node
+    const distanceX = descendant.x - node.x
+
+    // Mirror across the node's x position
+    descendant.x = node.x - distanceX
+
+    // Update drag start position for this descendant
+    dragStartPositions.value.set(descendant.id, { x: descendant.x, y: descendant.y })
+  })
+}
+
+// Update edge handles for a node and all its descendants
+function updateEdgesForBranch(node: NodeData) {
+  const root = getRootNode(node.id)
+  if (!root) return
+
+  const isLeftSide = node.x < root.x
+
+  // Update edge for this node
+  updateEdgeHandles(node.parentId!, node.id, isLeftSide)
+
+  // Update edges for all descendants
+  const descendants = getAllDescendants(node.id, nodes.value)
+  descendants.forEach(descendant => {
+    if (descendant.parentId) {
+      updateEdgeHandles(descendant.parentId, descendant.id, isLeftSide)
+    }
+  })
+
+  // Trigger reactivity for edges
+  triggerRef(edges)
+}
+
+// Update edge handles between parent and child based on side
+function updateEdgeHandles(parentId: string, childId: string, isLeftSide: boolean) {
+  const edgeId = `e-${parentId}-${childId}`
+  const edgeIndex = edges.value.findIndex(e => e.id === edgeId)
+
+  if (edgeIndex !== -1) {
+    const sourceHandle = isLeftSide ? 'left' : 'right'
+    const targetHandle = isLeftSide ? 'right' : 'left'
+
+    // Create new edge object to trigger reactivity
+    edges.value = edges.value.map(e =>
+      e.id === edgeId
+        ? { ...e, sourceHandle, targetHandle }
+        : e
+    )
+  }
+}
+
+// Methods
+function toggleCollapse(nodeId: string) {
+  const node = nodes.value.find((n: NodeData) => n.id === nodeId)
+  if (!node) return
+
+  const wasCollapsed = node.collapsed
+  node.collapsed = !node.collapsed
+
+  // Trigger bounding box recalculation (computed property will recalculate)
+  // This ensures collapsed nodes have smaller bounding boxes
+  triggerRef(nodes)
+
+  // Sync to update visibility
+  syncToVueFlow()
+
+  // If we just expanded (was collapsed, now not), resolve overlaps
+  if (wasCollapsed && !node.collapsed) {
+    // Use setTimeout to ensure bounding boxes are recalculated first
+    setTimeout(() => {
+      resolveAllOverlaps(nodes.value)
+      syncToVueFlow()
+      triggerRef(nodes)
+    }, 50)
+  }
+
+  // Also need to update edges visibility
+  edges.value = [...edges.value]
+}
+
+function addRootNode() {
+  console.log('addRootNode called, current nodes:', nodes.value.length)
+  const id = `node-${nodeCounter++}`
+  nodes.value.push({
+    id,
+    label: `Root ${id}`,
+    parentId: null,
+    x: Math.random() * 400 - 200,
+    y: Math.random() * 400 - 200,
+    width: 150,
+    height: 50,
+    collapsed: false
+  })
+  syncToVueFlow()
+  console.log('After addRootNode, nodes:', nodes.value.length)
+}
+
+// Add child to the left of parent (for root nodes)
+function addChildLeft() {
+  if (!contextMenu.value.nodeId) return
+  const parent = nodes.value.find(n => n.id === contextMenu.value.nodeId)
+  if (!parent) return
+
+  addChildToSide(parent, 'left')
+}
+
+// Add child to the right of parent (for root nodes)
+function addChildRight() {
+  if (!contextMenu.value.nodeId) return
+  const parent = nodes.value.find(n => n.id === contextMenu.value.nodeId)
+  if (!parent) return
+
+  addChildToSide(parent, 'right')
+}
+
+// Add child (for non-root nodes - inherits parent's side)
+function addChild() {
+  if (!contextMenu.value.nodeId) return
+  const parent = nodes.value.find(n => n.id === contextMenu.value.nodeId)
+  if (!parent) return
+
+  // Determine which side of root the parent is on
+  const root = getRootNode(parent.id)
+  if (!root) return
+
+  const isLeftSide = parent.x < root.x
+  addChildToSide(parent, isLeftSide ? 'left' : 'right')
+}
+
+// Helper function to add child on a specific side
+function addChildToSide(parent: NodeData, side: 'left' | 'right') {
+  const offsetX = side === 'left' ? -200 : 200
+  const childX = parent.x + offsetX
+  const childY = parent.y + 80
+
+  const id = `node-${nodeCounter++}`
+  const newNode: NodeData = {
+    id,
+    label: `Child ${id}`,
+    parentId: parent.id,
+    x: childX,
+    y: childY,
+    width: 150,
+    height: 80,  // Child nodes have 3 lines of text
+    collapsed: false
+  }
+
+  nodes.value.push(newNode)
+
+  // Sync node to VueFlow first
+  syncToVueFlow()
+
+  // Add edge with correct handles based on side
+  const sourceHandle = side === 'left' ? 'left' : 'right'
+  const targetHandle = side === 'left' ? 'right' : 'left'
+
+  console.log('Adding edge:', { source: parent.id, target: id, sourceHandle, targetHandle, side })
+
+  // Create new edge
+  const newEdge = {
+    id: `e-${parent.id}-${id}`,
+    source: parent.id,
+    sourceHandle: sourceHandle,
+    target: id,
+    targetHandle: targetHandle,
+    type: 'straight'
+  }
+
+  // Replace edges array to trigger reactivity
+  edges.value = [...edges.value, newEdge]
+
+  console.log('Total edges after adding:', edges.value.length)
+
+  closeContextMenu()
+
+  // Resolve overlaps after adding
+  setTimeout(() => {
+    resolveAllOverlaps(nodes.value)
+    syncToVueFlow()
+  }, 100)
+}
+
+function addSibling() {
+  if (!contextMenu.value.nodeId) return
+
+  const sibling = nodes.value.find(n => n.id === contextMenu.value.nodeId)
+  if (!sibling) return
+
+  const id = `node-${nodeCounter++}`
+  const newNode: NodeData = {
+    id,
+    label: `Sibling ${id}`,
+    parentId: sibling.parentId,
+    x: sibling.x + 200,
+    y: sibling.y,
+    width: 150,
+    height: sibling.parentId ? 80 : 50,  // Match sibling's height
+    collapsed: false
+  }
+
+  nodes.value.push(newNode)
+
+  // Add edge if parent exists
+  if (sibling.parentId) {
+    edges.value.push({
+      id: `e-${sibling.parentId}-${id}`,
+      source: sibling.parentId,
+      target: id,
+      type: 'straight'
+    })
+    // Trigger reactivity for edges
+    triggerRef(edges)
+  }
+
+  closeContextMenu()
+
+  // Sync to VueFlow
+  syncToVueFlow()
+
+  // Resolve overlaps after adding
+  setTimeout(() => {
+    resolveAllOverlaps(nodes.value)
+    syncToVueFlow()
+  }, 100)
+}
+
+function onNodeDragStart(event: NodeDragEvent) {
+  // Store initial positions of all dragged nodes
+  dragStartPositions.value.clear()
+  event.nodes.forEach(vfNode => {
+    const node = nodes.value.find(n => n.id === vfNode.id)
+    if (node) {
+      dragStartPositions.value.set(node.id, { x: node.x, y: node.y })
+    }
+  })
+}
+
+function onNodeDrag(event: NodeDragEvent) {
+  // For each dragged node, move its children with it
+  event.nodes.forEach(vfNode => {
+    const node = nodes.value.find(n => n.id === vfNode.id)
+    const startPos = dragStartPositions.value.get(vfNode.id)
+
+    if (node && startPos) {
+      // Calculate delta from start position
+      const deltaX = vfNode.position.x - startPos.x
+      const deltaY = vfNode.position.y - startPos.y
+
+      // Update the node position
+      node.x = vfNode.position.x
+      node.y = vfNode.position.y
+
+      // Check if node crossed to other side of root (only for non-root nodes)
+      if (node.parentId) {
+        const root = getRootNode(node.id)
+        if (root) {
+          const wasLeftSide = startPos.x < root.x
+          const isNowLeftSide = node.x < root.x
+
+          // If crossed to other side, mirror all descendants
+          if (wasLeftSide !== isNowLeftSide) {
+            console.log(`Node ${node.id} crossed root! Mirroring descendants...`)
+            mirrorDescendantsAcrossNode(node)
+
+            // Update edges for this node and all descendants
+            updateEdgesForBranch(node)
+          }
+        }
+      }
+
+      // Move all descendants by the same delta
+      const descendants = getAllDescendants(node.id, nodes.value)
+      descendants.forEach(descendant => {
+        const descendantStartPos = dragStartPositions.value.get(descendant.id)
+        if (!descendantStartPos) {
+          // Store initial position if not already stored
+          dragStartPositions.value.set(descendant.id, { x: descendant.x, y: descendant.y })
+        }
+        const origPos = dragStartPositions.value.get(descendant.id)!
+        descendant.x = origPos.x + deltaX
+        descendant.y = origPos.y + deltaY
+      })
+    }
+  })
+
+  // Sync to VueFlow to update descendant positions on canvas
+  syncToVueFlow()
+
+  // Force reactivity update for bounding boxes
+  triggerRef(nodes)
+}
+
+function onNodeDragStop(event: NodeDragEvent) {
+  // Sync final positions
+  syncFromVueFlow()
+
+  // Clear drag start positions
+  dragStartPositions.value.clear()
+
+  // Resolve overlaps after dragging
+  resolveAllOverlaps(nodes.value)
+
+  // Update VueFlow with resolved positions
+  syncToVueFlow()
+}
+
+function onNodeContextMenu(event: { event: MouseEvent; node: Node }) {
+  event.event.preventDefault()
+  contextMenu.value = {
+    visible: true,
+    x: event.event.clientX,
+    y: event.event.clientY,
+    nodeId: event.node.id
+  }
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false
+}
+
+function toggleBoundingBoxes() {
+  showBoundingBoxes.value = !showBoundingBoxes.value
+}
+
+function resolveOverlapsManually() {
+  resolveAllOverlaps(nodes.value)
+  syncToVueFlow()
+}
+
+function getNodeDepth(nodeId: string): number {
+  let depth = 0
+  let currentId: string | null = nodeId
+
+  while (currentId) {
+    const node = nodes.value.find(n => n.id === currentId)
+    if (!node || !node.parentId) break
+    currentId = node.parentId
+    depth++
+  }
+
+  return depth
+}
+
+function generateTestData() {
+  console.log('Generating test data...')
+  nodes.value = []
+  edges.value = []
+  vueFlowNodes.value = []
+  nodeCounter = 1
+
+  // Create 2 root nodes (left and right of center)
+  const root1 = createNode('Root Left', null, -400, 0)
+  const root2 = createNode('Root Right', null, 400, 0)
+
+  // Add children to root1 (left side - children go further left)
+  const r1c1 = createNode('R1-C1', root1.id, root1.x - 200, root1.y + 100)
+  const r1c2 = createNode('R1-C2', root1.id, root1.x - 200, root1.y - 100)
+  createEdge(root1.id, r1c1.id)
+  createEdge(root1.id, r1c2.id)
+
+  // Add grandchildren to r1c1 (continue left)
+  const r1c1c1 = createNode('R1-C1-C1', r1c1.id, r1c1.x - 200, r1c1.y + 80)
+  const r1c1c2 = createNode('R1-C1-C2', r1c1.id, r1c1.x - 200, r1c1.y - 80)
+  createEdge(r1c1.id, r1c1c1.id)
+  createEdge(r1c1.id, r1c1c2.id)
+
+  // Add children to root2 (right side - children go further right)
+  const r2c1 = createNode('R2-C1', root2.id, root2.x + 200, root2.y + 100)
+  const r2c2 = createNode('R2-C2', root2.id, root2.x + 200, root2.y)
+  const r2c3 = createNode('R2-C3', root2.id, root2.x + 200, root2.y - 100)
+  createEdge(root2.id, r2c1.id)
+  createEdge(root2.id, r2c2.id)
+  createEdge(root2.id, r2c3.id)
+
+  // Add more nodes to r2c2 branch (right side)
+  let currentParent = r2c2
+  for (let i = 0; i < 20; i++) {
+    const offsetY = (i % 3 - 1) * 80
+    const newNode = createNode(`Node-${i}`, currentParent.id, currentParent.x + 200, currentParent.y + offsetY)
+    createEdge(currentParent.id, newNode.id)
+    if (i % 4 === 0) {
+      currentParent = newNode
+    }
+  }
+
+  // Add more nodes to r1c2 branch (left side)
+  currentParent = r1c2
+  for (let i = 20; i < 35; i++) {
+    const offsetY = (i % 3 - 1) * 80
+    const newNode = createNode(`Node-${i}`, currentParent.id, currentParent.x - 200, currentParent.y + offsetY)
+    createEdge(currentParent.id, newNode.id)
+    if (i % 4 === 0) {
+      currentParent = newNode
+    }
+  }
+
+  console.log(`Created ${nodes.value.length} nodes and ${edges.value.length} edges`)
+
+  // Sync to VueFlow
+  syncToVueFlow()
+
+  console.log(`VueFlow nodes: ${vueFlowNodes.value.length}`)
+
+  // Resolve overlaps
+  setTimeout(() => {
+    console.log('Resolving overlaps...')
+    console.log('Before overlap resolution, sample positions:', nodes.value.slice(0, 5).map(n => ({ id: n.id, x: n.x, y: n.y })))
+    resolveAllOverlaps(nodes.value)
+    console.log('After overlap resolution, sample positions:', nodes.value.slice(0, 5).map(n => ({ id: n.id, x: n.x, y: n.y })))
+    syncToVueFlow()
+    console.log(`After overlap resolution: ${nodes.value.length} nodes, ${vueFlowNodes.value.length} VueFlow nodes`)
+
+    // Check if any nodes have extreme positions
+    const extremeNodes = nodes.value.filter(n => Math.abs(n.x) > 10000 || Math.abs(n.y) > 10000)
+    if (extremeNodes.length > 0) {
+      console.warn('Found nodes with extreme positions:', extremeNodes.length, extremeNodes.slice(0, 3))
+    }
+  }, 100)
+}
+
+function createNode(label: string, parentId: string | null, x: number, y: number): NodeData {
+  const id = `node-${nodeCounter++}`
+
+  // Calculate height based on content
+  // Root nodes: 1 line (label only) = ~50px
+  // Child nodes: 3 lines (id, label, parent) = ~80px
+  const height = parentId ? 80 : 50
+
+  const node: NodeData = {
+    id,
+    label,
+    parentId,
+    x,
+    y,
+    width: 150,
+    height: height,
+    collapsed: false
+  }
+  nodes.value.push(node)
+  return node
+}
+
+function createEdge(sourceId: string, targetId: string) {
+  // Find source and target nodes to determine which handles to use
+  const sourceNode = nodes.value.find(n => n.id === sourceId)
+  const targetNode = nodes.value.find(n => n.id === targetId)
+
+  if (!sourceNode || !targetNode) return
+
+  // Determine handles based on position relative to center
+  const sourceIsLeft = sourceNode.x < 0
+  const targetIsLeft = targetNode.x < 0
+
+  let sourceHandle = 'bottom'
+  let targetHandle = 'top'
+
+  // If both on same side, use left/right handles
+  if (sourceIsLeft && targetIsLeft) {
+    sourceHandle = 'left'
+    targetHandle = 'right'
+  } else if (!sourceIsLeft && !targetIsLeft) {
+    sourceHandle = 'right'
+    targetHandle = 'left'
+  }
+
+  edges.value.push({
+    id: `e-${sourceId}-${targetId}`,
+    source: sourceId,
+    sourceHandle: sourceHandle,
+    target: targetId,
+    targetHandle: targetHandle,
+    type: 'straight'
+  })
+
+  // Trigger reactivity for edges
+  triggerRef(edges)
+}
+
+// Initialize with some test data
+function initialize() {
+  addRootNode()
+  syncToVueFlow()
+}
+
+initialize()
+</script>
+
+<style scoped>
+.app-container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.controls-panel {
+  width: 300px;
+  background: #f8f9fa;
+  border-right: 1px solid #dee2e6;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.controls-panel h2 {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  color: #212529;
+}
+
+.controls-panel h3 {
+  margin: 20px 0 10px 0;
+  font-size: 14px;
+  color: #495057;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.btn {
+  padding: 10px 16px;
+  border: 1px solid #dee2e6;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: #e9ecef;
+}
+
+.btn-primary {
+  background: #4dabf7;
+  color: white;
+  border-color: #4dabf7;
+}
+
+.btn-primary:hover {
+  background: #339af0;
+}
+
+.btn-secondary {
+  background: #51cf66;
+  color: white;
+  border-color: #51cf66;
+}
+
+.btn-secondary:hover {
+  background: #40c057;
+}
+
+.stats {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.stats div {
+  padding: 4px 0;
+  font-size: 13px;
+  color: #495057;
+}
+
+.instructions {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.instructions ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.instructions li {
+  font-size: 13px;
+  color: #856404;
+  margin: 4px 0;
+}
+
+.canvas-container {
+  flex: 1;
+  position: relative;
+  background: #fafafa;
+}
+
+.canvas-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+
+.context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 150px;
+}
+
+.context-menu-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #212529;
+  transition: background 0.2s;
+}
+
+.context-menu-item:hover {
+  background: #f8f9fa;
+}
+
+.context-menu-item:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.context-menu-item:last-child {
+  border-radius: 0 0 4px 4px;
+}
+</style>
+
+

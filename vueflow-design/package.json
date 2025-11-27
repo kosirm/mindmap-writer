@@ -1,0 +1,24 @@
+{
+  "name": "vueflow-nested-layout-test",
+  "version": "0.0.1",
+  "description": "Test project for nested rectangle layout algorithm",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vue-flow/core": "^1.47.0",
+    "@vue-flow/background": "^1.3.2",
+    "vue": "^3.5.22"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^5.0.0",
+    "vue-tsc": "^2.0.0"
+  }
+}
+

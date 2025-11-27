@@ -4,6 +4,10 @@ import pluginVue from 'eslint-plugin-vue';
 import pluginQuasar from '@quasar/app-vite/eslint';
 import { defineConfigWithVueTs, vueTsConfigs } from '@vue/eslint-config-typescript';
 import prettierSkipFormatting from '@vue/eslint-config-prettier/skip-formatting';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfigWithVueTs(
   {
@@ -48,6 +52,10 @@ export default defineConfigWithVueTs(
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
+      parserOptions: {
+        tsconfigRootDir: __dirname,
+        // Note: 'project' is not needed when 'projectService' is enabled (which is the default)
+      },
 
       globals: {
         ...globals.browser,

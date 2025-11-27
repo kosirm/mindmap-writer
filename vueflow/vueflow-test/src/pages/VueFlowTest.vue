@@ -1916,7 +1916,7 @@ function onNodeDragStop() {
   if (matterEnabled.value) {
     // If Alt key was pressed OR multiple nodes were dragged, run Matter.js engine once to resolve overlaps
     if (isAltKeyPressed.value || multipleNodesSelected) {
-      const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
+      // const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
       // console.log(`[DEBUG] Drag ended with ${reason} - running Matter.js engine to resolve overlaps`);
       runMatterEngineToResolveOverlaps();
     }
@@ -1926,7 +1926,7 @@ function onNodeDragStop() {
   if (planckEnabled.value) {
     // If Alt key was pressed OR multiple nodes were dragged, run Planck.js simulation to resolve overlaps
     if (isAltKeyPressed.value || multipleNodesSelected) {
-      const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
+      // const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
       // console.log(`[DEBUG] Drag ended with ${reason} - running Planck.js simulation to resolve overlaps`);
       runPlanckSimulation(10);
     }
@@ -2330,8 +2330,7 @@ function onKeyDown(event: KeyboardEvent) {
         const createdNode = newNode; // Capture for closure
         void nextTick(() => {
           // Get actual dimensions from DOM
-          const dimensions = getNodeDimensions(createdNode.id);
-
+          // const dimensions = getNodeDimensions(createdNode.id);
           // console.log(`[DEBUG] Ctrl+Arrow rapid creation ${createdNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
 
           // Create Matter.js body with actual dimensions
@@ -2532,10 +2531,10 @@ function exportJSON() {
 
 // View JSON in console
 function viewJSON() {
-  const dataModel = {
-    nodes: nodes.value,
-    edges: edges.value,
-  };
+  // const dataModel = {
+  //   nodes: nodes.value,
+  //   edges: edges.value,
+  // };
 
   // console.log('=== Mindmap Data Model ===');
   // console.log(JSON.stringify(dataModel, null, 2));
@@ -2557,7 +2556,7 @@ function loadMindmapsList() {
       const list = JSON.parse(listData);
       savedMindmaps.value = list.sort((a: SavedMindmap, b: SavedMindmap) => b.timestamp - a.timestamp);
     }
-  } catch (error) {
+  } catch {
     // console.error('Error loading mindmaps list:', error);
   }
 }
@@ -2566,7 +2565,7 @@ function loadMindmapsList() {
 function saveMindmapsList() {
   try {
     localStorage.setItem(MINDMAPS_LIST_KEY, JSON.stringify(savedMindmaps.value));
-  } catch (error) {
+  } catch {
     // console.error('Error saving mindmaps list:', error);
   }
 }
@@ -2660,7 +2659,7 @@ function exportAsJSON() {
       position: 'top',
       timeout: 2000,
     });
-  } catch (error) {
+  } catch {
     // console.error('Error exporting JSON:', error);
     Notify.create({
       type: 'negative',
@@ -2714,7 +2713,7 @@ function importFromJSON() {
         } else {
           throw new Error('Invalid mindmap format');
         }
-      } catch (error) {
+      } catch {
         // console.error('Error importing JSON:', error);
         Notify.create({
           type: 'negative',
@@ -2779,11 +2778,11 @@ function mirrorNodePositions() {
   // Calculate geometric center of root nodes for debugging
   const rootNodes = nodes.value.filter(n => !n.data.parentId);
   if (rootNodes.length > 0) {
-    const sumX = rootNodes.reduce((sum, n) => sum + n.position.x + DEFAULT_NODE_WIDTH / 2, 0);
-    const sumY = rootNodes.reduce((sum, n) => sum + n.position.y + DEFAULT_NODE_HEIGHT / 2, 0);
-    const centerX = sumX / rootNodes.length;
-    const centerY = sumY / rootNodes.length;
-    const distance = Math.sqrt(centerX * centerX + centerY * centerY);
+    // const sumX = rootNodes.reduce((sum, n) => sum + n.position.x + DEFAULT_NODE_WIDTH / 2, 0);
+    // const sumY = rootNodes.reduce((sum, n) => sum + n.position.y + DEFAULT_NODE_HEIGHT / 2, 0);
+    // const centerX = sumX / rootNodes.length;
+    // const centerY = sumY / rootNodes.length;
+    // const distance = Math.sqrt(centerX * centerX + centerY * centerY);
     // console.log(`\n📍 Root nodes geometric center: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`);
     // console.log(`📏 Distance from canvas center (0, 0): ${distance.toFixed(1)} pixels`);
   }
@@ -3171,7 +3170,7 @@ function saveCurrentMindmap() {
       position: 'top',
       timeout: 2000,
     });
-  } catch (error) {
+  } catch {
     // console.error('Error saving mindmap:', error);
     Notify.create({
       type: 'negative',
@@ -3248,7 +3247,7 @@ function loadMindmap(id: string) {
       timeout: 2000,
     });
   } catch (error) {
-    // console.error('Error loading mindmap:', error);
+    console.error('Error loading mindmap:', error);
     Notify.create({
       type: 'negative',
       message: 'Failed to load mindmap',
@@ -3282,7 +3281,7 @@ function deleteMindmap(id: string) {
       timeout: 2000,
     });
   } catch (error) {
-    // console.error('Error deleting mindmap:', error);
+    console.error('Error deleting mindmap:', error);
     Notify.create({
       type: 'negative',
       message: 'Failed to delete mindmap',
