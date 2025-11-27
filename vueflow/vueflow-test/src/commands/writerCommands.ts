@@ -17,7 +17,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement bold
-      console.log('Toggle bold...');
+      // console.log('Toggle bold...');
     },
   },
   
@@ -31,7 +31,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement italic
-      console.log('Toggle italic...');
+      // console.log('Toggle italic...');
     },
   },
   
@@ -45,7 +45,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement underline
-      console.log('Toggle underline...');
+      // console.log('Toggle underline...');
     },
   },
   
@@ -58,7 +58,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement strikethrough
-      console.log('Toggle strikethrough...');
+      // console.log('Toggle strikethrough...');
     },
   },
   
@@ -72,7 +72,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement code
-      console.log('Toggle code...');
+      // console.log('Toggle code...');
     },
   },
   
@@ -86,7 +86,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement link
-      console.log('Insert link...');
+      // console.log('Insert link...');
     },
   },
   
@@ -99,7 +99,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement bullet list
-      console.log('Toggle bullet list...');
+      // console.log('Toggle bullet list...');
     },
   },
   
@@ -112,7 +112,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement numbered list
-      console.log('Toggle numbered list...');
+      // console.log('Toggle numbered list...');
     },
   },
   
@@ -126,7 +126,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement increase indent
-      console.log('Increase indent...');
+      // console.log('Increase indent...');
     },
   },
   
@@ -140,7 +140,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement decrease indent
-      console.log('Decrease indent...');
+      // console.log('Decrease indent...');
     },
   },
   
@@ -153,7 +153,7 @@ export const writerCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement clear formatting
-      console.log('Clear formatting...');
+      // console.log('Clear formatting...');
     },
   },
 ];

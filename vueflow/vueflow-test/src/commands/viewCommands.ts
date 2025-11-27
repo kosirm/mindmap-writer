@@ -17,7 +17,7 @@ export const viewCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement zoom in
-      console.log('Zoom in...');
+      // console.log('Zoom in...');
     },
   },
   
@@ -31,7 +31,7 @@ export const viewCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement zoom out
-      console.log('Zoom out...');
+      // console.log('Zoom out...');
     },
   },
   
@@ -45,7 +45,7 @@ export const viewCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement zoom to fit
-      console.log('Zoom to fit...');
+      // console.log('Zoom to fit...');
     },
   },
   
@@ -59,7 +59,7 @@ export const viewCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) > 0,
     execute: (context) => {
       // TODO: Implement zoom to selection
-      console.log('Zoom to selection:', context?.selectedNodeIds);
+      // console.log('Zoom to selection:', context?.selectedNodeIds);
     },
   },
   
@@ -73,7 +73,7 @@ export const viewCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement toggle mindmap
-      console.log('Toggle mindmap view...');
+      // console.log('Toggle mindmap view...');
     },
   },
   
@@ -87,7 +87,7 @@ export const viewCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement toggle writer
-      console.log('Toggle writer view...');
+      // console.log('Toggle writer view...');
     },
   },
   
@@ -101,7 +101,7 @@ export const viewCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement toggle tree
-      console.log('Toggle tree view...');
+      // console.log('Toggle tree view...');
     },
   },
   

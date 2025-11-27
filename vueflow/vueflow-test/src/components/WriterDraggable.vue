@@ -23,8 +23,7 @@
       <button
         class="drag-handle"
         aria-label="Drag handle"
-        @pointerdown="(e: PointerEvent) => { console.log('[WriterDraggable] Drag handle pointerdown', props.node.id); handleDragStart(e); }"
-        @click="() => console.log('[WriterDraggable] Drag handle clicked', props.node.id)"
+        @pointerdown="(e: PointerEvent) => { handleDragStart(e); }"
         tabindex="0"
       >
         <q-icon name="drag_indicator" size="sm" />
@@ -169,19 +168,19 @@ const { elementRef, handleDragStart, isDragging, isOvered } = useDraggable({
 
 // Debug: Watch drag state
 watch(isDragging, (newVal) => {
-  console.log('[WriterDraggable] isDragging changed:', {
-    nodeId: props.node.id,
-    nodeTitle: props.node.data.title,
-    isDragging: newVal,
-  });
+  // console.log('[WriterDraggable] isDragging changed:', {
+  //   nodeId: props.node.id,
+  //   nodeTitle: props.node.data.title,
+  //   isDragging: newVal,
+  // });
 });
 
 watch(isOvered, (newVal) => {
-  console.log('[WriterDraggable] isOvered changed:', {
-    nodeId: props.node.id,
-    nodeTitle: props.node.data.title,
-    isOvered: newVal,
-  });
+  // console.log('[WriterDraggable] isOvered changed:', {
+  //   nodeId: props.node.id,
+  //   nodeTitle: props.node.data.title,
+  //   isOvered: newVal,
+  // });
 });
 
 // Mouse handlers
@@ -316,7 +315,7 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
     void nextTick(() => {
       if (titleEditorInstance.value) {
         titleEditorInstance.value.commands.selectAll();
-        console.log('[WriterDraggable] Selected all text in "Untitled" title');
+        // console.log('[WriterDraggable] Selected all text in "Untitled" title');
       }
     });
   }
@@ -367,8 +366,8 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
           openTitleEditor('end');
         },
         onRightArrowAtEnd: () => {
-          console.log('[WriterDraggable] ========== onRightArrowAtEnd TRIGGERED ==========');
-          console.log('[WriterDraggable] Current node:', props.node.id);
+          // console.log('[WriterDraggable] ========== onRightArrowAtEnd TRIGGERED ==========');
+          // console.log('[WriterDraggable] Current node:', props.node.id);
           // Right arrow at end of content goes to next node's title
           if (navigation) {
             // Check if content is empty
@@ -379,21 +378,21 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
               return textContent.trim() !== '';
             })();
 
-            console.log('[WriterDraggable] Content is empty:', !hasContent);
+            // console.log('[WriterDraggable] Content is empty:', !hasContent);
 
             // If content is empty, use 'title' to find next field (because empty content is not in flattened list)
             // If content has text, use 'content' to find next field
             const currentField = hasContent ? 'content' : 'title';
             const nextField = navigation.getNextField(props.node.id, currentField);
-            console.log('[WriterDraggable] Next field:', nextField);
+            // console.log('[WriterDraggable] Next field:', nextField);
             if (nextField) {
-              console.log('[WriterDraggable] Navigating to:', nextField.nodeId, nextField.field, 'start');
+              // console.log('[WriterDraggable] Navigating to:', nextField.nodeId, nextField.field, 'start');
               navigateToField(nextField.nodeId, nextField.field, 'start');
             } else {
-              console.log('[WriterDraggable] ❌ No next field found');
+              // console.log('[WriterDraggable] ❌ No next field found');
             }
           } else {
-            console.log('[WriterDraggable] ❌ Navigation composable not available');
+            // console.log('[WriterDraggable] ❌ Navigation composable not available');
           }
         },
         onUpArrowAtFirstLine: () => {
@@ -401,8 +400,8 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
           openTitleEditor('end');
         },
         onDownArrowAtLastLine: () => {
-          console.log('[WriterDraggable] ========== onDownArrowAtLastLine TRIGGERED ==========');
-          console.log('[WriterDraggable] Current node:', props.node.id);
+          // console.log('[WriterDraggable] ========== onDownArrowAtLastLine TRIGGERED ==========');
+          // console.log('[WriterDraggable] Current node:', props.node.id);
           // Down arrow at last line of content goes to next node's title
           if (navigation) {
             // Check if content is empty
@@ -413,21 +412,21 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
               return textContent.trim() !== '';
             })();
 
-            console.log('[WriterDraggable] Content is empty:', !hasContent);
+            // console.log('[WriterDraggable] Content is empty:', !hasContent);
 
             // If content is empty, use 'title' to find next field (because empty content is not in flattened list)
             // If content has text, use 'content' to find next field
             const currentField = hasContent ? 'content' : 'title';
             const nextField = navigation.getNextField(props.node.id, currentField);
-            console.log('[WriterDraggable] Next field:', nextField);
+            // console.log('[WriterDraggable] Next field:', nextField);
             if (nextField) {
-              console.log('[WriterDraggable] Navigating to:', nextField.nodeId, nextField.field, 'start');
+              // console.log('[WriterDraggable] Navigating to:', nextField.nodeId, nextField.field, 'start');
               navigateToField(nextField.nodeId, nextField.field, 'start');
             } else {
-              console.log('[WriterDraggable] ❌ No next field found');
+              // console.log('[WriterDraggable] ❌ No next field found');
             }
           } else {
-            console.log('[WriterDraggable] ❌ Navigation composable not available');
+            // console.log('[WriterDraggable] ❌ Navigation composable not available');
           }
         },
       }),

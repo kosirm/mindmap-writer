@@ -17,7 +17,7 @@ export const mindmapCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement add node
-      console.log('Add node...');
+      // console.log('Add node...');
     },
   },
   
@@ -32,7 +32,7 @@ export const mindmapCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) === 1,
     execute: (context) => {
       // TODO: Implement add child node
-      console.log('Add child node to:', context?.selectedNodeIds?.[0]);
+      // console.log('Add child node to:', context?.selectedNodeIds?.[0]);
     },
   },
   
@@ -47,7 +47,7 @@ export const mindmapCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) === 1,
     execute: (context) => {
       // TODO: Implement add sibling node
-      console.log('Add sibling node to:', context?.selectedNodeIds?.[0]);
+      // console.log('Add sibling node to:', context?.selectedNodeIds?.[0]);
     },
   },
   
@@ -62,7 +62,7 @@ export const mindmapCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) === 1,
     execute: (context) => {
       // TODO: Implement add parent node
-      console.log('Add parent node to:', context?.selectedNodeIds?.[0]);
+      // console.log('Add parent node to:', context?.selectedNodeIds?.[0]);
     },
   },
   
@@ -76,7 +76,7 @@ export const mindmapCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) === 2,
     execute: (context) => {
       // TODO: Implement connect nodes
-      console.log('Connect nodes:', context?.selectedNodeIds);
+      // console.log('Connect nodes:', context?.selectedNodeIds);
     },
   },
   
@@ -90,7 +90,7 @@ export const mindmapCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) === 2,
     execute: (context) => {
       // TODO: Implement disconnect nodes
-      console.log('Disconnect nodes:', context?.selectedNodeIds);
+      // console.log('Disconnect nodes:', context?.selectedNodeIds);
     },
   },
   
@@ -105,7 +105,7 @@ export const mindmapCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) === 1,
     execute: (context) => {
       // TODO: Implement edit node
-      console.log('Edit node:', context?.selectedNodeIds?.[0]);
+      // console.log('Edit node:', context?.selectedNodeIds?.[0]);
     },
   },
   
@@ -119,7 +119,7 @@ export const mindmapCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) === 1,
     execute: (context) => {
       // TODO: Implement collapse node
-      console.log('Collapse node:', context?.selectedNodeIds?.[0]);
+      // console.log('Collapse node:', context?.selectedNodeIds?.[0]);
     },
   },
   
@@ -133,7 +133,7 @@ export const mindmapCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) === 1,
     execute: (context) => {
       // TODO: Implement expand node
-      console.log('Expand node:', context?.selectedNodeIds?.[0]);
+      // console.log('Expand node:', context?.selectedNodeIds?.[0]);
     },
   },
   

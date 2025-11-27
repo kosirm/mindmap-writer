@@ -58,7 +58,7 @@ function loadSettings(): AppSettings {
       };
     }
   } catch (error) {
-    console.error('[Settings] Failed to load settings from localStorage:', error);
+    // console.error('[Settings] Failed to load settings from localStorage:', error);
   }
   return defaultSettings;
 }
@@ -69,9 +69,9 @@ function loadSettings(): AppSettings {
 function saveSettings(settings: AppSettings) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    console.log('[Settings] Saved to localStorage');
+    // console.log('[Settings] Saved to localStorage');
   } catch (error) {
-    console.error('[Settings] Failed to save settings to localStorage:', error);
+    // console.error('[Settings] Failed to save settings to localStorage:', error);
   }
 }
 
@@ -92,7 +92,7 @@ export function useSettings() {
    */
   function resetToDefaults() {
     settings.value = JSON.parse(JSON.stringify(defaultSettings));
-    console.log('[Settings] Reset to defaults');
+    // console.log('[Settings] Reset to defaults');
   }
 
   /**
@@ -100,7 +100,7 @@ export function useSettings() {
    */
   function resetSection(section: keyof AppSettings) {
     settings.value[section] = JSON.parse(JSON.stringify(defaultSettings[section]));
-    console.log(`[Settings] Reset ${section} to defaults`);
+    // console.log(`[Settings] Reset ${section} to defaults`);
   }
 
   /**
@@ -121,10 +121,10 @@ export function useSettings() {
         writer: { ...defaultSettings.writer, ...parsed.writer },
         general: { ...defaultSettings.general, ...parsed.general },
       };
-      console.log('[Settings] Imported settings');
+      // console.log('[Settings] Imported settings');
       return true;
     } catch (error) {
-      console.error('[Settings] Failed to import settings:', error);
+      // console.error('[Settings] Failed to import settings:', error);
       return false;
     }
   }

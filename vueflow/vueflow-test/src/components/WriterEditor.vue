@@ -110,13 +110,13 @@ function extractHierarchyAndOrderFromTree(
 
 // Listen for tree restructuring events
 eventBus.on('writer:tree-restructured', ({ draggedNodeIds, newParentId }) => {
-  console.log('[WriterEditor] Tree restructured:', { draggedNodeIds, newParentId });
+  // console.log('[WriterEditor] Tree restructured:', { draggedNodeIds, newParentId });
 
   // Extract the new hierarchy and order from the current tree structure
   const { hierarchy: newHierarchy, orders: newOrders } = extractHierarchyAndOrderFromTree(treeData.value);
 
-  console.log('[WriterEditor] New hierarchy:', newHierarchy);
-  console.log('[WriterEditor] New orders:', newOrders);
+  // console.log('[WriterEditor] New hierarchy:', newHierarchy);
+  // console.log('[WriterEditor] New orders:', newOrders);
 
   // Emit hierarchy and order changes for all nodes
   newHierarchy.forEach((parentId, nodeId) => {
