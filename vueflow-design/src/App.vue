@@ -148,6 +148,9 @@ const contextMenu = ref<ContextMenuState>({
 // Track previous positions for drag delta calculation
 const dragStartPositions = ref<Map<string, { x: number; y: number }>>(new Map())
 
+// Track potential parent during drag (for reparenting)
+const potentialParent = ref<string | null>(null)
+
 let nodeCounter = 1
 
 // Compute viewport transform for SVG
@@ -255,7 +258,8 @@ function syncToVueFlow() {
         parentId: node.parentId,
         childCount,
         collapsed: node.collapsed,
-        childrenSide
+        childrenSide,
+        isPotentialParent: potentialParent.value === node.id
       }
     }
   })
@@ -443,7 +447,7 @@ function addChild() {
 function addChildToSide(parent: NodeData, side: 'left' | 'right') {
   const offsetX = side === 'left' ? -200 : 200
   const childX = parent.x + offsetX
-  const childY = parent.y + 80
+  const childY = parent.y  // Same horizontal level as parent
 
   const id = `node-${nodeCounter++}`
   const newNode: NodeData = {
@@ -592,6 +596,9 @@ function onNodeDrag(event: NodeDragEvent) {
         descendant.x = origPos.x + deltaX
         descendant.y = origPos.y + deltaY
       })
+
+      // Check if dragged node is over another node (for reparenting)
+      detectPotentialParent(node)
     }
   })
 
@@ -602,18 +609,167 @@ function onNodeDrag(event: NodeDragEvent) {
   triggerRef(nodes)
 }
 
+function detectPotentialParent(draggedNode: NodeData) {
+  // Check if dragged node is over another node
+  // Don't allow reparenting to self or descendants
+  const descendants = getAllDescendants(draggedNode.id, nodes.value)
+  const descendantIds = new Set([draggedNode.id, ...descendants.map(d => d.id)])
+
+  // Find if dragged node overlaps with any other node
+  let foundParent: string | null = null
+
+  for (const targetNode of nodes.value) {
+    // Skip if target is the dragged node or its descendant
+    if (descendantIds.has(targetNode.id)) continue
+
+    // Check if dragged node center is inside target node bounds
+    const draggedCenterX = draggedNode.x + draggedNode.width / 2
+    const draggedCenterY = draggedNode.y + draggedNode.height / 2
+
+    if (
+      draggedCenterX >= targetNode.x &&
+      draggedCenterX <= targetNode.x + targetNode.width &&
+      draggedCenterY >= targetNode.y &&
+      draggedCenterY <= targetNode.y + targetNode.height
+    ) {
+      foundParent = targetNode.id
+      break
+    }
+  }
+
+  // Update potential parent
+  if (potentialParent.value !== foundParent) {
+    potentialParent.value = foundParent
+    syncToVueFlow() // Update visual feedback
+  }
+}
+
+function reparentNode(nodeId: string, newParentId: string) {
+  const node = nodes.value.find((n: NodeData) => n.id === nodeId)
+  const newParent = nodes.value.find((n: NodeData) => n.id === newParentId)
+
+  if (!node || !newParent) return
+
+  console.log(`Reparenting ${nodeId} to ${newParentId}`)
+
+  // Remove old edge
+  if (node.parentId) {
+    edges.value = edges.value.filter(e => !(e.source === node.parentId && e.target === nodeId))
+  }
+
+  // Update parent
+  const oldParentId = node.parentId
+  node.parentId = newParentId
+
+  // Store old position to calculate delta for descendants
+  const oldX = node.x
+  const oldY = node.y
+
+  // Determine which side of new parent's root the node should be on
+  const newParentRoot = getRootNode(newParentId)
+  if (newParentRoot) {
+    // Determine new parent's side relative to root
+    const newParentSide = newParent.x < newParentRoot.x ? 'left' : 'right'
+
+    // Position node on the same side as new parent, same horizontal level
+    if (newParentSide === 'left') {
+      // Position to the left of new parent
+      node.x = newParent.x - 200
+    } else {
+      // Position to the right of new parent
+      node.x = newParent.x + 200
+    }
+    node.y = newParent.y  // Same horizontal level as parent
+  } else {
+    // New parent is a root node
+    // Position based on which side of root the node is currently on
+    if (node.x < newParent.x) {
+      node.x = newParent.x - 200
+    } else {
+      node.x = newParent.x + 200
+    }
+    node.y = newParent.y  // Same horizontal level as parent
+  }
+
+  // Move all descendants with the node
+  const deltaX = node.x - oldX
+  const deltaY = node.y - oldY
+
+  const descendants = getAllDescendants(nodeId, nodes.value)
+  descendants.forEach(descendant => {
+    descendant.x += deltaX
+    descendant.y += deltaY
+  })
+
+  // Create new edge with appropriate handles
+  const newParentRoot2 = getRootNode(newParentId)
+  let sourceHandle = 'bottom'
+  let targetHandle = 'top'
+
+  if (newParentRoot2) {
+    const isLeftBranch = newParent.x < newParentRoot2.x
+    sourceHandle = isLeftBranch ? 'left' : 'right'
+    targetHandle = isLeftBranch ? 'right' : 'left'
+  } else {
+    // New parent is root
+    const isLeftBranch = node.x < newParent.x
+    sourceHandle = isLeftBranch ? 'left' : 'right'
+    targetHandle = isLeftBranch ? 'right' : 'left'
+  }
+
+  edges.value.push({
+    id: `e-${newParentId}-${nodeId}`,
+    source: newParentId,
+    target: nodeId,
+    sourceHandle,
+    targetHandle,
+    type: 'straight'
+  })
+
+  // Update edges for the entire branch
+  updateEdgesForBranch(node)
+
+  console.log(`Reparented ${nodeId} from ${oldParentId} to ${newParentId}`)
+}
+
 function onNodeDragStop(event: NodeDragEvent) {
-  // Sync final positions
-  syncFromVueFlow()
+  // Check if we should reparent
+  if (potentialParent.value && event.nodes.length === 1) {
+    const draggedNodeId = event.nodes[0].id
+    const newParentId = potentialParent.value
 
-  // Clear drag start positions
-  dragStartPositions.value.clear()
+    // Clear potential parent
+    potentialParent.value = null
 
-  // Resolve overlaps after dragging
-  resolveAllOverlaps(nodes.value)
+    // Reparent the node (this sets new positions)
+    reparentNode(draggedNodeId, newParentId)
 
-  // Update VueFlow with resolved positions
-  syncToVueFlow()
+    // Clear drag start positions
+    dragStartPositions.value.clear()
+
+    // Resolve overlaps after reparenting
+    resolveAllOverlaps(nodes.value)
+
+    // Update VueFlow with resolved positions
+    syncToVueFlow()
+  } else {
+    // Normal drag without reparenting
+
+    // Clear potential parent
+    potentialParent.value = null
+
+    // Sync final positions
+    syncFromVueFlow()
+
+    // Clear drag start positions
+    dragStartPositions.value.clear()
+
+    // Resolve overlaps after dragging
+    resolveAllOverlaps(nodes.value)
+
+    // Update VueFlow with resolved positions
+    syncToVueFlow()
+  }
 }
 
 function onNodeContextMenu(event: { event: MouseEvent; node: Node }) {

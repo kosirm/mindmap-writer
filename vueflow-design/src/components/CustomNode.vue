@@ -1,5 +1,5 @@
 <template>
-  <div class="custom-node">
+  <div class="custom-node" :class="{ 'potential-parent': data.isPotentialParent }">
     <div class="node-content">
       {{ data.label }}
     </div>
@@ -56,6 +56,7 @@ interface Props {
     childCount?: number
     collapsed?: boolean
     childrenSide?: 'left' | 'right'
+    isPotentialParent?: boolean
   }
 }
 
@@ -89,6 +90,23 @@ function toggleCollapse() {
 .custom-node:hover {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   border-color: #339af0;
+}
+
+.custom-node.potential-parent {
+  background: #d0ebff;
+  border-color: #4dabf7;
+  border-width: 3px;
+  box-shadow: 0 0 0 4px rgba(77, 171, 247, 0.2);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(77, 171, 247, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(77, 171, 247, 0.3);
+  }
 }
 
 .node-content {
