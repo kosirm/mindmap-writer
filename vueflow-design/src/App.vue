@@ -17,10 +17,54 @@
           Generate Test Data (50 nodes)
         </button>
       </div>
+
+      <!-- Stress Test Controls -->
+      <div class="stress-test-section">
+        <h3>Stress Test</h3>
+        <div class="controls">
+          <label>
+            Node Count:
+            <input v-model.number="stressTestNodeCount" type="number" min="50" max="10000" step="50" />
+          </label>
+          <button @click="runStressTest" class="btn btn-warning">
+            Run Stress Test
+          </button>
+          <button @click="clearAll" class="btn btn-danger">
+            Clear All
+          </button>
+          <button @click="zoomToFit" class="btn">
+            Zoom to Fit
+          </button>
+        </div>
+        <div class="algorithm-toggle">
+          <label>
+            <input type="radio" v-model="algorithm" value="aabb" />
+            AABB (O(n²))
+          </label>
+          <label>
+            <input type="radio" v-model="algorithm" value="rbush" />
+            RBush (O(n log n))
+          </label>
+        </div>
+        <div class="quick-tests">
+          <button @click="stressTestNodeCount = 500; runStressTest()" class="btn btn-small">500 nodes</button>
+          <button @click="stressTestNodeCount = 1000; runStressTest()" class="btn btn-small">1K nodes</button>
+          <button @click="stressTestNodeCount = 2000; runStressTest()" class="btn btn-small">2K nodes</button>
+          <button @click="stressTestNodeCount = 5000; runStressTest()" class="btn btn-small">5K nodes</button>
+        </div>
+      </div>
+
       <div class="stats">
         <div>Total Nodes: {{ nodes.length }}</div>
         <div>Root Nodes: {{ rootNodes.length }}</div>
-        <div>Algorithm: AABB</div>
+        <div>Algorithm: {{ algorithm.toUpperCase() }}</div>
+        <div v-if="lastPerformance">
+          <strong>Last Operation:</strong>
+          <div>Overlap Detection: {{ lastPerformance.overlapDetection }}ms</div>
+          <div>Resolution: {{ lastPerformance.resolution }}ms</div>
+          <div>Total: {{ lastPerformance.total }}ms</div>
+          <div>Overlaps Found: {{ lastPerformance.overlapsFound }}</div>
+        </div>
       </div>
       <div class="instructions">
         <h3>Instructions:</h3>
@@ -38,7 +82,9 @@
       <VueFlow
         :nodes="vueFlowNodes"
         :edges="visibleEdges"
-        :default-viewport="{ zoom: 1, x: 0, y: 0 }"
+        :default-viewport="{ zoom: 0.3, x: 400, y: 300 }"
+        :min-zoom="0.05"
+        :max-zoom="2"
         @node-drag-start="onNodeDragStart"
         @node-drag="onNodeDrag"
         @node-drag-stop="onNodeDragStop"
@@ -46,7 +92,7 @@
         @pane-click="closeContextMenu"
       >
         <Background />
-        
+
         <!-- Custom Node Template -->
         <template #node-custom="{ data, id }">
           <CustomNode :data="data" @toggle-collapse="toggleCollapse(id)" />
@@ -129,9 +175,10 @@ import type { Node, Edge, NodeDragEvent } from '@vue-flow/core'
 import CustomNode from './components/CustomNode.vue'
 import type { NodeData, ContextMenuState, BoundingRect } from './types'
 import { calculateBoundingRect, resolveAllOverlaps, getAllDescendants, moveNodeAndDescendants } from './layout'
+import * as LayoutRBush from './layout-rbush'
 
 // VueFlow instance
-const { viewport } = useVueFlow()
+const { viewport, fitView } = useVueFlow()
 
 // State
 const nodes = ref<NodeData[]>([])
@@ -150,6 +197,16 @@ const dragStartPositions = ref<Map<string, { x: number; y: number }>>(new Map())
 
 // Track potential parent during drag (for reparenting)
 const potentialParent = ref<string | null>(null)
+
+// Stress test state
+const algorithm = ref<'aabb' | 'rbush'>('aabb')
+const stressTestNodeCount = ref(1000)
+const lastPerformance = ref<{
+  overlapDetection: number
+  resolution: number
+  total: number
+  overlapsFound: number
+} | null>(null)
 
 let nodeCounter = 1
 
@@ -795,6 +852,10 @@ function resolveOverlapsManually() {
   syncToVueFlow()
 }
 
+function zoomToFit() {
+  fitView({ padding: 0.2, duration: 300 })
+}
+
 function getNodeDepth(nodeId: string): number {
   let depth = 0
   let currentId: string | null = nodeId
@@ -884,6 +945,159 @@ function generateTestData() {
       console.warn('Found nodes with extreme positions:', extremeNodes.length, extremeNodes.slice(0, 3))
     }
   }, 100)
+}
+
+function clearAll() {
+  nodes.value = []
+  edges.value = []
+  vueFlowNodes.value = []
+  nodeCounter = 1
+  lastPerformance.value = null
+}
+
+function runStressTest() {
+  console.log(`Running stress test with ${stressTestNodeCount.value} nodes using ${algorithm.value.toUpperCase()}...`)
+
+  // Clear existing data
+  clearAll()
+
+  const startTotal = performance.now()
+
+  // Create root nodes (10 roots) - space them far apart
+  const rootCount = 10
+  const roots: NodeData[] = []
+  for (let i = 0; i < rootCount; i++) {
+    const x = (i - rootCount / 2) * 800  // Increased spacing to 800px
+    const root = createNode(`Root ${i + 1}`, null, x, 0)
+    roots.push(root)
+  }
+
+  // Calculate how many children per root
+  const childrenPerRoot = Math.floor((stressTestNodeCount.value - rootCount) / rootCount)
+
+  // Create children for each root
+  for (const root of roots) {
+    const isLeftSide = root.x < 0
+    const offsetX = isLeftSide ? -250 : 250  // Increased horizontal spacing
+
+    // Create children in a grid pattern
+    const childrenPerLevel = Math.ceil(Math.sqrt(childrenPerRoot))
+    let childIndex = 0
+
+    for (let level = 0; level < Math.ceil(childrenPerRoot / childrenPerLevel); level++) {
+      for (let i = 0; i < childrenPerLevel && childIndex < childrenPerRoot; i++) {
+        const x = root.x + offsetX * (level + 1)
+        const y = root.y + (i - childrenPerLevel / 2) * 150  // Increased vertical spacing to 150px
+        const child = createNode(`C${childIndex + 1}`, root.id, x, y)
+        createEdge(root.id, child.id)
+        childIndex++
+      }
+    }
+  }
+
+  // Sync to VueFlow
+  syncToVueFlow()
+
+  // Now measure overlap detection and resolution
+  let overlapsFoundBefore = 0
+  let overlapsFoundAfter = 0
+
+  if (algorithm.value === 'rbush') {
+    // Measure overlap detection with RBush
+    const startOverlap = performance.now()
+
+    const rootNodesData = nodes.value.filter((n: NodeData) => n.parentId === null)
+    const boundingRects = rootNodesData.map((node: NodeData) =>
+      LayoutRBush.calculateBoundingRect(node, nodes.value)
+    )
+
+    const overlaps = LayoutRBush.findOverlapsRBush(boundingRects)
+    overlapsFoundBefore = overlaps.length
+
+    const endOverlap = performance.now()
+
+    // Resolve overlaps using standard algorithm
+    const startResolution = performance.now()
+    resolveAllOverlaps(nodes.value)
+    const endResolution = performance.now()
+
+    // Check overlaps after resolution
+    const boundingRectsAfter = rootNodesData.map((node: NodeData) =>
+      LayoutRBush.calculateBoundingRect(node, nodes.value)
+    )
+    const overlapsAfter = LayoutRBush.findOverlapsRBush(boundingRectsAfter)
+    overlapsFoundAfter = overlapsAfter.length
+
+    lastPerformance.value = {
+      overlapDetection: endOverlap - startOverlap,
+      resolution: endResolution - startResolution,
+      total: performance.now() - startTotal,
+      overlapsFound: overlapsFoundAfter
+    }
+  } else {
+    // Measure overlap detection with AABB
+    const startOverlap = performance.now()
+
+    const rootNodesData = nodes.value.filter((n: NodeData) => n.parentId === null)
+    const boundingRects = rootNodesData.map((node: NodeData) =>
+      calculateBoundingRect(node, nodes.value)
+    )
+
+    // Count overlaps before resolution
+    for (let i = 0; i < boundingRects.length; i++) {
+      for (let j = i + 1; j < boundingRects.length; j++) {
+        if (checkOverlap(boundingRects[i], boundingRects[j])) {
+          overlapsFoundBefore++
+        }
+      }
+    }
+
+    const endOverlap = performance.now()
+
+    // Resolve overlaps
+    const startResolution = performance.now()
+    resolveAllOverlaps(nodes.value)
+    const endResolution = performance.now()
+
+    // Count overlaps after resolution
+    const boundingRectsAfter = rootNodesData.map((node: NodeData) =>
+      calculateBoundingRect(node, nodes.value)
+    )
+
+    for (let i = 0; i < boundingRectsAfter.length; i++) {
+      for (let j = i + 1; j < boundingRectsAfter.length; j++) {
+        if (checkOverlap(boundingRectsAfter[i], boundingRectsAfter[j])) {
+          overlapsFoundAfter++
+        }
+      }
+    }
+
+    lastPerformance.value = {
+      overlapDetection: endOverlap - startOverlap,
+      resolution: endResolution - startResolution,
+      total: performance.now() - startTotal,
+      overlapsFound: overlapsFoundAfter
+    }
+  }
+
+  syncToVueFlow()
+
+  // Zoom to fit after a short delay
+  setTimeout(() => {
+    zoomToFit()
+  }, 100)
+
+  console.log('Stress test complete:', lastPerformance.value)
+  console.log(`Overlaps before: ${overlapsFoundBefore}, after: ${overlapsFoundAfter}`)
+}
+
+function checkOverlap(rect1: BoundingRect, rect2: BoundingRect): boolean {
+  return !(
+    rect1.x + rect1.width <= rect2.x ||
+    rect2.x + rect2.width <= rect1.x ||
+    rect1.y + rect1.height <= rect2.y ||
+    rect2.y + rect2.height <= rect1.y
+  )
 }
 
 function createNode(label: string, parentId: string | null, x: number, y: number): NodeData {
@@ -1020,6 +1234,91 @@ initialize()
 
 .btn-secondary:hover {
   background: #40c057;
+}
+
+.btn-warning {
+  background: #ffd43b;
+  color: #212529;
+  border-color: #ffd43b;
+}
+
+.btn-warning:hover {
+  background: #fcc419;
+}
+
+.btn-danger {
+  background: #ff6b6b;
+  color: white;
+  border-color: #ff6b6b;
+}
+
+.btn-danger:hover {
+  background: #fa5252;
+}
+
+.stress-test-section {
+  background: #e7f5ff;
+  border: 1px solid #4dabf7;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.stress-test-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  color: #1971c2;
+}
+
+.stress-test-section label {
+  display: block;
+  font-size: 13px;
+  color: #495057;
+  margin-bottom: 5px;
+}
+
+.stress-test-section input[type="number"] {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.algorithm-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #a5d8ff;
+}
+
+.algorithm-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.algorithm-toggle input[type="radio"] {
+  cursor: pointer;
+}
+
+.quick-tests {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #a5d8ff;
+}
+
+.btn-small {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .stats {
