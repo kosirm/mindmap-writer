@@ -65,11 +65,11 @@ export function useD3Force(
   // Called when simulation finishes
   function onSimulationEnd() {
     isSimulationRunning.value = false;
-    // console.log('[D3 Force] Simulation finished - nodes can be dragged again');
+    // // console.log('[D3 Force] Simulation finished - nodes can be dragged again');
 
     // If Matter.js is enabled, sync all bodies with new positions from D3
     if (matterEnabled.value) {
-      // console.log('[D3 Force] Syncing Matter.js bodies with new D3 positions...');
+      // // console.log('[D3 Force] Syncing Matter.js bodies with new D3 positions...');
 
       // Wait for next tick to ensure DOM is updated with new positions
       void nextTick(() => {
@@ -83,7 +83,7 @@ export function useD3Force(
         // This is just to make sure nodes don't overlap after D3 layout
         runMatterEngineToResolveOverlaps();
 
-        // console.log('[D3 Force] ✅ Matter.js bodies synced with D3 positions and overlaps resolved');
+        // // console.log('[D3 Force] ✅ Matter.js bodies synced with D3 positions and overlaps resolved');
       });
     }
   }
@@ -137,7 +137,7 @@ export function useD3Force(
 
   // Run D3 Force layout once
   function runD3ForceOnce() {
-    // console.log('[D3 Force] Starting D3 Force layout...');
+    // // console.log('[D3 Force] Starting D3 Force layout...');
 
     // If Matter.js is enabled, we need to sync bodies after D3 completes
     const wasMatterEnabled = matterEnabled.value;
@@ -148,13 +148,13 @@ export function useD3Force(
     // Note: The simulation will automatically call runMatterEngineToResolveOverlaps()
     // when it ends (see onSimulationEnd function) if Matter.js is enabled
     if (wasMatterEnabled) {
-      // console.log('[D3 Force] Matter.js is enabled - will sync bodies after D3 completes');
+      // // console.log('[D3 Force] Matter.js is enabled - will sync bodies after D3 completes');
     }
   }
 
   // Run D3 Force layout on selected branch only
   function runD3ForceOnBranch(selectedNodeIds: string[], rootNodeId: string) {
-    console.log('[D3 Force] Starting D3 Force layout on branch:', { selectedNodeIds, rootNodeId });
+    // console.log('[D3 Force] Starting D3 Force layout on branch:', { selectedNodeIds, rootNodeId });
 
     if (!simulation) {
       initSimulation();
@@ -205,7 +205,7 @@ export function useD3Force(
     // Restart simulation
     simulation.alpha(0.3).restart();
 
-    console.log('[D3 Force] Branch layout started with', selectedNodeIds.length, 'nodes and', branchLinks.length, 'links');
+    // console.log('[D3 Force] Branch layout started with', selectedNodeIds.length, 'nodes and', branchLinks.length, 'links');
   }
 
   // Cleanup function

@@ -30,7 +30,7 @@ export function useCommands() {
    */
   function registerCommand(command: Command) {
     if (commands.value.has(command.id)) {
-      console.warn(`Command ${command.id} is already registered. Overwriting.`);
+      // console.warn(`Command ${command.id} is already registered. Overwriting.`);
     }
     commands.value.set(command.id, command);
   }
@@ -87,7 +87,7 @@ export function useCommands() {
   async function executeCommand(commandId: string, context?: CommandContext): Promise<void> {
     const command = getCommand(commandId);
     if (!command) {
-      console.error(`Command ${commandId} not found`);
+      // console.error(`Command ${commandId} not found`);
       return;
     }
 
@@ -95,14 +95,14 @@ export function useCommands() {
     
     // Check if command is available
     if (!isCommandAvailable(commandId, ctx)) {
-      console.warn(`Command ${commandId} is not available in current context`);
+      // console.warn(`Command ${commandId} is not available in current context`);
       return;
     }
 
     try {
       await command.execute(ctx);
     } catch (error) {
-      console.error(`Error executing command ${commandId}:`, error);
+      // console.error(`Error executing command ${commandId}:`, error);
     }
   }
 

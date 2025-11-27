@@ -21,14 +21,14 @@ const props = defineProps<{
 
 // Custom drop handler that updates hierarchy
 function handleDrop(store: IDnDStore) {
-  console.log('[WriterDroppable] handleDrop called', {
-    parentId: props.parentId,
-    draggingElements: store.draggingElements.value.size,
-  });
+  // console.log('[WriterDroppable] handleDrop called', {
+    // parentId: props.parentId,
+    // draggingElements: store.draggingElements.value.size,
+  // });
 
   // Get the dragged element's data before applying transfer
   const draggedElements = Array.from(store.draggingElements.value.values());
-  console.log('[WriterDroppable] draggedElements:', draggedElements);
+  // console.log('[WriterDroppable] draggedElements:', draggedElements);
 
   // Extract node IDs from dragged elements
   const draggedNodeIds: string[] = [];
@@ -44,17 +44,17 @@ function handleDrop(store: IDnDStore) {
 
   // First, apply the transfer to update the array structure
   DnDOperations.applyTransfer(store);
-  console.log('[WriterDroppable] applyTransfer completed');
+  // console.log('[WriterDroppable] applyTransfer completed');
 
   // After applyTransfer, the source array has been modified
   // Now we need to update the hierarchy based on the new structure
   const newParentId = props.parentId || null;
 
   // Emit event to rebuild hierarchy from the modified tree structure
-  console.log('[WriterDroppable] Emitting writer:tree-restructured:', {
-    draggedNodeIds,
-    newParentId,
-  });
+  // console.log('[WriterDroppable] Emitting writer:tree-restructured:', {
+    // draggedNodeIds,
+    // newParentId,
+  // });
 
   eventBus.emit('writer:tree-restructured', {
     draggedNodeIds,
@@ -74,11 +74,11 @@ const { elementRef, isOvered } = useDroppable({
 
 // Debug: Watch drop zone state
 watch(isOvered, (newVal) => {
-  console.log('[WriterDroppable] isOvered changed:', {
-    parentId: props.parentId,
-    isOvered: newVal,
-    sourceLength: props.source.length,
-  });
+  // console.log('[WriterDroppable] isOvered changed:', {
+    // parentId: props.parentId,
+    // isOvered: newVal,
+    // sourceLength: props.source.length,
+  // });
 });
 </script>
 

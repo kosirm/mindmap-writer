@@ -81,16 +81,16 @@ export function useWriterNavigation(nodes: () => TreeItem[]) {
    */
   function getNextField(nodeId: string, field: 'title' | 'content'): EditableField | null {
     const currentIndex = findFieldIndex(nodeId, field);
-    console.log('[useWriterNavigation] getNextField - nodeId:', nodeId, 'field:', field, 'currentIndex:', currentIndex);
-    console.log('[useWriterNavigation] Total flattened fields:', flattenedFields.value.length);
-    console.log('[useWriterNavigation] Flattened fields:', flattenedFields.value.map(f => `${f.nodeId}:${f.field}`));
+    // console.log('[useWriterNavigation] getNextField - nodeId:', nodeId, 'field:', field, 'currentIndex:', currentIndex);
+    // console.log('[useWriterNavigation] Total flattened fields:', flattenedFields.value.length);
+    // console.log('[useWriterNavigation] Flattened fields:', flattenedFields.value.map(f => `${f.nodeId}:${f.field}`));
 
     if (currentIndex === -1 || currentIndex === flattenedFields.value.length - 1) {
-      console.log('[useWriterNavigation] No next field (at end or not found)');
+      // console.log('[useWriterNavigation] No next field (at end or not found)');
       return null; // No next field
     }
     const nextField = flattenedFields.value[currentIndex + 1] ?? null;
-    console.log('[useWriterNavigation] Next field:', nextField);
+    // console.log('[useWriterNavigation] Next field:', nextField);
     return nextField;
   }
 
@@ -99,16 +99,16 @@ export function useWriterNavigation(nodes: () => TreeItem[]) {
    */
   function getPreviousField(nodeId: string, field: 'title' | 'content'): EditableField | null {
     const currentIndex = findFieldIndex(nodeId, field);
-    console.log('[useWriterNavigation] getPreviousField - nodeId:', nodeId, 'field:', field, 'currentIndex:', currentIndex);
-    console.log('[useWriterNavigation] Total flattened fields:', flattenedFields.value.length);
-    console.log('[useWriterNavigation] Flattened fields:', flattenedFields.value.map(f => `${f.nodeId}:${f.field}`));
+    // console.log('[useWriterNavigation] getPreviousField - nodeId:', nodeId, 'field:', field, 'currentIndex:', currentIndex);
+    // console.log('[useWriterNavigation] Total flattened fields:', flattenedFields.value.length);
+    // console.log('[useWriterNavigation] Flattened fields:', flattenedFields.value.map(f => `${f.nodeId}:${f.field}`));
 
     if (currentIndex === -1 || currentIndex === 0) {
-      console.log('[useWriterNavigation] No previous field (at start or not found)');
+      // console.log('[useWriterNavigation] No previous field (at start or not found)');
       return null; // No previous field
     }
     const prevField = flattenedFields.value[currentIndex - 1] ?? null;
-    console.log('[useWriterNavigation] Previous field:', prevField);
+    // console.log('[useWriterNavigation] Previous field:', prevField);
     return prevField;
   }
 

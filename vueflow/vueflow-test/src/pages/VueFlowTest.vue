@@ -1231,23 +1231,23 @@ function runD3ForceOnBranchWrapper() {
     return;
   }
 
-  console.log('[D3 Force Branch] Organizing branch:', {
-    selectedNodeIds,
-    rootNodeId,
-  });
+  // console.log('[D3 Force Branch] Organizing branch:', {
+  // //   selectedNodeIds,
+  // //   rootNodeId,
+  // // });
 
   runD3ForceOnBranch(selectedNodeIds, rootNodeId);
 }
 
 // Resolve overlaps once using Matter.js physics engine
 function resolveOverlapsOnce() {
-  console.log('[Matter.js] Running physics engine once to resolve overlaps...');
+  // console.log('[Matter.js] Running physics engine once to resolve overlaps...');
   runMatterEngineToResolveOverlaps();
 }
 
 // Test Planck.js collision detection
 function testPlanckCollision() {
-  console.log('[Planck.js] Testing collision detection...');
+  // console.log('[Planck.js] Testing collision detection...');
 
   if (!planckWorld) {
     initPlanckWorld();
@@ -1260,7 +1260,7 @@ function testPlanckCollision() {
     }
   });
 
-  console.log(`[Planck.js] Created ${planckNodeBodies.size} bodies`);
+  // console.log(`[Planck.js] Created ${planckNodeBodies.size} bodies`);
 
   Notify.create({
     type: 'positive',
@@ -1271,7 +1271,7 @@ function testPlanckCollision() {
 
 // Resolve overlaps once using Planck.js physics engine
 function resolvePlanckOverlapsOnce() {
-  console.log('[Planck.js] Running physics engine once to resolve overlaps...');
+  // console.log('[Planck.js] Running physics engine once to resolve overlaps...');
 
   if (!planckWorld) {
     initPlanckWorld();
@@ -1561,7 +1561,7 @@ function onPaneClick(mouseEvent: MouseEvent) {
       const centerX = mousePosition.x;  // Mouse is already at center
       const centerY = mousePosition.y;
 
-      // console.log(`[DEBUG] Ctrl+Click createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at mouse (${centerX}, ${centerY})`);
+      // // console.log(`[DEBUG] Ctrl+Click createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at mouse (${centerX}, ${centerY})`);
 
       // Push away any overlapping nodes using the ACTUAL dimensions
       pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
@@ -1637,7 +1637,7 @@ function onConnectStart(connectionEvent: any) {
   // Track if C key is pressed when starting the connection (for reference)
   isCKeyPressedDuringConnection.value = isCKeyPressed.value;
 
-  console.log('[DEBUG] Connection start - Alt:', isAltPressedDuringConnection.value, 'C:', isCKeyPressedDuringConnection.value);
+  // console.log('[DEBUG] Connection start - Alt:', isAltPressedDuringConnection.value, 'C:', isCKeyPressedDuringConnection.value);
 }
 
 // Handle connection between nodes
@@ -1727,7 +1727,7 @@ function onConnect(params: { source: string; target: string; sourceHandle?: stri
     );
 
     if (connectionExists) {
-      console.log('Connection already exists, skipping duplicate');
+      // console.log('Connection already exists, skipping duplicate');
       isCKeyPressedDuringConnection.value = false;
       return;
     }
@@ -1760,7 +1760,7 @@ function onConnect(params: { source: string; target: string; sourceHandle?: stri
   }
 
   // NO KEY PRESSED = Do nothing (connection is ignored)
-  console.log('No modifier key pressed during connection - ignoring');
+  // console.log('No modifier key pressed during connection - ignoring');
 }
 
 
@@ -1827,7 +1827,7 @@ function onConnectEnd(event?: MouseEvent) {
     const centerX = mousePosition.x;
     const centerY = mousePosition.y;
 
-    // console.log(`[DEBUG] Connection drop createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at drop position (${centerX}, ${centerY})`);
+    // // console.log(`[DEBUG] Connection drop createNode ${newNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}, centered at drop position (${centerX}, ${centerY})`);
 
     // Push away any overlapping nodes using the ACTUAL dimensions
     pushNodesAwayFromPosition(centerX, centerY, undefined, dimensions.width, dimensions.height);
@@ -1917,7 +1917,7 @@ function onNodeDragStop() {
     // If Alt key was pressed OR multiple nodes were dragged, run Matter.js engine once to resolve overlaps
     if (isAltKeyPressed.value || multipleNodesSelected) {
       const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
-      console.log(`[DEBUG] Drag ended with ${reason} - running Matter.js engine to resolve overlaps`);
+      // console.log(`[DEBUG] Drag ended with ${reason} - running Matter.js engine to resolve overlaps`);
       runMatterEngineToResolveOverlaps();
     }
   }
@@ -1927,7 +1927,7 @@ function onNodeDragStop() {
     // If Alt key was pressed OR multiple nodes were dragged, run Planck.js simulation to resolve overlaps
     if (isAltKeyPressed.value || multipleNodesSelected) {
       const reason = isAltKeyPressed.value ? 'Alt key' : `multiple nodes (${selectedNodes.length})`;
-      console.log(`[DEBUG] Drag ended with ${reason} - running Planck.js simulation to resolve overlaps`);
+      // console.log(`[DEBUG] Drag ended with ${reason} - running Planck.js simulation to resolve overlaps`);
       runPlanckSimulation(10);
     }
   }
@@ -1943,19 +1943,19 @@ function onNodeDragStop() {
 function onAltKeyDown(event: KeyboardEvent) {
   if (event.key === 'Alt') {
     isAltKeyPressed.value = true;
-    console.log('[DEBUG] Alt key pressed - collision detection DISABLED while dragging');
+    // console.log('[DEBUG] Alt key pressed - collision detection DISABLED while dragging');
   }
   if (event.key === 'c' || event.key === 'C') {
     isCKeyPressed.value = true;
-    console.log('[DEBUG] C key pressed - reference connection mode ENABLED');
+    // console.log('[DEBUG] C key pressed - reference connection mode ENABLED');
   }
   if (event.key === 'y' || event.key === 'Y') {
     isYKeyPressed.value = true;
-    console.log('[DEBUG] Y key pressed - deselection mode ENABLED (use with Shift+Arrow)');
+    // console.log('[DEBUG] Y key pressed - deselection mode ENABLED (use with Shift+Arrow)');
   }
   if (event.key === ' ') {
     isSpacebarPressed.value = true;
-    console.log('[DEBUG] Spacebar pressed - panning mode ENABLED (use with Arrow keys)');
+    // console.log('[DEBUG] Spacebar pressed - panning mode ENABLED (use with Arrow keys)');
   }
 }
 
@@ -1963,19 +1963,19 @@ function onAltKeyDown(event: KeyboardEvent) {
 function onAltKeyUp(event: KeyboardEvent) {
   if (event.key === 'Alt') {
     isAltKeyPressed.value = false;
-    console.log('[DEBUG] Alt key released - collision detection ENABLED');
+    // console.log('[DEBUG] Alt key released - collision detection ENABLED');
   }
   if (event.key === 'c' || event.key === 'C') {
     isCKeyPressed.value = false;
-    console.log('[DEBUG] C key released - reference connection mode DISABLED');
+    // console.log('[DEBUG] C key released - reference connection mode DISABLED');
   }
   if (event.key === 'y' || event.key === 'Y') {
     isYKeyPressed.value = false;
-    console.log('[DEBUG] Y key released - deselection mode DISABLED');
+    // console.log('[DEBUG] Y key released - deselection mode DISABLED');
   }
   if (event.key === ' ') {
     isSpacebarPressed.value = false;
-    console.log('[DEBUG] Spacebar released - panning mode DISABLED');
+    // console.log('[DEBUG] Spacebar released - panning mode DISABLED');
   }
 }
 
@@ -2092,7 +2092,7 @@ function onKeyDown(event: KeyboardEvent) {
 
     const selectedNodes = getSelectedNodes.value;
 
-    console.log('[DEBUG] Escape: Before clear - selected nodes:', selectedNodes.map(n => n.id));
+    // console.log('[DEBUG] Escape: Before clear - selected nodes:', selectedNodes.map(n => n.id));
 
     // Clear all selections
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2110,7 +2110,7 @@ function onKeyDown(event: KeyboardEvent) {
     // Switch to Single Selection mode
     navigationMode.value = 'single';
 
-    console.log('[DEBUG] Escape: After clear - mode:', navigationMode.value, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
+    // console.log('[DEBUG] Escape: After clear - mode:', navigationMode.value, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
 
     return;
   }
@@ -2122,7 +2122,7 @@ function onKeyDown(event: KeyboardEvent) {
     if (isSpacebarPressed.value) {
       event.preventDefault();
 
-      console.log('[DEBUG] Spacebar+Arrow: Panning viewport in direction:', event.key);
+      // console.log('[DEBUG] Spacebar+Arrow: Panning viewport in direction:', event.key);
 
       // Get current viewport
       const currentViewport = getViewport();
@@ -2154,7 +2154,7 @@ function onKeyDown(event: KeyboardEvent) {
         zoom: currentViewport.zoom,
       });
 
-      console.log('[DEBUG] Spacebar+Arrow: Panned viewport by', deltaX, deltaY);
+      // console.log('[DEBUG] Spacebar+Arrow: Panned viewport by', deltaX, deltaY);
 
       return;
     }
@@ -2167,7 +2167,7 @@ function onKeyDown(event: KeyboardEvent) {
       const selectedNodes = getSelectedNodes.value;
       if (selectedNodes.length === 0) return;
 
-      console.log('[DEBUG] Alt+Arrow: Moving', selectedNodes.length, 'node(s) in direction:', event.key);
+      // console.log('[DEBUG] Alt+Arrow: Moving', selectedNodes.length, 'node(s) in direction:', event.key);
 
       // Calculate movement delta based on arrow key
       let deltaX = 0;
@@ -2216,7 +2216,7 @@ function onKeyDown(event: KeyboardEvent) {
         runPlanckSimulation(3);
       }
 
-      console.log('[DEBUG] Alt+Arrow: Moved nodes by', deltaX, deltaY);
+      // console.log('[DEBUG] Alt+Arrow: Moved nodes by', deltaX, deltaY);
 
       return;
     }
@@ -2332,7 +2332,7 @@ function onKeyDown(event: KeyboardEvent) {
           // Get actual dimensions from DOM
           const dimensions = getNodeDimensions(createdNode.id);
 
-          console.log(`[DEBUG] Ctrl+Arrow rapid creation ${createdNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
+          // console.log(`[DEBUG] Ctrl+Arrow rapid creation ${createdNode.id}: actual dimensions = ${dimensions.width} x ${dimensions.height}`);
 
           // Create Matter.js body with actual dimensions
           createMatterBody(createdNode);
@@ -2362,7 +2362,7 @@ function onKeyDown(event: KeyboardEvent) {
 
           // Auto-enter editing mode for rapid editing (after another nextTick to ensure node is fully rendered)
           void nextTick(() => {
-            console.log('[DEBUG] Ctrl+Arrow: Auto-entering editing mode for node:', createdNode.id);
+            // console.log('[DEBUG] Ctrl+Arrow: Auto-entering editing mode for node:', createdNode.id);
             eventBus.emit('node:edit-start', { nodeId: createdNode.id });
           });
         });
@@ -2413,7 +2413,7 @@ function onKeyDown(event: KeyboardEvent) {
 
         if (isDeselectionMode) {
           // DESELECTION MODE: Shift+Y+Arrow - paint deselection
-          console.log('[DEBUG] Shift+Y+Arrow (Deselection): Before paint - current node:', selectedNodeId.value, 'target node:', targetNode.id, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
+          // console.log('[DEBUG] Shift+Y+Arrow (Deselection): Before paint - current node:', selectedNodeId.value, 'target node:', targetNode.id, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
 
           // Force CURRENT node to deselected
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2423,10 +2423,10 @@ function onKeyDown(event: KeyboardEvent) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (targetNode as any).selected = false;
 
-          console.log('[DEBUG] Shift+Y+Arrow: Painted deselection on current and target nodes');
+          // console.log('[DEBUG] Shift+Y+Arrow: Painted deselection on current and target nodes');
         } else {
           // SELECTION MODE: Shift+Arrow - paint selection
-          console.log('[DEBUG] Shift+Arrow (Selection): Before paint - current node:', selectedNodeId.value, 'target node:', targetNode.id, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
+          // console.log('[DEBUG] Shift+Arrow (Selection): Before paint - current node:', selectedNodeId.value, 'target node:', targetNode.id, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
 
           // Force CURRENT node to selected
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2436,13 +2436,13 @@ function onKeyDown(event: KeyboardEvent) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (targetNode as any).selected = true;
 
-          console.log('[DEBUG] Shift+Arrow: Painted selection on current and target nodes');
+          // console.log('[DEBUG] Shift+Arrow: Painted selection on current and target nodes');
         }
 
         // Update current node (cursor position) - move to target
         selectedNodeId.value = targetNode.id;
 
-        console.log('[DEBUG] Shift+Arrow: After paint - selected nodes:', getSelectedNodes.value.map(n => n.id));
+        // console.log('[DEBUG] Shift+Arrow: After paint - selected nodes:', getSelectedNodes.value.map(n => n.id));
 
         // Check if all nodes are now deselected (check immediately, not in nextTick)
         // We need to check synchronously because user might press next arrow key before nextTick executes
@@ -2452,7 +2452,7 @@ function onKeyDown(event: KeyboardEvent) {
           // When all nodes are deselected (either via selection or deselection mode),
           // switch to single selection mode and re-select the current node.
           // This prevents fighting with VueFlow's native selection system.
-          console.log('[DEBUG] Shift+Arrow/Shift+Y+Arrow: All nodes deselected - switching to Single Selection mode');
+          // console.log('[DEBUG] Shift+Arrow/Shift+Y+Arrow: All nodes deselected - switching to Single Selection mode');
           navigationMode.value = 'single';
           // Select the current node (which is now the target node)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2464,7 +2464,7 @@ function onKeyDown(event: KeyboardEvent) {
 
         if (navigationMode.value === 'single') {
           // SINGLE SELECTION MODE: Clear previous selection, select only target node
-          console.log('[DEBUG] Arrow (Single Selection): Before navigation - selected nodes:', getSelectedNodes.value.map(n => n.id));
+          // console.log('[DEBUG] Arrow (Single Selection): Before navigation - selected nodes:', getSelectedNodes.value.map(n => n.id));
 
           // Clear all selections
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2474,19 +2474,19 @@ function onKeyDown(event: KeyboardEvent) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (targetNode as any).selected = true;
 
-          console.log('[DEBUG] Arrow (Single Selection): Cleared previous selection, selected node', targetNode.id);
+          // console.log('[DEBUG] Arrow (Single Selection): Cleared previous selection, selected node', targetNode.id);
 
         } else if (navigationMode.value === 'multi') {
           // HALF/NORMAL NAVIGATION MODE: Just released Shift key
           // Switch to half mode - preserve selection, don't add new nodes
           navigationMode.value = 'half';
-          console.log('[DEBUG] Arrow (Half Navigation): Switched from multi to half mode - selected nodes:', getSelectedNodes.value.map(n => n.id));
+          // console.log('[DEBUG] Arrow (Half Navigation): Switched from multi to half mode - selected nodes:', getSelectedNodes.value.map(n => n.id));
 
           // Don't change selection - just move cursor
 
         } else {
           // ALREADY IN HALF NAVIGATION MODE: Just move cursor, don't change selection
-          console.log('[DEBUG] Arrow (Half Navigation): Moving cursor - selected nodes:', getSelectedNodes.value.map(n => n.id));
+          // console.log('[DEBUG] Arrow (Half Navigation): Moving cursor - selected nodes:', getSelectedNodes.value.map(n => n.id));
 
           // Don't change selection - just move cursor
         }
@@ -2494,7 +2494,7 @@ function onKeyDown(event: KeyboardEvent) {
         // Update current node (cursor position)
         selectedNodeId.value = targetNode.id;
 
-        console.log('[DEBUG] Arrow: After navigation - mode:', navigationMode.value, 'active node:', selectedNodeId.value, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
+        // console.log('[DEBUG] Arrow: After navigation - mode:', navigationMode.value, 'active node:', selectedNodeId.value, 'selected nodes:', getSelectedNodes.value.map(n => n.id));
       }
 
       // Wait for VueFlow to update selection state before syncing to tree/writer
@@ -2537,12 +2537,12 @@ function viewJSON() {
     edges: edges.value,
   };
 
-  console.log('=== Mindmap Data Model ===');
-  console.log(JSON.stringify(dataModel, null, 2));
-  console.log('=== Nodes ===');
-  console.log(nodes.value);
-  console.log('=== Edges ===');
-  console.log(edges.value);
+  // console.log('=== Mindmap Data Model ===');
+  // console.log(JSON.stringify(dataModel, null, 2));
+  // console.log('=== Nodes ===');
+  // console.log(nodes.value);
+  // console.log('=== Edges ===');
+  // console.log(edges.value);
 }
 
 // LocalStorage keys
@@ -2558,7 +2558,7 @@ function loadMindmapsList() {
       savedMindmaps.value = list.sort((a: SavedMindmap, b: SavedMindmap) => b.timestamp - a.timestamp);
     }
   } catch (error) {
-    console.error('Error loading mindmaps list:', error);
+    // console.error('Error loading mindmaps list:', error);
   }
 }
 
@@ -2567,7 +2567,7 @@ function saveMindmapsList() {
   try {
     localStorage.setItem(MINDMAPS_LIST_KEY, JSON.stringify(savedMindmaps.value));
   } catch (error) {
-    console.error('Error saving mindmaps list:', error);
+    // console.error('Error saving mindmaps list:', error);
   }
 }
 
@@ -2617,7 +2617,7 @@ function toggleMinimap() {
 
 function showOpenDialog() {
   // TODO: Show a dialog with list of saved mindmaps
-  console.log('Show open dialog - for now, check left drawer Data Export tab');
+  // console.log('Show open dialog - for now, check left drawer Data Export tab');
   Notify.create({
     type: 'info',
     message: 'Open mindmap from left drawer → Data Export tab',
@@ -2661,7 +2661,7 @@ function exportAsJSON() {
       timeout: 2000,
     });
   } catch (error) {
-    console.error('Error exporting JSON:', error);
+    // console.error('Error exporting JSON:', error);
     Notify.create({
       type: 'negative',
       message: 'Failed to export JSON',
@@ -2715,7 +2715,7 @@ function importFromJSON() {
           throw new Error('Invalid mindmap format');
         }
       } catch (error) {
-        console.error('Error importing JSON:', error);
+        // console.error('Error importing JSON:', error);
         Notify.create({
           type: 'negative',
           message: 'Failed to import JSON',
@@ -2739,9 +2739,9 @@ function importFromJSON() {
  * Works for all nodes regardless of parent-child relationships
  */
 function mirrorNodePositions() {
-  console.log('=== MIRROR NODE POSITIONS START ===');
-  console.log('Current orientation:', orientationMode.value);
-  console.log('Total nodes:', nodes.value.length);
+  // console.log('=== MIRROR NODE POSITIONS START ===');
+  // console.log('Current orientation:', orientationMode.value);
+  // console.log('Total nodes:', nodes.value.length);
 
   // Mirror every node around the vertical axis through (0, 0)
   // Simply flip the X coordinate of each node's center
@@ -2760,7 +2760,7 @@ function mirrorNodePositions() {
       y: newCenterY - DEFAULT_NODE_HEIGHT / 2,
     };
 
-    console.log(`Node ${node.id}: oldCenter=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}) -> newCenter=(${newCenterX.toFixed(1)}, ${newCenterY.toFixed(1)})`);
+    // console.log(`Node ${node.id}: oldCenter=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}) -> newCenter=(${newCenterX.toFixed(1)}, ${newCenterY.toFixed(1)})`);
   });
 
   // Update Matter.js bodies
@@ -2784,11 +2784,11 @@ function mirrorNodePositions() {
     const centerX = sumX / rootNodes.length;
     const centerY = sumY / rootNodes.length;
     const distance = Math.sqrt(centerX * centerX + centerY * centerY);
-    console.log(`\n📍 Root nodes geometric center: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`);
-    console.log(`📏 Distance from canvas center (0, 0): ${distance.toFixed(1)} pixels`);
+    // console.log(`\n📍 Root nodes geometric center: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`);
+    // console.log(`📏 Distance from canvas center (0, 0): ${distance.toFixed(1)} pixels`);
   }
 
-  console.log('=== MIRROR NODE POSITIONS END ===\n');
+  // console.log('=== MIRROR NODE POSITIONS END ===\n');
 }
 
 /**
@@ -2903,12 +2903,12 @@ function updateOrderFromPosition() {
 function setOrientationClockwise() {
   const previousMode = orientationMode.value;
 
-  console.log('\n🔄 SWITCHING TO CLOCKWISE');
-  console.log('Previous mode:', previousMode);
+  // console.log('\n🔄 SWITCHING TO CLOCKWISE');
+  // console.log('Previous mode:', previousMode);
 
   // Only switch if not already in clockwise mode
   if (previousMode === 'clockwise') {
-    console.log('Already in clockwise mode, skipping');
+    // console.log('Already in clockwise mode, skipping');
     return;
   }
 
@@ -2928,12 +2928,12 @@ function setOrientationClockwise() {
 function setOrientationCounterclockwise() {
   const previousMode = orientationMode.value;
 
-  console.log('\n🔄 SWITCHING TO COUNTERCLOCKWISE');
-  console.log('Previous mode:', previousMode);
+  // console.log('\n🔄 SWITCHING TO COUNTERCLOCKWISE');
+  // console.log('Previous mode:', previousMode);
 
   // Only switch if not already in counterclockwise mode
   if (previousMode === 'counterclockwise') {
-    console.log('Already in counterclockwise mode, skipping');
+    // console.log('Already in counterclockwise mode, skipping');
     return;
   }
 
@@ -3099,7 +3099,7 @@ function updateCommandContext() {
 // Watch for Planck.js toggle - initialize when enabled
 watch(planckEnabled, (enabled) => {
   if (enabled) {
-    console.log('[Planck.js] Enabled - initializing world and creating bodies...');
+    // console.log('[Planck.js] Enabled - initializing world and creating bodies...');
     if (!planckWorld) {
       initPlanckWorld();
     }
@@ -3109,9 +3109,9 @@ watch(planckEnabled, (enabled) => {
         createPlanckBody(node);
       }
     });
-    console.log(`[Planck.js] Initialized with ${planckNodeBodies.size} bodies`);
+    // console.log(`[Planck.js] Initialized with ${planckNodeBodies.size} bodies`);
   } else {
-    console.log('[Planck.js] Disabled');
+    // console.log('[Planck.js] Disabled');
   }
 });
 
@@ -3172,7 +3172,7 @@ function saveCurrentMindmap() {
       timeout: 2000,
     });
   } catch (error) {
-    console.error('Error saving mindmap:', error);
+    // console.error('Error saving mindmap:', error);
     Notify.create({
       type: 'negative',
       message: 'Failed to save mindmap',
@@ -3230,7 +3230,7 @@ function loadMindmap(id: string) {
         nodes.value.forEach(node => {
           createMatterBody(node);
         });
-        console.log(`Created Matter.js bodies for ${nodes.value.length} loaded nodes`);
+        // console.log(`Created Matter.js bodies for ${nodes.value.length} loaded nodes`);
 
         // Run Matter.js collision resolution once to sync positions
         // This ensures collision detection works properly for loaded nodes
@@ -3248,7 +3248,7 @@ function loadMindmap(id: string) {
       timeout: 2000,
     });
   } catch (error) {
-    console.error('Error loading mindmap:', error);
+    // console.error('Error loading mindmap:', error);
     Notify.create({
       type: 'negative',
       message: 'Failed to load mindmap',
@@ -3282,7 +3282,7 @@ function deleteMindmap(id: string) {
       timeout: 2000,
     });
   } catch (error) {
-    console.error('Error deleting mindmap:', error);
+    // console.error('Error deleting mindmap:', error);
     Notify.create({
       type: 'negative',
       message: 'Failed to delete mindmap',
@@ -3468,7 +3468,7 @@ function handleWriterNodeSelected({ nodeId, source }: { nodeId: string | null; s
       // Scroll tree node into view (writer selection should scroll tree)
       scrollTreeNodeIntoView(nodeId);
     } else {
-      // console.log('[DEBUG] Source is', source, '- writer will handle its own scrolling via event listener');
+      // // console.log('[DEBUG] Source is', source, '- writer will handle its own scrolling via event listener');
       // Writer component will handle scrolling itself via the event listener
     }
   }
@@ -3497,7 +3497,7 @@ function handleNodeTitleUpdated({ nodeId }: { nodeId: string; title: string }) {
 
   // Set new timer - update dimensions after 1 second of no typing
   titleUpdateDebounceTimer = setTimeout(() => {
-    // console.log(`[DEBUG] Real-time dimension update for node ${nodeId} while typing`);
+    // // console.log(`[DEBUG] Real-time dimension update for node ${nodeId} while typing`);
     updateMatterBodyDimensions(nodeId);
     updatePlanckBodyDimensions(nodeId);
     titleUpdateDebounceTimer = null;
@@ -3567,11 +3567,11 @@ function updateNodeHierarchy(nodeId: string, newParentId: string | null) {
 function bringNodeIntoView(nodeId: string) {
   // Check if centerOnSelection is enabled in settings
   if (!settings.value.mindmap.centerOnSelection) {
-    console.log('[DEBUG] bringNodeIntoView skipped - centerOnSelection is disabled');
+    // console.log('[DEBUG] bringNodeIntoView skipped - centerOnSelection is disabled');
     return;
   }
 
-  console.log('[DEBUG] bringNodeIntoView called for nodeId:', nodeId);
+  // console.log('[DEBUG] bringNodeIntoView called for nodeId:', nodeId);
   console.trace('[DEBUG] Stack trace:');
 
   const node = nodes.value.find(n => n.id === nodeId);
@@ -3580,7 +3580,7 @@ function bringNodeIntoView(nodeId: string) {
   // Get current zoom level to preserve it
   const currentViewport = getViewport();
 
-  console.log('[DEBUG] Calling setCenter with position:', node.position.x, node.position.y, 'zoom:', currentViewport.zoom);
+  // console.log('[DEBUG] Calling setCenter with position:', node.position.x, node.position.y, 'zoom:', currentViewport.zoom);
 
   // Use setCenter to pan to the node while preserving zoom level
   void nextTick(() => {
@@ -3607,7 +3607,7 @@ function zoomIn() {
     duration: 200,
   });
 
-  console.log('[Zoom] Zoom in:', currentViewport.zoom.toFixed(2), '→', newZoom.toFixed(2));
+  // console.log('[Zoom] Zoom in:', currentViewport.zoom.toFixed(2), '→', newZoom.toFixed(2));
 }
 
 /**
@@ -3626,7 +3626,7 @@ function zoomOut() {
     duration: 200,
   });
 
-  console.log('[Zoom] Zoom out:', currentViewport.zoom.toFixed(2), '→', newZoom.toFixed(2));
+  // console.log('[Zoom] Zoom out:', currentViewport.zoom.toFixed(2), '→', newZoom.toFixed(2));
 }
 
 // Helper function to get all ancestor node IDs for a given node
@@ -3681,7 +3681,7 @@ function handleCanvasPaneClicked() {
 
 // Watch for active node changes - update node classes for styling
 watch(selectedNodeId, (newId, oldId) => {
-  console.log('[DEBUG] Active node changed from', oldId, 'to', newId);
+  // console.log('[DEBUG] Active node changed from', oldId, 'to', newId);
 
   // Remove active-node class from old node
   if (oldId) {
@@ -3718,7 +3718,7 @@ watch(selectedNodeId, (newId, oldId) => {
 watch(getSelectedNodes, (selectedNodes) => {
   const selectedIds = selectedNodes.map(node => node.id);
 
-  console.log('[DEBUG] Selection watcher triggered - selected nodes:', selectedIds);
+  // console.log('[DEBUG] Selection watcher triggered - selected nodes:', selectedIds);
 
   // Set flag to prevent tree from emitting event (avoid circular loop)
   isTreeSelectionProgrammatic.value = true;
@@ -3760,15 +3760,15 @@ watch(getSelectedNodes, (selectedNodes) => {
 watch(viewMode, (newMode) => {
   if (newMode === 'mindmap') {
     activeContext.value = 'canvas';
-    console.log('[Context] Auto-switched to Canvas context (mindmap view)');
+    // console.log('[Context] Auto-switched to Canvas context (mindmap view)');
   } else if (newMode === 'writer') {
     activeContext.value = 'writer';
-    console.log('[Context] Auto-switched to Writer context (writer view)');
+    // console.log('[Context] Auto-switched to Writer context (writer view)');
   } else if (newMode === 'split') {
     // In split view, default to canvas context
     // User can manually switch with keyboard shortcuts
     activeContext.value = 'canvas';
-    console.log('[Context] Auto-switched to Canvas context (split view)');
+    // console.log('[Context] Auto-switched to Canvas context (split view)');
   }
 });
 
@@ -3794,7 +3794,7 @@ function switchToCanvasContextInternal(withFocusManagement = false) {
   if (activeContext.value === 'canvas') return; // Already in Canvas context
 
   activeContext.value = 'canvas';
-  console.log('[Context] Switched to Canvas context', withFocusManagement ? '(with focus management)' : '(mouse click)');
+  // console.log('[Context] Switched to Canvas context', withFocusManagement ? '(with focus management)' : '(mouse click)');
 
   // Focus management: Blur Writer editors and focus Canvas (only if requested)
   if (withFocusManagement) {
@@ -3812,7 +3812,7 @@ function switchToWriterContextInternal(withFocusManagement = false) {
   if (activeContext.value === 'writer') return; // Already in Writer context
 
   activeContext.value = 'writer';
-  console.log('[Context] Switched to Writer context', withFocusManagement ? '(with focus management)' : '(mouse click)');
+  // console.log('[Context] Switched to Writer context', withFocusManagement ? '(with focus management)' : '(mouse click)');
 
   // Focus management: Focus selected node's title in Writer (only if requested)
   if (withFocusManagement) {
@@ -3846,14 +3846,14 @@ function focusCanvasForSelectedNode() {
   const activeElement = document.activeElement as HTMLElement;
   if (activeElement && activeElement.isContentEditable) {
     activeElement.blur();
-    console.log('[Context] Blurred Tiptap editor in Writer');
+    // console.log('[Context] Blurred Tiptap editor in Writer');
   }
 
   // Focus on the Canvas container so keyboard shortcuts work
   const canvasContainer = document.querySelector('.vue-flow-container') as HTMLElement;
   if (canvasContainer) {
     canvasContainer.focus();
-    console.log('[Context] Focused Canvas container');
+    // console.log('[Context] Focused Canvas container');
   }
 }
 
@@ -3865,7 +3865,7 @@ function focusCanvasForSelectedNode() {
  */
 function focusWriterForSelectedNode() {
   if (!selectedNodeId.value) {
-    console.log('[Context] No node selected - cannot focus Writer');
+    // console.log('[Context] No node selected - cannot focus Writer');
     return;
   }
 
@@ -3876,7 +3876,7 @@ function focusWriterForSelectedNode() {
     cursorPosition: 'end', // Will be handled by WriterDraggable to select all if 'Untitled'
   });
 
-  console.log('[Context] Requested Writer to focus node:', selectedNodeId.value);
+  // console.log('[Context] Requested Writer to focus node:', selectedNodeId.value);
 }
 
 // ============================================================================

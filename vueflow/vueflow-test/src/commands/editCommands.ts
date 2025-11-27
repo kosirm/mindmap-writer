@@ -1,6 +1,6 @@
 /**
  * Edit Commands
- * 
+ *
  * Commands for editing operations: undo, redo, cut, copy, paste, delete, etc.
  */
 
@@ -17,10 +17,10 @@ export const editCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement undo
-      console.log('Undo...');
+      // console.log('Undo...');
     },
   },
-  
+
   {
     id: 'edit.redo',
     label: 'Redo',
@@ -31,10 +31,10 @@ export const editCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement redo
-      console.log('Redo...');
+      // console.log('Redo...');
     },
   },
-  
+
   {
     id: 'edit.cut',
     label: 'Cut',
@@ -46,10 +46,10 @@ export const editCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) > 0,
     execute: (context) => {
       // TODO: Implement cut
-      console.log('Cut nodes:', context?.selectedNodeIds);
+      // console.log('Cut nodes:', context?.selectedNodeIds);
     },
   },
-  
+
   {
     id: 'edit.copy',
     label: 'Copy',
@@ -61,10 +61,10 @@ export const editCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) > 0,
     execute: (context) => {
       // TODO: Implement copy
-      console.log('Copy nodes:', context?.selectedNodeIds);
+      // console.log('Copy nodes:', context?.selectedNodeIds);
     },
   },
-  
+
   {
     id: 'edit.paste',
     label: 'Paste',
@@ -76,10 +76,10 @@ export const editCommands: Command[] = [
     when: (context) => context?.clipboardData !== undefined,
     execute: (context) => {
       // TODO: Implement paste
-      console.log('Paste nodes:', context?.clipboardData);
+      // console.log('Paste nodes:', context?.clipboardData);
     },
   },
-  
+
   {
     id: 'edit.delete',
     label: 'Delete',
@@ -91,10 +91,10 @@ export const editCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) > 0,
     execute: (context) => {
       // TODO: Implement delete
-      console.log('Delete nodes:', context?.selectedNodeIds);
+      // console.log('Delete nodes:', context?.selectedNodeIds);
     },
   },
-  
+
   {
     id: 'edit.duplicate',
     label: 'Duplicate',
@@ -106,10 +106,10 @@ export const editCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) > 0,
     execute: (context) => {
       // TODO: Implement duplicate
-      console.log('Duplicate nodes:', context?.selectedNodeIds);
+      // console.log('Duplicate nodes:', context?.selectedNodeIds);
     },
   },
-  
+
   {
     id: 'edit.selectAll',
     label: 'Select All',
@@ -120,10 +120,10 @@ export const editCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement select all
-      console.log('Select all nodes...');
+      // console.log('Select all nodes...');
     },
   },
-  
+
   {
     id: 'edit.deselectAll',
     label: 'Deselect All',
@@ -135,7 +135,7 @@ export const editCommands: Command[] = [
     when: (context) => (context?.selectedNodeIds?.length ?? 0) > 0,
     execute: () => {
       // TODO: Implement deselect all
-      console.log('Deselect all nodes...');
+      // console.log('Deselect all nodes...');
     },
   },
 ];

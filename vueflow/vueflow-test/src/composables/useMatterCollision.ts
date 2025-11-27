@@ -60,13 +60,13 @@ export function useMatterCollision(
       if (customNode) {
         const rect = customNode.getBoundingClientRect();
         if (MATTER_DEBUG_LOGGING) {
-          console.log(`[Matter.js] getNodeDimensions for node ${nodeId}:`, rect.width, 'x', rect.height);
+          // console.log(`[Matter.js] getNodeDimensions for node ${nodeId}:`, rect.width, 'x', rect.height);
         }
         return { width: rect.width, height: rect.height };
       }
     }
     if (MATTER_DEBUG_LOGGING) {
-      console.log(`[Matter.js] getNodeDimensions for node ${nodeId}: using defaults`);
+      // console.log(`[Matter.js] getNodeDimensions for node ${nodeId}: using defaults`);
     }
     return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
   }
@@ -85,7 +85,7 @@ export function useMatterCollision(
       createMatterBody(node);
     });
 
-    // console.log('Matter.js engine initialized');
+    // // console.log('Matter.js engine initialized');
   }
 
   // Create a Matter.js body for a node
@@ -101,10 +101,10 @@ export function useMatterCollision(
     const centerY = node.position.y + dimensions.height / 2;
 
     if (MATTER_DEBUG_LOGGING) {
-      console.log(`[Matter.js] createMatterBody for node ${node.id}:`);
-      console.log(`[Matter.js]   VueFlow position (top-left): (${node.position.x}, ${node.position.y})`);
-      console.log(`[Matter.js]   Dimensions from DOM: ${dimensions.width} x ${dimensions.height}`);
-      console.log(`[Matter.js]   Matter.js center: (${centerX}, ${centerY})`);
+      // console.log(`[Matter.js] createMatterBody for node ${node.id}:`);
+      // console.log(`[Matter.js]   VueFlow position (top-left): (${node.position.x}, ${node.position.y})`);
+      // console.log(`[Matter.js]   Dimensions from DOM: ${dimensions.width} x ${dimensions.height}`);
+      // console.log(`[Matter.js]   Matter.js center: (${centerX}, ${centerY})`);
     }
 
     // Create a rectangular body at the node's CENTER position
@@ -131,8 +131,8 @@ export function useMatterCollision(
 
     if (MATTER_DEBUG_LOGGING) {
       // Log the actual body bounds after creation
-      console.log(`[Matter.js]   Body bounds: left=${body.bounds.min.x}, right=${body.bounds.max.x}, top=${body.bounds.min.y}, bottom=${body.bounds.max.y}`);
-      console.log(`[Matter.js]   Body size: ${body.bounds.max.x - body.bounds.min.x} x ${body.bounds.max.y - body.bounds.min.y}`);
+      // console.log(`[Matter.js]   Body bounds: left=${body.bounds.min.x}, right=${body.bounds.max.x}, top=${body.bounds.min.y}, bottom=${body.bounds.max.y}`);
+      // console.log(`[Matter.js]   Body size: ${body.bounds.max.x - body.bounds.min.x} x ${body.bounds.max.y - body.bounds.min.y}`);
     }
   }
 
@@ -170,7 +170,7 @@ export function useMatterCollision(
     if (!body || !matterWorld) return;
 
     if (MATTER_DEBUG_LOGGING) {
-      console.log(`[Matter.js] updateMatterBodyDimensions called for node ${nodeId}`);
+      // console.log(`[Matter.js] updateMatterBodyDimensions called for node ${nodeId}`);
     }
 
     // Get current dimensions from body
@@ -186,7 +186,7 @@ export function useMatterCollision(
       // Check if dimensions actually changed
       if (Math.abs(oldWidth - dimensions.width) < 2 && Math.abs(oldHeight - dimensions.height) < 2) {
         if (MATTER_DEBUG_LOGGING) {
-          console.log(`[Matter.js] Dimensions didn't change significantly, skipping update`);
+          // console.log(`[Matter.js] Dimensions didn't change significantly, skipping update`);
         }
         return;
       }
@@ -201,7 +201,7 @@ export function useMatterCollision(
       const newCenterY = node.position.y + dimensions.height / 2;
 
       if (MATTER_DEBUG_LOGGING) {
-        console.log(`[Matter.js] Node ${nodeId} updated: ${oldWidth}x${oldHeight} → ${dimensions.width}x${dimensions.height}`);
+        // console.log(`[Matter.js] Node ${nodeId} updated: ${oldWidth}x${oldHeight} → ${dimensions.width}x${dimensions.height}`);
       }
 
       // Remove old body
@@ -237,7 +237,7 @@ export function useMatterCollision(
     if (!matterEngine || !matterWorld) return;
 
     if (MATTER_DEBUG_LOGGING) {
-      console.log(`[Matter.js] Running physics engine to resolve overlaps...`);
+      // console.log(`[Matter.js] Running physics engine to resolve overlaps...`);
     }
 
     // CRITICAL: First sync all Matter.js body positions with CURRENT node positions
@@ -271,14 +271,14 @@ export function useMatterCollision(
           node.position.y = newY;
           movedCount++;
           if (MATTER_DEBUG_LOGGING) {
-            console.log(`[Matter.js]   Node ${nodeId} moved from (${oldX.toFixed(2)}, ${oldY.toFixed(2)}) to (${newX.toFixed(2)}, ${newY.toFixed(2)})`);
+            // console.log(`[Matter.js]   Node ${nodeId} moved from (${oldX.toFixed(2)}, ${oldY.toFixed(2)}) to (${newX.toFixed(2)}, ${newY.toFixed(2)})`);
           }
         }
       }
     });
 
     if (MATTER_DEBUG_LOGGING || movedCount > 0) {
-      console.log(`[Matter.js] ✅ Resolved overlaps - ${movedCount} node(s) moved`);
+      // console.log(`[Matter.js] ✅ Resolved overlaps - ${movedCount} node(s) moved`);
     }
   }
 
@@ -338,7 +338,7 @@ export function useMatterCollision(
     const pushedNodes: Array<{ nodeId: string, newX: number, newY: number }> = [];
 
     if (MATTER_DEBUG_LOGGING) {
-      console.log(`[Matter.js] pushNodesAwayFromPosition: target=(${targetX}, ${targetY}), targetHalfSize=(${targetHalfWidth}, ${targetHalfHeight}), excludeNodeId=${excludeNodeId}`);
+      // console.log(`[Matter.js] pushNodesAwayFromPosition: target=(${targetX}, ${targetY}), targetHalfSize=(${targetHalfWidth}, ${targetHalfHeight}), excludeNodeId=${excludeNodeId}`);
     }
 
     // Check for collisions and push nodes away
@@ -374,7 +374,7 @@ export function useMatterCollision(
       // This ensures we maintain spacing even when nodes are very close (within floating point precision)
       if (overlapX > -EPSILON && overlapY > -EPSILON) {
         if (MATTER_DEBUG_LOGGING) {
-          console.log(`[Matter.js]   ✅ Collision detected with node ${nodeId}`);
+          // console.log(`[Matter.js]   ✅ Collision detected with node ${nodeId}`);
         }
 
         let newX = body.position.x;
@@ -416,7 +416,7 @@ export function useMatterCollision(
       const pushedWidth = pushedBounds.max.x - pushedBounds.min.x;
       const pushedHeight = pushedBounds.max.y - pushedBounds.min.y;
 
-      // console.log(`[DEBUG]   Cascading check for pushed node ${nodeId} at (${newX}, ${newY})`);
+      // // console.log(`[DEBUG]   Cascading check for pushed node ${nodeId} at (${newX}, ${newY})`);
 
       // Recursively call pushNodesAwayFromPosition for this pushed node
       // Pass the alreadyPushedNodes set to prevent infinite recursion

@@ -95,7 +95,7 @@ export const fileCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement PNG export (requires canvas rendering)
-      console.log('Exporting as PNG...');
+      // console.log('Exporting as PNG...');
     },
   },
 
@@ -108,7 +108,7 @@ export const fileCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement SVG export (requires canvas rendering)
-      console.log('Exporting as SVG...');
+      // console.log('Exporting as SVG...');
     },
   },
 
@@ -121,7 +121,7 @@ export const fileCommands: Command[] = [
     showInPalette: true,
     execute: () => {
       // TODO: Implement Markdown export
-      console.log('Exporting as Markdown...');
+      // console.log('Exporting as Markdown...');
     },
   },
 

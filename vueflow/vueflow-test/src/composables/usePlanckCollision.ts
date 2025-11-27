@@ -46,7 +46,7 @@ export function usePlanckCollision(
       if (customNode) {
         const rect = customNode.getBoundingClientRect();
         if (PLANCK_DEBUG_LOGGING) {
-          console.log(`[Planck.js] getNodeDimensions for node ${nodeId}:`, rect.width, 'x', rect.height);
+          // console.log(`[Planck.js] getNodeDimensions for node ${nodeId}:`, rect.width, 'x', rect.height);
         }
         return { width: rect.width, height: rect.height };
       }
@@ -66,7 +66,7 @@ export function usePlanckCollision(
       createPlanckBody(node);
     });
 
-    console.log('[Planck.js] World initialized');
+    // console.log('[Planck.js] World initialized');
   }
 
   // Create a Planck.js body for a node
@@ -84,10 +84,10 @@ export function usePlanckCollision(
     const centerY = node.position.y + dimensions.height / 2;
 
     if (PLANCK_DEBUG_LOGGING) {
-      console.log(`[Planck.js] createPlanckBody for node ${node.id}:`);
-      console.log(`[Planck.js]   Position: (${centerX}, ${centerY})`);
-      console.log(`[Planck.js]   Dimensions: ${dimensions.width} x ${dimensions.height}`);
-      console.log(`[Planck.js]   Corner radius: ${cornerRadius.value}px`);
+      // console.log(`[Planck.js] createPlanckBody for node ${node.id}:`);
+      // console.log(`[Planck.js]   Position: (${centerX}, ${centerY})`);
+      // console.log(`[Planck.js]   Dimensions: ${dimensions.width} x ${dimensions.height}`);
+      // console.log(`[Planck.js]   Corner radius: ${cornerRadius.value}px`);
     }
 
     // Create dynamic body at the node's center position
@@ -114,7 +114,7 @@ export function usePlanckCollision(
         restitution: 0.1  // Low bounciness
       });
 
-      console.log(`[Planck.js] Created box body for node ${node.id} (rounded corners TODO)`);
+      // console.log(`[Planck.js] Created box body for node ${node.id} (rounded corners TODO)`);
     } else {
       // Simple rectangle
       const halfWidth = dimensions.width / 2;
@@ -127,7 +127,7 @@ export function usePlanckCollision(
         restitution: 0.1
       });
 
-      console.log(`[Planck.js] Created box body for node ${node.id}`);
+      // console.log(`[Planck.js] Created box body for node ${node.id}`);
     }
 
     // Store reference
@@ -152,7 +152,7 @@ export function usePlanckCollision(
     body.setAwake(true);
 
     if (PLANCK_DEBUG_LOGGING) {
-      console.log(`[Planck.js] Updated body position for node ${nodeId} to (${centerX}, ${centerY})`);
+      // console.log(`[Planck.js] Updated body position for node ${nodeId} to (${centerX}, ${centerY})`);
     }
   }
 
@@ -199,7 +199,7 @@ export function usePlanckCollision(
     nodeBodies.set(nodeId, newBody);
 
     if (PLANCK_DEBUG_LOGGING) {
-      console.log(`[Planck.js] Updated body dimensions for node ${nodeId} to ${dimensions.width}x${dimensions.height}`);
+      // console.log(`[Planck.js] Updated body dimensions for node ${nodeId} to ${dimensions.width}x${dimensions.height}`);
     }
   }
 
@@ -207,7 +207,7 @@ export function usePlanckCollision(
   function runPlanckSimulation(steps: number = 10) {
     if (!planckWorld) return;
 
-    console.log(`[Planck.js] Running physics simulation for ${steps} steps...`);
+    // console.log(`[Planck.js] Running physics simulation for ${steps} steps...`);
 
     // Run the simulation for multiple steps
     for (let i = 0; i < steps; i++) {
@@ -237,12 +237,12 @@ export function usePlanckCollision(
         movedCount++;
 
         if (PLANCK_DEBUG_LOGGING) {
-          console.log(`[Planck.js] Moved node ${nodeId} to (${newX}, ${newY})`);
+          // console.log(`[Planck.js] Moved node ${nodeId} to (${newX}, ${newY})`);
         }
       }
     });
 
-    console.log(`[Planck.js] ✅ Simulation complete - ${movedCount} node(s) moved`);
+    // console.log(`[Planck.js] ✅ Simulation complete - ${movedCount} node(s) moved`);
   }
 
   // Push nodes away from a position (used when creating new nodes or dragging)
@@ -285,7 +285,7 @@ export function usePlanckCollision(
       planckWorld = null;
     }
     nodeBodies.clear();
-    console.log('[Planck.js] Cleaned up');
+    // console.log('[Planck.js] Cleaned up');
   }
 
   return {

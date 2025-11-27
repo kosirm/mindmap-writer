@@ -48,7 +48,7 @@ export function useViewRegistry() {
    */
   function registerView(view: ViewType) {
     if (views.value.has(view.id)) {
-      console.warn(`View ${view.id} is already registered. Overwriting.`);
+      // console.warn(`View ${view.id} is already registered. Overwriting.`);
     }
     views.value.set(view.id, view);
   }
