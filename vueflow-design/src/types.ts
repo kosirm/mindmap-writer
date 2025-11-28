@@ -19,7 +19,9 @@ export interface NodeData {
   y: number;
   width: number;
   height: number;
-  collapsed?: boolean; // Whether children are hidden
+  collapsed?: boolean; // For child nodes: whether children are hidden
+  collapsedLeft?: boolean; // For root nodes: whether left children are hidden
+  collapsedRight?: boolean; // For root nodes: whether right children are hidden
 }
 
 /**

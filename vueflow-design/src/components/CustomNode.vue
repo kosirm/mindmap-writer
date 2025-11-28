@@ -4,9 +4,30 @@
       {{ data.label }}
     </div>
 
-    <!-- Expand/Collapse button (only if node has children) -->
+    <!-- Expand/Collapse buttons -->
+    <!-- Root nodes: TWO buttons (left + right) with separate counts -->
+    <template v-if="data.parentId === null">
+      <div
+        v-if="data.childCountLeft && data.childCountLeft > 0"
+        class="collapse-button left"
+        @click.stop="toggleCollapseLeft"
+      >
+        <span v-if="!data.collapsedLeft" class="icon">−</span>
+        <span v-if="data.collapsedLeft" class="badge">{{ data.childCountLeft }}</span>
+      </div>
+      <div
+        v-if="data.childCountRight && data.childCountRight > 0"
+        class="collapse-button right"
+        @click.stop="toggleCollapseRight"
+      >
+        <span v-if="!data.collapsedRight" class="icon">−</span>
+        <span v-if="data.collapsedRight" class="badge">{{ data.childCountRight }}</span>
+      </div>
+    </template>
+
+    <!-- Child nodes: ONE button (left or right depending on side) -->
     <div
-      v-if="data.childCount && data.childCount > 0"
+      v-else-if="data.parentId !== null && data.childCount && data.childCount > 0"
       class="collapse-button"
       :class="{ 'left': data.childrenSide === 'left', 'right': data.childrenSide === 'right' }"
       @click.stop="toggleCollapse"
@@ -51,7 +72,11 @@ interface Props {
     label: string
     parentId: string | null
     childCount?: number
+    childCountLeft?: number
+    childCountRight?: number
     collapsed?: boolean
+    collapsedLeft?: boolean
+    collapsedRight?: boolean
     childrenSide?: 'left' | 'right'
     isPotentialParent?: boolean
   }
@@ -61,10 +86,20 @@ defineProps<Props>()
 
 const emit = defineEmits<{
   toggleCollapse: []
+  toggleCollapseLeft: []
+  toggleCollapseRight: []
 }>()
 
 function toggleCollapse() {
   emit('toggleCollapse')
+}
+
+function toggleCollapseLeft() {
+  emit('toggleCollapseLeft')
+}
+
+function toggleCollapseRight() {
+  emit('toggleCollapseRight')
 }
 </script>
 

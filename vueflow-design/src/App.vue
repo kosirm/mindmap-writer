@@ -134,7 +134,12 @@
 
         <!-- Custom Node Template -->
         <template #node-custom="{ data, id }">
-          <CustomNode :data="data" @toggle-collapse="toggleCollapse(id)" />
+          <CustomNode
+            :data="data"
+            @toggle-collapse="toggleCollapse(id)"
+            @toggle-collapse-left="toggleCollapseLeft(id)"
+            @toggle-collapse-right="toggleCollapseRight(id)"
+          />
         </template>
       </VueFlow>
 
@@ -191,10 +196,13 @@
           </div>
         </template>
 
-        <!-- Child node menu: Add Child only -->
+        <!-- Child node menu: Add Child + Detach -->
         <template v-else>
           <div class="context-menu-item" @click="addChild">
             Add Child
+          </div>
+          <div class="context-menu-item context-menu-item-danger" @click="detachNode">
+            Detach from Parent
           </div>
         </template>
 
@@ -346,7 +354,18 @@ function syncToVueFlow() {
     while (current.parentId) {
       const parent = nodes.value.find(n => n.id === current.parentId)
       if (!parent) break
-      if (parent.collapsed) return false // Hidden by collapsed parent
+
+      // For root nodes, check collapsedLeft/collapsedRight based on current node's side
+      if (!parent.parentId) {
+        const root = parent
+        const isOnLeft = current.x < root.x
+        if (isOnLeft && root.collapsedLeft) return false
+        if (!isOnLeft && root.collapsedRight) return false
+      } else {
+        // For child nodes, check collapsed
+        if (parent.collapsed) return false
+      }
+
       current = parent
     }
 
@@ -357,6 +376,15 @@ function syncToVueFlow() {
     const childCount = getDirectChildren(node.id).length
     const childrenSide = getChildrenSide(node.id)
 
+    // For root nodes, calculate separate left/right counts
+    let childCountLeft = 0
+    let childCountRight = 0
+    if (!node.parentId) {
+      const children = getDirectChildren(node.id)
+      childCountLeft = children.filter(c => c.x < node.x).length
+      childCountRight = children.filter(c => c.x >= node.x).length
+    }
+
     return {
       id: node.id,
       type: 'custom',
@@ -365,7 +393,11 @@ function syncToVueFlow() {
         label: node.label,
         parentId: node.parentId,
         childCount,
+        childCountLeft,
+        childCountRight,
         collapsed: node.collapsed,
+        collapsedLeft: node.collapsedLeft,
+        collapsedRight: node.collapsedRight,
         childrenSide,
         isPotentialParent: potentialParent.value === node.id
       }
@@ -502,6 +534,58 @@ function toggleCollapse(nodeId: string) {
   edges.value = [...edges.value]
 }
 
+function toggleCollapseLeft(nodeId: string) {
+  const node = nodes.value.find((n: NodeData) => n.id === nodeId)
+  if (!node || node.parentId !== null) return // Only for root nodes
+
+  const wasCollapsed = node.collapsedLeft
+  node.collapsedLeft = !node.collapsedLeft
+
+  // Trigger bounding box recalculation
+  triggerRef(nodes)
+
+  // Sync to update visibility
+  syncToVueFlow()
+
+  // If we just expanded, resolve overlaps
+  if (wasCollapsed && !node.collapsedLeft) {
+    setTimeout(() => {
+      resolveAllOverlaps(nodes.value)
+      syncToVueFlow()
+      triggerRef(nodes)
+    }, 50)
+  }
+
+  // Update edges visibility
+  edges.value = [...edges.value]
+}
+
+function toggleCollapseRight(nodeId: string) {
+  const node = nodes.value.find((n: NodeData) => n.id === nodeId)
+  if (!node || node.parentId !== null) return // Only for root nodes
+
+  const wasCollapsed = node.collapsedRight
+  node.collapsedRight = !node.collapsedRight
+
+  // Trigger bounding box recalculation
+  triggerRef(nodes)
+
+  // Sync to update visibility
+  syncToVueFlow()
+
+  // If we just expanded, resolve overlaps
+  if (wasCollapsed && !node.collapsedRight) {
+    setTimeout(() => {
+      resolveAllOverlaps(nodes.value)
+      syncToVueFlow()
+      triggerRef(nodes)
+    }, 50)
+  }
+
+  // Update edges visibility
+  edges.value = [...edges.value]
+}
+
 function addRootNode() {
   console.log('addRootNode called, current nodes:', nodes.value.length)
   const id = `node-${nodeCounter++}`
@@ -513,7 +597,9 @@ function addRootNode() {
     y: Math.random() * 400 - 200,
     width: 150,
     height: 50,
-    collapsed: false
+    collapsed: false,
+    collapsedLeft: false,
+    collapsedRight: false
   })
   syncToVueFlow()
   console.log('After addRootNode, nodes:', nodes.value.length)
@@ -618,7 +704,7 @@ function addSibling() {
     x: sibling.x + 200,
     y: sibling.y,
     width: 150,
-    height: sibling.parentId ? 80 : 50,  // Match sibling's height
+    height: 50,  // All nodes have same height now
     collapsed: false
   }
 
@@ -642,6 +728,39 @@ function addSibling() {
   syncToVueFlow()
 
   // Resolve overlaps after adding
+  setTimeout(() => {
+    resolveAllOverlaps(nodes.value)
+    syncToVueFlow()
+  }, 100)
+}
+
+function detachNode() {
+  if (!contextMenu.value.nodeId) return
+
+  const node = nodes.value.find(n => n.id === contextMenu.value.nodeId)
+  if (!node || !node.parentId) return // Only detach child nodes
+
+  const oldParentId = node.parentId
+
+  // Remove edge from parent
+  edges.value = edges.value.filter(e => !(e.source === oldParentId && e.target === node.id))
+
+  // Make it a root node
+  node.parentId = null
+
+  // Initialize collapse states for root nodes
+  node.collapsedLeft = false
+  node.collapsedRight = false
+
+  // Update all descendants' edges (they stay connected to this node)
+  updateEdgesForBranch(node)
+
+  closeContextMenu()
+
+  // Sync to VueFlow
+  syncToVueFlow()
+
+  // Resolve overlaps after detaching
   setTimeout(() => {
     resolveAllOverlaps(nodes.value)
     syncToVueFlow()
@@ -827,6 +946,7 @@ function reparentNode(nodeId: string, newParentId: string) {
 
   // Update parent
   const oldParentId = node.parentId
+  const wasRootNode = oldParentId === null
   node.parentId = newParentId
 
   // Store old position to calculate delta for descendants
@@ -835,12 +955,14 @@ function reparentNode(nodeId: string, newParentId: string) {
 
   // Determine which side of new parent's root the node should be on
   const newParentRoot = getRootNode(newParentId)
+  let targetSide: 'left' | 'right' = 'right'
+
   if (newParentRoot) {
     // Determine new parent's side relative to root
-    const newParentSide = newParent.x < newParentRoot.x ? 'left' : 'right'
+    targetSide = newParent.x < newParentRoot.x ? 'left' : 'right'
 
     // Position node on the same side as new parent, same horizontal level
-    if (newParentSide === 'left') {
+    if (targetSide === 'left') {
       // Position to the left of new parent
       node.x = newParent.x - 200
     } else {
@@ -853,21 +975,82 @@ function reparentNode(nodeId: string, newParentId: string) {
     // Position based on which side of root the node is currently on
     if (node.x < newParent.x) {
       node.x = newParent.x - 200
+      targetSide = 'left'
     } else {
       node.x = newParent.x + 200
+      targetSide = 'right'
     }
     node.y = newParent.y  // Same horizontal level as parent
   }
 
-  // Move all descendants with the node
-  const deltaX = node.x - oldX
-  const deltaY = node.y - oldY
+  // Special case: If reparenting a root node with children on both sides,
+  // mirror all children to follow the new parent's side
+  if (wasRootNode) {
+    const directChildren = getDirectChildren(nodeId)
+    const hasLeftChildren = directChildren.some(c => c.x < oldX)
+    const hasRightChildren = directChildren.some(c => c.x >= oldX)
 
-  const descendants = getAllDescendants(nodeId, nodes.value)
-  descendants.forEach(descendant => {
-    descendant.x += deltaX
-    descendant.y += deltaY
-  })
+    if (hasLeftChildren && hasRightChildren) {
+      // Mirror all children to the target side
+      directChildren.forEach(child => {
+        const childWasOnLeft = child.x < oldX
+        const childWasOnRight = child.x >= oldX
+
+        // Calculate relative position from old node position
+        const relativeX = child.x - oldX
+        const relativeY = child.y - oldY
+
+        // Mirror if needed
+        if (targetSide === 'left' && childWasOnRight) {
+          // Flip to left side
+          child.x = node.x - Math.abs(relativeX)
+          child.y = node.y + relativeY
+        } else if (targetSide === 'right' && childWasOnLeft) {
+          // Flip to right side
+          child.x = node.x + Math.abs(relativeX)
+          child.y = node.y + relativeY
+        } else {
+          // Keep same side
+          child.x = node.x + relativeX
+          child.y = node.y + relativeY
+        }
+
+        // Recursively move all descendants of this child
+        const childDescendants = getAllDescendants(child.id, nodes.value)
+        const childDeltaX = child.x - (oldX + relativeX)
+        const childDeltaY = child.y - (oldY + relativeY)
+
+        childDescendants.forEach(desc => {
+          desc.x += childDeltaX
+          desc.y += childDeltaY
+        })
+      })
+    } else {
+      // Normal case: just move all descendants
+      const deltaX = node.x - oldX
+      const deltaY = node.y - oldY
+
+      const descendants = getAllDescendants(nodeId, nodes.value)
+      descendants.forEach(descendant => {
+        descendant.x += deltaX
+        descendant.y += deltaY
+      })
+    }
+
+    // Clear collapse state for root nodes when they become children
+    node.collapsedLeft = undefined
+    node.collapsedRight = undefined
+  } else {
+    // Normal case: just move all descendants
+    const deltaX = node.x - oldX
+    const deltaY = node.y - oldY
+
+    const descendants = getAllDescendants(nodeId, nodes.value)
+    descendants.forEach(descendant => {
+      descendant.x += deltaX
+      descendant.y += deltaY
+    })
+  }
 
   // Create new edge with appropriate handles
   const newParentRoot2 = getRootNode(newParentId)
@@ -1584,6 +1767,15 @@ initialize()
 
 .context-menu-item:last-child {
   border-radius: 0 0 4px 4px;
+}
+
+.context-menu-item-danger {
+  color: #ff6b6b;
+}
+
+.context-menu-item-danger:hover {
+  background: #fff5f5;
+  color: #fa5252;
 }
 </style>
 
