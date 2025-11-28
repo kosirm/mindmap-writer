@@ -18,6 +18,37 @@
         </button>
       </div>
 
+      <!-- Layout Spacing Controls -->
+      <div class="spacing-section">
+        <h3>Layout Spacing</h3>
+        <div class="slider-control">
+          <label>
+            Horizontal Spacing: {{ horizontalSpacing }}px
+            <input
+              v-model.number="horizontalSpacing"
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              @input="onSpacingChange"
+            />
+          </label>
+        </div>
+        <div class="slider-control">
+          <label>
+            Vertical Spacing: {{ verticalSpacing }}px
+            <input
+              v-model.number="verticalSpacing"
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              @input="onSpacingChange"
+            />
+          </label>
+        </div>
+      </div>
+
       <!-- Stress Test Controls -->
       <div class="stress-test-section">
         <h3>Stress Test</h3>
@@ -58,6 +89,12 @@
         <div>Total Nodes: {{ nodes.length }}</div>
         <div>Root Nodes: {{ rootNodes.length }}</div>
         <div>Algorithm: {{ algorithm.toUpperCase() }}</div>
+        <div v-if="nodes.length > 0" style="color: #2196F3; font-weight: bold;">
+          Rendered Nodes: {{ renderedNodeCount }}
+        </div>
+        <div v-if="nodes.length > 0" style="color: #9E9E9E;">
+          Viewport Zoom: {{ (viewport.zoom * 100).toFixed(0) }}%
+        </div>
         <div v-if="lastPerformance">
           <strong>Last Operation:</strong>
           <div>Overlap Detection: {{ lastPerformance.overlapDetection }}ms</div>
@@ -85,11 +122,13 @@
         :default-viewport="{ zoom: 0.3, x: 400, y: 300 }"
         :min-zoom="0.05"
         :max-zoom="2"
+        :only-render-visible-elements="true"
         @node-drag-start="onNodeDragStart"
         @node-drag="onNodeDrag"
         @node-drag-stop="onNodeDragStop"
         @node-context-menu="onNodeContextMenu"
         @pane-click="closeContextMenu"
+        @pane-mousemove="onPaneMouseMove"
       >
         <Background />
 
@@ -174,7 +213,7 @@ import { Background } from '@vue-flow/background'
 import type { Node, Edge, NodeDragEvent } from '@vue-flow/core'
 import CustomNode from './components/CustomNode.vue'
 import type { NodeData, ContextMenuState, BoundingRect } from './types'
-import { calculateBoundingRect, resolveAllOverlaps, getAllDescendants, moveNodeAndDescendants } from './layout'
+import { calculateBoundingRect, resolveAllOverlaps, resolveOverlapsForAffectedRoots, getAllDescendants, moveNodeAndDescendants, setLayoutSpacing, getLayoutSpacing } from './layout'
 import * as LayoutRBush from './layout-rbush'
 
 // VueFlow instance
@@ -197,6 +236,13 @@ const dragStartPositions = ref<Map<string, { x: number; y: number }>>(new Map())
 
 // Track potential parent during drag (for reparenting)
 const potentialParent = ref<string | null>(null)
+
+// Track mouse position during drag (for reparenting detection)
+const dragMousePosition = ref<{ x: number; y: number } | null>(null)
+
+// Layout spacing state
+const horizontalSpacing = ref(20)
+const verticalSpacing = ref(20)
 
 // Stress test state
 const algorithm = ref<'aabb' | 'rbush'>('aabb')
@@ -240,6 +286,11 @@ const visibleEdges = computed(() => {
   return edges.value.filter(edge =>
     visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
   )
+})
+
+// Count rendered nodes (for performance monitoring)
+const renderedNodeCount = computed(() => {
+  return vueFlowNodes.value.filter(n => n.computed?.visible !== false).length
 })
 
 // Get direct children of a node
@@ -514,7 +565,7 @@ function addChildToSide(parent: NodeData, side: 'left' | 'right') {
     x: childX,
     y: childY,
     width: 150,
-    height: 80,  // Child nodes have 3 lines of text
+    height: 50,  // Same height as root nodes (one line of text)
     collapsed: false
   }
 
@@ -597,9 +648,20 @@ function addSibling() {
   }, 100)
 }
 
+function onPaneMouseMove(event: MouseEvent) {
+  // Track mouse position during drag (converted to canvas coordinates)
+  if (dragStartPositions.value.size > 0) {
+    // Convert screen coordinates to canvas coordinates
+    const canvasX = (event.clientX - viewport.value.x) / viewport.value.zoom
+    const canvasY = (event.clientY - viewport.value.y) / viewport.value.zoom
+    dragMousePosition.value = { x: canvasX, y: canvasY }
+  }
+}
+
 function onNodeDragStart(event: NodeDragEvent) {
   // Store initial positions of all dragged nodes
   dragStartPositions.value.clear()
+  dragMousePosition.value = null
   event.nodes.forEach(vfNode => {
     const node = nodes.value.find(n => n.id === vfNode.id)
     if (node) {
@@ -655,7 +717,12 @@ function onNodeDrag(event: NodeDragEvent) {
       })
 
       // Check if dragged node is over another node (for reparenting)
-      detectPotentialParent(node)
+      // Pass mouse position if available for more subtle reparenting detection
+      if (dragMousePosition.value) {
+        detectPotentialParent(node, dragMousePosition.value.x, dragMousePosition.value.y)
+      } else {
+        detectPotentialParent(node)
+      }
     }
   })
 
@@ -666,7 +733,7 @@ function onNodeDrag(event: NodeDragEvent) {
   triggerRef(nodes)
 }
 
-function detectPotentialParent(draggedNode: NodeData) {
+function detectPotentialParent(draggedNode: NodeData, mouseX?: number, mouseY?: number) {
   // Check if dragged node is over another node
   // Don't allow reparenting to self or descendants
   const descendants = getAllDescendants(draggedNode.id, nodes.value)
@@ -675,22 +742,66 @@ function detectPotentialParent(draggedNode: NodeData) {
   // Find if dragged node overlaps with any other node
   let foundParent: string | null = null
 
+  // Use mouse position if available, otherwise fall back to node center
+  const checkX = mouseX !== undefined ? mouseX : draggedNode.x + draggedNode.width / 2
+  const checkY = mouseY !== undefined ? mouseY : draggedNode.y + draggedNode.height / 2
+
   for (const targetNode of nodes.value) {
     // Skip if target is the dragged node or its descendant
     if (descendantIds.has(targetNode.id)) continue
 
-    // Check if dragged node center is inside target node bounds
-    const draggedCenterX = draggedNode.x + draggedNode.width / 2
-    const draggedCenterY = draggedNode.y + draggedNode.height / 2
-
+    // Check if mouse/node center is inside target node bounds
     if (
-      draggedCenterX >= targetNode.x &&
-      draggedCenterX <= targetNode.x + targetNode.width &&
-      draggedCenterY >= targetNode.y &&
-      draggedCenterY <= targetNode.y + targetNode.height
+      checkX >= targetNode.x &&
+      checkX <= targetNode.x + targetNode.width &&
+      checkY >= targetNode.y &&
+      checkY <= targetNode.y + targetNode.height
     ) {
-      foundParent = targetNode.id
-      break
+      // More subtle reparenting: check if mouse is in the inner 1/3 of the target node
+      // Determine which side of the root the target node is on
+      const targetRoot = getRootNode(targetNode.id)
+
+      if (targetRoot) {
+        const isLeftBranch = targetNode.x < targetRoot.x
+
+        // For left branch: check if mouse is in the LEFT 1/3 of target node
+        // For right branch: check if mouse is in the RIGHT 1/3 of target node
+        const relativeX = checkX - targetNode.x
+        const threshold = targetNode.width / 3
+
+        if (isLeftBranch) {
+          // Left branch: mouse must be in left 1/3
+          if (relativeX <= threshold) {
+            foundParent = targetNode.id
+            break
+          }
+        } else {
+          // Right branch: mouse must be in right 2/3 (beyond left 1/3)
+          if (relativeX >= targetNode.width - threshold) {
+            foundParent = targetNode.id
+            break
+          }
+        }
+      } else {
+        // Target is a root node - use same logic based on which side dragged node is on
+        const isLeftSide = draggedNode.x < targetNode.x
+        const relativeX = checkX - targetNode.x
+        const threshold = targetNode.width / 3
+
+        if (isLeftSide) {
+          // Dragging from left: mouse must be in left 1/3
+          if (relativeX <= threshold) {
+            foundParent = targetNode.id
+            break
+          }
+        } else {
+          // Dragging from right: mouse must be in right 1/3
+          if (relativeX >= targetNode.width - threshold) {
+            foundParent = targetNode.id
+            break
+          }
+        }
+      }
     }
   }
 
@@ -804,8 +915,8 @@ function onNodeDragStop(event: NodeDragEvent) {
     // Clear drag start positions
     dragStartPositions.value.clear()
 
-    // Resolve overlaps after reparenting
-    resolveAllOverlaps(nodes.value)
+    // Resolve overlaps after reparenting (optimized - only affected roots)
+    resolveOverlapsForAffectedRoots([draggedNodeId, newParentId], nodes.value)
 
     // Update VueFlow with resolved positions
     syncToVueFlow()
@@ -821,8 +932,11 @@ function onNodeDragStop(event: NodeDragEvent) {
     // Clear drag start positions
     dragStartPositions.value.clear()
 
-    // Resolve overlaps after dragging
-    resolveAllOverlaps(nodes.value)
+    // Get IDs of all dragged nodes
+    const draggedNodeIds = event.nodes.map(n => n.id)
+
+    // Resolve overlaps after dragging (optimized - only affected roots)
+    resolveOverlapsForAffectedRoots(draggedNodeIds, nodes.value)
 
     // Update VueFlow with resolved positions
     syncToVueFlow()
@@ -854,6 +968,16 @@ function resolveOverlapsManually() {
 
 function zoomToFit() {
   fitView({ padding: 0.2, duration: 300 })
+}
+
+function onSpacingChange() {
+  // Update layout spacing
+  setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
+
+  // Recalculate bounding boxes and resolve overlaps
+  triggerRef(nodes)
+  resolveAllOverlaps(nodes.value)
+  syncToVueFlow()
 }
 
 function getNodeDepth(nodeId: string): number {
@@ -1103,10 +1227,8 @@ function checkOverlap(rect1: BoundingRect, rect2: BoundingRect): boolean {
 function createNode(label: string, parentId: string | null, x: number, y: number): NodeData {
   const id = `node-${nodeCounter++}`
 
-  // Calculate height based on content
-  // Root nodes: 1 line (label only) = ~50px
-  // Child nodes: 3 lines (id, label, parent) = ~80px
-  const height = parentId ? 80 : 50
+  // All nodes now have same height (one line of text)
+  const height = 50
 
   const node: NodeData = {
     id,
@@ -1254,6 +1376,70 @@ initialize()
 
 .btn-danger:hover {
   background: #fa5252;
+}
+
+.spacing-section {
+  background: #f3f0ff;
+  border: 1px solid #9775fa;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.spacing-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  color: #6741d9;
+}
+
+.slider-control {
+  margin-bottom: 15px;
+}
+
+.slider-control label {
+  display: block;
+  font-size: 13px;
+  color: #495057;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.slider-control input[type="range"] {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #dee2e6;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.slider-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #9775fa;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.slider-control input[type="range"]::-webkit-slider-thumb:hover {
+  background: #7950f2;
+}
+
+.slider-control input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #9775fa;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s;
+}
+
+.slider-control input[type="range"]::-moz-range-thumb:hover {
+  background: #7950f2;
 }
 
 .stress-test-section {
