@@ -1,9 +1,9 @@
 import type { NodeData, BoundingRect, Rectangle } from './types'
-import { rectanglesOverlap, resolveOverlap, expandRectToIncludeRect, addPadding } from './collision'
+import { rectanglesOverlap, resolveOverlap, expandRectToIncludeRect, addPadding, addPaddingXY } from './collision'
 
 /**
  * Nested Rectangle Layout Algorithm
- * 
+ *
  * Core concept:
  * - Each node has an invisible bounding rectangle
  * - Root nodes have rectangles that cannot overlap
@@ -12,7 +12,24 @@ import { rectanglesOverlap, resolveOverlap, expandRectToIncludeRect, addPadding 
  * - Sibling rectangles (same parent) cannot overlap
  */
 
-const PADDING = 20 // Padding around children within parent rectangle
+// Layout spacing configuration
+let HORIZONTAL_SPACING = 20 // Horizontal spacing between bounding boxes
+let VERTICAL_SPACING = 20   // Vertical spacing between bounding boxes
+
+/**
+ * Set layout spacing (used by UI controls)
+ */
+export function setLayoutSpacing(horizontal: number, vertical: number): void {
+  HORIZONTAL_SPACING = horizontal
+  VERTICAL_SPACING = vertical
+}
+
+/**
+ * Get current layout spacing
+ */
+export function getLayoutSpacing(): { horizontal: number; vertical: number } {
+  return { horizontal: HORIZONTAL_SPACING, vertical: VERTICAL_SPACING }
+}
 
 /**
  * Calculate bounding rectangle for a node and all its descendants
@@ -43,11 +60,12 @@ export function calculateBoundingRect(
   const children = allNodes.filter(n => n.parentId === node.id)
 
   if (children.length === 0) {
-    // Leaf node - just return its own rectangle
+    // Leaf node - add padding around it so siblings maintain spacing
+    rect = addPaddingXY(rect, HORIZONTAL_SPACING, VERTICAL_SPACING)
     return {
       ...rect,
       nodeId: node.id,
-      padding: 0
+      padding: Math.max(HORIZONTAL_SPACING, VERTICAL_SPACING)
     }
   }
 
@@ -59,13 +77,13 @@ export function calculateBoundingRect(
     rect = expandRectToIncludeRect(rect, childBound)
   }
 
-  // Add padding around children
-  rect = addPadding(rect, PADDING)
+  // Add padding around children (separate horizontal and vertical)
+  rect = addPaddingXY(rect, HORIZONTAL_SPACING, VERTICAL_SPACING)
 
   return {
     ...rect,
     nodeId: node.id,
-    padding: PADDING
+    padding: Math.max(HORIZONTAL_SPACING, VERTICAL_SPACING) // Store max for reference
   }
 }
 
@@ -101,14 +119,14 @@ export function resolveSiblingOverlaps(
   const parentId = siblings[0].parentId
   const parentNode = parentId ? allNodes.find(n => n.id === parentId) : null
 
+  // Calculate bounding rectangles once at the start
+  let bounds = siblings.map(sibling => ({
+    node: sibling,
+    rect: calculateBoundingRect(sibling, allNodes)
+  }))
+
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     let hadOverlap = false
-
-    // Calculate bounding rectangles for all siblings
-    const bounds = siblings.map(sibling => ({
-      node: sibling,
-      rect: calculateBoundingRect(sibling, allNodes)
-    }))
 
     // 1. Check and resolve overlaps between sibling pairs
     for (let i = 0; i < bounds.length; i++) {
@@ -153,6 +171,12 @@ export function resolveSiblingOverlaps(
           // Move the nodes and all their descendants
           moveNodeAndDescendants(a.node, deltaX_A, deltaY_A, allNodes)
           moveNodeAndDescendants(b.node, deltaX_B, deltaY_B, allNodes)
+
+          // Update bounding rectangles for moved nodes
+          a.rect.x += deltaX_A
+          a.rect.y += deltaY_A
+          b.rect.x += deltaX_B
+          b.rect.y += deltaY_B
         }
       }
     }
@@ -201,6 +225,10 @@ export function resolveSiblingOverlaps(
 
           // Move the child node and all its descendants
           moveNodeAndDescendants(bound.node, deltaX, deltaY, allNodes)
+
+          // Update bounding rectangle for moved node
+          bound.rect.x += deltaX
+          bound.rect.y += deltaY
         }
       }
     }
@@ -280,6 +308,56 @@ export function resolveAllOverlaps(allNodes: NodeData[]): void {
   }
 
   // Finally, resolve overlaps between root nodes
+  resolveSiblingOverlaps(rootNodes, allNodes)
+}
+
+/**
+ * Get the root node for a given node
+ */
+function getRootNode(nodeId: string, allNodes: NodeData[]): NodeData | null {
+  let node = allNodes.find(n => n.id === nodeId)
+  if (!node) return null
+
+  // Traverse up to find root
+  while (node.parentId !== null) {
+    const parent = allNodes.find(n => n.id === node!.parentId)
+    if (!parent) break
+    node = parent
+  }
+
+  return node
+}
+
+/**
+ * Optimized function: Only resolve overlaps for affected root trees
+ * This is much faster when only a few nodes change (e.g., during drag)
+ *
+ * @param affectedNodeIds - IDs of nodes that changed
+ * @param allNodes - All nodes in the graph
+ */
+export function resolveOverlapsForAffectedRoots(
+  affectedNodeIds: string[],
+  allNodes: NodeData[]
+): void {
+  // Find all affected root nodes
+  const affectedRoots = new Set<string>()
+  for (const nodeId of affectedNodeIds) {
+    const root = getRootNode(nodeId, allNodes)
+    if (root) {
+      affectedRoots.add(root.id)
+    }
+  }
+
+  // Resolve overlaps within each affected root tree
+  for (const rootId of affectedRoots) {
+    const root = allNodes.find(n => n.id === rootId)
+    if (root) {
+      resolveOverlapsRecursive(root, allNodes)
+    }
+  }
+
+  // Resolve overlaps between ALL root nodes (since affected roots might push others)
+  const rootNodes = allNodes.filter(n => n.parentId === null)
   resolveSiblingOverlaps(rootNodes, allNodes)
 }
 

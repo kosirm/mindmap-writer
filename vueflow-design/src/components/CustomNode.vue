@@ -3,9 +3,6 @@
     <div class="node-content">
       {{ data.label }}
     </div>
-    <div v-if="data.parentId" class="parent-indicator">
-      Child of: {{ data.parentId }}
-    </div>
 
     <!-- Expand/Collapse button (only if node has children) -->
     <div
@@ -14,7 +11,7 @@
       :class="{ 'left': data.childrenSide === 'left', 'right': data.childrenSide === 'right' }"
       @click.stop="toggleCollapse"
     >
-      <span class="icon">{{ data.collapsed ? '+' : '−' }}</span>
+      <span v-if="!data.collapsed" class="icon">−</span>
       <span v-if="data.collapsed" class="badge">{{ data.childCount }}</span>
     </div>
 
@@ -116,13 +113,6 @@ function toggleCollapse() {
   text-align: center;
 }
 
-.parent-indicator {
-  font-size: 10px;
-  color: #868e96;
-  margin-top: 4px;
-  text-align: center;
-}
-
 .handle {
   width: 10px;
   height: 10px;
@@ -162,29 +152,25 @@ function toggleCollapse() {
 
 .collapse-button:hover {
   background: #228be6;
-  transform: translateY(-50%) scale(1.1);
 }
 
 .collapse-button .icon {
   color: white;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: bold;
   line-height: 1;
   user-select: none;
+  padding-bottom: 2.3px;
 }
 
 .collapse-button .badge {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  background: #ff6b6b;
   color: white;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: bold;
-  padding: 2px 6px;
   border-radius: 10px;
-  min-width: 18px;
+  min-width: 15px;
   text-align: center;
+  padding-bottom: 1px;
 }
 
 /* Selected state */

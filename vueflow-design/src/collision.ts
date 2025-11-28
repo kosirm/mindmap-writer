@@ -111,7 +111,7 @@ export function expandRectToIncludeRect(a: Rectangle, b: Rectangle): Rectangle {
 }
 
 /**
- * Add padding to a rectangle
+ * Add padding to a rectangle (uniform padding)
  */
 export function addPadding(rect: Rectangle, padding: number): Rectangle {
   return {
@@ -119,6 +119,18 @@ export function addPadding(rect: Rectangle, padding: number): Rectangle {
     y: rect.y - padding,
     width: rect.width + padding * 2,
     height: rect.height + padding * 2
+  }
+}
+
+/**
+ * Add separate horizontal and vertical padding to a rectangle
+ */
+export function addPaddingXY(rect: Rectangle, paddingX: number, paddingY: number): Rectangle {
+  return {
+    x: rect.x - paddingX,
+    y: rect.y - paddingY,
+    width: rect.width + paddingX * 2,
+    height: rect.height + paddingY * 2
   }
 }
 
