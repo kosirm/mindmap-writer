@@ -28,8 +28,8 @@
               v-model.number="horizontalSpacing"
               type="range"
               min="0"
-              max="100"
-              step="5"
+              max="50"
+              step="1"
               @input="onSpacingChange"
             />
           </label>
@@ -41,8 +41,8 @@
               v-model.number="verticalSpacing"
               type="range"
               min="0"
-              max="100"
-              step="5"
+              max="50"
+              step="1"
               @input="onSpacingChange"
             />
           </label>
@@ -85,6 +85,81 @@
         </div>
       </div>
 
+      <!-- LOD (Level of Detail) Configuration -->
+      <div class="lod-section">
+        <h3>LOD (Level of Detail)</h3>
+        <div class="controls">
+          <label>
+            <input type="checkbox" v-model="lodEnabled" />
+            Enable LOD System
+          </label>
+        </div>
+        <div v-if="lodEnabled" class="lod-info">
+          <p class="info-text">
+            <strong>Max depth:</strong> {{ maxTreeDepth }} |
+            <strong>Zoom:</strong> {{ (viewport.zoom * 100).toFixed(0) }}% |
+            <strong>LOD:</strong> {{ currentLodLevel }}
+          </p>
+        </div>
+        <div v-if="lodEnabled" class="lod-config">
+          <h4>LOD Configuration:</h4>
+          <div class="lod-input-group">
+            <label>
+              <span class="lod-label">Start LOD at:</span>
+              <input
+                v-model.number="lodStartPercent"
+                type="number"
+                min="5"
+                max="100"
+                step="5"
+                class="lod-input"
+              />
+              <span class="lod-unit">%</span>
+            </label>
+          </div>
+          <div class="lod-input-group">
+            <label>
+              <span class="lod-label">Increment LOD by:</span>
+              <input
+                v-model.number="lodIncrementPercent"
+                type="number"
+                min="5"
+                max="100"
+                step="5"
+                class="lod-input"
+              />
+              <span class="lod-unit">%</span>
+            </label>
+          </div>
+          <div class="lod-preview">
+            <h5>Generated Thresholds:</h5>
+            <div class="lod-preview-list">
+              <div v-for="(threshold, index) in lodThresholds" :key="index" class="lod-preview-item">
+                <span class="lod-label">LOD {{ index + 1 }}:</span>
+                <span class="lod-hint">Zoom &lt; {{ threshold }}%</span>
+              </div>
+              <div class="lod-preview-item">
+                <span class="lod-label">LOD {{ lodThresholds.length + 1 }}:</span>
+                <span class="lod-hint">Zoom ≥ {{ lodThresholds[lodThresholds.length - 1] }}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Display Options -->
+      <div class="display-section">
+        <h3>Display Options</h3>
+        <div class="controls">
+          <button @click="showCanvasCenter = !showCanvasCenter" class="btn">
+            {{ showCanvasCenter ? 'Hide' : 'Show' }} Canvas Center
+          </button>
+          <button @click="showZoomIndicator = !showZoomIndicator" class="btn">
+            {{ showZoomIndicator ? 'Hide' : 'Show' }} Zoom Indicator
+          </button>
+        </div>
+      </div>
+
       <div class="stats">
         <div>Total Nodes: {{ nodes.length }}</div>
         <div>Root Nodes: {{ rootNodes.length }}</div>
@@ -121,7 +196,7 @@
         :edges="visibleEdges"
         :default-viewport="{ zoom: 0.3, x: 400, y: 300 }"
         :min-zoom="0.05"
-        :max-zoom="2"
+        :max-zoom="maxZoom"
         :only-render-visible-elements="true"
         @node-drag-start="onNodeDragStart"
         @node-drag="onNodeDrag"
@@ -141,15 +216,22 @@
             @toggle-collapse-right="toggleCollapseRight(id)"
           />
         </template>
+
+        <!-- LOD Badge Node Template -->
+        <template #node-lod-badge="{ data }">
+          <LodBadgeNode :data="data" />
+        </template>
       </VueFlow>
 
       <!-- Overlays - Outside VueFlow but synced with viewport -->
       <svg class="canvas-overlay">
         <g :style="{ transform: viewportTransform }">
           <!-- Center Cross Marker -->
-          <line x1="-20" y1="0" x2="20" y2="0" stroke="#ff6b6b" stroke-width="2" />
-          <line x1="0" y1="-20" x2="0" y2="20" stroke="#ff6b6b" stroke-width="2" />
-          <circle cx="0" cy="0" r="3" fill="#ff6b6b" />
+          <g v-if="showCanvasCenter">
+            <line x1="-20" y1="0" x2="20" y2="0" stroke="#ff6b6b" stroke-width="2" />
+            <line x1="0" y1="-20" x2="0" y2="20" stroke="#ff6b6b" stroke-width="2" />
+            <circle cx="0" cy="0" r="3" fill="#ff6b6b" />
+          </g>
 
           <!-- Bounding Boxes -->
           <g v-if="showBoundingBoxes">
@@ -210,22 +292,29 @@
           Add Sibling
         </div>
       </div>
+
+      <!-- Zoom Indicator (Top Right) -->
+      <div v-if="showZoomIndicator" class="zoom-indicator">
+        <div class="zoom-value">{{ (viewport.zoom * 100).toFixed(0) }}%</div>
+        <div class="zoom-level" v-if="lodEnabled">LOD: {{ currentLodLevel }}</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, triggerRef } from 'vue'
+import { ref, computed, triggerRef, watch, onMounted, onUnmounted } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import type { Node, Edge, NodeDragEvent } from '@vue-flow/core'
 import CustomNode from './components/CustomNode.vue'
+import LodBadgeNode from './components/LodBadgeNode.vue'
 import type { NodeData, ContextMenuState, BoundingRect } from './types'
 import { calculateBoundingRect, resolveAllOverlaps, resolveOverlapsForAffectedRoots, getAllDescendants, moveNodeAndDescendants, setLayoutSpacing, getLayoutSpacing } from './layout'
 import * as LayoutRBush from './layout-rbush'
 
 // VueFlow instance
-const { viewport, fitView } = useVueFlow()
+const { viewport, fitView, zoomIn, zoomOut, setViewport } = useVueFlow()
 
 // State
 const nodes = ref<NodeData[]>([])
@@ -249,8 +338,8 @@ const potentialParent = ref<string | null>(null)
 const dragMousePosition = ref<{ x: number; y: number } | null>(null)
 
 // Layout spacing state
-const horizontalSpacing = ref(20)
-const verticalSpacing = ref(20)
+const horizontalSpacing = ref(0)
+const verticalSpacing = ref(0)
 
 // Stress test state
 const algorithm = ref<'aabb' | 'rbush'>('aabb')
@@ -261,6 +350,38 @@ const lastPerformance = ref<{
   total: number
   overlapsFound: number
 } | null>(null)
+
+// LOD (Level of Detail) state
+const lodEnabled = ref(false)
+// Dynamic LOD thresholds: array of zoom percentages (10, 30, 50, 70, 90, etc.)
+// LOD configuration
+const lodStartPercent = ref(10)  // Start LOD at 10%
+const lodIncrementPercent = ref(20)  // Increment by 20%
+
+// Computed LOD thresholds based on start and increment
+const lodThresholds = computed(() => {
+  const thresholds: number[] = []
+  const numLevels = Math.max(maxTreeDepth.value, 5)
+  for (let i = 0; i < numLevels; i++) {
+    thresholds.push(lodStartPercent.value + i * lodIncrementPercent.value)
+  }
+  return thresholds
+})
+
+// Display options
+const showCanvasCenter = ref(true)
+const showZoomIndicator = ref(true)
+
+// Dynamic max zoom based on LOD levels
+// Ensure max zoom is high enough to show all LOD levels
+// Formula: last LOD threshold + 20% buffer, minimum 2.0 (200%)
+const maxZoom = computed(() => {
+  if (lodThresholds.value.length === 0) return 2.0
+  const lastThreshold = lodThresholds.value[lodThresholds.value.length - 1]
+  // Add 20% buffer above the last threshold, convert to zoom (divide by 100)
+  // Minimum 2.0 (200%), maximum 5.0 (500%) for safety
+  return Math.min(Math.max((lastThreshold + 20) / 100, 2.0), 5.0)
+})
 
 let nodeCounter = 1
 
@@ -301,9 +422,143 @@ const renderedNodeCount = computed(() => {
   return vueFlowNodes.value.filter(n => n.computed?.visible !== false).length
 })
 
+// Calculate maximum depth in the tree
+const maxTreeDepth = computed(() => {
+  if (nodes.value.length === 0) return 0
+
+  let maxDepth = 0
+  nodes.value.forEach(node => {
+    const depth = getNodeDepth(node.id)
+    if (depth > maxDepth) {
+      maxDepth = depth
+    }
+  })
+
+  return maxDepth
+})
+
+// Current LOD level based on zoom (1-based: LOD 1, LOD 2, etc.)
+const currentLodLevel = computed(() => {
+  if (!lodEnabled.value) return maxTreeDepth.value + 1 // Show all
+
+  const zoomPercent = viewport.value.zoom * 100
+
+  // Find which LOD level we're at
+  for (let i = 0; i < lodThresholds.value.length; i++) {
+    if (zoomPercent < lodThresholds.value[i]) {
+      return i + 1 // LOD levels are 1-based
+    }
+  }
+
+  // If zoom is above all thresholds, show all levels
+  return lodThresholds.value.length + 1
+})
+
+// Watch for zoom changes and update visible nodes when LOD is enabled
+watch(() => viewport.value.zoom, (newZoom, oldZoom) => {
+  if (lodEnabled.value) {
+    // Check if we're crossing LOD thresholds (zoom in/out significantly)
+    const zoomChanged = Math.abs(newZoom - (oldZoom || 1)) > 0.01
+    if (zoomChanged) {
+      handleZoomChange(newZoom)
+    }
+  }
+})
+
+// Watch for LOD enabled/disabled and update
+watch(lodEnabled, () => {
+  syncToVueFlow()
+})
+
+// LOD thresholds are now computed automatically based on maxTreeDepth, lodStartPercent, and lodIncrementPercent
+// No need for a watcher - the computed property handles it
+
+// Handle zoom change: mark newly visible nodes as dirty for lazy calculation
+function handleZoomChange(newZoom: number) {
+  const previouslyVisibleIds = new Set(vueFlowNodes.value.map(n => n.id))
+
+  // Get nodes that should be visible at new zoom level
+  const newVisibleNodes = getVisibleNodesForLOD()
+
+  // Mark newly visible nodes as dirty if they haven't been calculated at this zoom
+  newVisibleNodes.forEach(node => {
+    const wasVisible = previouslyVisibleIds.has(node.id)
+    if (!wasVisible || !node.lastCalculatedZoom || Math.abs(node.lastCalculatedZoom - newZoom) > 0.1) {
+      node.isDirty = true
+    }
+  })
+
+  // Update the view
+  syncToVueFlow()
+
+  // Run incremental overlap resolution for dirty nodes
+  const dirtyNodes = newVisibleNodes.filter(n => n.isDirty)
+  if (dirtyNodes.length > 0) {
+    resolveOverlapsIncremental(dirtyNodes, newVisibleNodes, newZoom)
+  }
+}
+
+// Incremental overlap resolution: only resolve overlaps for dirty nodes
+function resolveOverlapsIncremental(dirtyNodes: NodeData[], allVisibleNodes: NodeData[], currentZoom: number) {
+  // Group dirty nodes by their root
+  const dirtyRootIds = new Set<string>()
+  dirtyNodes.forEach(node => {
+    const root = getRootNode(node.id)
+    if (root) {
+      dirtyRootIds.add(root.id)
+    }
+  })
+
+  // Only resolve overlaps for affected roots
+  if (dirtyRootIds.size > 0) {
+    const affectedRootIds = Array.from(dirtyRootIds)
+    resolveOverlapsForAffectedRoots(affectedRootIds, nodes.value)
+
+    // Mark dirty nodes as clean and record calculation zoom
+    dirtyNodes.forEach(node => {
+      node.isDirty = false
+      node.lastCalculatedZoom = currentZoom
+    })
+
+    // Update the view
+    syncToVueFlow()
+    triggerRef(nodes)
+  }
+}
+
 // Get direct children of a node
 function getDirectChildren(nodeId: string): NodeData[] {
   return nodes.value.filter(n => n.parentId === nodeId)
+}
+
+// Calculate bounding box of hidden children
+function calculateHiddenChildrenBounds(hiddenChildren: NodeData[]): { x: number, y: number, width: number, height: number } {
+  if (hiddenChildren.length === 0) {
+    return { x: 0, y: 0, width: 0, height: 0 }
+  }
+
+  // Calculate bounding box for all hidden children and their descendants
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+
+  for (const child of hiddenChildren) {
+    // Get bounding rect including all descendants
+    const bounds = calculateBoundingRect(child, nodes.value)
+
+    minX = Math.min(minX, bounds.x)
+    minY = Math.min(minY, bounds.y)
+    maxX = Math.max(maxX, bounds.x + bounds.width)
+    maxY = Math.max(maxY, bounds.y + bounds.height)
+  }
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY
+  }
 }
 
 // Get all visible descendants (excluding collapsed branches)
@@ -341,12 +596,71 @@ function getChildrenSide(nodeId: string): 'left' | 'right' | null {
   return node.x < root.x ? 'left' : 'right'
 }
 
+// Get node depth (0 for root, 1 for direct children, etc.)
+function getNodeDepth(nodeId: string): number {
+  const node = nodes.value.find(n => n.id === nodeId)
+  if (!node) return 0
+
+  let depth = 0
+  let current = node
+  while (current.parentId) {
+    depth++
+    const parent = nodes.value.find(n => n.id === current.parentId)
+    if (!parent) break
+    current = parent
+  }
+  return depth
+}
+
+// LOD: Determine which nodes should be visible at current zoom level
+function getVisibleNodesForLOD(): NodeData[] {
+  if (!lodEnabled.value) {
+    // LOD disabled: return all nodes
+    return nodes.value
+  }
+
+  const zoomPercent = viewport.value.zoom * 100
+
+  // Determine max depth to show based on zoom level
+  // Logic: Count how many thresholds we've PASSED (zoom >= threshold)
+  // Example: [10, 30, 50, 70, 90]
+  //   zoom < 10%        → passed 0 thresholds → show depth 0 (roots only)
+  //   10% <= zoom < 30% → passed 1 threshold  → show depth 0-1
+  //   30% <= zoom < 50% → passed 2 thresholds → show depth 0-2
+  //   zoom >= 90%       → passed all          → show all depths
+
+  let maxDepthToShow = 0 // Default: show only roots (depth 0)
+
+  // Count how many thresholds we've passed
+  for (let i = 0; i < lodThresholds.value.length; i++) {
+    if (zoomPercent >= lodThresholds.value[i]) {
+      maxDepthToShow = i + 1 // We've passed this threshold, show one more level
+    } else {
+      break // Stop at first threshold we haven't reached
+    }
+  }
+
+  // If zoom is above all thresholds, show all nodes
+  if (zoomPercent >= lodThresholds.value[lodThresholds.value.length - 1]) {
+    return nodes.value
+  }
+
+  // Filter nodes by depth
+  return nodes.value.filter(node => {
+    const depth = getNodeDepth(node.id)
+    return depth <= maxDepthToShow
+  })
+}
+
 // Sync our data model to VueFlow nodes (only visible nodes)
 function syncToVueFlow() {
   // console.log('syncToVueFlow: nodes.value.length =', nodes.value.length)
 
-  // Filter to only show visible nodes (not in collapsed branches)
-  const visibleNodes = nodes.value.filter(node => {
+  // Step 1: Apply LOD filtering (zoom-based visibility)
+  const lodFilteredNodes = getVisibleNodesForLOD()
+
+  // Step 2: Filter by collapse state (only show nodes not in collapsed branches)
+  const visibleNodes = lodFilteredNodes.filter(node => {
     if (!node.parentId) return true // Root nodes always visible
 
     // Check if any ancestor is collapsed
@@ -372,7 +686,8 @@ function syncToVueFlow() {
     return true
   })
 
-  vueFlowNodes.value = visibleNodes.map(node => {
+  // Map visible nodes to VueFlow nodes
+  const regularNodes = visibleNodes.map(node => {
     const childCount = getDirectChildren(node.id).length
     const childrenSide = getChildrenSide(node.id)
 
@@ -403,6 +718,42 @@ function syncToVueFlow() {
       }
     }
   })
+
+  // Create LOD badge nodes for nodes with hidden children
+  const lodBadgeNodes: Node[] = []
+  if (lodEnabled.value) {
+    for (const node of visibleNodes) {
+      // Get all direct children
+      const allChildren = getDirectChildren(node.id)
+      // Get hidden children (not in visible nodes)
+      const visibleNodeIds = new Set(visibleNodes.map(n => n.id))
+      const hiddenChildren = allChildren.filter(c => !visibleNodeIds.has(c.id))
+
+      if (hiddenChildren.length > 0) {
+        // Calculate bounding box of hidden children
+        const hiddenChildrenBounds = calculateHiddenChildrenBounds(hiddenChildren)
+
+        // Create LOD badge node
+        lodBadgeNodes.push({
+          id: `lod-badge-${node.id}`,
+          type: 'lod-badge',
+          position: {
+            x: hiddenChildrenBounds.x,
+            y: hiddenChildrenBounds.y
+          },
+          data: {
+            count: hiddenChildren.length,
+            width: hiddenChildrenBounds.width,
+            height: hiddenChildrenBounds.height
+          },
+          draggable: false,
+          selectable: false
+        })
+      }
+    }
+  }
+
+  vueFlowNodes.value = [...regularNodes, ...lodBadgeNodes]
 
   // console.log('syncToVueFlow: vueFlowNodes.value.length =', vueFlowNodes.value.length)
 }
@@ -599,7 +950,9 @@ function addRootNode() {
     height: 50,
     collapsed: false,
     collapsedLeft: false,
-    collapsedRight: false
+    collapsedRight: false,
+    isDirty: true, // New node needs position calculation
+    lastCalculatedZoom: viewport.value.zoom
   })
   syncToVueFlow()
   console.log('After addRootNode, nodes:', nodes.value.length)
@@ -652,7 +1005,9 @@ function addChildToSide(parent: NodeData, side: 'left' | 'right') {
     y: childY,
     width: 150,
     height: 50,  // Same height as root nodes (one line of text)
-    collapsed: false
+    collapsed: false,
+    isDirty: true, // New node needs position calculation
+    lastCalculatedZoom: viewport.value.zoom
   }
 
   nodes.value.push(newNode)
@@ -1153,6 +1508,45 @@ function zoomToFit() {
   fitView({ padding: 0.2, duration: 300 })
 }
 
+// LOD configuration is now handled by lodStartPercent and lodIncrementPercent
+// No need for addLodLevel() or resetLodLevels() - thresholds are computed automatically
+
+// Fine-grained zoom control (1% increments)
+function handleKeyDown(event: KeyboardEvent) {
+  // Ctrl+ (Ctrl and Plus/Equals key) - Zoom in by 1%
+  if (event.ctrlKey && (event.key === '+' || event.key === '=')) {
+    event.preventDefault()
+    const currentZoom = viewport.value.zoom
+    const newZoom = Math.min(currentZoom + 0.01, maxZoom.value) // Use dynamic max zoom
+    setViewport({
+      x: viewport.value.x,
+      y: viewport.value.y,
+      zoom: newZoom
+    })
+  }
+
+  // Ctrl- (Ctrl and Minus key) - Zoom out by 1%
+  if (event.ctrlKey && event.key === '-') {
+    event.preventDefault()
+    const currentZoom = viewport.value.zoom
+    const newZoom = Math.max(currentZoom - 0.01, 0.05) // Min zoom is 0.05
+    setViewport({
+      x: viewport.value.x,
+      y: viewport.value.y,
+      zoom: newZoom
+    })
+  }
+}
+
+// Register keyboard event listener
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
+
 function onSpacingChange() {
   // Update layout spacing
   setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
@@ -1161,20 +1555,6 @@ function onSpacingChange() {
   triggerRef(nodes)
   resolveAllOverlaps(nodes.value)
   syncToVueFlow()
-}
-
-function getNodeDepth(nodeId: string): number {
-  let depth = 0
-  let currentId: string | null = nodeId
-
-  while (currentId) {
-    const node = nodes.value.find(n => n.id === currentId)
-    if (!node || !node.parentId) break
-    currentId = node.parentId
-    depth++
-  }
-
-  return depth
 }
 
 function generateTestData() {
@@ -1776,6 +2156,177 @@ initialize()
 .context-menu-item-danger:hover {
   background: #fff5f5;
   color: #fa5252;
+}
+
+/* Zoom Indicator */
+.zoom-indicator {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid #4dabf7;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-width: 100px;
+}
+
+.zoom-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1971c2;
+  text-align: center;
+  line-height: 1;
+}
+
+.zoom-level {
+  font-size: 11px;
+  color: #868e96;
+  text-align: center;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* LOD Section */
+.lod-section {
+  background: #e7f5ff;
+  border: 1px solid #a5d8ff;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.lod-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #1971c2;
+}
+
+.lod-info {
+  background: white;
+  border: 1px solid #a5d8ff;
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+.lod-info .info-text {
+  margin: 0;
+  font-size: 12px;
+  color: #1971c2;
+  line-height: 1.6;
+}
+
+.lod-config {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #a5d8ff;
+}
+
+.lod-config h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #1971c2;
+  font-weight: 600;
+}
+
+.lod-config h5 {
+  margin: 12px 0 6px 0;
+  font-size: 12px;
+  color: #495057;
+  font-weight: 600;
+}
+
+.lod-preview {
+  margin-top: 12px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.lod-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lod-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #495057;
+  padding: 2px 0;
+}
+
+.lod-description {
+  margin: 0 0 12px 0;
+  font-size: 11px;
+  color: #495057;
+  font-style: italic;
+}
+
+.lod-input-group {
+  margin-bottom: 10px;
+}
+
+.lod-input-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #495057;
+}
+
+.lod-label {
+  min-width: 50px;
+  font-weight: 500;
+  color: #1971c2;
+}
+
+.lod-hint {
+  color: #868e96;
+  font-size: 11px;
+}
+
+.lod-input {
+  width: 70px;
+  padding: 4px 8px;
+  border: 1px solid #a5d8ff;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: right;
+}
+
+.lod-unit {
+  color: #868e96;
+  font-size: 11px;
+}
+
+.lod-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #a5d8ff;
+}
+
+/* Display Section */
+.display-section {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.display-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #495057;
 }
 </style>
 
