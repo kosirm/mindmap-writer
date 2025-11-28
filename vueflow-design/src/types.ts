@@ -22,6 +22,8 @@ export interface NodeData {
   collapsed?: boolean; // For child nodes: whether children are hidden
   collapsedLeft?: boolean; // For root nodes: whether left children are hidden
   collapsedRight?: boolean; // For root nodes: whether right children are hidden
+  isDirty?: boolean; // For lazy calculation: true if position needs recalculation
+  lastCalculatedZoom?: number; // Track at which zoom level this node was last calculated
 }
 
 /**
