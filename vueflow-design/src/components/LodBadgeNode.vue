@@ -1,16 +1,26 @@
 <template>
-  <div 
-    class="lod-badge-node" 
+  <div
+    class="lod-badge-node"
     :style="{
       width: data.width + 'px',
       height: data.height + 'px'
     }"
   >
-    <div class="badge-content">
-      <div class="badge-icon">⋯</div>
-      <div class="badge-count">{{ data.count }}</div>
-      <div class="badge-hint">hidden nodes</div>
-    </div>
+    <svg
+      class="badge-svg"
+      :viewBox="`0 0 ${data.width} ${data.height}`"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <text
+        :x="data.width / 2"
+        :y="data.height / 2"
+        text-anchor="middle"
+        dominant-baseline="central"
+        class="badge-text"
+      >
+        {{ data.count }}
+      </text>
+    </svg>
   </div>
 </template>
 
@@ -37,39 +47,21 @@ defineProps<Props>()
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   cursor: help;
   pointer-events: none;
-  min-width: 100px;
-  min-height: 60px;
+  width: 100%;
+  height: 100%;
+  padding: 10%;
 }
 
-.badge-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  color: #862e9c;
-  text-align: center;
+.badge-svg {
+  width: 100%;
+  height: 100%;
 }
 
-/* Icon: "⋯" - Tweak this for the ellipsis */
-.badge-icon {
-  font-size: 48px;
+.badge-text {
+  font-size: 100px;
   font-weight: bold;
-  line-height: 1;
-}
-
-/* Count: The number - THIS IS THE MOST IMPORTANT - make it LARGE */
-.badge-count {
-  font-size: 64px;
-  font-weight: bold;
-  line-height: 1;
-}
-
-/* Hint: "hidden nodes" text - Tweak this for the label */
-.badge-hint {
-  font-size: 18px;
-  font-weight: 600;
-  opacity: 0.9;
-  line-height: 1;
+  fill: #6c757d;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 </style>
 
