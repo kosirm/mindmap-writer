@@ -320,7 +320,7 @@ const { viewport, fitView, zoomIn, zoomOut, setViewport } = useVueFlow()
 const nodes = ref<NodeData[]>([])
 const edges = ref<Edge[]>([])
 const vueFlowNodes = ref<Node[]>([])
-const showBoundingBoxes = ref(true)
+const showBoundingBoxes = ref(false)
 const contextMenu = ref<ContextMenuState>({
   visible: false,
   x: 0,
@@ -343,7 +343,7 @@ const verticalSpacing = ref(0)
 
 // Stress test state
 const algorithm = ref<'aabb' | 'rbush'>('aabb')
-const stressTestNodeCount = ref(1000)
+const stressTestNodeCount = ref(200)
 const lastPerformance = ref<{
   overlapDetection: number
   resolution: number
@@ -352,7 +352,7 @@ const lastPerformance = ref<{
 } | null>(null)
 
 // LOD (Level of Detail) state
-const lodEnabled = ref(false)
+const lodEnabled = ref(true)
 // Dynamic LOD thresholds: array of zoom percentages (10, 30, 50, 70, 90, etc.)
 // LOD configuration
 const lodStartPercent = ref(10)  // Start LOD at 10%
@@ -473,58 +473,47 @@ watch(lodEnabled, () => {
 // LOD thresholds are now computed automatically based on maxTreeDepth, lodStartPercent, and lodIncrementPercent
 // No need for a watcher - the computed property handles it
 
-// Handle zoom change: mark newly visible nodes as dirty for lazy calculation
+// Handle zoom change: resolve overlaps ONLY for newly visible nodes
 function handleZoomChange(newZoom: number) {
+  console.log(`🔍 Zoom changed to ${(newZoom * 100).toFixed(1)}%`)
+
   const previouslyVisibleIds = new Set(vueFlowNodes.value.map(n => n.id))
 
   // Get nodes that should be visible at new zoom level
   const newVisibleNodes = getVisibleNodesForLOD()
+  console.log(`  Visible nodes: ${newVisibleNodes.length}/${nodes.value.length}`)
 
-  // Mark newly visible nodes as dirty if they haven't been calculated at this zoom
-  newVisibleNodes.forEach(node => {
-    const wasVisible = previouslyVisibleIds.has(node.id)
-    if (!wasVisible || !node.lastCalculatedZoom || Math.abs(node.lastCalculatedZoom - newZoom) > 0.1) {
-      node.isDirty = true
+  // Find newly visible nodes (nodes that weren't visible before)
+  const newlyVisibleNodes = newVisibleNodes.filter(n => !previouslyVisibleIds.has(n.id))
+
+  if (newlyVisibleNodes.length > 0) {
+    console.log(`  ${newlyVisibleNodes.length} newly visible nodes - resolving overlaps incrementally`)
+
+    // Group newly visible nodes by their root
+    const affectedRootIds = new Set<string>()
+    newlyVisibleNodes.forEach(node => {
+      const root = getRootNode(node.id)
+      if (root) {
+        affectedRootIds.add(root.id)
+      }
+    })
+
+    // Resolve overlaps ONLY for affected root trees
+    // This is fast because we only process the trees that have newly visible nodes
+    if (affectedRootIds.size > 0) {
+      console.log(`  Resolving overlaps for ${affectedRootIds.size} affected root trees`)
+      resolveOverlapsForAffectedRootsLOD(Array.from(affectedRootIds), newVisibleNodes, nodes.value)
     }
-  })
+  }
 
   // Update the view
   syncToVueFlow()
 
-  // Run incremental overlap resolution for dirty nodes
-  const dirtyNodes = newVisibleNodes.filter(n => n.isDirty)
-  if (dirtyNodes.length > 0) {
-    resolveOverlapsIncremental(dirtyNodes, newVisibleNodes, newZoom)
-  }
+  console.log(`  ✓ View updated`)
 }
 
-// Incremental overlap resolution: only resolve overlaps for dirty nodes
-function resolveOverlapsIncremental(dirtyNodes: NodeData[], allVisibleNodes: NodeData[], currentZoom: number) {
-  // Group dirty nodes by their root
-  const dirtyRootIds = new Set<string>()
-  dirtyNodes.forEach(node => {
-    const root = getRootNode(node.id)
-    if (root) {
-      dirtyRootIds.add(root.id)
-    }
-  })
-
-  // Only resolve overlaps for affected roots
-  if (dirtyRootIds.size > 0) {
-    const affectedRootIds = Array.from(dirtyRootIds)
-    resolveOverlapsForAffectedRoots(affectedRootIds, nodes.value)
-
-    // Mark dirty nodes as clean and record calculation zoom
-    dirtyNodes.forEach(node => {
-      node.isDirty = false
-      node.lastCalculatedZoom = currentZoom
-    })
-
-    // Update the view
-    syncToVueFlow()
-    triggerRef(nodes)
-  }
-}
+// NOTE: resolveOverlapsIncremental removed - we don't recalculate layout on zoom changes
+// Layout is only calculated when nodes are created or dragged
 
 // Get direct children of a node
 function getDirectChildren(nodeId: string): NodeData[] {
@@ -1607,9 +1596,12 @@ function handleKeyDown(event: KeyboardEvent) {
   }
 }
 
-// Register keyboard event listener
+// Register keyboard event listener and initialize layout spacing
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
+
+  // Initialize layout spacing with default values from UI
+  setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
 })
 
 onUnmounted(() => {
@@ -1737,30 +1729,41 @@ async function runStressTest() {
 
   while (currentNodeCount < targetNodeCount) {
     console.log(`\n=== Creating Level ${level + 1} ===`)
+    console.log(`  Current node count: ${currentNodeCount}/${targetNodeCount}`)
+    console.log(`  Left queue size: ${leftSideQueue.length}, Right queue size: ${rightSideQueue.length}`)
 
     const newNodesThisLevel: NodeData[] = []
 
-    // For root level, create first two children (one left, one right)
+    // For root level, create 3 children on left and 3 on right for better LOD balance
     if (level === 0) {
-      // Create left child
-      const leftChild = createNode(`L1-N1`, root.id, root.x - 200, root.y)
-      createEdge(root.id, leftChild.id)
-      leftSideQueue.push(leftChild)
-      newNodesThisLevel.push(leftChild)
-      currentNodeCount++
-      console.log(`  Created node ${leftChild.id} (LEFT of root)`)
+      const nodeHeight = 50
+      const spacing = verticalSpacing.value
+      const verticalStep = nodeHeight + spacing // Nodes should be spaced by height + configured spacing
 
-      // Create right child if we have room
-      if (currentNodeCount < targetNodeCount) {
-        const rightChild = createNode(`L1-N2`, root.id, root.x + 200, root.y)
+      // Create 3 left children
+      for (let i = 0; i < 3 && currentNodeCount < targetNodeCount; i++) {
+        const childY = root.y + (i - 1) * verticalStep // Spread vertically based on node height + spacing
+        const leftChild = createNode(`L1-N${currentNodeCount}`, root.id, root.x - 200, childY)
+        createEdge(root.id, leftChild.id)
+        leftSideQueue.push(leftChild)
+        newNodesThisLevel.push(leftChild)
+        currentNodeCount++
+        console.log(`  Created node ${leftChild.id} (LEFT of root) at (${leftChild.x}, ${leftChild.y})`)
+      }
+
+      // Create 3 right children
+      for (let i = 0; i < 3 && currentNodeCount < targetNodeCount; i++) {
+        const childY = root.y + (i - 1) * verticalStep // Spread vertically based on node height + spacing
+        const rightChild = createNode(`L1-N${currentNodeCount}`, root.id, root.x + 200, childY)
         createEdge(root.id, rightChild.id)
         rightSideQueue.push(rightChild)
         newNodesThisLevel.push(rightChild)
         currentNodeCount++
-        console.log(`  Created node ${rightChild.id} (RIGHT of root)`)
+        console.log(`  Created node ${rightChild.id} (RIGHT of root) at (${rightChild.x}, ${rightChild.y})`)
       }
     } else {
-      // For subsequent levels, alternate between left and right queues to maintain balance
+      // For subsequent levels, ALTERNATE between left and right parents to maintain balance
+      // This ensures if we hit the node limit, both sides are equally filled
       const leftQueueSize = leftSideQueue.length
       const rightQueueSize = rightSideQueue.length
 
@@ -1768,56 +1771,81 @@ async function runStressTest() {
         break // No more nodes to expand
       }
 
-      // Process left side nodes
-      for (let i = 0; i < leftQueueSize && currentNodeCount < targetNodeCount; i++) {
-        const parent = leftSideQueue.shift()!
+      // Process parents alternating between left and right
+      const maxParents = Math.max(leftQueueSize, rightQueueSize)
+      for (let i = 0; i < maxParents && currentNodeCount < targetNodeCount; i++) {
+        // Process one left parent if available
+        if (i < leftQueueSize && currentNodeCount < targetNodeCount) {
+          const parent = leftSideQueue.shift()!
 
-        // Create 2 children for this parent
-        for (let j = 0; j < 2 && currentNodeCount < targetNodeCount; j++) {
-          const childX = parent.x - 200
-          const childY = parent.y + (j - 0.5) * 80
+          // Get parent's CURRENT position from nodes array (after layout resolution)
+          const parentNode = nodes.value.find(n => n.id === parent.id)!
 
-          const child = createNode(`L${level + 1}-N${currentNodeCount}`, parent.id, childX, childY)
-          createEdge(parent.id, child.id)
+          const nodeHeight = 50
+          const spacing = verticalSpacing.value
+          const verticalStep = nodeHeight + spacing // Nodes should be spaced by height + configured spacing
 
-          leftSideQueue.push(child)
-          newNodesThisLevel.push(child)
-          currentNodeCount++
-          console.log(`  Created node ${child.id} (LEFT side)`)
+          // Create 2 children for this parent
+          for (let j = 0; j < 2 && currentNodeCount < targetNodeCount; j++) {
+            // Position children to the LEFT of parent's CURRENT position
+            const childX = parentNode.x - 200
+            const childY = parentNode.y + (j - 0.5) * verticalStep
+
+            const child = createNode(`L${level + 1}-N${currentNodeCount}`, parent.id, childX, childY)
+            createEdge(parent.id, child.id)
+
+            leftSideQueue.push(child)
+            newNodesThisLevel.push(child)
+            currentNodeCount++
+            console.log(`  Created node ${child.id} (LEFT side) at (${childX.toFixed(0)}, ${childY.toFixed(0)}) - parent ${parent.id} at (${parentNode.x.toFixed(0)}, ${parentNode.y.toFixed(0)})`)
+          }
         }
-      }
 
-      // Process right side nodes
-      for (let i = 0; i < rightQueueSize && currentNodeCount < targetNodeCount; i++) {
-        const parent = rightSideQueue.shift()!
+        // Process one right parent if available
+        if (i < rightQueueSize && currentNodeCount < targetNodeCount) {
+          const parent = rightSideQueue.shift()!
 
-        // Create 2 children for this parent
-        for (let j = 0; j < 2 && currentNodeCount < targetNodeCount; j++) {
-          const childX = parent.x + 200
-          const childY = parent.y + (j - 0.5) * 80
+          // Get parent's CURRENT position from nodes array (after layout resolution)
+          const parentNode = nodes.value.find(n => n.id === parent.id)!
 
-          const child = createNode(`L${level + 1}-N${currentNodeCount}`, parent.id, childX, childY)
-          createEdge(parent.id, child.id)
+          const nodeHeight = 50
+          const spacing = verticalSpacing.value
+          const verticalStep = nodeHeight + spacing // Nodes should be spaced by height + configured spacing
 
-          rightSideQueue.push(child)
-          newNodesThisLevel.push(child)
-          currentNodeCount++
-          console.log(`  Created node ${child.id} (RIGHT side)`)
+          // Create 2 children for this parent
+          for (let j = 0; j < 2 && currentNodeCount < targetNodeCount; j++) {
+            // Position children to the RIGHT of parent's CURRENT position
+            const childX = parentNode.x + 200
+            const childY = parentNode.y + (j - 0.5) * verticalStep
+
+            const child = createNode(`L${level + 1}-N${currentNodeCount}`, parent.id, childX, childY)
+            createEdge(parent.id, child.id)
+
+            rightSideQueue.push(child)
+            newNodesThisLevel.push(child)
+            currentNodeCount++
+            console.log(`  Created node ${child.id} (RIGHT side) at (${childX.toFixed(0)}, ${childY.toFixed(0)}) - parent ${parent.id} at (${parentNode.x.toFixed(0)}, ${parentNode.y.toFixed(0)})`)
+          }
         }
       }
     }
 
     // Sync to VueFlow to show new nodes
     syncToVueFlow()
-    await nextTick() // Wait for Vue to render the new nodes
+
+    // Wait for browser to render
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
     // Apply layout for this level
     console.log(`  Applying layout for level ${level + 1}...`)
+    console.log(`  Nodes created this level: ${newNodesThisLevel.length}`)
 
     // IMPORTANT: Use LOD-aware layout calculation
     // - visibleNodes: only nodes visible at current zoom (for overlap resolution)
     // - nodes.value: all nodes (for bounding box calculation including LOD-hidden children)
     const visibleNodes = getVisibleNodesForLOD()
+    console.log(`  Visible nodes for layout: ${visibleNodes.length}/${nodes.value.length}`)
+
     if (algorithm.value === 'rbush') {
       // TODO: Add LOD-aware version for RBush
       LayoutRBush.resolveAllOverlaps(nodes.value)
@@ -1825,15 +1853,26 @@ async function runStressTest() {
       resolveOverlapsLOD(visibleNodes, nodes.value)
     }
 
+    console.log(`  Layout resolved`)
+
+    // Log positions AFTER layout resolution for debugging
+    console.log(`  Positions after layout:`)
+    for (const node of newNodesThisLevel) {
+      const updatedNode = nodes.value.find(n => n.id === node.id)!
+      const parent = nodes.value.find(n => n.id === updatedNode.parentId)!
+      const side = updatedNode.x < parent.x ? 'LEFT' : 'RIGHT'
+      console.log(`    ${node.id}: (${updatedNode.x.toFixed(0)}, ${updatedNode.y.toFixed(0)}) - ${side} of parent ${parent.id} at (${parent.x.toFixed(0)}, ${parent.y.toFixed(0)})`)
+    }
+
     // Sync to VueFlow to show layout changes
     syncToVueFlow()
-    await nextTick() // Wait for Vue to render the layout changes
 
-    // Additional small delay for visual feedback (optional, can be removed for speed)
-    await delay(50)
+    // Wait for browser to render layout changes
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
     level++
-    console.log(`  Level ${level} complete. Total nodes: ${currentNodeCount}`)
+    console.log(`  ✓ Level ${level} complete. Total nodes: ${currentNodeCount}`)
+    console.log(`  ---`)
   }
 
   const endTotal = performance.now()
