@@ -312,6 +312,53 @@ export function resolveAllOverlaps(allNodes: NodeData[]): void {
 }
 
 /**
+ * LOD-aware overlap resolution: Only resolve overlaps for visible nodes,
+ * but calculate bounding boxes using ALL nodes (including LOD-hidden children)
+ *
+ * @param visibleNodes - Nodes that are visible at current LOD level
+ * @param allNodes - All nodes (including LOD-hidden ones)
+ */
+export function resolveOverlapsLOD(visibleNodes: NodeData[], allNodes: NodeData[]): void {
+  // Get visible root nodes
+  const visibleRootNodes = visibleNodes.filter(n => n.parentId === null)
+
+  // For each visible root, resolve overlaps within its visible subtree
+  for (const root of visibleRootNodes) {
+    resolveOverlapsRecursiveLOD(root, visibleNodes, allNodes)
+  }
+
+  // Resolve overlaps between visible root nodes
+  // Use allNodes for bounding box calculation (includes LOD-hidden children)
+  resolveSiblingOverlaps(visibleRootNodes, allNodes)
+}
+
+/**
+ * LOD-aware recursive overlap resolution
+ * Only processes visible nodes, but uses allNodes for bounding box calculation
+ */
+function resolveOverlapsRecursiveLOD(
+  node: NodeData,
+  visibleNodes: NodeData[],
+  allNodes: NodeData[]
+): void {
+  // Get visible children only
+  const visibleChildren = visibleNodes.filter(n => n.parentId === node.id)
+
+  if (visibleChildren.length === 0) {
+    return // No visible children to process
+  }
+
+  // Recursively resolve overlaps for each visible child
+  for (const child of visibleChildren) {
+    resolveOverlapsRecursiveLOD(child, visibleNodes, allNodes)
+  }
+
+  // Resolve overlaps between visible siblings
+  // Use allNodes for bounding box calculation (includes LOD-hidden descendants)
+  resolveSiblingOverlaps(visibleChildren, allNodes)
+}
+
+/**
  * Get the root node for a given node
  */
 function getRootNode(nodeId: string, allNodes: NodeData[]): NodeData | null {
@@ -359,5 +406,41 @@ export function resolveOverlapsForAffectedRoots(
   // Resolve overlaps between ALL root nodes (since affected roots might push others)
   const rootNodes = allNodes.filter(n => n.parentId === null)
   resolveSiblingOverlaps(rootNodes, allNodes)
+}
+
+/**
+ * LOD-aware optimized function: Only resolve overlaps for affected root trees
+ * Uses visible nodes for overlap resolution, but all nodes for bounding box calculation
+ *
+ * @param affectedNodeIds - IDs of nodes that changed
+ * @param visibleNodes - Nodes visible at current LOD level
+ * @param allNodes - All nodes (including LOD-hidden)
+ */
+export function resolveOverlapsForAffectedRootsLOD(
+  affectedNodeIds: string[],
+  visibleNodes: NodeData[],
+  allNodes: NodeData[]
+): void {
+  // Find all affected root nodes (search in allNodes to find the root)
+  const affectedRoots = new Set<string>()
+  for (const nodeId of affectedNodeIds) {
+    const root = getRootNode(nodeId, allNodes)
+    if (root) {
+      affectedRoots.add(root.id)
+    }
+  }
+
+  // Resolve overlaps within each affected root tree (only visible nodes)
+  for (const rootId of affectedRoots) {
+    const root = visibleNodes.find(n => n.id === rootId)
+    if (root) {
+      resolveOverlapsRecursiveLOD(root, visibleNodes, allNodes)
+    }
+  }
+
+  // Resolve overlaps between ALL visible root nodes
+  // Use allNodes for bounding box calculation (includes LOD-hidden children)
+  const visibleRootNodes = visibleNodes.filter(n => n.parentId === null)
+  resolveSiblingOverlaps(visibleRootNodes, allNodes)
 }
 
