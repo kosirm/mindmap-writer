@@ -344,6 +344,12 @@ const contextMenu = ref<ContextMenuState>({
 // Track previous positions for drag delta calculation
 const dragStartPositions = ref<Map<string, { x: number; y: number }>>(new Map())
 
+// Track if node crossed to other side during drag
+const nodeCrossedSides = ref(false)
+
+// Track which side each node started on (to detect crossing only once)
+const dragStartSides = ref<Map<string, 'left' | 'right'>>(new Map())
+
 // Track potential parent during drag (for reparenting)
 const potentialParent = ref<string | null>(null)
 
@@ -829,19 +835,37 @@ function isNodeOnLeftOfRoot(node: NodeData): boolean {
   return node.x < root.x
 }
 
-// Mirror all descendants of a node across the node's x position
+// Mirror all descendants of a node across their respective parent centers
+// This preserves the parent-child distance relationship at each level
+// IMPORTANT: This must be done recursively - each node mirrors its direct children,
+// then each child mirrors its own children, etc.
 function mirrorDescendantsAcrossNode(node: NodeData) {
-  const descendants = getAllDescendants(node.id, nodes.value)
+  // Get only DIRECT children of this node
+  const directChildren = nodes.value.filter(n => n.parentId === node.id)
 
-  descendants.forEach(descendant => {
-    // Calculate distance from parent node
-    const distanceX = descendant.x - node.x
+  if (directChildren.length === 0) return
 
-    // Mirror across the node's x position
-    descendant.x = node.x - distanceX
+  // Calculate parent node center X position
+  const parentCenterX = node.x + node.width / 2
 
-    // Update drag start position for this descendant
-    dragStartPositions.value.set(descendant.id, { x: descendant.x, y: descendant.y })
+  directChildren.forEach(child => {
+    // Calculate child center X position
+    const childCenterX = child.x + child.width / 2
+
+    // Calculate distance from parent center
+    const distanceFromParent = childCenterX - parentCenterX
+
+    // Mirror across the parent's center (flip the distance)
+    const newChildCenterX = parentCenterX - distanceFromParent
+
+    // Convert back to top-left position
+    child.x = newChildCenterX - child.width / 2
+
+    // Y position stays the same (no vertical mirroring)
+    // child.y is unchanged
+
+    // RECURSIVELY mirror this child's descendants across the child's center
+    mirrorDescendantsAcrossNode(child)
   })
 }
 
@@ -1164,11 +1188,22 @@ function onPaneMouseMove(event: MouseEvent) {
 function onNodeDragStart(event: NodeDragEvent) {
   // Store initial positions of all dragged nodes
   dragStartPositions.value.clear()
+  dragStartSides.value.clear()
   dragMousePosition.value = null
+  nodeCrossedSides.value = false // Reset side-crossing flag
   event.nodes.forEach(vfNode => {
     const node = nodes.value.find(n => n.id === vfNode.id)
     if (node) {
       dragStartPositions.value.set(node.id, { x: node.x, y: node.y })
+
+      // Store which side the node started on
+      if (node.parentId) {
+        const root = getRootNode(node.id)
+        if (root) {
+          const startSide = node.x < root.x ? 'left' : 'right'
+          dragStartSides.value.set(node.id, startSide)
+        }
+      }
     }
   })
 }
@@ -1188,36 +1223,96 @@ function onNodeDrag(event: NodeDragEvent) {
       node.x = vfNode.position.x
       node.y = vfNode.position.y
 
+      // Track if we mirrored during this drag event
+      let justMirrored = false
+
       // Check if node crossed to other side of root (only for non-root nodes)
+      // Only mirror ONCE when crossing, not on every drag event
       if (node.parentId) {
         const root = getRootNode(node.id)
         if (root) {
-          const wasLeftSide = startPos.x < root.x
-          const isNowLeftSide = node.x < root.x
+          const startSide = dragStartSides.value.get(node.id)
+          const currentSide = node.x < root.x ? 'left' : 'right'
 
-          // If crossed to other side, mirror all descendants
-          if (wasLeftSide !== isNowLeftSide) {
-            console.log(`Node ${node.id} crossed root! Mirroring descendants...`)
+          // If crossed to other side AND we haven't mirrored yet
+          if (startSide && startSide !== currentSide) {
+            console.log(`🔄 Node ${node.id} crossed root! Mirroring descendants...`)
+            console.log(`  Root at: (${root.x.toFixed(0)}, ${root.y.toFixed(0)})`)
+            console.log(`  Parent node at: (${node.x.toFixed(0)}, ${node.y.toFixed(0)})`)
+            console.log(`  Node started on ${startSide.toUpperCase()} side, now on ${currentSide.toUpperCase()} side`)
+            console.log(`  Delta from start: (${deltaX.toFixed(0)}, ${deltaY.toFixed(0)})`)
+
+            // Log descendants BEFORE mirroring
+            const descendants = getAllDescendants(node.id, nodes.value)
+            const parentCenterX = node.x + node.width / 2
+            console.log(`  Parent center X: ${parentCenterX.toFixed(0)} (x: ${node.x.toFixed(0)}, width: ${node.width})`)
+            console.log(`  Descendants BEFORE mirroring:`)
+            descendants.forEach(d => {
+              const descendantCenterX = d.x + d.width / 2
+              const distFromParentCenter = descendantCenterX - parentCenterX
+              console.log(`    ${d.id}: center at ${descendantCenterX.toFixed(0)} - distance from parent CENTER: ${distFromParentCenter.toFixed(0)}px`)
+            })
+
+            nodeCrossedSides.value = true // Mark that side change happened
+
+            // Mirror descendants across parent center
             mirrorDescendantsAcrossNode(node)
+
+            // IMPORTANT: After mirroring, update dragStartPositions to CURRENT positions
+            // This resets the delta calculation so descendants move naturally with parent from now on
+            dragStartPositions.value.set(node.id, { x: node.x, y: node.y })
+
+            descendants.forEach(d => {
+              // Set dragStartPosition to current position (after mirroring)
+              // This ensures delta calculation starts fresh from the mirrored position
+              dragStartPositions.value.set(d.id, { x: d.x, y: d.y })
+            })
+
+            // Mark that we just mirrored
+            justMirrored = true
+
+            // Log descendants AFTER mirroring
+            console.log(`  Descendants AFTER mirroring:`)
+            descendants.forEach(d => {
+              const descendantCenterX = d.x + d.width / 2
+              const distFromParentCenter = descendantCenterX - parentCenterX
+              console.log(`    ${d.id}: center at ${descendantCenterX.toFixed(0)} - distance from parent CENTER: ${distFromParentCenter.toFixed(0)}px`)
+              const dragStart = dragStartPositions.value.get(d.id)
+              if (dragStart) {
+                console.log(`      dragStartPosition reset to: (${dragStart.x.toFixed(0)}, ${dragStart.y.toFixed(0)})`)
+              }
+            })
 
             // Update edges for this node and all descendants
             updateEdgesForBranch(node)
+
+            // Update the start side so we don't mirror again
+            dragStartSides.value.set(node.id, currentSide)
           }
         }
       }
 
       // Move all descendants by the same delta
-      const descendants = getAllDescendants(node.id, nodes.value)
-      descendants.forEach(descendant => {
-        const descendantStartPos = dragStartPositions.value.get(descendant.id)
-        if (!descendantStartPos) {
-          // Store initial position if not already stored
-          dragStartPositions.value.set(descendant.id, { x: descendant.x, y: descendant.y })
-        }
-        const origPos = dragStartPositions.value.get(descendant.id)!
-        descendant.x = origPos.x + deltaX
-        descendant.y = origPos.y + deltaY
-      })
+      // SKIP this if we just mirrored, because descendants are already at correct positions
+      if (!justMirrored) {
+        const descendants = getAllDescendants(node.id, nodes.value)
+        descendants.forEach(descendant => {
+          const descendantStartPos = dragStartPositions.value.get(descendant.id)
+          if (!descendantStartPos) {
+            // Store initial position if not already stored
+            dragStartPositions.value.set(descendant.id, { x: descendant.x, y: descendant.y })
+          }
+          const origPos = dragStartPositions.value.get(descendant.id)!
+          const oldX = descendant.x
+          descendant.x = origPos.x + deltaX
+          descendant.y = origPos.y + deltaY
+
+          // Debug: Log if position changed significantly
+          if (Math.abs(descendant.x - oldX) > 10) {
+            console.log(`  📍 Moving ${descendant.id}: ${oldX.toFixed(0)} → ${descendant.x.toFixed(0)} (origPos: ${origPos.x.toFixed(0)}, delta: ${deltaX.toFixed(0)})`)
+          }
+        })
+      }
 
       // Check if dragged node is over another node (for reparenting)
       // Pass mouse position if available for more subtle reparenting detection
@@ -1500,11 +1595,24 @@ function onNodeDragStop(event: NodeDragEvent) {
     console.log(`📍 Drag stopped - syncing ${event.nodes.length} dragged nodes`)
     syncFromVueFlow()
 
-    // Clear drag start positions
-    dragStartPositions.value.clear()
-
     // Get IDs of all dragged nodes
     const draggedNodeIds = event.nodes.map(n => n.id)
+
+    // Log dragged node and descendants positions BEFORE layout recalculation
+    if (nodeCrossedSides.value) {
+      console.log(`📍 Positions BEFORE layout recalculation (after side crossing):`)
+      const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
+      if (draggedNode) {
+        console.log(`  Dragged node ${draggedNode.id}: (${draggedNode.x.toFixed(0)}, ${draggedNode.y.toFixed(0)})`)
+        const descendants = getAllDescendants(draggedNode.id, nodes.value)
+        descendants.forEach(d => {
+          console.log(`    Descendant ${d.id}: (${d.x.toFixed(0)}, ${d.y.toFixed(0)})`)
+        })
+      }
+    }
+
+    // Clear drag start positions
+    dragStartPositions.value.clear()
 
     // OPTIMIZED: Only recalculate affected branch, not entire tree
     console.log(`🔄 Recalculating layout for affected branch...`)
@@ -1512,31 +1620,70 @@ function onNodeDragStop(event: NodeDragEvent) {
     const visibleNodes = getVisibleNodesForLOD()
     console.log(`  ⏱️ LOD filtering: ${(performance.now() - lodTime).toFixed(2)}ms`)
 
-    // Filter visible nodes by side (left/right of root) to reduce calculation
-    const filterTime = performance.now()
-    const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
-    if (draggedNode) {
-      const root = getRootNode(draggedNode.id)
-      if (root) {
-        const isOnLeft = draggedNode.x < root.x
-        const sideVisibleNodes = visibleNodes.filter(n => {
-          if (n.id === root.id) return true // Include root
-          const nodeRoot = getRootNode(n.id)
-          if (!nodeRoot || nodeRoot.id !== root.id) return false // Different root tree
-          const nodeIsOnLeft = n.x < root.x
-          return nodeIsOnLeft === isOnLeft // Same side only
-        })
-        console.log(`  📊 Filtered to ${sideVisibleNodes.length}/${visibleNodes.length} nodes (same side of root)`)
-        console.log(`  ⏱️ Side filtering: ${(performance.now() - filterTime).toFixed(2)}ms`)
+    // If node crossed sides, only recalculate the target side (where node was dropped)
+    if (nodeCrossedSides.value) {
+      console.log(`  🔄 Node crossed sides - recalculating target side only`)
+      const filterTime = performance.now()
+      const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
+      if (draggedNode) {
+        const root = getRootNode(draggedNode.id)
+        if (root) {
+          const isOnLeft = draggedNode.x < root.x
+          const sideVisibleNodes = visibleNodes.filter(n => {
+            if (n.id === root.id) return true // Include root
+            const nodeRoot = getRootNode(n.id)
+            if (!nodeRoot || nodeRoot.id !== root.id) return false // Different root tree
+            const nodeIsOnLeft = n.x < root.x
+            return nodeIsOnLeft === isOnLeft // Same side only (target side)
+          })
+          console.log(`  📊 Filtered to ${sideVisibleNodes.length}/${visibleNodes.length} nodes (target side of root)`)
+          console.log(`  ⏱️ Side filtering: ${(performance.now() - filterTime).toFixed(2)}ms`)
 
-        const resolveTime = performance.now()
-        resolveOverlapsForAffectedRootsLOD(draggedNodeIds, sideVisibleNodes, nodes.value)
-        console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
-      } else {
-        // Fallback: use all visible nodes
-        const resolveTime = performance.now()
-        resolveOverlapsForAffectedRootsLOD(draggedNodeIds, visibleNodes, nodes.value)
-        console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
+          const resolveTime = performance.now()
+          resolveOverlapsForAffectedRootsLOD(draggedNodeIds, sideVisibleNodes, nodes.value)
+          console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
+        }
+      }
+    } else {
+      // Filter visible nodes by side (left/right of root) to reduce calculation
+      const filterTime = performance.now()
+      const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
+      if (draggedNode) {
+        const root = getRootNode(draggedNode.id)
+        if (root) {
+          const isOnLeft = draggedNode.x < root.x
+          const sideVisibleNodes = visibleNodes.filter(n => {
+            if (n.id === root.id) return true // Include root
+            const nodeRoot = getRootNode(n.id)
+            if (!nodeRoot || nodeRoot.id !== root.id) return false // Different root tree
+            const nodeIsOnLeft = n.x < root.x
+            return nodeIsOnLeft === isOnLeft // Same side only
+          })
+          console.log(`  📊 Filtered to ${sideVisibleNodes.length}/${visibleNodes.length} nodes (same side of root)`)
+          console.log(`  ⏱️ Side filtering: ${(performance.now() - filterTime).toFixed(2)}ms`)
+
+          const resolveTime = performance.now()
+          resolveOverlapsForAffectedRootsLOD(draggedNodeIds, sideVisibleNodes, nodes.value)
+          console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
+        } else {
+          // Fallback: use all visible nodes
+          const resolveTime = performance.now()
+          resolveOverlapsForAffectedRootsLOD(draggedNodeIds, visibleNodes, nodes.value)
+          console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
+        }
+      }
+    }
+
+    // Log positions AFTER layout recalculation
+    if (nodeCrossedSides.value) {
+      console.log(`📍 Positions AFTER layout recalculation:`)
+      const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
+      if (draggedNode) {
+        console.log(`  Dragged node ${draggedNode.id}: (${draggedNode.x.toFixed(0)}, ${draggedNode.y.toFixed(0)})`)
+        const descendants = getAllDescendants(draggedNode.id, nodes.value)
+        descendants.forEach(d => {
+          console.log(`    Descendant ${d.id}: (${d.x.toFixed(0)}, ${d.y.toFixed(0)})`)
+        })
       }
     }
 
