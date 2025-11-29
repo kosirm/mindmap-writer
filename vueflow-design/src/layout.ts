@@ -13,8 +13,8 @@ import { rectanglesOverlap, resolveOverlap, expandRectToIncludeRect, addPadding,
  */
 
 // Layout spacing configuration
-let HORIZONTAL_SPACING = 20 // Horizontal spacing between bounding boxes
-let VERTICAL_SPACING = 20   // Vertical spacing between bounding boxes
+let HORIZONTAL_SPACING = 0 // Horizontal spacing between bounding boxes (default 0 to match UI)
+let VERTICAL_SPACING = 0   // Vertical spacing between bounding boxes (default 0 to match UI)
 
 /**
  * Set layout spacing (used by UI controls)
@@ -207,7 +207,7 @@ export function resolveSiblingOverlaps(
 
           if (overlap.x < overlap.y) {
             // Push horizontally
-            const pushAmount = Math.min(overlap.x + 10, MAX_PUSH) // +10 for spacing
+            const pushAmount = Math.min(overlap.x + HORIZONTAL_SPACING, MAX_PUSH) // Use configured spacing
             if (bound.rect.x < parentRect.x) {
               deltaX = -pushAmount
             } else {
@@ -215,7 +215,7 @@ export function resolveSiblingOverlaps(
             }
           } else {
             // Push vertically
-            const pushAmount = Math.min(overlap.y + 10, MAX_PUSH) // +10 for spacing
+            const pushAmount = Math.min(overlap.y + VERTICAL_SPACING, MAX_PUSH) // Use configured spacing
             if (bound.rect.y < parentRect.y) {
               deltaY = -pushAmount
             } else {
