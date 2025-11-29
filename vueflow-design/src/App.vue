@@ -93,6 +93,10 @@
             <input type="checkbox" v-model="lodEnabled" />
             Enable LOD System
           </label>
+          <label>
+            <input type="checkbox" v-model="showMinimap" />
+            Show Minimap
+          </label>
         </div>
         <div v-if="lodEnabled" class="lod-info">
           <p class="info-text">
@@ -207,6 +211,9 @@
       >
         <Background />
 
+        <!-- MiniMap -->
+        <MiniMap v-if="showMinimap" />
+
         <!-- Custom Node Template -->
         <template #node-custom="{ data, id }">
           <CustomNode
@@ -306,6 +313,7 @@
 import { ref, computed, triggerRef, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
+import { MiniMap } from '@vue-flow/minimap'
 import type { Node, Edge, NodeDragEvent } from '@vue-flow/core'
 import CustomNode from './components/CustomNode.vue'
 import LodBadgeNode from './components/LodBadgeNode.vue'
@@ -314,13 +322,18 @@ import { calculateBoundingRect, resolveAllOverlaps, resolveOverlapsForAffectedRo
 import * as LayoutRBush from './layout-rbush'
 
 // VueFlow instance
-const { viewport, fitView, zoomIn, zoomOut, setViewport } = useVueFlow()
+const { viewport, fitView, zoomIn, zoomOut, setViewport, vueFlowRef } = useVueFlow()
 
 // State
 const nodes = ref<NodeData[]>([])
 const edges = ref<Edge[]>([])
 const vueFlowNodes = ref<Node[]>([])
+
+// No longer needed - layout is calculated once during creation, not during zoom/pan
+
+
 const showBoundingBoxes = ref(false)
+const showMinimap = ref(false)
 const contextMenu = ref<ContextMenuState>({
   visible: false,
   x: 0,
@@ -455,13 +468,12 @@ const currentLodLevel = computed(() => {
 })
 
 // Watch for zoom changes and update visible nodes when LOD is enabled
+// NO DEBOUNCING - just update view immediately
 watch(() => viewport.value.zoom, (newZoom, oldZoom) => {
   if (lodEnabled.value) {
-    // Check if we're crossing LOD thresholds (zoom in/out significantly)
-    const zoomChanged = Math.abs(newZoom - (oldZoom || 1)) > 0.01
-    if (zoomChanged) {
-      handleZoomChange(newZoom)
-    }
+    // Just update the view - no layout recalculation
+    // All positions were calculated during stress test creation
+    syncToVueFlow()
   }
 })
 
@@ -472,45 +484,6 @@ watch(lodEnabled, () => {
 
 // LOD thresholds are now computed automatically based on maxTreeDepth, lodStartPercent, and lodIncrementPercent
 // No need for a watcher - the computed property handles it
-
-// Handle zoom change: resolve overlaps ONLY for newly visible nodes
-function handleZoomChange(newZoom: number) {
-  console.log(`🔍 Zoom changed to ${(newZoom * 100).toFixed(1)}%`)
-
-  const previouslyVisibleIds = new Set(vueFlowNodes.value.map(n => n.id))
-
-  // Get nodes that should be visible at new zoom level
-  const newVisibleNodes = getVisibleNodesForLOD()
-  console.log(`  Visible nodes: ${newVisibleNodes.length}/${nodes.value.length}`)
-
-  // Find newly visible nodes (nodes that weren't visible before)
-  const newlyVisibleNodes = newVisibleNodes.filter(n => !previouslyVisibleIds.has(n.id))
-
-  if (newlyVisibleNodes.length > 0) {
-    console.log(`  ${newlyVisibleNodes.length} newly visible nodes - resolving overlaps incrementally`)
-
-    // Group newly visible nodes by their root
-    const affectedRootIds = new Set<string>()
-    newlyVisibleNodes.forEach(node => {
-      const root = getRootNode(node.id)
-      if (root) {
-        affectedRootIds.add(root.id)
-      }
-    })
-
-    // Resolve overlaps ONLY for affected root trees
-    // This is fast because we only process the trees that have newly visible nodes
-    if (affectedRootIds.size > 0) {
-      console.log(`  Resolving overlaps for ${affectedRootIds.size} affected root trees`)
-      resolveOverlapsForAffectedRootsLOD(Array.from(affectedRootIds), newVisibleNodes, nodes.value)
-    }
-  }
-
-  // Update the view
-  syncToVueFlow()
-
-  console.log(`  ✓ View updated`)
-}
 
 // NOTE: resolveOverlapsIncremental removed - we don't recalculate layout on zoom changes
 // Layout is only calculated when nodes are created or dragged
@@ -1495,6 +1468,8 @@ function reparentNode(nodeId: string, newParentId: string) {
 }
 
 function onNodeDragStop(event: NodeDragEvent) {
+  const startTime = performance.now()
+
   // Check if we should reparent
   if (potentialParent.value && event.nodes.length === 1) {
     const draggedNodeId = event.nodes[0].id
@@ -1521,7 +1496,8 @@ function onNodeDragStop(event: NodeDragEvent) {
     // Clear potential parent
     potentialParent.value = null
 
-    // Sync final positions
+    // Sync final positions (only updates dragged nodes)
+    console.log(`📍 Drag stopped - syncing ${event.nodes.length} dragged nodes`)
     syncFromVueFlow()
 
     // Clear drag start positions
@@ -1530,12 +1506,45 @@ function onNodeDragStop(event: NodeDragEvent) {
     // Get IDs of all dragged nodes
     const draggedNodeIds = event.nodes.map(n => n.id)
 
-    // LOD-AWARE: Resolve overlaps using visible nodes but calculate bounding boxes with all nodes
+    // OPTIMIZED: Only recalculate affected branch, not entire tree
+    console.log(`🔄 Recalculating layout for affected branch...`)
+    const lodTime = performance.now()
     const visibleNodes = getVisibleNodesForLOD()
-    resolveOverlapsForAffectedRootsLOD(draggedNodeIds, visibleNodes, nodes.value)
+    console.log(`  ⏱️ LOD filtering: ${(performance.now() - lodTime).toFixed(2)}ms`)
+
+    // Filter visible nodes by side (left/right of root) to reduce calculation
+    const filterTime = performance.now()
+    const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
+    if (draggedNode) {
+      const root = getRootNode(draggedNode.id)
+      if (root) {
+        const isOnLeft = draggedNode.x < root.x
+        const sideVisibleNodes = visibleNodes.filter(n => {
+          if (n.id === root.id) return true // Include root
+          const nodeRoot = getRootNode(n.id)
+          if (!nodeRoot || nodeRoot.id !== root.id) return false // Different root tree
+          const nodeIsOnLeft = n.x < root.x
+          return nodeIsOnLeft === isOnLeft // Same side only
+        })
+        console.log(`  📊 Filtered to ${sideVisibleNodes.length}/${visibleNodes.length} nodes (same side of root)`)
+        console.log(`  ⏱️ Side filtering: ${(performance.now() - filterTime).toFixed(2)}ms`)
+
+        const resolveTime = performance.now()
+        resolveOverlapsForAffectedRootsLOD(draggedNodeIds, sideVisibleNodes, nodes.value)
+        console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
+      } else {
+        // Fallback: use all visible nodes
+        const resolveTime = performance.now()
+        resolveOverlapsForAffectedRootsLOD(draggedNodeIds, visibleNodes, nodes.value)
+        console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
+      }
+    }
 
     // Update VueFlow with resolved positions
     syncToVueFlow()
+
+    const endTime = performance.now()
+    console.log(`  ✓ Drag complete in ${(endTime - startTime).toFixed(2)}ms`)
   }
 }
 
@@ -1721,6 +1730,13 @@ async function runStressTest() {
   const targetNodeCount = stressTestNodeCount.value
   let currentNodeCount = 1 // We have the root
 
+  // Calculate number of root children based on total node count
+  // Goal: Keep tree wider and shorter for larger node counts
+  // Formula: rootChildrenPerSide = sqrt(targetNodeCount / 30)
+  // Examples: 200 nodes → 3 children, 500 nodes → 4 children, 1000 nodes → 6 children
+  const rootChildrenPerSide = Math.max(2, Math.round(Math.sqrt(targetNodeCount / 30)))
+  console.log(`📊 Creating ${rootChildrenPerSide} root children per side for ${targetNodeCount} nodes`)
+
   // Track left and right side nodes separately for balance
   const leftSideQueue: NodeData[] = []
   const rightSideQueue: NodeData[] = []
@@ -1734,15 +1750,16 @@ async function runStressTest() {
 
     const newNodesThisLevel: NodeData[] = []
 
-    // For root level, create 3 children on left and 3 on right for better LOD balance
+    // For root level, create N children on left and N on right (proportional to total node count)
     if (level === 0) {
       const nodeHeight = 50
       const spacing = verticalSpacing.value
       const verticalStep = nodeHeight + spacing // Nodes should be spaced by height + configured spacing
 
-      // Create 3 left children
-      for (let i = 0; i < 3 && currentNodeCount < targetNodeCount; i++) {
-        const childY = root.y + (i - 1) * verticalStep // Spread vertically based on node height + spacing
+      // Create left children
+      for (let i = 0; i < rootChildrenPerSide && currentNodeCount < targetNodeCount; i++) {
+        // Center the children vertically around root
+        const childY = root.y + (i - (rootChildrenPerSide - 1) / 2) * verticalStep
         const leftChild = createNode(`L1-N${currentNodeCount}`, root.id, root.x - 200, childY)
         createEdge(root.id, leftChild.id)
         leftSideQueue.push(leftChild)
@@ -1751,9 +1768,10 @@ async function runStressTest() {
         console.log(`  Created node ${leftChild.id} (LEFT of root) at (${leftChild.x}, ${leftChild.y})`)
       }
 
-      // Create 3 right children
-      for (let i = 0; i < 3 && currentNodeCount < targetNodeCount; i++) {
-        const childY = root.y + (i - 1) * verticalStep // Spread vertically based on node height + spacing
+      // Create right children
+      for (let i = 0; i < rootChildrenPerSide && currentNodeCount < targetNodeCount; i++) {
+        // Center the children vertically around root
+        const childY = root.y + (i - (rootChildrenPerSide - 1) / 2) * verticalStep
         const rightChild = createNode(`L1-N${currentNodeCount}`, root.id, root.x + 200, childY)
         createEdge(root.id, rightChild.id)
         rightSideQueue.push(rightChild)
@@ -1840,20 +1858,20 @@ async function runStressTest() {
     console.log(`  Applying layout for level ${level + 1}...`)
     console.log(`  Nodes created this level: ${newNodesThisLevel.length}`)
 
-    // IMPORTANT: Use LOD-aware layout calculation
-    // - visibleNodes: only nodes visible at current zoom (for overlap resolution)
-    // - nodes.value: all nodes (for bounding box calculation including LOD-hidden children)
-    const visibleNodes = getVisibleNodesForLOD()
-    console.log(`  Visible nodes for layout: ${visibleNodes.length}/${nodes.value.length}`)
+    // IMPORTANT: Calculate layout for ALL nodes (not just LOD-visible)
+    // This ensures that when we zoom in, nodes already have correct positions
+    // and LOD badges have the correct size from the start
+    console.log(`  Calculating layout for ALL ${nodes.value.length} nodes (including LOD-hidden)`)
 
     if (algorithm.value === 'rbush') {
-      // TODO: Add LOD-aware version for RBush
       LayoutRBush.resolveAllOverlaps(nodes.value)
     } else {
-      resolveOverlapsLOD(visibleNodes, nodes.value)
+      // Use ALL nodes for both visible and all parameters
+      // This calculates positions for every node, even if LOD-hidden
+      resolveOverlapsLOD(nodes.value, nodes.value)
     }
 
-    console.log(`  Layout resolved`)
+    console.log(`  Layout resolved for all nodes`)
 
     // Log positions AFTER layout resolution for debugging
     console.log(`  Positions after layout:`)
@@ -2220,6 +2238,36 @@ initialize()
   flex: 1;
   position: relative;
   background: #fafafa;
+}
+
+.layout-loading-indicator {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  color: #495057;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #dee2e6;
+  border-top-color: #228be6;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .canvas-overlay {
