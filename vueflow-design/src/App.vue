@@ -303,14 +303,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, triggerRef, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, triggerRef, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import type { Node, Edge, NodeDragEvent } from '@vue-flow/core'
 import CustomNode from './components/CustomNode.vue'
 import LodBadgeNode from './components/LodBadgeNode.vue'
 import type { NodeData, ContextMenuState, BoundingRect } from './types'
-import { calculateBoundingRect, resolveAllOverlaps, resolveOverlapsForAffectedRoots, getAllDescendants, moveNodeAndDescendants, setLayoutSpacing, getLayoutSpacing } from './layout'
+import { calculateBoundingRect, resolveAllOverlaps, resolveOverlapsForAffectedRoots, resolveOverlapsLOD, resolveOverlapsForAffectedRootsLOD, getAllDescendants, moveNodeAndDescendants, setLayoutSpacing, getLayoutSpacing } from './layout'
 import * as LayoutRBush from './layout-rbush'
 
 // VueFlow instance
@@ -719,10 +719,17 @@ function syncToVueFlow() {
     }
   })
 
-  // Create LOD badge nodes for nodes with hidden children
+  // Create LOD badge nodes for nodes with LOD-hidden children
+  // NOTE: Do NOT create badges for manually collapsed children
   const lodBadgeNodes: Node[] = []
   if (lodEnabled.value) {
     for (const node of visibleNodes) {
+      // Skip if this node is manually collapsed
+      // (manually collapsed nodes should not show LOD badges)
+      if (node.collapsed || node.collapsedLeft || node.collapsedRight) {
+        continue
+      }
+
       // Get all direct children
       const allChildren = getDirectChildren(node.id)
       // Get hidden children (not in visible nodes)
@@ -730,25 +737,85 @@ function syncToVueFlow() {
       const hiddenChildren = allChildren.filter(c => !visibleNodeIds.has(c.id))
 
       if (hiddenChildren.length > 0) {
-        // Calculate bounding box of hidden children
-        const hiddenChildrenBounds = calculateHiddenChildrenBounds(hiddenChildren)
+        // Special handling for ROOT nodes: create separate badges for left and right sides
+        if (node.parentId === null) {
+          // Separate hidden children by side
+          const leftHiddenChildren = hiddenChildren.filter(c => c.x < node.x)
+          const rightHiddenChildren = hiddenChildren.filter(c => c.x >= node.x)
 
-        // Create LOD badge node
-        lodBadgeNodes.push({
-          id: `lod-badge-${node.id}`,
-          type: 'lod-badge',
-          position: {
-            x: hiddenChildrenBounds.x,
-            y: hiddenChildrenBounds.y
-          },
-          data: {
-            count: hiddenChildren.length,
-            width: hiddenChildrenBounds.width,
-            height: hiddenChildrenBounds.height
-          },
-          draggable: false,
-          selectable: false
-        })
+          // Create LEFT badge if there are hidden left children
+          if (leftHiddenChildren.length > 0) {
+            let leftHiddenCount = 0
+            for (const hiddenChild of leftHiddenChildren) {
+              leftHiddenCount += 1
+              leftHiddenCount += getAllDescendants(hiddenChild.id, nodes.value).length
+            }
+
+            const leftBounds = calculateHiddenChildrenBounds(leftHiddenChildren)
+            lodBadgeNodes.push({
+              id: `lod-badge-${node.id}-left`,
+              type: 'lod-badge',
+              position: { x: leftBounds.x, y: leftBounds.y },
+              data: {
+                count: leftHiddenCount,
+                width: leftBounds.width,
+                height: leftBounds.height
+              },
+              draggable: false,
+              selectable: false
+            })
+          }
+
+          // Create RIGHT badge if there are hidden right children
+          if (rightHiddenChildren.length > 0) {
+            let rightHiddenCount = 0
+            for (const hiddenChild of rightHiddenChildren) {
+              rightHiddenCount += 1
+              rightHiddenCount += getAllDescendants(hiddenChild.id, nodes.value).length
+            }
+
+            const rightBounds = calculateHiddenChildrenBounds(rightHiddenChildren)
+            lodBadgeNodes.push({
+              id: `lod-badge-${node.id}-right`,
+              type: 'lod-badge',
+              position: { x: rightBounds.x, y: rightBounds.y },
+              data: {
+                count: rightHiddenCount,
+                width: rightBounds.width,
+                height: rightBounds.height
+              },
+              draggable: false,
+              selectable: false
+            })
+          }
+        } else {
+          // Non-root nodes: create single badge for all hidden children
+          let totalHiddenCount = 0
+          for (const hiddenChild of hiddenChildren) {
+            totalHiddenCount += 1 // Count the hidden child itself
+            totalHiddenCount += getAllDescendants(hiddenChild.id, nodes.value).length // Count all its descendants
+          }
+
+          // Calculate bounding box of hidden children
+          const hiddenChildrenBounds = calculateHiddenChildrenBounds(hiddenChildren)
+
+          // Create LOD badge node
+          lodBadgeNodes.push({
+            id: `lod-badge-${node.id}`,
+            type: 'lod-badge',
+            position: {
+              x: hiddenChildrenBounds.x,
+              y: hiddenChildrenBounds.y
+            },
+            data: {
+              count: totalHiddenCount,
+              width: hiddenChildrenBounds.width,
+              height: hiddenChildrenBounds.height
+            },
+            draggable: false,
+            selectable: false
+          })
+        }
       }
     }
   }
@@ -1453,8 +1520,9 @@ function onNodeDragStop(event: NodeDragEvent) {
     // Clear drag start positions
     dragStartPositions.value.clear()
 
-    // Resolve overlaps after reparenting (optimized - only affected roots)
-    resolveOverlapsForAffectedRoots([draggedNodeId, newParentId], nodes.value)
+    // LOD-AWARE: Resolve overlaps using visible nodes but calculate bounding boxes with all nodes
+    const visibleNodes = getVisibleNodesForLOD()
+    resolveOverlapsForAffectedRootsLOD([draggedNodeId, newParentId], visibleNodes, nodes.value)
 
     // Update VueFlow with resolved positions
     syncToVueFlow()
@@ -1473,8 +1541,9 @@ function onNodeDragStop(event: NodeDragEvent) {
     // Get IDs of all dragged nodes
     const draggedNodeIds = event.nodes.map(n => n.id)
 
-    // Resolve overlaps after dragging (optimized - only affected roots)
-    resolveOverlapsForAffectedRoots(draggedNodeIds, nodes.value)
+    // LOD-AWARE: Resolve overlaps using visible nodes but calculate bounding boxes with all nodes
+    const visibleNodes = getVisibleNodesForLOD()
+    resolveOverlapsForAffectedRootsLOD(draggedNodeIds, visibleNodes, nodes.value)
 
     // Update VueFlow with resolved positions
     syncToVueFlow()
@@ -1642,7 +1711,7 @@ function clearAll() {
   lastPerformance.value = null
 }
 
-function runStressTest() {
+async function runStressTest() {
   console.log(`Running stress test with ${stressTestNodeCount.value} nodes using ${algorithm.value.toUpperCase()}...`)
 
   // Clear existing data
@@ -1650,132 +1719,137 @@ function runStressTest() {
 
   const startTotal = performance.now()
 
-  // Create root nodes (10 roots) - space them far apart
-  const rootCount = 10
-  const roots: NodeData[] = []
-  for (let i = 0; i < rootCount; i++) {
-    const x = (i - rootCount / 2) * 800  // Increased spacing to 800px
-    const root = createNode(`Root ${i + 1}`, null, x, 0)
-    roots.push(root)
-  }
+  // Create ONE root node at center
+  const root = createNode('Root', null, 0, 0)
 
-  // Calculate how many children per root
-  const childrenPerRoot = Math.floor((stressTestNodeCount.value - rootCount) / rootCount)
-
-  // Create children for each root
-  for (const root of roots) {
-    const isLeftSide = root.x < 0
-    const offsetX = isLeftSide ? -250 : 250  // Increased horizontal spacing
-
-    // Create children in a grid pattern
-    const childrenPerLevel = Math.ceil(Math.sqrt(childrenPerRoot))
-    let childIndex = 0
-
-    for (let level = 0; level < Math.ceil(childrenPerRoot / childrenPerLevel); level++) {
-      for (let i = 0; i < childrenPerLevel && childIndex < childrenPerRoot; i++) {
-        const x = root.x + offsetX * (level + 1)
-        const y = root.y + (i - childrenPerLevel / 2) * 150  // Increased vertical spacing to 150px
-        const child = createNode(`C${childIndex + 1}`, root.id, x, y)
-        createEdge(root.id, child.id)
-        childIndex++
-      }
-    }
-  }
-
-  // Sync to VueFlow
+  // Sync to VueFlow to show root
   syncToVueFlow()
+  await delay(50)
 
-  // Now measure overlap detection and resolution
-  let overlapsFoundBefore = 0
-  let overlapsFoundAfter = 0
+  const targetNodeCount = stressTestNodeCount.value
+  let currentNodeCount = 1 // We have the root
 
-  if (algorithm.value === 'rbush') {
-    // Measure overlap detection with RBush
-    const startOverlap = performance.now()
+  // Track left and right side nodes separately for balance
+  const leftSideQueue: NodeData[] = []
+  const rightSideQueue: NodeData[] = []
 
-    const rootNodesData = nodes.value.filter((n: NodeData) => n.parentId === null)
-    const boundingRects = rootNodesData.map((node: NodeData) =>
-      LayoutRBush.calculateBoundingRect(node, nodes.value)
-    )
+  let level = 0
 
-    const overlaps = LayoutRBush.findOverlapsRBush(boundingRects)
-    overlapsFoundBefore = overlaps.length
+  while (currentNodeCount < targetNodeCount) {
+    console.log(`\n=== Creating Level ${level + 1} ===`)
 
-    const endOverlap = performance.now()
+    const newNodesThisLevel: NodeData[] = []
 
-    // Resolve overlaps using standard algorithm
-    const startResolution = performance.now()
-    resolveAllOverlaps(nodes.value)
-    const endResolution = performance.now()
+    // For root level, create first two children (one left, one right)
+    if (level === 0) {
+      // Create left child
+      const leftChild = createNode(`L1-N1`, root.id, root.x - 200, root.y)
+      createEdge(root.id, leftChild.id)
+      leftSideQueue.push(leftChild)
+      newNodesThisLevel.push(leftChild)
+      currentNodeCount++
+      console.log(`  Created node ${leftChild.id} (LEFT of root)`)
 
-    // Check overlaps after resolution
-    const boundingRectsAfter = rootNodesData.map((node: NodeData) =>
-      LayoutRBush.calculateBoundingRect(node, nodes.value)
-    )
-    const overlapsAfter = LayoutRBush.findOverlapsRBush(boundingRectsAfter)
-    overlapsFoundAfter = overlapsAfter.length
+      // Create right child if we have room
+      if (currentNodeCount < targetNodeCount) {
+        const rightChild = createNode(`L1-N2`, root.id, root.x + 200, root.y)
+        createEdge(root.id, rightChild.id)
+        rightSideQueue.push(rightChild)
+        newNodesThisLevel.push(rightChild)
+        currentNodeCount++
+        console.log(`  Created node ${rightChild.id} (RIGHT of root)`)
+      }
+    } else {
+      // For subsequent levels, alternate between left and right queues to maintain balance
+      const leftQueueSize = leftSideQueue.length
+      const rightQueueSize = rightSideQueue.length
 
-    lastPerformance.value = {
-      overlapDetection: endOverlap - startOverlap,
-      resolution: endResolution - startResolution,
-      total: performance.now() - startTotal,
-      overlapsFound: overlapsFoundAfter
-    }
-  } else {
-    // Measure overlap detection with AABB
-    const startOverlap = performance.now()
+      if (leftQueueSize === 0 && rightQueueSize === 0) {
+        break // No more nodes to expand
+      }
 
-    const rootNodesData = nodes.value.filter((n: NodeData) => n.parentId === null)
-    const boundingRects = rootNodesData.map((node: NodeData) =>
-      calculateBoundingRect(node, nodes.value)
-    )
+      // Process left side nodes
+      for (let i = 0; i < leftQueueSize && currentNodeCount < targetNodeCount; i++) {
+        const parent = leftSideQueue.shift()!
 
-    // Count overlaps before resolution
-    for (let i = 0; i < boundingRects.length; i++) {
-      for (let j = i + 1; j < boundingRects.length; j++) {
-        if (checkOverlap(boundingRects[i], boundingRects[j])) {
-          overlapsFoundBefore++
+        // Create 2 children for this parent
+        for (let j = 0; j < 2 && currentNodeCount < targetNodeCount; j++) {
+          const childX = parent.x - 200
+          const childY = parent.y + (j - 0.5) * 80
+
+          const child = createNode(`L${level + 1}-N${currentNodeCount}`, parent.id, childX, childY)
+          createEdge(parent.id, child.id)
+
+          leftSideQueue.push(child)
+          newNodesThisLevel.push(child)
+          currentNodeCount++
+          console.log(`  Created node ${child.id} (LEFT side)`)
+        }
+      }
+
+      // Process right side nodes
+      for (let i = 0; i < rightQueueSize && currentNodeCount < targetNodeCount; i++) {
+        const parent = rightSideQueue.shift()!
+
+        // Create 2 children for this parent
+        for (let j = 0; j < 2 && currentNodeCount < targetNodeCount; j++) {
+          const childX = parent.x + 200
+          const childY = parent.y + (j - 0.5) * 80
+
+          const child = createNode(`L${level + 1}-N${currentNodeCount}`, parent.id, childX, childY)
+          createEdge(parent.id, child.id)
+
+          rightSideQueue.push(child)
+          newNodesThisLevel.push(child)
+          currentNodeCount++
+          console.log(`  Created node ${child.id} (RIGHT side)`)
         }
       }
     }
 
-    const endOverlap = performance.now()
+    // Sync to VueFlow to show new nodes
+    syncToVueFlow()
+    await nextTick() // Wait for Vue to render the new nodes
 
-    // Resolve overlaps
-    const startResolution = performance.now()
-    resolveAllOverlaps(nodes.value)
-    const endResolution = performance.now()
+    // Apply layout for this level
+    console.log(`  Applying layout for level ${level + 1}...`)
 
-    // Count overlaps after resolution
-    const boundingRectsAfter = rootNodesData.map((node: NodeData) =>
-      calculateBoundingRect(node, nodes.value)
-    )
-
-    for (let i = 0; i < boundingRectsAfter.length; i++) {
-      for (let j = i + 1; j < boundingRectsAfter.length; j++) {
-        if (checkOverlap(boundingRectsAfter[i], boundingRectsAfter[j])) {
-          overlapsFoundAfter++
-        }
-      }
+    // IMPORTANT: Use LOD-aware layout calculation
+    // - visibleNodes: only nodes visible at current zoom (for overlap resolution)
+    // - nodes.value: all nodes (for bounding box calculation including LOD-hidden children)
+    const visibleNodes = getVisibleNodesForLOD()
+    if (algorithm.value === 'rbush') {
+      // TODO: Add LOD-aware version for RBush
+      LayoutRBush.resolveAllOverlaps(nodes.value)
+    } else {
+      resolveOverlapsLOD(visibleNodes, nodes.value)
     }
 
-    lastPerformance.value = {
-      overlapDetection: endOverlap - startOverlap,
-      resolution: endResolution - startResolution,
-      total: performance.now() - startTotal,
-      overlapsFound: overlapsFoundAfter
-    }
+    // Sync to VueFlow to show layout changes
+    syncToVueFlow()
+    await nextTick() // Wait for Vue to render the layout changes
+
+    // Additional small delay for visual feedback (optional, can be removed for speed)
+    await delay(50)
+
+    level++
+    console.log(`  Level ${level} complete. Total nodes: ${currentNodeCount}`)
   }
 
-  syncToVueFlow()
+  const endTotal = performance.now()
+  console.log(`\n=== Stress Test Complete ===`)
+  console.log(`Created ${currentNodeCount} nodes in ${level} levels`)
+  console.log(`Total time: ${(endTotal - startTotal).toFixed(2)}ms`)
 
-  // Zoom to fit after a short delay
+  // Zoom to fit after completion
   setTimeout(() => {
     zoomToFit()
   }, 100)
+}
 
-  console.log('Stress test complete:', lastPerformance.value)
-  console.log(`Overlaps before: ${overlapsFoundBefore}, after: ${overlapsFoundAfter}`)
+// Helper function for async delay
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 function checkOverlap(rect1: BoundingRect, rect2: BoundingRect): boolean {
@@ -1814,18 +1888,19 @@ function createEdge(sourceId: string, targetId: string) {
 
   if (!sourceNode || !targetNode) return
 
-  // Determine handles based on position relative to center
-  const sourceIsLeft = sourceNode.x < 0
-  const targetIsLeft = targetNode.x < 0
+  // Determine handles based on child position relative to parent
+  // If child is LEFT of parent: parent uses LEFT handle, child uses RIGHT handle
+  // If child is RIGHT of parent: parent uses RIGHT handle, child uses LEFT handle
 
-  let sourceHandle = 'bottom'
-  let targetHandle = 'top'
+  let sourceHandle: string
+  let targetHandle: string
 
-  // If both on same side, use left/right handles
-  if (sourceIsLeft && targetIsLeft) {
+  if (targetNode.x < sourceNode.x) {
+    // Child is on LEFT side of parent
     sourceHandle = 'left'
     targetHandle = 'right'
-  } else if (!sourceIsLeft && !targetIsLeft) {
+  } else {
+    // Child is on RIGHT side of parent
     sourceHandle = 'right'
     targetHandle = 'left'
   }
