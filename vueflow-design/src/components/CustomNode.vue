@@ -106,11 +106,11 @@ function toggleCollapseRight() {
 <style scoped>
 .custom-node {
   background: white;
-  border: 2px solid #4dabf7;
+  border: 1px solid rgba(77, 171, 247,.5);
   border-radius: 8px;
-  padding: 12px 16px;
-  min-width: 150px;
-  min-height: 50px;
+  padding: 2px 18px;
+  min-width: 100px;
+  min-height: 30px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
   cursor: move;
@@ -146,13 +146,14 @@ function toggleCollapseRight() {
   font-weight: 500;
   color: #212529;
   text-align: center;
+  padding-bottom: 2px;
 }
 
 .handle {
-  width: 10px;
-  height: 10px;
-  background: #4dabf7;
-  border: 2px solid white;
+  width: 8px;
+  height: 8px;
+  background: rgba(77, 171, 247, 0.2);
+  border: 2px solid rgba(19, 110, 230, 0.2);
   border-radius: 50%;
 }
 
@@ -178,11 +179,11 @@ function toggleCollapseRight() {
 }
 
 .collapse-button.left {
-  left: -32px;
+  left: -12px;
 }
 
 .collapse-button.right {
-  right: -32px;
+  right: -12px;
 }
 
 .collapse-button:hover {

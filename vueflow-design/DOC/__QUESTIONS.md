@@ -1,0 +1,3 @@
+- node, connection style can be set per-node / per-connection, per-selection or global
+- can we show/hide bounding boxes on node basis?
+- can we style bounding boxes on node basis? 
