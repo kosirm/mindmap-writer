@@ -162,6 +162,16 @@
             {{ showZoomIndicator ? 'Hide' : 'Show' }} Zoom Indicator
           </button>
         </div>
+        <div class="edge-type-control">
+          <label>
+            Edge Type:
+            <select v-model="edgeType" class="edge-type-select">
+              <option v-for="option in edgeTypeOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div class="stats">
@@ -212,7 +222,7 @@
         <Background />
 
         <!-- MiniMap -->
-        <MiniMap v-if="showMinimap" />
+        <MiniMap pannable zoomable v-if="showMinimap" />
 
         <!-- Custom Node Template -->
         <template #node-custom="{ data, id }">
@@ -347,8 +357,12 @@ const dragStartPositions = ref<Map<string, { x: number; y: number }>>(new Map())
 // Track if node crossed to other side during drag
 const nodeCrossedSides = ref(false)
 
-// Track which side each node started on (to detect crossing only once)
+// Track which side each node started on (to detect crossing)
 const dragStartSides = ref<Map<string, 'left' | 'right'>>(new Map())
+
+// Track relative positions of all descendants to dragged node (for mirroring)
+// Key: descendant node id, Value: { deltaX, deltaY } relative to dragged node center
+const descendantDeltas = ref<Map<string, { deltaX: number; deltaY: number }>>(new Map())
 
 // Track potential parent during drag (for reparenting)
 const potentialParent = ref<string | null>(null)
@@ -388,8 +402,18 @@ const lodThresholds = computed(() => {
 })
 
 // Display options
-const showCanvasCenter = ref(true)
-const showZoomIndicator = ref(true)
+const showCanvasCenter = ref(false)
+const showZoomIndicator = ref(false)
+
+// Edge type options
+const edgeType = ref<'default' | 'straight' | 'step' | 'smoothstep' | 'simplebezier'>('default')
+const edgeTypeOptions = [
+  { value: 'straight', label: 'Straight' },
+  { value: 'default', label: 'Bezier' },
+  { value: 'simplebezier', label: 'Simple Bezier' },
+  { value: 'step', label: 'Step' },
+  { value: 'smoothstep', label: 'Smooth Step' },
+]
 
 // Dynamic max zoom based on LOD levels
 // Ensure max zoom is high enough to show all LOD levels
@@ -399,7 +423,7 @@ const maxZoom = computed(() => {
   const lastThreshold = lodThresholds.value[lodThresholds.value.length - 1]
   // Add 20% buffer above the last threshold, convert to zoom (divide by 100)
   // Minimum 2.0 (200%), maximum 5.0 (500%) for safety
-  return Math.min(Math.max((lastThreshold + 20) / 100, 2.0), 5.0)
+  return Math.min(Math.max((lastThreshold + 20) / 100, 3.0), 5.0)
 })
 
 let nodeCounter = 1
@@ -429,11 +453,17 @@ function recalculateBoundingBoxes() {
 const rootNodes = computed(() => nodes.value.filter(n => n.parentId === null))
 
 // Get visible edges (only edges where both nodes are visible)
+// Also apply the selected edge type
 const visibleEdges = computed(() => {
   const visibleNodeIds = new Set(vueFlowNodes.value.map(n => n.id))
-  return edges.value.filter(edge =>
-    visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
-  )
+  return edges.value
+    .filter(edge =>
+      visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
+    )
+    .map(edge => ({
+      ...edge,
+      type: edgeType.value
+    }))
 })
 
 // Count rendered nodes (for performance monitoring)
@@ -618,6 +648,52 @@ function getVisibleNodesForLOD(): NodeData[] {
     const depth = getNodeDepth(node.id)
     return depth <= maxDepthToShow
   })
+}
+
+// Measure actual DOM dimensions of a node and update its width/height
+// This is called after node creation to get the real rendered size
+function measureNodeDimensions(nodeId: string): { width: number; height: number } | null {
+  const vueFlowNode = document.querySelector(`[data-id="${nodeId}"]`)
+  if (vueFlowNode) {
+    const customNode = vueFlowNode.querySelector('.custom-node')
+    if (customNode) {
+      const rect = customNode.getBoundingClientRect()
+      // Account for zoom level - getBoundingClientRect returns scaled dimensions
+      const actualWidth = rect.width / viewport.value.zoom
+      const actualHeight = rect.height / viewport.value.zoom
+      return { width: actualWidth, height: actualHeight }
+    }
+  }
+  return null
+}
+
+// Update all node dimensions from DOM (call after nodes are rendered)
+// Returns true if any dimensions were updated
+async function updateNodeDimensionsFromDOM() {
+  // Wait for DOM to update
+  await nextTick()
+
+  let updated = false
+  let updateCount = 0
+  for (const node of nodes.value) {
+    const dimensions = measureNodeDimensions(node.id)
+    if (dimensions) {
+      // Only update if dimensions changed significantly (more than 1px difference)
+      if (Math.abs(node.width - dimensions.width) > 1 || Math.abs(node.height - dimensions.height) > 1) {
+        console.log(`📏 Updated dimensions for ${node.id}: ${node.width.toFixed(0)}x${node.height.toFixed(0)} → ${dimensions.width.toFixed(0)}x${dimensions.height.toFixed(0)}`)
+        node.width = dimensions.width
+        node.height = dimensions.height
+        updated = true
+        updateCount++
+      }
+    }
+  }
+
+  if (updateCount > 0) {
+    console.log(`📏 Updated dimensions for ${updateCount} nodes`)
+  }
+
+  return updated
 }
 
 // Sync our data model to VueFlow nodes (only visible nodes)
@@ -835,37 +911,33 @@ function isNodeOnLeftOfRoot(node: NodeData): boolean {
   return node.x < root.x
 }
 
-// Mirror all descendants of a node across their respective parent centers
-// This preserves the parent-child distance relationship at each level
-// IMPORTANT: This must be done recursively - each node mirrors its direct children,
-// then each child mirrors its own children, etc.
+// Mirror all descendants across the dragged node's center
+// This flips the deltaX for all descendants (left becomes right, right becomes left)
 function mirrorDescendantsAcrossNode(node: NodeData) {
-  // Get only DIRECT children of this node
-  const directChildren = nodes.value.filter(n => n.parentId === node.id)
+  const nodeCenterX = node.x + node.width / 2
+  const nodeCenterY = node.y + node.height / 2
 
-  if (directChildren.length === 0) return
+  // Get all descendants
+  const descendants = getAllDescendants(node.id, nodes.value)
 
-  // Calculate parent node center X position
-  const parentCenterX = node.x + node.width / 2
+  descendants.forEach(descendant => {
+    // Get the stored delta for this descendant
+    const delta = descendantDeltas.value.get(descendant.id)
+    if (!delta) return
 
-  directChildren.forEach(child => {
-    // Calculate child center X position
-    const childCenterX = child.x + child.width / 2
+    // Mirror the deltaX (flip horizontal position)
+    const mirroredDeltaX = -delta.deltaX
 
-    // Calculate distance from parent center
-    const distanceFromParent = childCenterX - parentCenterX
+    // Calculate new position based on mirrored delta
+    const descendantCenterX = nodeCenterX + mirroredDeltaX
+    const descendantCenterY = nodeCenterY + delta.deltaY
 
-    // Mirror across the parent's center (flip the distance)
-    const newChildCenterX = parentCenterX - distanceFromParent
+    // Update descendant position (convert from center to top-left)
+    descendant.x = descendantCenterX - descendant.width / 2
+    descendant.y = descendantCenterY - descendant.height / 2
 
-    // Convert back to top-left position
-    child.x = newChildCenterX - child.width / 2
-
-    // Y position stays the same (no vertical mirroring)
-    // child.y is unchanged
-
-    // RECURSIVELY mirror this child's descendants across the child's center
-    mirrorDescendantsAcrossNode(child)
+    // Update the stored delta to the mirrored value
+    descendantDeltas.value.set(descendant.id, { deltaX: mirroredDeltaX, deltaY: delta.deltaY })
   })
 }
 
@@ -990,7 +1062,7 @@ function toggleCollapseRight(nodeId: string) {
   edges.value = [...edges.value]
 }
 
-function addRootNode() {
+async function addRootNode() {
   console.log('addRootNode called, current nodes:', nodes.value.length)
   const id = `node-${nodeCounter++}`
   nodes.value.push({
@@ -1008,6 +1080,11 @@ function addRootNode() {
     lastCalculatedZoom: viewport.value.zoom
   })
   syncToVueFlow()
+
+  // Measure actual dimensions after rendering
+  await nextTick()
+  await updateNodeDimensionsFromDOM()
+
   console.log('After addRootNode, nodes:', nodes.value.length)
 }
 
@@ -1091,8 +1168,9 @@ function addChildToSide(parent: NodeData, side: 'left' | 'right') {
 
   closeContextMenu()
 
-  // Resolve overlaps after adding
-  setTimeout(() => {
+  // Measure dimensions and resolve overlaps after adding
+  setTimeout(async () => {
+    await updateNodeDimensionsFromDOM()
     resolveAllOverlaps(nodes.value)
     syncToVueFlow()
   }, 100)
@@ -1135,8 +1213,9 @@ function addSibling() {
   // Sync to VueFlow
   syncToVueFlow()
 
-  // Resolve overlaps after adding
-  setTimeout(() => {
+  // Measure dimensions and resolve overlaps after adding
+  setTimeout(async () => {
+    await updateNodeDimensionsFromDOM()
     resolveAllOverlaps(nodes.value)
     syncToVueFlow()
   }, 100)
@@ -1189,8 +1268,10 @@ function onNodeDragStart(event: NodeDragEvent) {
   // Store initial positions of all dragged nodes
   dragStartPositions.value.clear()
   dragStartSides.value.clear()
+  descendantDeltas.value.clear()
   dragMousePosition.value = null
   nodeCrossedSides.value = false // Reset side-crossing flag
+
   event.nodes.forEach(vfNode => {
     const node = nodes.value.find(n => n.id === vfNode.id)
     if (node) {
@@ -1200,10 +1281,27 @@ function onNodeDragStart(event: NodeDragEvent) {
       if (node.parentId) {
         const root = getRootNode(node.id)
         if (root) {
-          const startSide = node.x < root.x ? 'left' : 'right'
+          const rootCenterX = root.x + root.width / 2
+          const nodeCenterX = node.x + node.width / 2
+          const startSide = nodeCenterX < rootCenterX ? 'left' : 'right'
           dragStartSides.value.set(node.id, startSide)
         }
       }
+
+      // Store relative positions (deltas) of ALL descendants relative to dragged node center
+      const nodeCenterX = node.x + node.width / 2
+      const nodeCenterY = node.y + node.height / 2
+      const descendants = getAllDescendants(node.id, nodes.value)
+
+      descendants.forEach(descendant => {
+        const descendantCenterX = descendant.x + descendant.width / 2
+        const descendantCenterY = descendant.y + descendant.height / 2
+
+        const deltaX = descendantCenterX - nodeCenterX
+        const deltaY = descendantCenterY - nodeCenterY
+
+        descendantDeltas.value.set(descendant.id, { deltaX, deltaY })
+      })
     }
   })
 }
@@ -1223,96 +1321,54 @@ function onNodeDrag(event: NodeDragEvent) {
       node.x = vfNode.position.x
       node.y = vfNode.position.y
 
-      // Track if we mirrored during this drag event
-      let justMirrored = false
-
-      // Check if node crossed to other side of root (only for non-root nodes)
-      // Only mirror ONCE when crossing, not on every drag event
+      // Check if node crossed root center line (only for non-root nodes)
       if (node.parentId) {
         const root = getRootNode(node.id)
         if (root) {
+          const rootCenterX = root.x + root.width / 2
+          const nodeCenterX = node.x + node.width / 2
+
           const startSide = dragStartSides.value.get(node.id)
-          const currentSide = node.x < root.x ? 'left' : 'right'
+          const currentSide = nodeCenterX < rootCenterX ? 'left' : 'right'
 
-          // If crossed to other side AND we haven't mirrored yet
+          // If crossed to other side, mirror descendants
           if (startSide && startSide !== currentSide) {
-            console.log(`🔄 Node ${node.id} crossed root! Mirroring descendants...`)
-            console.log(`  Root at: (${root.x.toFixed(0)}, ${root.y.toFixed(0)})`)
-            console.log(`  Parent node at: (${node.x.toFixed(0)}, ${node.y.toFixed(0)})`)
-            console.log(`  Node started on ${startSide.toUpperCase()} side, now on ${currentSide.toUpperCase()} side`)
-            console.log(`  Delta from start: (${deltaX.toFixed(0)}, ${deltaY.toFixed(0)})`)
-
-            // Log descendants BEFORE mirroring
-            const descendants = getAllDescendants(node.id, nodes.value)
-            const parentCenterX = node.x + node.width / 2
-            console.log(`  Parent center X: ${parentCenterX.toFixed(0)} (x: ${node.x.toFixed(0)}, width: ${node.width})`)
-            console.log(`  Descendants BEFORE mirroring:`)
-            descendants.forEach(d => {
-              const descendantCenterX = d.x + d.width / 2
-              const distFromParentCenter = descendantCenterX - parentCenterX
-              console.log(`    ${d.id}: center at ${descendantCenterX.toFixed(0)} - distance from parent CENTER: ${distFromParentCenter.toFixed(0)}px`)
-            })
+            console.log(`🔄 Node ${node.id} crossed root center! Mirroring descendants...`)
+            console.log(`  Root center X: ${rootCenterX.toFixed(0)}`)
+            console.log(`  Node center X: ${nodeCenterX.toFixed(0)}`)
+            console.log(`  Crossed from ${startSide.toUpperCase()} to ${currentSide.toUpperCase()}`)
 
             nodeCrossedSides.value = true // Mark that side change happened
 
-            // Mirror descendants across parent center
+            // Mirror all descendants across the dragged node's center
             mirrorDescendantsAcrossNode(node)
-
-            // IMPORTANT: After mirroring, update dragStartPositions to CURRENT positions
-            // This resets the delta calculation so descendants move naturally with parent from now on
-            dragStartPositions.value.set(node.id, { x: node.x, y: node.y })
-
-            descendants.forEach(d => {
-              // Set dragStartPosition to current position (after mirroring)
-              // This ensures delta calculation starts fresh from the mirrored position
-              dragStartPositions.value.set(d.id, { x: d.x, y: d.y })
-            })
-
-            // Mark that we just mirrored
-            justMirrored = true
-
-            // Log descendants AFTER mirroring
-            console.log(`  Descendants AFTER mirroring:`)
-            descendants.forEach(d => {
-              const descendantCenterX = d.x + d.width / 2
-              const distFromParentCenter = descendantCenterX - parentCenterX
-              console.log(`    ${d.id}: center at ${descendantCenterX.toFixed(0)} - distance from parent CENTER: ${distFromParentCenter.toFixed(0)}px`)
-              const dragStart = dragStartPositions.value.get(d.id)
-              if (dragStart) {
-                console.log(`      dragStartPosition reset to: (${dragStart.x.toFixed(0)}, ${dragStart.y.toFixed(0)})`)
-              }
-            })
 
             // Update edges for this node and all descendants
             updateEdgesForBranch(node)
 
-            // Update the start side so we don't mirror again
+            // Update the start side so we can detect crossing back
             dragStartSides.value.set(node.id, currentSide)
           }
         }
       }
 
-      // Move all descendants by the same delta
-      // SKIP this if we just mirrored, because descendants are already at correct positions
-      if (!justMirrored) {
-        const descendants = getAllDescendants(node.id, nodes.value)
-        descendants.forEach(descendant => {
-          const descendantStartPos = dragStartPositions.value.get(descendant.id)
-          if (!descendantStartPos) {
-            // Store initial position if not already stored
-            dragStartPositions.value.set(descendant.id, { x: descendant.x, y: descendant.y })
-          }
-          const origPos = dragStartPositions.value.get(descendant.id)!
-          const oldX = descendant.x
-          descendant.x = origPos.x + deltaX
-          descendant.y = origPos.y + deltaY
+      // Move all descendants based on their stored deltas
+      const nodeCenterX = node.x + node.width / 2
+      const nodeCenterY = node.y + node.height / 2
+      const descendants = getAllDescendants(node.id, nodes.value)
 
-          // Debug: Log if position changed significantly
-          if (Math.abs(descendant.x - oldX) > 10) {
-            console.log(`  📍 Moving ${descendant.id}: ${oldX.toFixed(0)} → ${descendant.x.toFixed(0)} (origPos: ${origPos.x.toFixed(0)}, delta: ${deltaX.toFixed(0)})`)
-          }
-        })
-      }
+      descendants.forEach(descendant => {
+        const delta = descendantDeltas.value.get(descendant.id)
+        if (delta) {
+          // Calculate new position based on current delta
+          const descendantCenterX = nodeCenterX + delta.deltaX
+          const descendantCenterY = nodeCenterY + delta.deltaY
+
+          // Update descendant position (convert from center to top-left)
+          descendant.x = descendantCenterX - descendant.width / 2
+          descendant.y = descendantCenterY - descendant.height / 2
+        }
+      })
 
       // Check if dragged node is over another node (for reparenting)
       // Pass mouse position if available for more subtle reparenting detection
@@ -2001,6 +2057,12 @@ async function runStressTest() {
     // Wait for browser to render
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
+    // Measure actual DOM dimensions of new nodes
+    const dimensionsUpdated = await updateNodeDimensionsFromDOM()
+    if (dimensionsUpdated) {
+      console.log(`  ✓ Updated node dimensions from DOM`)
+    }
+
     // Apply layout for this level
     console.log(`  Applying layout for level ${level + 1}...`)
     console.log(`  Nodes created this level: ${newNodesThisLevel.length}`)
@@ -2636,6 +2698,40 @@ initialize()
   margin: 0 0 12px 0;
   font-size: 14px;
   color: #495057;
+}
+
+.edge-type-control {
+  margin-top: 15px;
+}
+
+.edge-type-control label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: #495057;
+  font-weight: 500;
+}
+
+.edge-type-select {
+  padding: 8px 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+  color: #212529;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.edge-type-select:hover {
+  border-color: #adb5bd;
+}
+
+.edge-type-select:focus {
+  outline: none;
+  border-color: #4dabf7;
+  box-shadow: 0 0 0 3px rgba(77, 171, 247, 0.1);
 }
 </style>
 

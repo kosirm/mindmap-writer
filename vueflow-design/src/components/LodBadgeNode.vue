@@ -38,13 +38,13 @@ defineProps<Props>()
 
 <style scoped>
 .lod-badge-node {
-  background: linear-gradient(135deg, rgba(236, 236, 233, 0.9) 0%, rgba(236, 236, 234, 0.9) 100%);
-  border: 3px solid hsl(42, 13%, 74%);
+  background: linear-gradient(135deg, #ecedee 0%, #ecedee 100%);
+  border: 3px solid #f1f1f0;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   cursor: help;
   pointer-events: none;
   width: 100%;
@@ -60,7 +60,7 @@ defineProps<Props>()
 .badge-text {
   font-size: 100px;
   font-weight: bold;
-  fill: #6c757d;
+  fill: #c2c6ca;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 </style>
