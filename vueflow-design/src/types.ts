@@ -9,14 +9,30 @@ export interface Rectangle {
 }
 
 /**
+ * Position data for a specific view
+ */
+export interface ViewPosition {
+  x: number;
+  y: number;
+}
+
+/**
  * Node data structure with hierarchy
+ * Supports dual positions for mindmap and concept map views
  */
 export interface NodeData {
   id: string;
   label: string;
   parentId: string | null;
+
+  // Legacy position fields (for backward compatibility, will use mindmap position)
   x: number;
   y: number;
+
+  // View-specific positions
+  mindmapPosition?: ViewPosition;
+  conceptMapPosition?: ViewPosition;
+
   width: number;
   height: number;
   collapsed?: boolean; // For child nodes: whether children are hidden

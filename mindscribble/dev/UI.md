@@ -6,7 +6,7 @@ UI consist of 3 main panels:
 3. Right panel (Writer by default)
 
 
-Panels are resizable and can be expanded/collapsed via keyboard shortcuts and panel management component in the top bar. In this component we can expand/collapse panels and we can load views into panels.
+Panels are resizable and can be expanded/collapsed via keyboard shortcuts and panel management component in the top bar - with this component we can expand/collapse panels and we can load views into panels (via context menu on panel icons).
 
 In each panel can be loaded different views:
 - Outline
@@ -22,7 +22,7 @@ In each panel can be loaded different views:
 App has also left and right drawer. Left drawer will serve for all icons and tools which can be used on nodes (date, priority, etc.). Right drawer will serve for AI chat and other AI-related tools.
 
 --- RAPID TOOLS ---
-We use keyboard shortcuts and arrow keys for rapid node creaton, navigation, selection, editing, movement.
+We use keyboard shortcuts and arrow keys for rapid node creation, navigation, selection, editing, movement.
 These arrow key commands are similar (but not exactly the same in each view). Writer - move up/down indent (make child of previous sibling), unindent (make next sibling of parent)
 
 --- EVENT BUS ---
