@@ -246,19 +246,42 @@ Then we have a bug in our code where we're accidentally resetting `vueFlowNodes.
 
 ### Recommendation:
 
-✅ **Accept the 200-node soft limit** - Normal mindmapping rarely exceeds 100-200 nodes anyway
-✅ **Implement inter-map linking** - For larger mindmaps, split into multiple smaller maps
-✅ **Add "Detach from map" command** - Extract a branch into a new map with automatic linking
+✅ **Accept the 200-node soft limit** - Normal mindmapping rarely exceeds 100-200 nodes anyway (mindmaps with more than 100 nodes are already too complex to understand)
 
-### Files Modified:
-- `src/App.vue`:
-  - Added `visibleNodeIds` ref and viewport tracking system
-  - Added `updateVisibleNodes()` function (async, debounced)
-  - Added `scheduleViewportUpdate()` for debounced updates
-  - Modified `syncToVueFlow()` to accept `onlyTheseNodes` parameter
-  - Modified `detectPotentialParent()` to only check visible nodes
-  - Added viewport watchers for zoom/pan changes
-  - Added "Visible in Viewport" stat to UI
+✅ **Implement inter-map linking** - For larger mindmaps, split into multiple smaller maps
+
+✅ **Add "Detach from map" command** - Extract a branch into a new map with automatic linking:
+- Similar to existing "Detach from parent" command
+- Takes selected node with all its children
+- Creates a new mindmap file with that branch
+- Replaces the original node with a link node pointing to the new map
+- Maintains semantic connection while keeping each map under 200 nodes
+
+### Implementation Plan:
+
+**Phase 1: Soft Limit Warning**
+- Add node count indicator in UI
+- Show warning when approaching 200 nodes
+- Suggest splitting the map
+
+**Phase 2: Inter-Map Linking**
+- Implement "Detach from map" command
+- Create link nodes (visual indicator that node links to another map)
+- Store links in mindmap metadata
+- Add navigation between linked maps
+
+**Phase 3: Master Map View**
+- D3 force-directed graph showing all maps and their connections
+- Visual overview of entire knowledge structure
+- Quick navigation between maps
+
+### No Code Changes Required
+
+After thorough investigation, we determined that:
+- Our existing code is already well-optimized
+- The drag lag with 500 nodes is a VueFlow architectural limitation
+- No code changes are needed - just accept the 200-node soft limit
+- Future work will focus on inter-map linking instead of fighting VueFlow's limits
 
 ### Key Insights:
 1. **VueFlow's `only-render-visible-elements` only affects rendering, not data processing**

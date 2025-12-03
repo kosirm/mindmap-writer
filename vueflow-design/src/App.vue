@@ -343,7 +343,7 @@ const vueFlowNodes = ref<Node[]>([])
 
 
 const showBoundingBoxes = ref(false)
-const showMinimap = ref(false)
+const showMinimap = ref(true)
 const contextMenu = ref<ContextMenuState>({
   visible: false,
   x: 0,
@@ -385,7 +385,7 @@ const lastPerformance = ref<{
 } | null>(null)
 
 // LOD (Level of Detail) state
-const lodEnabled = ref(true)
+const lodEnabled = ref(false)
 // Dynamic LOD thresholds: array of zoom percentages (10, 30, 50, 70, 90, etc.)
 // LOD configuration
 const lodStartPercent = ref(10)  // Start LOD at 10%
@@ -403,7 +403,7 @@ const lodThresholds = computed(() => {
 
 // Display options
 const showCanvasCenter = ref(false)
-const showZoomIndicator = ref(false)
+const showZoomIndicator = ref(true)
 
 // Edge type options
 const edgeType = ref<'default' | 'straight' | 'step' | 'smoothstep' | 'simplebezier'>('default')
