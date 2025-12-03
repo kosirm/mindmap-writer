@@ -3,6 +3,8 @@ vueflow
 
 ### Todo
 
+- [ ] where is style for canvas center?  
+- [ ] Canvas center should be under the nodes (z-index)  
 - [ ] add custom node padding - so that user can set top/bottom/left/right padding for custom node (and this should be respected also by bounding boxes - which can have it's own padding)  
 - [ ] add canvas context menu (add root)  
 - [ ] remove node id from bounding box  

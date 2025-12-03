@@ -25,7 +25,7 @@ MindScribble is a professional mindmap application built with Vue 3, Quasar, and
 - **Pinia** - State management
 - **VueFlow** - Canvas rendering (layout engine from vueflow-design)
 - **Tiptap** - Rich text editing
-- **D3-Force** - Additional visualizations (circle pack, sunburst, treemap)
+- **D3-Force** - Master map visualization (force-directed graph) + additional views (circle pack, sunburst, treemap)
 - **mitt** - Event bus
 - **vue-i18n** - Internationalization
 - **TypeScript** - Type safety
@@ -54,6 +54,10 @@ mindscribble/
 │   │   ├── keyboard/         # Keyboard navigation
 │   │   ├── orientation/      # Layout orientation (clockwise/counterclockwise)
 │   │   ├── persistence/      # Google Drive operations
+│   │   ├── linking/          # Inter-map linking system
+│   │   │   ├── components/   # Link dialogs, master map, link badges
+│   │   │   ├── composables/  # useMasterMap, useLinkValidation
+│   │   │   └── stores/       # masterMapStore
 │   │   ├── ai/               # AI agent integration
 │   │   └── subscription/     # Subscription & feature gating
 │   ├── core/                 # Core infrastructure
@@ -139,6 +143,13 @@ mindscribble/
     - Conversation history
     - AI suggestions
     - Last AI operations
+
+11. **masterMapStore** - Inter-map linking
+    - All maps metadata
+    - All inter-map links
+    - Link validation status
+    - Master map graph data
+    - Link health tracking
 
 ## Data Format
 
@@ -256,6 +267,710 @@ Google Drive API (auto-save)
     ↓
 Supabase (update metadata)
 ```
+
+## Inter-Map Linking System
+
+### Overview
+
+**Problem:** Cognitive load for mindmaps with 100+ nodes is unbearable. Users need smaller, focused maps that can be interconnected.
+
+**Solution:** Inter-map linking system that allows users to create connections between nodes across different mindmaps, creating a networked knowledge base.
+
+### Core Concepts
+
+1. **UUID-Based Linking** - Nodes have permanent UUIDs that never change, even if node is moved or renamed
+2. **Link Types** - Node → Node or Node → Map connections
+3. **Master Map** - D3 force-directed graph showing all maps and their connections
+4. **Link Health** - System tracks and manages broken links (deleted nodes/maps)
+5. **IndexedDB Cache** - Local database of all maps and links for fast access
+
+### Data Structures
+
+```typescript
+// Node with UUID (permanent identifier)
+interface Node {
+  id: string  // UUID (never changes, even if node moves/renamed)
+  type: 'custom' | 'lod-badge'
+  position: { x: number; y: number }
+
+  data: {
+    parentId: string | null
+    order: number
+    title: string
+    content: string
+
+    // Inter-map links
+    outgoingLinks?: InterMapLink[]  // Links from this node to other maps/nodes
+    incomingLinkCount?: number      // Count of links pointing to this node (for UI badge)
+
+    // ... other fields
+  }
+}
+
+// Inter-map link
+interface InterMapLink {
+  id: string                    // Link UUID
+  sourceMapId: string           // Source map UUID
+  sourceNodeId: string          // Source node UUID
+  targetMapId: string           // Target map UUID
+  targetNodeId?: string         // Target node UUID (null = link to entire map)
+  label?: string                // Optional link label
+  createdAt: string             // ISO 8601 timestamp
+  lastValidated?: string        // When we last checked if link is valid
+  isValid?: boolean             // Is target still exists?
+}
+
+// Map metadata (stored in IndexedDB)
+interface MapMetadata {
+  id: string                    // Map UUID (Google Drive file ID)
+  name: string                  // Map name
+  driveFileId: string           // Google Drive file ID
+  nodeCount: number             // Number of nodes in map
+  lastModified: string          // ISO 8601 timestamp
+  tags: string[]                // User tags
+
+  // Link statistics
+  outgoingLinkCount: number     // Links from this map to others
+  incomingLinkCount: number     // Links from other maps to this map
+}
+
+// Node index (for search and link validation)
+interface NodeIndex {
+  nodeId: string                // Node UUID
+  mapId: string                 // Map UUID
+  title: string                 // Node title (for search)
+  content: string               // Node content (for search)
+  exists: boolean               // Does node still exist?
+}
+
+// Master map graph data
+interface MasterMapData {
+  maps: MapMetadata[]           // All maps
+  links: InterMapLink[]         // All inter-map links
+  lastUpdated: string           // When master map was last rebuilt
+}
+```
+
+### Storage Strategy
+
+**Mindmap JSON Files (Google Drive):**
+- Each map stores its **outgoing links** in node data
+- Links are part of the node's data structure
+- When map is saved, all outgoing links are saved with it
+
+**IndexedDB (Local Cache):**
+```typescript
+// Store 1: Maps metadata
+const mapsStore = {
+  keyPath: 'id',
+  indexes: ['name', 'lastModified', 'tags']
+}
+
+// Store 2: Node index (for search and validation)
+const nodeIndexStore = {
+  keyPath: ['mapId', 'nodeId'],
+  indexes: ['mapId', 'nodeId', 'title']
+}
+
+// Store 3: Link index (for master map)
+const linkIndexStore = {
+  keyPath: 'id',
+  indexes: ['sourceMapId', 'targetMapId', 'sourceNodeId', 'targetNodeId']
+}
+
+// Store 4: Master map cache
+const masterMapStore = {
+  keyPath: 'id',
+  data: MasterMapData
+}
+```
+
+### UI Components
+
+#### 1. Link Creation Dialog
+
+**Trigger:** Right-click node → "Link to another map/node"
+
+**Dialog Content:**
+```
+┌─────────────────────────────────────────┐
+│ Link to Another Map or Node             │
+├─────────────────────────────────────────┤
+│ Search maps: [________________] 🔍      │
+│                                          │
+│ Recent Maps:                             │
+│ ☐ Project Planning (45 nodes)           │
+│ ☐ Meeting Notes (23 nodes)              │
+│ ☐ Research Ideas (67 nodes)             │
+│                                          │
+│ All Maps (12):                           │
+│ ☐ Budget Analysis (34 nodes)            │
+│ ☐ Team Structure (18 nodes)             │
+│ ...                                      │
+│                                          │
+│ [Link to entire map] [Link to node...] │
+└─────────────────────────────────────────┘
+```
+
+**If "Link to node..." clicked:**
+```
+┌─────────────────────────────────────────┐
+│ Select Node in "Project Planning"       │
+├─────────────────────────────────────────┤
+│ Search nodes: [________________] 🔍      │
+│                                          │
+│ Root Nodes:                              │
+│ ☐ Phase 1: Planning                     │
+│   ☐ Budget Allocation                   │
+│   ☐ Team Assignment                     │
+│ ☐ Phase 2: Execution                    │
+│   ☐ Development Sprint                  │
+│   ☐ Testing Phase                       │
+│                                          │
+│ [Cancel] [Create Link]                  │
+└─────────────────────────────────────────┘
+```
+
+#### 2. Link Indicators in Canvas
+
+**Node with outgoing links:**
+```
+┌─────────────────────┐
+│ Project Planning    │ 🔗 2
+│ Budget: $50k        │
+└─────────────────────┘
+```
+- Badge shows number of outgoing links
+- Click badge → Show link menu
+
+**Node with incoming links:**
+```
+┌─────────────────────┐
+│ Budget Allocation   │ ⬅️ 3
+│ Q1: $20k, Q2: $30k  │
+└─────────────────────┘
+```
+- Badge shows number of incoming links
+- Click badge → Show which maps link here
+
+**Link Menu (on badge click):**
+```
+┌─────────────────────────────────────┐
+│ Links from "Project Planning"       │
+├─────────────────────────────────────┤
+│ → Meeting Notes / Action Items      │
+│ → Budget Analysis (entire map)      │
+│                                      │
+│ [Add new link...] [Manage links]    │
+└─────────────────────────────────────┘
+```
+
+#### 3. Master Map View
+
+**Purpose:** Visualize all maps and their connections
+
+**Technology:** D3 Force-Directed Graph
+
+**Visual Design:**
+- **Nodes:** Each map is a circle
+  - Size = number of nodes in map
+  - Color = category/tag
+  - Label = map name
+- **Edges:** Inter-map links
+  - Thickness = number of links between maps
+  - Color = link type (if we add types later)
+- **Interactions:**
+  - Click map → Open map in editor
+  - Click edge → Show link details
+  - Hover map → Show preview tooltip
+  - Zoom/pan for large graphs
+
+**Layout:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ Master Map                                    [⚙️] [✕]  │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│         ⭕ Project Planning (45)                        │
+│          ╱  ╲                                           │
+│         ╱    ╲                                          │
+│        ╱      ╲                                         │
+│   ⭕ Meeting    ⭕ Budget                               │
+│   Notes (23)   Analysis (34)                           │
+│        ╲      ╱                                         │
+│         ╲    ╱                                          │
+│          ╲  ╱                                           │
+│      ⭕ Research                                        │
+│      Ideas (67)                                         │
+│                                                          │
+│ [Zoom: 100%] [Fit to screen] [Refresh]                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Link Management
+
+#### 1. Link Validation
+
+**On Map Load:**
+```typescript
+async function validateLinksOnLoad(mapId: string) {
+  const map = await loadMap(mapId)
+  const allLinks: InterMapLink[] = []
+
+  // Collect all outgoing links from all nodes
+  map.nodes.forEach(node => {
+    if (node.data.outgoingLinks) {
+      allLinks.push(...node.data.outgoingLinks)
+    }
+  })
+
+  // Validate each link
+  const brokenLinks: InterMapLink[] = []
+  for (const link of allLinks) {
+    const isValid = await validateLink(link)
+    if (!isValid) {
+      brokenLinks.push(link)
+    }
+  }
+
+  // Show notification if broken links found
+  if (brokenLinks.length > 0) {
+    $q.notify({
+      type: 'warning',
+      message: `${brokenLinks.length} broken link(s) found`,
+      actions: [
+        { label: 'Fix', handler: () => showLinkHealthDialog(brokenLinks) }
+      ]
+    })
+  }
+}
+
+async function validateLink(link: InterMapLink): Promise<boolean> {
+  // Check if target map exists
+  const targetMapExists = await checkMapExists(link.targetMapId)
+  if (!targetMapExists) return false
+
+  // If linking to specific node, check if node exists
+  if (link.targetNodeId) {
+    const nodeExists = await checkNodeExists(link.targetMapId, link.targetNodeId)
+    return nodeExists
+  }
+
+  return true
+}
+```
+
+#### 2. Link Health Dashboard
+
+**Purpose:** Show all broken links and allow user to fix them
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Link Health Dashboard                         [✕]       │
+├─────────────────────────────────────────────────────────┤
+│ ⚠️ 5 broken links found                                 │
+│                                                          │
+│ 1. Project Planning → [DELETED MAP]                     │
+│    From: "Budget Allocation" node                       │
+│    [Remove link] [Redirect to...]                       │
+│                                                          │
+│ 2. Meeting Notes → Research Ideas / [DELETED NODE]      │
+│    From: "Action Items" node                            │
+│    [Remove link] [Redirect to...]                       │
+│                                                          │
+│ 3. Budget Analysis → Team Structure (entire map)        │
+│    From: "Q1 Budget" node                               │
+│    ✅ Valid (map exists)                                │
+│                                                          │
+│ [Fix all] [Remove all broken] [Cancel]                  │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 3. Automatic Cleanup
+
+**On Node Deletion:**
+```typescript
+async function deleteNode(nodeId: string) {
+  const node = nodes.value.find(n => n.id === nodeId)
+
+  // Check if node has incoming links from other maps
+  const incomingLinks = await getIncomingLinks(currentMapId, nodeId)
+
+  if (incomingLinks.length > 0) {
+    const confirmed = await $q.dialog({
+      title: 'Delete Node with Links',
+      message: `This node has ${incomingLinks.length} incoming link(s) from other maps. Delete anyway?`,
+      cancel: true
+    })
+
+    if (!confirmed) return
+  }
+
+  // Delete node
+  nodes.value = nodes.value.filter(n => n.id !== nodeId)
+
+  // Mark incoming links as broken in IndexedDB
+  for (const link of incomingLinks) {
+    await markLinkAsBroken(link.id)
+  }
+
+  // Remove outgoing links from this node
+  if (node.data.outgoingLinks) {
+    for (const link of node.data.outgoingLinks) {
+      await removeLinkFromIndex(link.id)
+    }
+  }
+}
+```
+
+### Master Map Scanning
+
+**Purpose:** Build and maintain the master map by scanning all maps in Google Drive
+
+```typescript
+// composables/useMasterMap.ts
+export function useMasterMap() {
+  const googleDriveStore = useGoogleDriveStore()
+
+  // Scan all maps and build master map
+  async function rebuildMasterMap() {
+    console.log('🔄 Rebuilding master map...')
+    const startTime = performance.now()
+
+    // 1. Get all map files from Google Drive
+    const mapFiles = await googleDriveStore.listMindmaps()
+    console.log(`📁 Found ${mapFiles.length} maps`)
+
+    // 2. Load each map and extract metadata + links
+    const allMaps: MapMetadata[] = []
+    const allLinks: InterMapLink[] = []
+    const nodeIndex: NodeIndex[] = []
+
+    for (const file of mapFiles) {
+      try {
+        const map = await googleDriveStore.loadMindmap(file.id)
+
+        // Extract map metadata
+        const metadata: MapMetadata = {
+          id: map.metadata.id,
+          name: map.metadata.name,
+          driveFileId: file.id,
+          nodeCount: map.nodes.length,
+          lastModified: map.metadata.modified,
+          tags: map.metadata.tags,
+          outgoingLinkCount: 0,
+          incomingLinkCount: 0
+        }
+        allMaps.push(metadata)
+
+        // Extract all links and build node index
+        map.nodes.forEach(node => {
+          // Add to node index
+          nodeIndex.push({
+            nodeId: node.id,
+            mapId: map.metadata.id,
+            title: node.data.title,
+            content: node.data.content,
+            exists: true
+          })
+
+          // Extract outgoing links
+          if (node.data.outgoingLinks) {
+            allLinks.push(...node.data.outgoingLinks)
+            metadata.outgoingLinkCount += node.data.outgoingLinks.length
+          }
+        })
+      } catch (error) {
+        console.error(`Failed to load map ${file.id}:`, error)
+      }
+    }
+
+    // 3. Calculate incoming link counts
+    for (const link of allLinks) {
+      const targetMap = allMaps.find(m => m.id === link.targetMapId)
+      if (targetMap) {
+        targetMap.incomingLinkCount++
+      }
+    }
+
+    // 4. Validate all links
+    for (const link of allLinks) {
+      link.isValid = await validateLink(link)
+      link.lastValidated = new Date().toISOString()
+    }
+
+    // 5. Save to IndexedDB
+    await saveToIndexedDB('maps', allMaps)
+    await saveToIndexedDB('nodeIndex', nodeIndex)
+    await saveToIndexedDB('linkIndex', allLinks)
+    await saveToIndexedDB('masterMap', {
+      id: 'master',
+      maps: allMaps,
+      links: allLinks,
+      lastUpdated: new Date().toISOString()
+    })
+
+    const duration = performance.now() - startTime
+    console.log(`✅ Master map rebuilt in ${duration.toFixed(0)}ms`)
+    console.log(`   Maps: ${allMaps.length}`)
+    console.log(`   Links: ${allLinks.length}`)
+    console.log(`   Nodes indexed: ${nodeIndex.length}`)
+
+    return { maps: allMaps, links: allLinks }
+  }
+
+  // Incremental update (only changed maps)
+  async function updateMasterMap() {
+    const masterMap = await loadFromIndexedDB('masterMap')
+    if (!masterMap) {
+      return rebuildMasterMap()
+    }
+
+    // Check which maps changed since last update
+    const mapFiles = await googleDriveStore.listMindmaps()
+    const changedMaps = mapFiles.filter(file => {
+      const cached = masterMap.maps.find(m => m.driveFileId === file.id)
+      return !cached || new Date(file.modifiedTime) > new Date(cached.lastModified)
+    })
+
+    if (changedMaps.length === 0) {
+      console.log('✅ Master map is up to date')
+      return masterMap
+    }
+
+    console.log(`🔄 Updating ${changedMaps.length} changed maps...`)
+
+    // Re-process only changed maps
+    // ... (similar to rebuildMasterMap but only for changed maps)
+
+    return masterMap
+  }
+
+  // Periodic sync (every 5 minutes)
+  function startPeriodicSync() {
+    setInterval(async () => {
+      await updateMasterMap()
+    }, 5 * 60 * 1000) // 5 minutes
+  }
+
+  return {
+    rebuildMasterMap,
+    updateMasterMap,
+    startPeriodicSync
+  }
+}
+```
+
+### Pinia Store
+
+```typescript
+// stores/masterMapStore.ts
+export const useMasterMapStore = defineStore('masterMap', () => {
+  const maps = ref<MapMetadata[]>([])
+  const links = ref<InterMapLink[]>([])
+  const lastUpdated = ref<string | null>(null)
+  const isLoading = ref(false)
+
+  // Load master map from IndexedDB
+  async function loadMasterMap() {
+    const data = await loadFromIndexedDB('masterMap')
+    if (data) {
+      maps.value = data.maps
+      links.value = data.links
+      lastUpdated.value = data.lastUpdated
+    }
+  }
+
+  // Get incoming links for a node
+  function getIncomingLinks(mapId: string, nodeId: string): InterMapLink[] {
+    return links.value.filter(
+      link => link.targetMapId === mapId && link.targetNodeId === nodeId
+    )
+  }
+
+  // Get outgoing links for a node
+  function getOutgoingLinks(mapId: string, nodeId: string): InterMapLink[] {
+    return links.value.filter(
+      link => link.sourceMapId === mapId && link.sourceNodeId === nodeId
+    )
+  }
+
+  // Get all links for a map
+  function getMapLinks(mapId: string): InterMapLink[] {
+    return links.value.filter(
+      link => link.sourceMapId === mapId || link.targetMapId === mapId
+    )
+  }
+
+  // Get broken links
+  function getBrokenLinks(): InterMapLink[] {
+    return links.value.filter(link => link.isValid === false)
+  }
+
+  return {
+    maps,
+    links,
+    lastUpdated,
+    isLoading,
+    loadMasterMap,
+    getIncomingLinks,
+    getOutgoingLinks,
+    getMapLinks,
+    getBrokenLinks
+  }
+})
+```
+
+### User Workflows
+
+#### Workflow 1: Create Link
+
+1. User right-clicks node → "Link to another map/node"
+2. Dialog opens with list of all maps
+3. User searches/selects target map
+4. User chooses "Link to entire map" or "Link to specific node"
+5. If specific node: tree view of target map appears
+6. User selects target node
+7. Link is created and saved in source node's data
+8. Badge appears on source node showing link count
+9. Map auto-saves to Google Drive
+10. Master map is updated in background
+
+#### Workflow 2: Navigate Link
+
+1. User clicks link badge on node
+2. Menu shows all outgoing links
+3. User clicks link → Target map opens
+4. If link to specific node: target node is selected and scrolled into view
+5. Breadcrumb shows: "From: Project Planning / Budget Allocation"
+
+#### Workflow 3: Fix Broken Link
+
+1. User opens map with broken links
+2. Notification appears: "3 broken links found"
+3. User clicks "Fix"
+4. Link Health Dashboard opens
+5. For each broken link, user can:
+   - Remove link
+   - Redirect to different node/map
+   - Keep as archived reference
+6. User clicks "Fix all"
+7. Changes are saved
+8. Master map is updated
+
+#### Workflow 4: View Master Map
+
+1. User clicks "Master Map" button in toolbar
+2. D3 force-directed graph appears
+3. Shows all maps as nodes, links as edges
+4. User can:
+   - Zoom/pan to explore
+   - Click map to open it
+   - Click edge to see link details
+   - Search for specific map
+5. User clicks map → Opens in editor
+
+### Performance Considerations
+
+1. **Lazy Loading** - Only load master map when needed
+2. **Incremental Updates** - Only re-scan changed maps
+3. **IndexedDB Caching** - Fast local access to map metadata
+4. **Debounced Scanning** - Don't scan on every change
+5. **Background Processing** - Scan in Web Worker if needed
+6. **Pagination** - For maps with 100+ connections
+
+### Future Enhancements
+
+1. **Link Types** - Different types of links (related, depends-on, references, etc.)
+2. **Link Labels** - Custom labels for links
+3. **Bidirectional Links** - Automatically create reverse link
+4. **Link Strength** - Visual indicator of link importance
+5. **Link Filtering** - Filter master map by link type
+6. **Link Analytics** - Most connected maps, orphaned maps, etc.
+7. **Link Suggestions** - AI suggests related maps to link
+8. **Link Preview** - Hover over link to see target content
+9. **Link History** - Track when links were created/modified
+10. **Shared Links** - Allow multiple users to link to same map
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER'S GOOGLE DRIVE                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  MindScribble/                                                   │
+│  ├── Project Planning.json ──┐                                  │
+│  │   └── nodes: [            │                                  │
+│  │       { id: "uuid-1",     │                                  │
+│  │         outgoingLinks: [  │                                  │
+│  │           { targetMapId: "map-2", targetNodeId: "uuid-5" }   │
+│  │         ]                 │                                  │
+│  │       }                   │                                  │
+│  │     ]                     │                                  │
+│  │                           │                                  │
+│  ├── Meeting Notes.json ◄────┘                                  │
+│  │   └── nodes: [                                               │
+│  │       { id: "uuid-5", ... }  ◄── Link target                │
+│  │     ]                                                        │
+│  │                                                              │
+│  └── Budget Analysis.json                                       │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Periodic Scan
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    BROWSER (IndexedDB)                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Maps Store:                                                     │
+│  ├── { id: "map-1", name: "Project Planning", nodeCount: 45 }  │
+│  ├── { id: "map-2", name: "Meeting Notes", nodeCount: 23 }     │
+│  └── { id: "map-3", name: "Budget Analysis", nodeCount: 34 }   │
+│                                                                  │
+│  Link Index Store:                                               │
+│  ├── { id: "link-1", sourceMapId: "map-1",                     │
+│  │     sourceNodeId: "uuid-1", targetMapId: "map-2",           │
+│  │     targetNodeId: "uuid-5", isValid: true }                 │
+│  └── ...                                                         │
+│                                                                  │
+│  Node Index Store:                                               │
+│  ├── { nodeId: "uuid-1", mapId: "map-1", title: "Budget" }    │
+│  ├── { nodeId: "uuid-5", mapId: "map-2", title: "Action" }    │
+│  └── ...                                                         │
+│                                                                  │
+│  Master Map Store:                                               │
+│  └── { maps: [...], links: [...], lastUpdated: "..." }         │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Render
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      MASTER MAP VIEW (D3)                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│         ⭕ Project Planning (45)                                │
+│          ╱  ╲                                                   │
+│         ╱    ╲                                                  │
+│        ╱      ╲                                                 │
+│   ⭕ Meeting    ⭕ Budget                                       │
+│   Notes (23)   Analysis (34)                                   │
+│                                                                  │
+│   Click map → Open in editor                                    │
+│   Click edge → Show link details                                │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key Points:**
+- ✅ **Links stored in source map** - Each map stores its outgoing links
+- ✅ **UUID-based** - Links use permanent node UUIDs, not positions
+- ✅ **IndexedDB cache** - Fast local access to all maps and links
+- ✅ **Periodic scanning** - Keeps master map in sync with Drive
+- ✅ **Link validation** - Detects broken links when nodes/maps deleted
+- ✅ **Master map** - D3 visualization of all connections
 
 ## Communication Patterns
 
@@ -1105,7 +1820,23 @@ interface AIContext {
 - [ ] Add upgrade prompts
 - [ ] Test subscription flows
 
-### Phase 4: AI Integration - 2 weeks
+### Phase 4: Inter-Map Linking - 1 week
+**Goal:** Enable connections between mindmaps
+
+- [ ] Add UUID to nodes (if not already present)
+- [ ] Implement masterMapStore
+- [ ] Create IndexedDB schema for maps/links/nodes
+- [ ] Implement useMasterMap composable
+- [ ] Create link creation dialog
+- [ ] Add link badges to nodes
+- [ ] Implement link navigation
+- [ ] Create master map view (D3 force-directed graph)
+- [ ] Implement link validation
+- [ ] Create link health dashboard
+- [ ] Add periodic scanning
+- [ ] Test with 10+ interconnected maps
+
+### Phase 5: AI Integration - 2 weeks
 **Goal:** Add AI-powered features
 
 - [ ] Setup n8n instance
@@ -1118,7 +1849,7 @@ interface AIContext {
 - [ ] Test AI features with various prompts
 - [ ] Add rate limiting for AI usage
 
-### Phase 5: Polish & Launch - 1 week
+### Phase 6: Polish & Launch - 1 week
 **Goal:** Final testing and deployment
 
 - [ ] Performance optimization
@@ -1130,7 +1861,7 @@ interface AIContext {
 - [ ] Setup monitoring (Sentry, analytics)
 - [ ] Launch! 🚀
 
-**Total Estimate:** 7-8 weeks
+**Total Estimate:** 8-9 weeks
 
 ## Security & Privacy
 
@@ -1266,6 +1997,8 @@ VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
 MindScribble is a feature-rich mindmap application that combines:
 - **VueFlow** for canvas rendering
 - **AABB nested layout** from vueflow-design (with LOD system)
+- **Inter-map linking** for networked knowledge management
+- **Master map visualization** (D3 force-directed graph)
 - **Supabase** for authentication and user profiles
 - **Google Drive** for mindmap storage (user owns data)
 - **n8n AI agent** for AI-powered features
@@ -1278,4 +2011,6 @@ The app follows a **freemium model** with three tiers:
 - **ENTERPRISE:** AI-powered features
 
 All mindmap data is stored in the **user's Google Drive**, ensuring data ownership and privacy. The app is designed to be **AI-first** with structured JSON format optimized for LLM manipulation.
+
+**Key Innovation:** Inter-map linking system allows users to create smaller, focused mindmaps (< 100 nodes each) and connect them together, solving the cognitive load problem of large mindmaps while enabling unlimited scalability through networked knowledge.
 
