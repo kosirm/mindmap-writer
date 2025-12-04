@@ -122,6 +122,7 @@ const activeTab = ref<'mindmap' | 'concept'>('mindmap')
 /* View Container */
 .view-container {
   flex: 1;
+  min-height: 0; /* Critical for flex children to respect parent bounds */
   overflow: hidden;
   position: relative;
   display: flex;
@@ -162,8 +163,10 @@ const activeTab = ref<'mindmap' | 'concept'>('mindmap')
 </style>
 
 <style>
-/* Global styles (non-scoped) to ensure proper height propagation */
-.view-container {
+/* Global styles (non-scoped) to ensure MindmapView takes full height */
+.view-container > * {
+  flex: 1;
+  min-height: 0;
   height: 100%;
 }
 </style>

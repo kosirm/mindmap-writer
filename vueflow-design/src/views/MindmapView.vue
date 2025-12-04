@@ -667,6 +667,7 @@ onUnmounted(() => {
   align-items: stretch;
   width: 100%;
   height: 100%;
+  min-height: 0; /* Critical for nested flex containers */
   overflow: hidden;
   position: relative;
 }

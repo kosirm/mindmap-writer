@@ -1,81 +1,145 @@
 <template>
-  <q-layout view="lHh Lpr lFf">
-    <q-header elevated>
+  <q-layout view="hHh lpR fFf">
+    <!-- Header -->
+    <q-header elevated class="bg-primary text-white">
       <q-toolbar>
-        <q-btn flat dense round icon="menu" aria-label="Menu" @click="toggleLeftDrawer" />
+        <!-- Left drawer toggle -->
+        <q-btn
+          flat
+          dense
+          round
+          icon="widgets"
+          aria-label="Tools"
+          @click="appStore.toggleLeftDrawer"
+        />
 
-        <q-toolbar-title> Quasar App </q-toolbar-title>
+        <!-- Document title -->
+        <q-toolbar-title class="text-center">
+          <span class="document-title">{{ documentStore.documentName }}</span>
+          <q-icon
+            v-if="documentStore.isDirty"
+            name="fiber_manual_record"
+            size="8px"
+            class="q-ml-xs"
+          />
+        </q-toolbar-title>
 
-        <div>Quasar v{{ $q.version }}</div>
+        <!-- Panel Manager -->
+        <PanelManager />
+
+        <!-- Right drawer toggle -->
+        <q-btn
+          flat
+          dense
+          round
+          icon="smart_toy"
+          aria-label="AI Assistant"
+          @click="appStore.toggleRightDrawer"
+        />
       </q-toolbar>
     </q-header>
 
-    <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
-      <q-list>
-        <q-item-label header> Essential Links </q-item-label>
-
-        <EssentialLink v-for="link in linksList" :key="link.title" v-bind="link" />
-      </q-list>
+    <!-- Left Drawer - Tools & Icons -->
+    <q-drawer
+      v-model="appStore.leftDrawerOpen"
+      side="left"
+      bordered
+      :width="280"
+      :breakpoint="700"
+    >
+      <q-scroll-area class="fit">
+        <div class="q-pa-md">
+          <div class="text-h6 q-mb-md">Tools</div>
+          <q-list>
+            <q-item-label header>Node Actions</q-item-label>
+            <q-item clickable v-ripple>
+              <q-item-section avatar>
+                <q-icon name="event" />
+              </q-item-section>
+              <q-item-section>Date</q-item-section>
+            </q-item>
+            <q-item clickable v-ripple>
+              <q-item-section avatar>
+                <q-icon name="priority_high" />
+              </q-item-section>
+              <q-item-section>Priority</q-item-section>
+            </q-item>
+            <q-item clickable v-ripple>
+              <q-item-section avatar>
+                <q-icon name="label" />
+              </q-item-section>
+              <q-item-section>Tags</q-item-section>
+            </q-item>
+            <q-item clickable v-ripple>
+              <q-item-section avatar>
+                <q-icon name="palette" />
+              </q-item-section>
+              <q-item-section>Color</q-item-section>
+            </q-item>
+          </q-list>
+        </div>
+      </q-scroll-area>
     </q-drawer>
 
+    <!-- Right Drawer - AI Chat -->
+    <q-drawer
+      v-model="appStore.rightDrawerOpen"
+      side="right"
+      bordered
+      :width="350"
+      :breakpoint="700"
+    >
+      <q-scroll-area class="fit">
+        <div class="q-pa-md">
+          <div class="text-h6 q-mb-md">
+            <q-icon name="smart_toy" class="q-mr-sm" />
+            AI Assistant
+          </div>
+          <div class="text-grey-6">
+            AI chat will be implemented here.
+          </div>
+        </div>
+      </q-scroll-area>
+    </q-drawer>
+
+    <!-- Main Content - 3 Panel Layout -->
     <q-page-container>
-      <router-view />
+      <q-page class="three-panel-layout">
+        <ThreePanelContainer />
+      </q-page>
     </q-page-container>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink.vue';
+import { onMounted } from 'vue'
+import { useAppStore } from 'src/core/stores/appStore'
+import { useDocumentStore } from 'src/core/stores/documentStore'
+import { usePanelStore } from 'src/core/stores/panelStore'
+import PanelManager from 'src/shared/components/PanelManager.vue'
+import ThreePanelContainer from 'src/shared/components/ThreePanelContainer.vue'
 
-const linksList: EssentialLinkProps[] = [
-  {
-    title: 'Docs',
-    caption: 'quasar.dev',
-    icon: 'school',
-    link: 'https://quasar.dev',
-  },
-  {
-    title: 'Github',
-    caption: 'github.com/quasarframework',
-    icon: 'code',
-    link: 'https://github.com/quasarframework',
-  },
-  {
-    title: 'Discord Chat Channel',
-    caption: 'chat.quasar.dev',
-    icon: 'chat',
-    link: 'https://chat.quasar.dev',
-  },
-  {
-    title: 'Forum',
-    caption: 'forum.quasar.dev',
-    icon: 'record_voice_over',
-    link: 'https://forum.quasar.dev',
-  },
-  {
-    title: 'Twitter',
-    caption: '@quasarframework',
-    icon: 'rss_feed',
-    link: 'https://twitter.quasar.dev',
-  },
-  {
-    title: 'Facebook',
-    caption: '@QuasarFramework',
-    icon: 'public',
-    link: 'https://facebook.quasar.dev',
-  },
-  {
-    title: 'Quasar Awesome',
-    caption: 'Community Quasar projects',
-    icon: 'favorite',
-    link: 'https://awesome.quasar.dev',
-  },
-];
+const appStore = useAppStore()
+const documentStore = useDocumentStore()
+const panelStore = usePanelStore()
 
-const leftDrawerOpen = ref(false);
+onMounted(() => {
+  // Initialize online status listeners
+  appStore.initOnlineListeners()
 
-function toggleLeftDrawer() {
-  leftDrawerOpen.value = !leftDrawerOpen.value;
-}
+  // Load saved panel layout
+  panelStore.loadLayout()
+})
 </script>
+
+<style scoped lang="scss">
+.document-title {
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.three-panel-layout {
+  height: calc(100vh - 50px); // Full viewport height minus header
+  overflow: hidden;
+}
+</style>
