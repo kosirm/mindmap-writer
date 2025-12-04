@@ -73,12 +73,13 @@ const panelStore = usePanelStore()
 const viewComponents: Record<ViewType, Component> = {
   outline: defineAsyncComponent(() => import('src/features/tree/components/OutlineView.vue')),
   mindmap: defineAsyncComponent(() => import('src/features/canvas/components/MindmapView.vue')),
-  'concept-map': defineAsyncComponent(() => import('src/features/canvas/components/ConceptMapView.vue')),
+  'concept-map': defineAsyncComponent(() => import('src/features/canvas/components/conceptmap/ConceptMapView.vue')),
   writer: defineAsyncComponent(() => import('src/features/writer/components/WriterView.vue')),
+  kanban: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
+  timeline: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
   'circle-pack': defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
   sunburst: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
-  treemap: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
-  timeline: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue'))
+  treemap: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue'))
 }
 
 function getViewIcon(position: PanelPosition): string {
@@ -186,8 +187,13 @@ function stopResize() {
   flex-direction: column;
   position: relative;
   height: 100%;
-  background: var(--q-dark-page, white);
+  background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.12);
+
+  .body--dark & {
+    background: #1d1d1d;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
 }
 
 .left-panel,
@@ -210,15 +216,24 @@ function stopResize() {
   font-size: 0.8rem;
   font-weight: 500;
   flex-shrink: 0;
+
+  .body--dark & {
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
 }
 
 .panel-title {
   color: rgba(0, 0, 0, 0.7);
+
+  .body--dark & {
+    color: rgba(255, 255, 255, 0.7);
+  }
 }
 
 .panel-content {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   height: 0; // Important: allows flex to calculate height properly
 }
 
@@ -232,7 +247,7 @@ function stopResize() {
   z-index: 10;
 
   &:hover {
-    background: rgba(var(--q-primary-rgb), 0.3);
+    background: rgba(25, 118, 210, 0.3);
   }
 }
 

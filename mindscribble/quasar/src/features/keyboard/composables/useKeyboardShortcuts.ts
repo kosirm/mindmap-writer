@@ -23,10 +23,10 @@ export function useKeyboardShortcuts() {
   function handleKeydown(event: KeyboardEvent) {
     const key = buildKeyString(event)
     const commandId = shortcuts[key]
-    
+
     if (commandId) {
       event.preventDefault()
-      executeCommand(commandId)
+      void executeCommand(commandId)
     }
   }
 

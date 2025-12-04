@@ -1,1 +1,7 @@
 // app global css in SCSS form
+
+// VueFlow required styles
+@import '@vue-flow/core/dist/style.css';
+@import '@vue-flow/core/dist/theme-default.css';
+@import '@vue-flow/minimap/dist/style.css';
+@import '@vue-flow/controls/dist/style.css';
