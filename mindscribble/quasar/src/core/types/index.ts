@@ -8,4 +8,5 @@ export * from './edge'
 export * from './document'
 export * from './panel'
 export * from './view'
+export * from './masterMap'
 

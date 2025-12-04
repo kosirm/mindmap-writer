@@ -27,6 +27,18 @@
         <!-- Panel Manager -->
         <PanelManager />
 
+        <!-- Dark mode toggle -->
+        <q-btn
+          flat
+          dense
+          round
+          :icon="appStore.isDarkMode ? 'light_mode' : 'dark_mode'"
+          :aria-label="appStore.isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+          @click="appStore.toggleDarkMode"
+        >
+          <q-tooltip>{{ appStore.isDarkMode ? 'Light mode' : 'Dark mode' }}</q-tooltip>
+        </q-btn>
+
         <!-- Right drawer toggle -->
         <q-btn
           flat

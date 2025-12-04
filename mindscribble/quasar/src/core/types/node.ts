@@ -1,37 +1,139 @@
 /**
  * Node type definitions
+ * Enhanced with view-specific data for multi-view support
  */
 
+// ============================================================
+// BASIC TYPES
+// ============================================================
+
+/**
+ * Position in 2D space
+ */
+export interface Position {
+  x: number
+  y: number
+}
+
+/**
+ * Size dimensions
+ */
+export interface Size {
+  width: number
+  height: number
+}
+
+// ============================================================
+// VIEW-SPECIFIC DATA
+// Each view can store its own layout/state for each node
+// ============================================================
+
+/**
+ * Mindmap view-specific data
+ * Hierarchical layout with orientation support
+ */
+export interface MindmapViewData {
+  position: Position | null      // null = needs calculation by layout engine
+  collapsed?: boolean            // Children hidden (for non-root nodes)
+  collapsedLeft?: boolean        // Left children hidden (for root node)
+  collapsedRight?: boolean       // Right children hidden (for root node)
+  isDirty?: boolean              // Needs recalculation
+  lastCalculatedZoom?: number    // Zoom level when position was calculated
+}
+
+/**
+ * Concept map view-specific data
+ * Children nested inside parent containers
+ */
+export interface ConceptMapViewData {
+  position: Position | null      // Relative to parent (for nested layout)
+  size?: Size | null             // Dynamic container size (expands to fit children)
+}
+
+/**
+ * Timeline view-specific data
+ */
+export interface TimelineViewData {
+  startDate?: string             // ISO 8601
+  endDate?: string               // ISO 8601
+  lane?: number                  // Which row/swimlane
+}
+
+/**
+ * Kanban view-specific data
+ */
+export interface KanbanViewData {
+  column?: string                // 'backlog' | 'todo' | 'in-progress' | 'done' | custom
+  order?: number                 // Order within column
+}
+
+/**
+ * All view-specific data for a node
+ * Extensible - add new views as needed
+ */
+export interface NodeViewData {
+  mindmap?: MindmapViewData
+  conceptMap?: ConceptMapViewData
+  timeline?: TimelineViewData
+  kanban?: KanbanViewData
+  // Future views:
+  // treemap?: TreemapViewData
+  // sunburst?: SunburstViewData
+  // circlePack?: CirclePackViewData
+}
+
+// ============================================================
+// CORE NODE DATA
+// ============================================================
+
+/**
+ * Core node data (shared across all views)
+ */
 export interface NodeData {
   // Hierarchy
   parentId: string | null
-  order: number
+  order: number                  // Order among siblings
 
   // Content
   title: string
-  content: string // Rich text HTML content (from Tiptap)
+  content: string                // Rich text HTML content (from Tiptap)
 
-  // Metadata
-  created?: string // ISO 8601 timestamp
-  modified?: string // ISO 8601 timestamp
+  // Timestamps
+  created?: string               // ISO 8601 timestamp
+  modified?: string              // ISO 8601 timestamp
 
   // AI metadata
   aiGenerated?: boolean
   aiPrompt?: string
   aiSuggestions?: string[]
 
-  // Layout
-  collapsed?: boolean
-  collapsedLeft?: boolean
-  collapsedRight?: boolean
-  isDirty?: boolean
-  lastCalculatedZoom?: number
-
-  // Visual
+  // Visual (shared across views)
   color?: string
   icon?: string
 }
 
+/**
+ * Complete node structure
+ * Compatible with VueFlow
+ */
+export interface MindscribbleNode {
+  id: string
+  type: string                   // 'custom' | 'lod-badge' | future types
+
+  // Active position (synced with current view)
+  position: Position
+
+  // Core data
+  data: NodeData
+
+  // View-specific data
+  views: NodeViewData
+}
+
+/**
+ * @deprecated Use MindscribbleNode instead
+ * Kept for backward compatibility during migration
+ */
 export interface MindmapNode {
   id: string
   type: 'custom' | 'lod-badge'

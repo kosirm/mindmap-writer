@@ -3,9 +3,12 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { Dark, LocalStorage } from 'quasar'
 
 export type ActiveContext = 'canvas' | 'writer' | 'outline' | 'none'
+
+const DARK_MODE_KEY = 'mindscribble-dark-mode'
 
 export const useAppStore = defineStore('app', () => {
   // UI State
@@ -20,8 +23,20 @@ export const useAppStore = defineStore('app', () => {
   // Online/offline status
   const isOnline = ref(navigator.onLine)
 
-  // Theme
-  const isDarkMode = ref(false)
+  // Theme - initialize from localStorage or system preference
+  const savedDarkMode = LocalStorage.getItem(DARK_MODE_KEY)
+  const initialDarkMode = savedDarkMode !== null
+    ? savedDarkMode === true
+    : window.matchMedia('(prefers-color-scheme: dark)').matches
+  const isDarkMode = ref(initialDarkMode)
+
+  // Sync with Quasar Dark mode
+  Dark.set(isDarkMode.value)
+
+  watch(isDarkMode, (newValue) => {
+    Dark.set(newValue)
+    LocalStorage.set(DARK_MODE_KEY, newValue)
+  })
 
   // Actions
   function toggleLeftDrawer() {
