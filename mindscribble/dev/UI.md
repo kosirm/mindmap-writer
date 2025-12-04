@@ -32,7 +32,7 @@ Selection/movement(in structure) events are propagated to all active views via t
 If it is possible to style on node/connection basis - then we need a powerful menu for styling nodes and edges.
 
 --- LOCALSTORAGE ---
-We should save into localstorage these things:
+We should save into localstorage these things: TODO
 
 --- SEARCH AND SHORTCUT SYSTEM LIKE VSCODE ---
 CTRL+P - SEARCH NODES - nodes in currently opened file and also in google disc (different color)
