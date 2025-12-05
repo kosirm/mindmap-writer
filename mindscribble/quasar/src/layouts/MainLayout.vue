@@ -51,7 +51,7 @@
       </q-toolbar>
     </q-header>
 
-    <!-- Left Drawer - Tools & Icons -->
+    <!-- Left Drawer - Tools & Dev -->
     <q-drawer
       v-model="appStore.leftDrawerOpen"
       side="left"
@@ -59,38 +59,64 @@
       :width="280"
       :breakpoint="700"
     >
-      <q-scroll-area class="fit">
-        <div class="q-pa-md">
-          <div class="text-h6 q-mb-md">Tools</div>
-          <q-list>
-            <q-item-label header>Node Actions</q-item-label>
-            <q-item clickable v-ripple>
-              <q-item-section avatar>
-                <q-icon name="event" />
-              </q-item-section>
-              <q-item-section>Date</q-item-section>
-            </q-item>
-            <q-item clickable v-ripple>
-              <q-item-section avatar>
-                <q-icon name="priority_high" />
-              </q-item-section>
-              <q-item-section>Priority</q-item-section>
-            </q-item>
-            <q-item clickable v-ripple>
-              <q-item-section avatar>
-                <q-icon name="label" />
-              </q-item-section>
-              <q-item-section>Tags</q-item-section>
-            </q-item>
-            <q-item clickable v-ripple>
-              <q-item-section avatar>
-                <q-icon name="palette" />
-              </q-item-section>
-              <q-item-section>Color</q-item-section>
-            </q-item>
-          </q-list>
-        </div>
-      </q-scroll-area>
+      <div class="drawer-content">
+        <!-- Tabs Header -->
+        <q-tabs
+          v-model="leftDrawerTab"
+          dense
+          class="text-grey"
+          active-color="primary"
+          indicator-color="primary"
+          align="justify"
+        >
+          <q-tab name="tools" icon="build" label="Tools" />
+          <q-tab v-if="isDev" name="dev" icon="code" label="Dev" />
+        </q-tabs>
+
+        <q-separator />
+
+        <!-- Tab Panels -->
+        <q-scroll-area class="drawer-scroll-area">
+          <q-tab-panels v-model="leftDrawerTab" animated>
+            <!-- Tools Tab -->
+            <q-tab-panel name="tools" class="q-pa-md">
+              <div class="text-h6 q-mb-md">Tools</div>
+              <q-list>
+                <q-item-label header>Node Actions</q-item-label>
+                <q-item clickable v-ripple>
+                  <q-item-section avatar>
+                    <q-icon name="event" />
+                  </q-item-section>
+                  <q-item-section>Date</q-item-section>
+                </q-item>
+                <q-item clickable v-ripple>
+                  <q-item-section avatar>
+                    <q-icon name="priority_high" />
+                  </q-item-section>
+                  <q-item-section>Priority</q-item-section>
+                </q-item>
+                <q-item clickable v-ripple>
+                  <q-item-section avatar>
+                    <q-icon name="label" />
+                  </q-item-section>
+                  <q-item-section>Tags</q-item-section>
+                </q-item>
+                <q-item clickable v-ripple>
+                  <q-item-section avatar>
+                    <q-icon name="palette" />
+                  </q-item-section>
+                  <q-item-section>Color</q-item-section>
+                </q-item>
+              </q-list>
+            </q-tab-panel>
+
+            <!-- Dev Tab (only in development) -->
+            <q-tab-panel v-if="isDev" name="dev" class="q-pa-none">
+              <DevPanel />
+            </q-tab-panel>
+          </q-tab-panels>
+        </q-scroll-area>
+      </div>
     </q-drawer>
 
     <!-- Right Drawer - AI Chat -->
@@ -124,16 +150,25 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted, defineAsyncComponent } from 'vue'
 import { useAppStore } from 'src/core/stores/appStore'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { usePanelStore } from 'src/core/stores/panelStore'
 import PanelManager from 'src/shared/components/PanelManager.vue'
 import ThreePanelContainer from 'src/shared/components/ThreePanelContainer.vue'
 
+// Dev tools - only imported in development mode (lazy loaded)
+const DevPanel = import.meta.env.DEV
+  ? defineAsyncComponent(() => import('src/dev/DevPanel.vue'))
+  : null
+
 const appStore = useAppStore()
 const documentStore = useDocumentStore()
 const panelStore = usePanelStore()
+
+// Left drawer tab state
+const leftDrawerTab = ref('tools')
+const isDev = import.meta.env.DEV
 
 onMounted(() => {
   // Initialize online status listeners
@@ -153,5 +188,16 @@ onMounted(() => {
 .three-panel-layout {
   height: calc(100vh - 50px); // Full viewport height minus header
   overflow: hidden;
+}
+
+.drawer-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.drawer-scroll-area {
+  flex: 1;
+  height: calc(100% - 48px); // Full height minus tabs header
 }
 </style>
