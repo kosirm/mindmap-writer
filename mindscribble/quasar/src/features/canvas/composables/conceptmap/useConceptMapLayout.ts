@@ -24,8 +24,9 @@ export function useConceptMapLayout(
 
   const CONTAINER_PADDING = 20 // Padding inside container nodes
   const NODE_SPACING = 10 // Spacing between sibling nodes
-  const MIN_NODE_WIDTH = 100
-  const MIN_NODE_HEIGHT = 40
+  // Consistent with ConceptMapView.vue
+  const MIN_NODE_WIDTH = 72
+  const MIN_NODE_HEIGHT = 20
 
   // ============================================================
   // HELPER FUNCTIONS
@@ -167,8 +168,26 @@ export function useConceptMapLayout(
   }
 
   /**
+   * Calculate optimal grid dimensions for N children
+   * Tries to create a roughly square layout
+   */
+  function calculateGridDimensions(childCount: number): { cols: number; rows: number } {
+    if (childCount <= 0) return { cols: 0, rows: 0 }
+    if (childCount === 1) return { cols: 1, rows: 1 }
+    if (childCount === 2) return { cols: 2, rows: 1 }
+    if (childCount <= 4) return { cols: 2, rows: Math.ceil(childCount / 2) }
+    if (childCount <= 6) return { cols: 3, rows: Math.ceil(childCount / 3) }
+    if (childCount <= 9) return { cols: 3, rows: Math.ceil(childCount / 3) }
+
+    // For larger counts, aim for roughly square
+    const cols = Math.ceil(Math.sqrt(childCount))
+    const rows = Math.ceil(childCount / cols)
+    return { cols, rows }
+  }
+
+  /**
    * Calculate a node's size based on its children (bottom-up)
-   * Leaf nodes get minimum size, parent nodes get size to fit children
+   * Leaf nodes get minimum size, parent nodes get size to fit children in GRID layout
    */
   function calculateNodeSizeBottomUp(node: NodeData): void {
     const children = getDirectChildren(node.id)
@@ -179,53 +198,69 @@ export function useConceptMapLayout(
       return
     }
 
-    // Parent node - calculate size needed to fit all children in a vertical stack
-    // Children will be arranged vertically with spacing
-    let totalHeight = CONTAINER_PADDING + 30 // Start after header
-    let maxChildWidth = 0
+    // Parent node - calculate size for GRID layout
+    const { cols, rows } = calculateGridDimensions(children.length)
+
+    // Find max width and height among children for uniform grid cells
+    let maxChildWidth = MIN_NODE_WIDTH
+    let maxChildHeight = MIN_NODE_HEIGHT
 
     for (const child of children) {
       const childSize = child.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
       maxChildWidth = Math.max(maxChildWidth, childSize.width)
-      totalHeight += childSize.height + NODE_SPACING
+      maxChildHeight = Math.max(maxChildHeight, childSize.height)
     }
 
-    // Remove extra spacing after last child, add bottom padding
-    totalHeight = totalHeight - NODE_SPACING + CONTAINER_PADDING
+    // Calculate container size
+    const HEADER_HEIGHT = 30
+    const contentWidth = cols * maxChildWidth + (cols - 1) * NODE_SPACING + CONTAINER_PADDING * 2
+    const contentHeight = HEADER_HEIGHT + rows * maxChildHeight + (rows - 1) * NODE_SPACING + CONTAINER_PADDING * 2
 
     node.conceptMapSize = {
-      width: maxChildWidth + CONTAINER_PADDING * 2,
-      height: totalHeight
+      width: contentWidth,
+      height: contentHeight
     }
   }
 
   /**
    * Position children inside a parent container (top-down recursive)
-   * Children are arranged vertically, each position relative to parent
+   * Children are arranged in a GRID layout, each position relative to parent
    */
   function positionChildrenTopDown(parentId: string): void {
     const children = getDirectChildren(parentId)
     if (children.length === 0) return
 
-    // Position children vertically inside the container
-    let currentY = CONTAINER_PADDING + 30 // Start below header
+    const { cols } = calculateGridDimensions(children.length)
+
+    // Find max dimensions for uniform grid cells
+    let maxChildWidth = MIN_NODE_WIDTH
+    let maxChildHeight = MIN_NODE_HEIGHT
 
     for (const child of children) {
       const childSize = child.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+      maxChildWidth = Math.max(maxChildWidth, childSize.width)
+      maxChildHeight = Math.max(maxChildHeight, childSize.height)
+    }
+
+    // Position children in grid
+    const HEADER_HEIGHT = 30
+    const startY = CONTAINER_PADDING + HEADER_HEIGHT
+
+    children.forEach((child, i) => {
+      const row = Math.floor(i / cols)
+      const col = i % cols
 
       // Position is RELATIVE to parent (VueFlow nested nodes)
       child.conceptMapPosition = {
-        x: CONTAINER_PADDING,
-        y: currentY
+        x: CONTAINER_PADDING + col * (maxChildWidth + NODE_SPACING),
+        y: startY + row * (maxChildHeight + NODE_SPACING)
       }
 
-      console.log(`  Child "${child.label}": relPos=(${CONTAINER_PADDING}, ${currentY}), size=${childSize.width}x${childSize.height}`)
-
-      currentY += childSize.height + NODE_SPACING
+      console.log(`  Child "${child.label}": grid[${row},${col}], relPos=(${child.conceptMapPosition.x}, ${child.conceptMapPosition.y})`)
 
       // Recursively position grandchildren
       positionChildrenTopDown(child.id)
-    }
+    })
   }
 
   /**
@@ -277,6 +312,7 @@ export function useConceptMapLayout(
     getRootNodes,
     calculateContainerSize,
     getBottomUpOrder,
+    calculateGridDimensions,
 
     // Internal (exposed for direct access if needed)
     calculateConceptMapPositions,

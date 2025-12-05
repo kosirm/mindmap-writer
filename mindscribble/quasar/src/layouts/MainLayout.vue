@@ -56,6 +56,7 @@
       v-model="appStore.leftDrawerOpen"
       side="left"
       bordered
+      overlay
       :width="280"
       :breakpoint="700"
     >
@@ -124,6 +125,7 @@
       v-model="appStore.rightDrawerOpen"
       side="right"
       bordered
+      overlay
       :width="350"
       :breakpoint="700"
     >

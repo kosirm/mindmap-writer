@@ -14,7 +14,9 @@ export function useNodeDrag(
   syncToVueFlow: () => void,
   syncFromVueFlow: () => void,
   resolveAllOverlaps: (nodes: NodeData[]) => void,
-  resolveOverlapsForAffectedRootsLOD: (affectedNodeIds: string[], visibleNodes: NodeData[], allNodes: NodeData[]) => void
+  resolveOverlapsForAffectedRootsLOD: (affectedNodeIds: string[], visibleNodes: NodeData[], allNodes: NodeData[]) => void,
+  // VueFlow function to force re-render of nodes (fixes visible-only rendering issue)
+  updateNodeInternals: (nodeIds?: string[]) => void
 ) {
 
   // ============================================================
@@ -423,8 +425,23 @@ function onNodeDragStop(event: NodeDragEvent) {
       }
     }
 
+    // Update edges to connect to closest handles based on final positions
+    // This handles the case where node was dragged around its parent
+    const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
+    if (draggedNode) {
+      updateEdgesForBranch(draggedNode)
+    }
+
     // Update VueFlow with resolved positions
     syncToVueFlow()
+
+    // Force VueFlow to re-render all affected nodes (fixes visible-only rendering issue)
+    // When nodes are dragged off-screen and back, descendants may not render correctly
+    const allAffectedIds = [...draggedNodeIds]
+    draggedNodeIds.forEach(id => {
+      getAllDescendants(id, nodes.value).forEach(d => allAffectedIds.push(d.id))
+    })
+    updateNodeInternals(allAffectedIds)
 
     const endTime = performance.now()
     console.log(`  ✓ Drag complete in ${(endTime - startTime).toFixed(2)}ms`)

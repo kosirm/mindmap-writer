@@ -83,11 +83,11 @@ const showZoomIndicator = ref(true)
 const contextMenu = ref<ContextMenuState>({ visible: false, x: 0, y: 0, nodeId: null })
 const isUpdatingSelectionFromStore = ref(false)
 
-// Layout constants
+// Layout constants - consistent across ConceptMapView and useConceptMapLayout
 const PADDING = 20
 const HEADER_HEIGHT = 30
-const MIN_NODE_WIDTH = 150
-const MIN_NODE_HEIGHT = 60
+const MIN_NODE_WIDTH = 72
+const MIN_NODE_HEIGHT = 20
 
 // ============================================================
 // HELPER FUNCTIONS
