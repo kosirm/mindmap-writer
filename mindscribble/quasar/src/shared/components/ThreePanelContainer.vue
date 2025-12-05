@@ -15,9 +15,9 @@
       <div class="panel-content">
         <component :is="getViewComponent('left')" />
       </div>
-      <!-- Resize handle (only show when center is visible) -->
+      <!-- Resize handle: show when center is visible OR when only left+right are visible -->
       <div
-        v-if="!panelStore.centerPanel.isCollapsed"
+        v-if="!panelStore.centerPanel.isCollapsed || showTwoPanelResizer"
         class="resize-handle resize-handle-right"
         @mousedown="startResize('left', $event)"
       />
@@ -43,7 +43,7 @@
       class="panel right-panel"
       :style="getRightPanelStyle()"
     >
-      <!-- Resize handle (only show when center is visible) -->
+      <!-- Resize handle (only show when center is visible, NOT for two-panel mode) -->
       <div
         v-if="!panelStore.centerPanel.isCollapsed"
         class="resize-handle resize-handle-left"
@@ -63,11 +63,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineAsyncComponent, type Component } from 'vue'
+import { ref, computed, defineAsyncComponent, type Component } from 'vue'
 import { usePanelStore } from 'src/core/stores/panelStore'
 import { VIEW_CONFIGS, type PanelPosition, type ViewType } from 'src/core/types'
 
 const panelStore = usePanelStore()
+
+// Check if we're in two-panel mode (center collapsed, left and right visible)
+const showTwoPanelResizer = computed(() => {
+  return panelStore.centerPanel.isCollapsed &&
+    !panelStore.leftPanel.isCollapsed &&
+    !panelStore.rightPanel.isCollapsed
+})
 
 // Lazy-loaded view components
 const viewComponents: Record<ViewType, Component> = {
@@ -107,11 +114,11 @@ function getLeftPanelStyle(): Record<string, string> {
   if (!leftCollapsed && centerCollapsed && rightCollapsed) {
     return { flex: '1' }
   }
-  // If center is collapsed but right is visible, left takes remaining space
+  // Two-panel mode (center collapsed, left+right visible): left has fixed width, right flexes
   if (!leftCollapsed && centerCollapsed && !rightCollapsed) {
-    return { flex: '1' }
+    return { width: panelStore.leftPanel.width + 'px' }
   }
-  // Normal case: fixed width
+  // Normal three-panel case: fixed width
   return { width: panelStore.leftPanel.width + 'px' }
 }
 
@@ -124,11 +131,11 @@ function getRightPanelStyle(): Record<string, string> {
   if (leftCollapsed && centerCollapsed && !rightCollapsed) {
     return { flex: '1' }
   }
-  // If center is collapsed but left is visible, right takes remaining space
+  // Two-panel mode (center collapsed, left+right visible): right takes remaining space
   if (!leftCollapsed && centerCollapsed && !rightCollapsed) {
     return { flex: '1' }
   }
-  // Normal case: fixed width
+  // Normal three-panel case: fixed width
   return { width: panelStore.rightPanel.width + 'px' }
 }
 

@@ -5,6 +5,27 @@
       MindMap
     </div>
 
+    <!-- Orientation -->
+    <div class="text-caption q-mb-xs">Orientation</div>
+    <q-btn-group spread class="q-mb-sm">
+      <q-btn
+        v-for="mode in orientationStore.orientations"
+        :key="mode"
+        :icon="orientationStore.orientationIcons[mode]"
+        :color="orientationStore.orientation === mode ? 'primary' : undefined"
+        :outline="orientationStore.orientation !== mode"
+        size="sm"
+        @click="orientationStore.setOrientation(mode)"
+      >
+        <q-tooltip>{{ orientationStore.orientationLabels[mode] }}</q-tooltip>
+      </q-btn>
+    </q-btn-group>
+    <div class="text-caption text-grey q-mb-sm">
+      Current: {{ orientationStore.currentLabel }}
+    </div>
+
+    <q-separator class="q-my-sm" />
+
     <!-- Basic Actions -->
     <q-btn
       outline
@@ -56,8 +77,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useOrientationStore } from 'src/core/stores/orientationStore'
 
 const documentStore = useDocumentStore()
+const orientationStore = useOrientationStore()
 
 const stats = computed(() => ({
   totalNodes: documentStore.nodes.length,

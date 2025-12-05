@@ -7,6 +7,7 @@ export function useEdgeManagement(
   nodes: Ref<NodeData[]>,
   edges: Ref<Edge[]>,
   vueFlowNodes: Ref<Node[]>,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getRootNode: (nodeId: string) => NodeData | null,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isNodeOnLeftOfRoot: (node: NodeData) => boolean
@@ -49,106 +50,137 @@ const edgeTypeOptions = [
   // FUNCTIONS
   // ============================================================
 
-  // Update edge handles between parent and child based on side
-function updateEdgeHandles(parentId: string, childId: string, isLeftSide: boolean) {
-  const edgeId = `e-${parentId}-${childId}`
-  const edgeIndex = edges.value.findIndex(e => e.id === edgeId)
+  /**
+   * Calculate the closest connection handles based on relative position
+   * between parent and child nodes.
+   *
+   * Uses all 4 connection points (top, right, bottom, left) and connects
+   * to whichever is closest based on the child's position relative to parent.
+   *
+   * @returns { sourceHandle, targetHandle } - The handles to use for the edge
+   */
+  function getClosestHandles(parent: NodeData, child: NodeData): { sourceHandle: string, targetHandle: string } {
+    const parentCenterX = parent.x + parent.width / 2
+    const parentCenterY = parent.y + parent.height / 2
+    const childCenterX = child.x + child.width / 2
+    const childCenterY = child.y + child.height / 2
 
-  if (edgeIndex !== -1) {
-    const sourceHandle = isLeftSide ? 'left' : 'right'
-    const targetHandle = isLeftSide ? 'right' : 'left'
+    const dx = childCenterX - parentCenterX
+    const dy = childCenterY - parentCenterY
 
-    // Create new edge object to trigger reactivity
-    edges.value = edges.value.map(e =>
-      e.id === edgeId
-        ? { ...e, sourceHandle, targetHandle }
-        : e
-    )
-  }
-}
-
-
-
-// Update edge handles for a node and all its descendants
-function updateEdgesForBranch(node: NodeData) {
-  const root = getRootNode(node.id)
-  if (!root) return
-
-  const isLeftSide = node.x < root.x
-
-  // Update edge for this node
-  updateEdgeHandles(node.parentId!, node.id, isLeftSide)
-
-  // Update edges for all descendants
-  const descendants = getAllDescendants(node.id, nodes.value)
-  descendants.forEach(descendant => {
-    if (descendant.parentId) {
-      updateEdgeHandles(descendant.parentId, descendant.id, isLeftSide)
+    // Determine primary direction based on which delta is larger
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Horizontal connection is primary
+      if (dx > 0) {
+        // Child is to the right of parent
+        return { sourceHandle: 'right', targetHandle: 'left' }
+      } else {
+        // Child is to the left of parent
+        return { sourceHandle: 'left', targetHandle: 'right' }
+      }
+    } else {
+      // Vertical connection is primary
+      if (dy > 0) {
+        // Child is below parent
+        return { sourceHandle: 'bottom', targetHandle: 'top' }
+      } else {
+        // Child is above parent
+        return { sourceHandle: 'top', targetHandle: 'bottom' }
+      }
     }
-  })
-
-  // Trigger reactivity for edges
-  triggerRef(edges)
-}
-
-// Update all edge handles based on current node positions
-// This is useful after mindmap layout initialization when nodes from concept map
-// get proper mindmap positions and need their edge handles updated
-function updateAllEdgeHandles() {
-  console.log('Updating all edge handles for mindmap layout')
-
-  for (const node of nodes.value) {
-    if (!node.parentId) continue // Skip root nodes
-
-    const root = getRootNode(node.id)
-    if (!root) continue
-
-    const isLeftSide = node.x < root.x
-    updateEdgeHandles(node.parentId, node.id, isLeftSide)
   }
 
-  // Trigger reactivity for edges
-  triggerRef(edges)
-}
+  /**
+   * Update edge handles between parent and child based on closest connection point
+   */
+  function updateEdgeHandlesForNode(parentId: string, childId: string) {
+    const parent = nodes.value.find(n => n.id === parentId)
+    const child = nodes.value.find(n => n.id === childId)
 
+    if (!parent || !child) return
 
+    const { sourceHandle, targetHandle } = getClosestHandles(parent, child)
 
-function createEdge(sourceId: string, targetId: string) {
-  // Find source and target nodes to determine which handles to use
-  const sourceNode = nodes.value.find(n => n.id === sourceId)
-  const targetNode = nodes.value.find(n => n.id === targetId)
+    const edgeId = `e-${parentId}-${childId}`
+    const edgeIndex = edges.value.findIndex(e => e.id === edgeId)
 
-  if (!sourceNode || !targetNode) return
-
-  // Determine handles based on child position relative to parent
-  // If child is LEFT of parent: parent uses LEFT handle, child uses RIGHT handle
-  // If child is RIGHT of parent: parent uses RIGHT handle, child uses LEFT handle
-
-  let sourceHandle: string
-  let targetHandle: string
-
-  if (targetNode.x < sourceNode.x) {
-    // Child is on LEFT side of parent
-    sourceHandle = 'left'
-    targetHandle = 'right'
-  } else {
-    // Child is on RIGHT side of parent
-    sourceHandle = 'right'
-    targetHandle = 'left'
+    if (edgeIndex !== -1) {
+      // Create new edge object to trigger reactivity
+      edges.value = edges.value.map(e =>
+        e.id === edgeId
+          ? { ...e, sourceHandle, targetHandle }
+          : e
+      )
+    }
   }
 
-  edges.value.push({
-    id: `e-${sourceId}-${targetId}`,
-    source: sourceId,
-    sourceHandle: sourceHandle,
-    target: targetId,
-    targetHandle: targetHandle,
-    type: 'straight'
-  })
+  // Legacy function signature for compatibility - now ignores isLeftOfRoot parameter
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function updateEdgeHandles(parentId: string, childId: string, _isLeftOfRoot: boolean) {
+    updateEdgeHandlesForNode(parentId, childId)
+  }
 
-  // Trigger reactivity for edges
-  triggerRef(edges)
-}
+  /**
+   * Update edge handles for a node and all its descendants
+   * Uses closest handle approach based on parent-child relative position
+   */
+  function updateEdgesForBranch(node: NodeData) {
+    // Update edge for this node
+    if (node.parentId) {
+      updateEdgeHandlesForNode(node.parentId, node.id)
+    }
+
+    // Update edges for all descendants
+    const descendants = getAllDescendants(node.id, nodes.value)
+    descendants.forEach(descendant => {
+      if (descendant.parentId) {
+        updateEdgeHandlesForNode(descendant.parentId, descendant.id)
+      }
+    })
+
+    // Trigger reactivity for edges
+    triggerRef(edges)
+  }
+
+  /**
+   * Update all edge handles based on current node positions
+   * Uses closest handle approach - connects to nearest of 4 connection points
+   */
+  function updateAllEdgeHandles() {
+    console.log('Updating all edge handles (closest handle approach)')
+
+    for (const node of nodes.value) {
+      if (!node.parentId) continue // Skip root nodes
+      updateEdgeHandlesForNode(node.parentId, node.id)
+    }
+
+    // Trigger reactivity for edges
+    triggerRef(edges)
+  }
+
+  /**
+   * Create edge between parent and child with handles based on closest connection point
+   */
+  function createEdge(sourceId: string, targetId: string) {
+    const parent = nodes.value.find(n => n.id === sourceId)
+    const child = nodes.value.find(n => n.id === targetId)
+
+    if (!parent || !child) return
+
+    const { sourceHandle, targetHandle } = getClosestHandles(parent, child)
+
+    edges.value.push({
+      id: `e-${sourceId}-${targetId}`,
+      source: sourceId,
+      sourceHandle,
+      target: targetId,
+      targetHandle,
+      type: 'straight'
+    })
+
+    // Trigger reactivity for edges
+    triggerRef(edges)
+  }
 
 
 

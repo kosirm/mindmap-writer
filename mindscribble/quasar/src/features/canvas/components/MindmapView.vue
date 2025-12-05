@@ -106,10 +106,12 @@ import { useMindmapLayout } from '../composables/mindmap/useMindmapLayout'
 
 // Store & Events for selection sync
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useOrientationStore } from 'src/core/stores/orientationStore'
 import { useViewEvents } from 'src/core/events'
+import { calculateOrientationTransition, getTransitionOperations, type OrientationMode } from '../composables/mindmap/useOrientationSort'
 
 // VueFlow instance
-const { viewport, fitView, setViewport, findNode } = useVueFlow()
+const { viewport, fitView, setViewport, findNode, updateNodeInternals } = useVueFlow()
 
 // Core state
 const nodes = ref<NodeData[]>([])
@@ -157,7 +159,8 @@ const { closeContextMenu, toggleCollapse, toggleCollapseLeft, toggleCollapseRigh
 
 const { potentialParent, onPaneMouseMove, onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDrag(
   nodes, viewport, getRootNode, getAllDescendants, getVisibleNodesForLOD, updateEdgesForBranch,
-  reparentNode, syncToVueFlow, syncFromVueFlow, resolveAllOverlaps, resolveOverlapsForAffectedRootsLOD
+  reparentNode, syncToVueFlow, syncFromVueFlow, resolveAllOverlaps, resolveOverlapsForAffectedRootsLOD,
+  updateNodeInternals
 )
 
 watch(potentialParent, (newVal) => { potentialParentRef.value = newVal })
@@ -171,10 +174,117 @@ const { initializeLayout: initializeMindmapLayout } = useMindmapLayout(nodes, ge
 
 // Store & Events for selection
 const documentStore = useDocumentStore()
+const orientationStore = useOrientationStore()
 const { onStoreEvent, source } = useViewEvents('mindmap')
 
 // Flag to prevent circular selection updates
 const isUpdatingSelectionFromStore = ref(false)
+// Flag to prevent circular store sync
+const isSyncingFromStore = ref(false)
+
+// ============================================================
+// STORE SYNC
+// ============================================================
+
+/**
+ * Sync nodes FROM documentStore TO local state
+ * Maps MindscribbleNode → local NodeData format
+ */
+function syncFromStore() {
+  isSyncingFromStore.value = true
+
+  const storeNodes = documentStore.nodes
+  const localNodes: NodeData[] = storeNodes.map(sn => ({
+    id: sn.id,
+    label: sn.data.content || sn.data.title,
+    parentId: sn.data.parentId,
+
+    // Active position - use mindmap position if available, else store position
+    x: sn.views.mindmap?.position?.x ?? sn.position.x,
+    y: sn.views.mindmap?.position?.y ?? sn.position.y,
+
+    // Dimensions
+    width: 150, // Default, will be updated from DOM
+    height: 50,
+
+    // Mindmap view-specific position (null means needs layout)
+    mindmapPosition: sn.views.mindmap?.position ?? null,
+
+    // Collapse state from view data
+    collapsed: sn.views.mindmap?.collapsed ?? false,
+    collapsedLeft: sn.views.mindmap?.collapsedLeft ?? false,
+    collapsedRight: sn.views.mindmap?.collapsedRight ?? false,
+
+    // Layout flags
+    isDirty: sn.views.mindmap?.isDirty ?? true,
+    lastCalculatedZoom: sn.views.mindmap?.lastCalculatedZoom ?? viewport.value.zoom
+  }))
+
+  // Update local nodes
+  nodes.value = localNodes
+
+  // Rebuild edges from parent-child relationships
+  rebuildEdgesFromHierarchy()
+
+  // Sync to VueFlow
+  syncToVueFlow()
+
+  isSyncingFromStore.value = false
+}
+
+/**
+ * Sync nodes FROM local state TO documentStore
+ * Updates mindmap view-specific data
+ */
+function syncToStore() {
+  for (const node of nodes.value) {
+    const storeNode = documentStore.nodes.find(n => n.id === node.id)
+    if (storeNode) {
+      // Update mindmap view data (use defaults for optional properties to satisfy exactOptionalPropertyTypes)
+      storeNode.views.mindmap = {
+        position: node.mindmapPosition ?? (node.x !== 0 || node.y !== 0 ? { x: node.x, y: node.y } : null),
+        collapsed: node.collapsed ?? false,
+        collapsedLeft: node.collapsedLeft ?? false,
+        collapsedRight: node.collapsedRight ?? false,
+        isDirty: node.isDirty ?? false,
+        lastCalculatedZoom: node.lastCalculatedZoom ?? viewport.value.zoom
+      }
+
+      // Also update the active position
+      storeNode.position = { x: node.x, y: node.y }
+    }
+  }
+}
+
+/**
+ * Rebuild edges based on parent-child hierarchy
+ */
+function rebuildEdgesFromHierarchy() {
+  const newEdges: Edge[] = []
+
+  for (const node of nodes.value) {
+    if (node.parentId) {
+      const parent = nodes.value.find(n => n.id === node.parentId)
+      if (parent) {
+        // Determine edge handles based on node position relative to parent
+        const isLeft = node.x < parent.x
+        const sourceHandle = isLeft ? 'left' : 'right'
+        const targetHandle = isLeft ? 'right' : 'left'
+
+        newEdges.push({
+          id: `e-${parent.id}-${node.id}`,
+          source: parent.id,
+          sourceHandle,
+          target: node.id,
+          targetHandle,
+          type: 'straight'
+        })
+      }
+    }
+  }
+
+  edges.value = newEdges
+}
 
 // Computed
 const viewportTransform = computed(() => `translate(${viewport.value.x}px, ${viewport.value.y}px) scale(${viewport.value.zoom})`)
@@ -257,25 +367,229 @@ defineExpose({
   fitView: () => fitView({ padding: 0.2, duration: 300 }),
   setSpacing: (h: number, v: number) => { horizontalSpacing.value = h; verticalSpacing.value = v; setLayoutSpacing(h, v); resolveAllOverlaps(nodes.value); syncToVueFlow() },
   initializeMindmapLayout,
-  updateAllEdgeHandles
+  updateAllEdgeHandles,
+  syncFromStore,
+  syncToStore
 })
+
+// ============================================================
+// LIFECYCLE & WATCHERS
+// ============================================================
 
 onMounted(async () => {
   setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
-  // Initialize with a root node
-  console.log('MindmapView mounted, creating initial root node...')
-  await addRootNode()
-  console.log('Initial root node created, nodes:', nodes.value.length, 'vueFlowNodes:', vueFlowNodes.value.length)
-  // Center view on the node after it's rendered - wait for VueFlow to be ready
+  console.log('MindmapView mounted')
+
+  // Sync from store to get existing nodes
+  syncFromStore()
+  console.log('After syncFromStore, nodes:', nodes.value.length)
+
+  // If store is empty, create initial root node
+  if (nodes.value.length === 0) {
+    console.log('No nodes in store, creating initial root node...')
+    await addRootNode()
+    // Save the new node back to store
+    syncToStore()
+    console.log('Initial root node created, nodes:', nodes.value.length)
+  } else {
+    // Check if layout needs initialization (nodes without mindmapPosition)
+    const needsLayout = nodes.value.some(n => n.mindmapPosition === null)
+    if (needsLayout) {
+      console.log('Some nodes need mindmap layout, initializing...')
+      initializeMindmapLayout()
+      syncToStore()
+    }
+  }
+
+  // Sync to VueFlow and measure dimensions
+  syncToVueFlow()
   await nextTick()
-  // Get the VueFlow container dimensions
+  await updateNodeDimensionsFromDOM()
+
+  // Resolve any overlaps after layout initialization
+  // This ensures nodes from other views don't overlap
+  resolveAllOverlaps(nodes.value)
+  syncToVueFlow()
+
+  // Update edge handles based on node positions (important after view switch)
+  updateAllEdgeHandles()
+
+  // Center view on the node after it's rendered
+  await nextTick()
   const vueFlowContainer = document.querySelector('.vue-flow')
   if (vueFlowContainer) {
     const rect = vueFlowContainer.getBoundingClientRect()
-    // Set viewport so canvas origin (0,0) is at center of container, at 100% zoom
     void setViewport({ x: rect.width / 2, y: rect.height / 2, zoom: 1 }, { duration: 0 })
   }
 })
+
+// Listen for node creation events from OTHER views (not mindmap)
+// The onStoreEvent automatically ignores events where source === 'mindmap'
+onStoreEvent('store:node-created', ({ nodeId }) => {
+  console.log(`Node created from another view: ${nodeId}, syncing to mindmap...`)
+
+  // Re-sync from store to get the new node
+  syncFromStore()
+
+  // The new node needs layout since it doesn't have mindmapPosition
+  const newNode = nodes.value.find(n => n.id === nodeId)
+  if (newNode && newNode.mindmapPosition === null) {
+    initializeMindmapLayout()
+    syncToStore()
+
+    // After layout, resolve overlaps and update edges
+    syncToVueFlow()
+    setTimeout(() => {
+      void (async () => {
+        await updateNodeDimensionsFromDOM()
+        resolveAllOverlaps(nodes.value)
+        updateAllEdgeHandles()
+        syncToVueFlow()
+      })()
+    }, 50)
+  }
+})
+
+// Listen for node updates from other views
+onStoreEvent('store:node-updated', ({ nodeId }) => {
+  console.log(`Node updated from another view: ${nodeId}, syncing to mindmap...`)
+  syncFromStore()
+  syncToVueFlow()
+})
+
+// Listen for node reparenting from other views
+onStoreEvent('store:node-reparented', ({ nodeId }) => {
+  console.log(`Node reparented from another view: ${nodeId}, syncing to mindmap...`)
+  syncFromStore()
+
+  // Rebuild edges after reparenting
+  rebuildEdgesFromHierarchy()
+  syncToVueFlow()
+})
+
+// Listen for node deletion from other views
+onStoreEvent('store:node-deleted', () => {
+  console.log('Node deleted from another view, syncing to mindmap...')
+  syncFromStore()
+  rebuildEdgesFromHierarchy()
+  syncToVueFlow()
+})
+
+// ============================================================
+// ORIENTATION TRANSITIONS
+// ============================================================
+
+/**
+ * Apply position swaps when orientation changes
+ * Groups children by parent and applies transition to each group
+ */
+function applyOrientationTransition(fromOrientation: OrientationMode, toOrientation: OrientationMode) {
+  console.log(`Orientation transition: ${fromOrientation} → ${toOrientation}`)
+
+  // Canvas center (root reference point)
+  const canvasCenter = { x: 0, y: 0 }
+
+  // Collect all updates
+  const allUpdates: Array<{ nodeId: string; newX: number; newY: number }> = []
+
+  // Determine what operations we need
+  const ops = getTransitionOperations(fromOrientation, toOrientation)
+  console.log(`Operations needed: ${ops.join(', ') || 'none'}`)
+
+  // STEP 1: If swap-sides is needed, mirror ALL nodes across root X
+  if (ops.includes('swap-sides')) {
+    console.log('Mirroring all nodes across root X axis')
+    for (const node of nodes.value) {
+      // Calculate node center
+      const nodeCenterX = node.x + node.width / 2
+      // Mirror across X=0: newCenterX = -nodeCenterX
+      const newCenterX = -nodeCenterX
+      // Convert back to top-left position
+      const newX = newCenterX - node.width / 2
+
+      node.x = newX
+      node.mindmapPosition = { x: newX, y: node.y }
+      allUpdates.push({ nodeId: node.id, newX: newX, newY: node.y })
+    }
+  }
+
+  // STEP 2: Apply reverse operations level by level
+  const reverseOps = ops.filter(op => op === 'reverse-left' || op === 'reverse-right')
+  if (reverseOps.length > 0) {
+    console.log(`Applying reverse operations: ${reverseOps.join(', ')}`)
+
+    // Process each level for reverse operations
+    const processLevelRecursively = (parentIds: (string | null)[]) => {
+      if (parentIds.length === 0) return
+
+      const nextLevelParentIds: string[] = []
+
+      for (const parentId of parentIds) {
+        const children = nodes.value.filter(n => n.parentId === parentId)
+        if (children.length === 0) continue
+
+        const parent = parentId ? nodes.value.find(n => n.id === parentId) ?? null : null
+
+        // Calculate reverse operations for this level's children
+        const updates = calculateOrientationTransition(
+          children,
+          parent,
+          canvasCenter,
+          fromOrientation,
+          toOrientation,
+          true // skipMirror - only do reverse operations
+        )
+
+        // Apply updates
+        for (const update of updates) {
+          const node = nodes.value.find(n => n.id === update.nodeId)
+          if (node) {
+            node.x = update.newX
+            node.y = update.newY
+            node.mindmapPosition = { x: update.newX, y: update.newY }
+            allUpdates.push(update)
+          }
+        }
+
+        // Queue children for next level processing
+        for (const child of children) {
+          nextLevelParentIds.push(child.id)
+        }
+      }
+
+      // Process next level
+      if (nextLevelParentIds.length > 0) {
+        processLevelRecursively(nextLevelParentIds)
+      }
+    }
+
+    processLevelRecursively([null])
+  }
+
+  // Final sync
+  if (allUpdates.length > 0) {
+    console.log(`Applied ${allUpdates.length} position updates`)
+
+    // Update edges to reflect new positions
+    updateAllEdgeHandles()
+
+    // Sync to VueFlow
+    syncToVueFlow()
+
+    // Sync to store
+    syncToStore()
+  }
+}
+
+// Watch for orientation changes
+watch(
+  () => orientationStore.orientation,
+  (newOrientation, oldOrientation) => {
+    if (newOrientation !== oldOrientation && nodes.value.length > 0) {
+      applyOrientationTransition(oldOrientation, newOrientation)
+    }
+  }
+)
 </script>
 
 <style scoped>

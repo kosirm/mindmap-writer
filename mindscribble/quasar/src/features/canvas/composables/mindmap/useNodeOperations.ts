@@ -92,6 +92,16 @@ export function useNodeOperations(
       eventSource
     )
 
+    // Set mindmap view-specific data on the store node
+    storeNode.views.mindmap = {
+      position: { x, y },
+      collapsed: options.collapsed ?? false,
+      collapsedLeft: options.collapsedLeft ?? false,
+      collapsedRight: options.collapsedRight ?? false,
+      isDirty: true,
+      lastCalculatedZoom: viewport.value.zoom
+    }
+
     // Create local node with store ID
     const localNode: NodeData = {
       id: storeNode.id,
@@ -101,6 +111,7 @@ export function useNodeOperations(
       y,
       width: defaultWidth,
       height: defaultHeight,
+      mindmapPosition: { x, y }, // Mark as having a position
       collapsed: options.collapsed ?? false,
       collapsedLeft: options.collapsedLeft ?? false,
       collapsedRight: options.collapsedRight ?? false,
@@ -124,7 +135,6 @@ export function useNodeOperations(
     const node = nodes.value.find((n: NodeData) => n.id === nodeId)
     if (!node) return
 
-    const wasCollapsed = node.collapsed
     node.collapsed = !node.collapsed
 
     // Sync collapse state to store
@@ -137,15 +147,9 @@ export function useNodeOperations(
     // Sync to update visibility
     syncToVueFlow()
 
-    // If we just expanded (was collapsed, now not), resolve overlaps
-    if (wasCollapsed && !node.collapsed) {
-      // Use setTimeout to ensure bounding boxes are recalculated first
-      setTimeout(() => {
-        resolveAllOverlaps(nodes.value)
-        syncToVueFlow()
-        triggerRef(nodes)
-      }, 50)
-    }
+    // Note: We do NOT call resolveAllOverlaps here anymore
+    // Collapsed/expanded nodes should keep their existing positions
+    // AABB will naturally handle any overlaps during normal drag operations
 
     // Also need to update edges visibility
     edges.value = [...edges.value]
@@ -157,7 +161,6 @@ export function useNodeOperations(
     const node = nodes.value.find((n: NodeData) => n.id === nodeId)
     if (!node || node.parentId !== null) return // Only for root nodes
 
-    const wasCollapsed = node.collapsedLeft
     node.collapsedLeft = !node.collapsedLeft
 
     // Sync collapse state to store
@@ -169,14 +172,7 @@ export function useNodeOperations(
     // Sync to update visibility
     syncToVueFlow()
 
-    // If we just expanded, resolve overlaps
-    if (wasCollapsed && !node.collapsedLeft) {
-      setTimeout(() => {
-        resolveAllOverlaps(nodes.value)
-        syncToVueFlow()
-        triggerRef(nodes)
-      }, 50)
-    }
+    // Note: We do NOT call resolveAllOverlaps - nodes keep their positions
 
     // Update edges visibility
     edges.value = [...edges.value]
@@ -186,7 +182,6 @@ export function useNodeOperations(
     const node = nodes.value.find((n: NodeData) => n.id === nodeId)
     if (!node || node.parentId !== null) return // Only for root nodes
 
-    const wasCollapsed = node.collapsedRight
     node.collapsedRight = !node.collapsedRight
 
     // Sync collapse state to store
@@ -198,14 +193,7 @@ export function useNodeOperations(
     // Sync to update visibility
     syncToVueFlow()
 
-    // If we just expanded, resolve overlaps
-    if (wasCollapsed && !node.collapsedRight) {
-      setTimeout(() => {
-        resolveAllOverlaps(nodes.value)
-        syncToVueFlow()
-        triggerRef(nodes)
-      }, 50)
-    }
+    // Note: We do NOT call resolveAllOverlaps - nodes keep their positions
 
     // Update edges visibility
     edges.value = [...edges.value]
@@ -284,11 +272,45 @@ export function useNodeOperations(
 
 
 
-  // Helper function to add child on a specific side
+  /**
+   * Add child on a specific side with proper positioning:
+   * - First child: at parent's horizontal level (same Y)
+   * - Subsequent children: below (or above) the last existing child
+   *
+   * TODO: When orientation is implemented, "below" vs "above" will depend on:
+   * - For clockwise/anticlockwise: depends on which side and visual order
+   * - For left-right/right-left: always same direction
+   */
   function addChildToSide(parent: NodeData, side: 'left' | 'right') {
-    const offsetX = side === 'left' ? -200 : 200
+    const HORIZONTAL_SPACING = 200
+    const VERTICAL_SPACING = 60 // Space between sibling nodes
+
+    const offsetX = side === 'left' ? -HORIZONTAL_SPACING : HORIZONTAL_SPACING
     const childX = parent.x + offsetX
-    const childY = parent.y // Same horizontal level as parent
+
+    // Get existing children on this side
+    const existingChildren = getDirectChildren(parent.id).filter(child => {
+      if (side === 'left') {
+        return child.x < parent.x
+      } else {
+        return child.x >= parent.x
+      }
+    })
+
+    let childY: number
+    if (existingChildren.length === 0) {
+      // First child: same Y as parent (horizontal level)
+      childY = parent.y
+    } else {
+      // Find the bottommost child on this side
+      const lastChild = existingChildren.reduce((lowest, child) => {
+        return child.y > lowest.y ? child : lowest
+      }, existingChildren[0]!)
+
+      // Position new child below the last one
+      // TODO: In clockwise orientation on left side, this should be ABOVE (negative Y)
+      childY = lastChild.y + (lastChild.height ?? 50) + VERTICAL_SPACING
+    }
 
     // Use counter for label (but ID comes from store)
     const labelNum = nodeCounter.value++
@@ -324,11 +346,11 @@ export function useNodeOperations(
 
     closeContextMenu()
 
-    // Measure dimensions and resolve overlaps after adding
+    // Measure dimensions only - don't reposition existing nodes
+    // Let AABB handle overlaps during subsequent drag operations
     setTimeout(() => {
       void (async () => {
         await updateNodeDimensionsFromDOM()
-        resolveAllOverlaps(nodes.value)
         syncToVueFlow()
       })()
     }, 100)
@@ -336,26 +358,43 @@ export function useNodeOperations(
 
 
 
+  /**
+   * Add sibling node - positioned below the clicked sibling node
+   */
   function addSibling() {
     if (!contextMenu.value.nodeId) return
 
     const sibling = nodes.value.find(n => n.id === contextMenu.value.nodeId)
     if (!sibling) return
 
+    const VERTICAL_SPACING = 60
+
+    // Position new sibling below the current sibling (same X, below Y)
+    const newX = sibling.x
+    const newY = sibling.y + (sibling.height ?? 50) + VERTICAL_SPACING
+
     // Use counter for label (but ID comes from store)
     const labelNum = nodeCounter.value++
 
     // Add to both local and store
-    const newNode = addNodeToLocalAndStore(sibling.parentId, `Sibling ${labelNum}`, sibling.x + 200, sibling.y, {
+    const newNode = addNodeToLocalAndStore(sibling.parentId, `Sibling ${labelNum}`, newX, newY, {
       collapsed: false
     })
 
     // Add edge if parent exists
     if (sibling.parentId) {
+      // Determine edge handles based on which side of root this sibling is
+      const root = getRootNode(sibling.id)
+      const isLeftOfRoot = root ? sibling.x < root.x : sibling.x < 0
+      const sourceHandle = isLeftOfRoot ? 'left' : 'right'
+      const targetHandle = isLeftOfRoot ? 'right' : 'left'
+
       edges.value.push({
         id: `e-${sibling.parentId}-${newNode.id}`,
         source: sibling.parentId,
+        sourceHandle,
         target: newNode.id,
+        targetHandle,
         type: 'straight'
       })
       // Trigger reactivity for edges
@@ -367,11 +406,10 @@ export function useNodeOperations(
     // Sync to VueFlow
     syncToVueFlow()
 
-    // Measure dimensions and resolve overlaps after adding
+    // Measure dimensions only - don't reposition existing nodes
     setTimeout(() => {
       void (async () => {
         await updateNodeDimensionsFromDOM()
-        resolveAllOverlaps(nodes.value)
         syncToVueFlow()
       })()
     }, 100)
@@ -542,32 +580,17 @@ export function useNodeOperations(
       })
     }
 
-    // Create new edge with appropriate handles
-    const newParentRoot2 = getRootNode(newParentId)
-    let sourceHandle = 'bottom'
-    let targetHandle = 'top'
-
-    if (newParentRoot2) {
-      const isLeftBranch = newParent.x < newParentRoot2.x
-      sourceHandle = isLeftBranch ? 'left' : 'right'
-      targetHandle = isLeftBranch ? 'right' : 'left'
-    } else {
-      // New parent is root
-      const isLeftBranch = node.x < newParent.x
-      sourceHandle = isLeftBranch ? 'left' : 'right'
-      targetHandle = isLeftBranch ? 'right' : 'left'
-    }
-
+    // Create new edge - handles will be set by updateEdgesForBranch based on closest connection
     edges.value.push({
       id: `e-${newParentId}-${nodeId}`,
       source: newParentId,
       target: nodeId,
-      sourceHandle,
-      targetHandle,
+      sourceHandle: 'right', // Temporary, will be updated
+      targetHandle: 'left',  // Temporary, will be updated
       type: 'straight'
     })
 
-    // Update edges for the entire branch
+    // Update edges for the entire branch using closest handle approach
     updateEdgesForBranch(node)
 
     // Sync to store
