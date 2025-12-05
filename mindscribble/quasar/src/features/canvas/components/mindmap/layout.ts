@@ -188,6 +188,101 @@ function getRootNode(nodeId: string, allNodes: NodeData[]): NodeData | null {
   return node
 }
 
+/**
+ * Get the ancestor chain from a node up to the root (inclusive)
+ * Returns [node, parent, grandparent, ..., root]
+ */
+function getAncestorChain(nodeId: string, allNodes: NodeData[]): NodeData[] {
+  const chain: NodeData[] = []
+  let node = allNodes.find(n => n.id === nodeId)
+  while (node) {
+    chain.push(node)
+    if (node.parentId === null) break
+    node = allNodes.find(n => n.id === node!.parentId)
+  }
+  return chain
+}
+
+/**
+ * Bottom-up AABB resolution - only processes the ancestor chain and their siblings.
+ * Much more efficient than top-down when only a few nodes moved.
+ *
+ * Algorithm:
+ * 1. Start from the moved node
+ * 2. Walk UP the tree, at each level:
+ *    - Get siblings at this level
+ *    - Resolve sibling overlaps (which moves entire subtrees)
+ * 3. Finally resolve root-level sibling overlaps
+ */
+export function resolveOverlapsBottomUp(
+  affectedNodeIds: string[],
+  allNodes: NodeData[]
+): void {
+  // Collect all unique ancestor chains
+  const processedLevels = new Set<string>() // Track "parentId" levels we've processed
+
+  for (const nodeId of affectedNodeIds) {
+    const chain = getAncestorChain(nodeId, allNodes)
+
+    // Walk up the chain, resolving overlaps at each level
+    for (const node of chain) {
+      const parentId = node.parentId
+      const levelKey = parentId ?? '__root__'
+
+      // Skip if we've already processed this level
+      if (processedLevels.has(levelKey)) continue
+      processedLevels.add(levelKey)
+
+      // Get siblings at this level (nodes with same parent)
+      const siblings = allNodes.filter(n => n.parentId === parentId)
+      if (siblings.length > 1) {
+        resolveSiblingOverlaps(siblings, allNodes)
+      }
+    }
+  }
+
+  // Always resolve root-level overlaps at the end
+  const rootNodes = allNodes.filter(n => n.parentId === null)
+  if (rootNodes.length > 1 && !processedLevels.has('__root__')) {
+    resolveSiblingOverlaps(rootNodes, allNodes)
+  }
+}
+
+/**
+ * Bottom-up AABB resolution with LOD support
+ */
+export function resolveOverlapsBottomUpLOD(
+  affectedNodeIds: string[],
+  visibleNodes: NodeData[],
+  allNodes: NodeData[]
+): void {
+  const processedLevels = new Set<string>()
+
+  for (const nodeId of affectedNodeIds) {
+    const chain = getAncestorChain(nodeId, allNodes)
+
+    for (const node of chain) {
+      const parentId = node.parentId
+      const levelKey = parentId ?? '__root__'
+
+      if (processedLevels.has(levelKey)) continue
+      processedLevels.add(levelKey)
+
+      // Get VISIBLE siblings at this level
+      const siblings = visibleNodes.filter(n => n.parentId === parentId)
+      if (siblings.length > 1) {
+        resolveSiblingOverlaps(siblings, allNodes)
+      }
+    }
+  }
+
+  const visibleRootNodes = visibleNodes.filter(n => n.parentId === null)
+  if (visibleRootNodes.length > 1 && !processedLevels.has('__root__')) {
+    resolveSiblingOverlaps(visibleRootNodes, allNodes)
+  }
+}
+
+// Keep the old functions for backwards compatibility
 export function resolveOverlapsForAffectedRoots(affectedNodeIds: string[], allNodes: NodeData[]): void {
   const affectedRoots = new Set<string>()
   for (const nodeId of affectedNodeIds) {

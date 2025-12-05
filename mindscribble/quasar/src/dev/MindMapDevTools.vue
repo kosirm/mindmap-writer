@@ -26,6 +26,52 @@
 
     <q-separator class="q-my-sm" />
 
+    <!-- Debug Visualization -->
+    <div class="text-caption q-mb-xs">Debug Visualization</div>
+    <q-toggle
+      v-model="devSettings.showBoundingBoxes"
+      label="Show Bounding Boxes"
+      size="sm"
+      dense
+      class="q-mb-xs"
+    />
+    <q-toggle
+      v-model="devSettings.showCanvasCenter"
+      label="Show Canvas Center"
+      size="sm"
+      dense
+      class="q-mb-sm"
+    />
+
+    <!-- Spacing Sliders -->
+    <div class="text-caption q-mb-xs">Node Spacing (px)</div>
+    <div class="row items-center q-mb-xs">
+      <div class="col-4 text-caption">H: {{ devSettings.horizontalSpacing }}</div>
+      <div class="col">
+        <q-slider
+          v-model="devSettings.horizontalSpacing"
+          :min="0"
+          :max="20"
+          :step="1"
+          dense
+        />
+      </div>
+    </div>
+    <div class="row items-center q-mb-sm">
+      <div class="col-4 text-caption">V: {{ devSettings.verticalSpacing }}</div>
+      <div class="col">
+        <q-slider
+          v-model="devSettings.verticalSpacing"
+          :min="0"
+          :max="20"
+          :step="1"
+          dense
+        />
+      </div>
+    </div>
+
+    <q-separator class="q-my-sm" />
+
     <!-- Basic Actions -->
     <q-btn
       outline
@@ -78,9 +124,11 @@
 import { computed } from 'vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useOrientationStore } from 'src/core/stores/orientationStore'
+import { useDevSettingsStore } from './devSettingsStore'
 
 const documentStore = useDocumentStore()
 const orientationStore = useOrientationStore()
+const devSettings = useDevSettingsStore()
 
 const stats = computed(() => ({
   totalNodes: documentStore.nodes.length,

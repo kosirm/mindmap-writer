@@ -352,65 +352,17 @@ function onNodeDragStop(event: NodeDragEvent) {
     // Clear drag start positions
     dragStartPositions.value.clear()
 
-    // OPTIMIZED: Only recalculate affected branch, not entire tree
-    console.log(`🔄 Recalculating layout for affected branch...`)
+    // OPTIMIZED: Bottom-up AABB - only process ancestor chain + siblings
+    // No side filtering needed - bottom-up is already O(d×s) complexity
+    // This also fixes edge case with 360° orientations where nodes at 1° and 179° could overlap
+    console.log(`🔄 Recalculating layout (bottom-up AABB)...`)
     const lodTime = performance.now()
     const visibleNodes = getVisibleNodesForLOD()
     console.log(`  ⏱️ LOD filtering: ${(performance.now() - lodTime).toFixed(2)}ms`)
 
-    // If node crossed sides, only recalculate the target side (where node was dropped)
-    if (nodeCrossedSides.value) {
-      console.log(`  🔄 Node crossed sides - recalculating target side only`)
-      const filterTime = performance.now()
-      const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
-      if (draggedNode) {
-        const root = getRootNode(draggedNode.id)
-        if (root) {
-          const isOnLeft = draggedNode.x < root.x
-          const sideVisibleNodes = visibleNodes.filter(n => {
-            if (n.id === root.id) return true // Include root
-            const nodeRoot = getRootNode(n.id)
-            if (!nodeRoot || nodeRoot.id !== root.id) return false // Different root tree
-            const nodeIsOnLeft = n.x < root.x
-            return nodeIsOnLeft === isOnLeft // Same side only (target side)
-          })
-          console.log(`  📊 Filtered to ${sideVisibleNodes.length}/${visibleNodes.length} nodes (target side of root)`)
-          console.log(`  ⏱️ Side filtering: ${(performance.now() - filterTime).toFixed(2)}ms`)
-
-          const resolveTime = performance.now()
-          resolveOverlapsForAffectedRootsLOD(draggedNodeIds, sideVisibleNodes, nodes.value)
-          console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
-        }
-      }
-    } else {
-      // Filter visible nodes by side (left/right of root) to reduce calculation
-      const filterTime = performance.now()
-      const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
-      if (draggedNode) {
-        const root = getRootNode(draggedNode.id)
-        if (root) {
-          const isOnLeft = draggedNode.x < root.x
-          const sideVisibleNodes = visibleNodes.filter(n => {
-            if (n.id === root.id) return true // Include root
-            const nodeRoot = getRootNode(n.id)
-            if (!nodeRoot || nodeRoot.id !== root.id) return false // Different root tree
-            const nodeIsOnLeft = n.x < root.x
-            return nodeIsOnLeft === isOnLeft // Same side only
-          })
-          console.log(`  📊 Filtered to ${sideVisibleNodes.length}/${visibleNodes.length} nodes (same side of root)`)
-          console.log(`  ⏱️ Side filtering: ${(performance.now() - filterTime).toFixed(2)}ms`)
-
-          const resolveTime = performance.now()
-          resolveOverlapsForAffectedRootsLOD(draggedNodeIds, sideVisibleNodes, nodes.value)
-          console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
-        } else {
-          // Fallback: use all visible nodes
-          const resolveTime = performance.now()
-          resolveOverlapsForAffectedRootsLOD(draggedNodeIds, visibleNodes, nodes.value)
-          console.log(`  ⏱️ Overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
-        }
-      }
-    }
+    const resolveTime = performance.now()
+    resolveOverlapsForAffectedRootsLOD(draggedNodeIds, visibleNodes, nodes.value)
+    console.log(`  ⏱️ Bottom-up overlap resolution: ${(performance.now() - resolveTime).toFixed(2)}ms`)
 
     // Log positions AFTER layout recalculation
     if (nodeCrossedSides.value) {

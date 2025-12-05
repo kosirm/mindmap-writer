@@ -92,7 +92,7 @@ import type { Node, Edge, NodeMouseEvent } from '@vue-flow/core'
 import CustomNode from './mindmap/CustomNode.vue'
 import LodBadgeNode from './mindmap/LodBadgeNode.vue'
 import type { NodeData, ContextMenuState, BoundingRect } from './mindmap/types'
-import { calculateBoundingRect, resolveAllOverlaps, resolveOverlapsForAffectedRootsLOD, setLayoutSpacing, getAllDescendants } from './mindmap/layout'
+import { calculateBoundingRect, resolveAllOverlaps, resolveOverlapsBottomUpLOD, setLayoutSpacing, getAllDescendants } from './mindmap/layout'
 
 // Import composables
 import { useNodeTree } from '../composables/mindmap/useNodeTree'
@@ -107,11 +107,15 @@ import { useMindmapLayout } from '../composables/mindmap/useMindmapLayout'
 // Store & Events for selection sync
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useOrientationStore } from 'src/core/stores/orientationStore'
+import { useDevSettingsStore } from 'src/dev/devSettingsStore'
 import { useViewEvents } from 'src/core/events'
 import { calculateOrientationTransition, getTransitionOperations, type OrientationMode } from '../composables/mindmap/useOrientationSort'
 
 // VueFlow instance
 const { viewport, fitView, setViewport, findNode, updateNodeInternals } = useVueFlow()
+
+// Dev settings store (for bounding boxes, spacing, etc.)
+const devSettings = useDevSettingsStore()
 
 // Core state
 const nodes = ref<NodeData[]>([])
@@ -119,12 +123,12 @@ const edges = ref<Edge[]>([])
 const nodeCounter = ref(1)
 
 // UI state
-const showBoundingBoxes = ref(false)
+const showBoundingBoxes = computed(() => devSettings.showBoundingBoxes)
 const showMinimap = ref(true)
-const showCanvasCenter = ref(false)
+const showCanvasCenter = computed(() => devSettings.showCanvasCenter)
 const showZoomIndicator = ref(true)
-const horizontalSpacing = ref(0)
-const verticalSpacing = ref(0)
+const horizontalSpacing = computed(() => devSettings.horizontalSpacing)
+const verticalSpacing = computed(() => devSettings.verticalSpacing)
 
 const contextMenu = ref<ContextMenuState>({ visible: false, x: 0, y: 0, nodeId: null })
 
@@ -159,7 +163,7 @@ const { closeContextMenu, toggleCollapse, toggleCollapseLeft, toggleCollapseRigh
 
 const { potentialParent, onPaneMouseMove, onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDrag(
   nodes, viewport, getRootNode, getAllDescendants, getVisibleNodesForLOD, updateEdgesForBranch,
-  reparentNode, syncToVueFlow, syncFromVueFlow, resolveAllOverlaps, resolveOverlapsForAffectedRootsLOD,
+  reparentNode, syncToVueFlow, syncFromVueFlow, resolveAllOverlaps, resolveOverlapsBottomUpLOD,
   updateNodeInternals
 )
 
@@ -288,7 +292,13 @@ function rebuildEdgesFromHierarchy() {
 
 // Computed
 const viewportTransform = computed(() => `translate(${viewport.value.x}px, ${viewport.value.y}px) scale(${viewport.value.zoom})`)
-const boundingBoxes = computed<BoundingRect[]>(() => showBoundingBoxes.value ? nodes.value.map(node => calculateBoundingRect(node, nodes.value)) : [])
+// Include spacing as dependency so bounding boxes update when spacing changes
+const boundingBoxes = computed<BoundingRect[]>(() => {
+  // Reference spacing values to make them reactive dependencies
+  void horizontalSpacing.value
+  void verticalSpacing.value
+  return showBoundingBoxes.value ? nodes.value.map(node => calculateBoundingRect(node, nodes.value)) : []
+})
 const rootNodes = computed(() => nodes.value.filter(n => n.parentId === null))
 const renderedNodeCount = computed(() => vueFlowNodes.value.filter(n => (n as Node & { computed?: { visible?: boolean } }).computed?.visible !== false).length)
 const zoomPercent = computed(() => Math.round(viewport.value.zoom * 100))
@@ -365,7 +375,7 @@ defineExpose({
   algorithm, generatorNodeCount, lastPerformance, edgeType, edgeTypeOptions,
   addRootNode, generateNodeTree, clearAllNodes, generateAndLayoutMindmap, syncToVueFlow, resolveAllOverlaps: () => { resolveAllOverlaps(nodes.value); syncToVueFlow() },
   fitView: () => fitView({ padding: 0.2, duration: 300 }),
-  setSpacing: (h: number, v: number) => { horizontalSpacing.value = h; verticalSpacing.value = v; setLayoutSpacing(h, v); resolveAllOverlaps(nodes.value); syncToVueFlow() },
+  setSpacing: (h: number, v: number) => { devSettings.setSpacing(h, v); resolveAllOverlaps(nodes.value); syncToVueFlow() },
   initializeMindmapLayout,
   updateAllEdgeHandles,
   syncFromStore,
@@ -375,6 +385,13 @@ defineExpose({
 // ============================================================
 // LIFECYCLE & WATCHERS
 // ============================================================
+
+// Watch for spacing changes from dev settings
+watch([horizontalSpacing, verticalSpacing], ([h, v]) => {
+  setLayoutSpacing(h, v)
+  // Recompute bounding boxes with new spacing - no need to resolve overlaps
+  // since we just want to see the visualization change
+})
 
 onMounted(async () => {
   setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
