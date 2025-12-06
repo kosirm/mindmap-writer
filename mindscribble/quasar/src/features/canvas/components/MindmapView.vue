@@ -110,6 +110,7 @@ import { useNodeDrag } from '../composables/mindmap/useNodeDrag'
 import { useMindmapGenerator } from '../composables/mindmap/useMindmapGenerator'
 import { useMindmapLayout } from '../composables/mindmap/useMindmapLayout'
 import { useSiblingReorder } from '../composables/mindmap/useSiblingReorder'
+import { useExternalSiblingPositioning } from '../composables/mindmap/useExternalSiblingPositioning'
 import { useReferenceEdges } from '../composables/useReferenceEdges'
 
 // Store & Events for selection sync
@@ -175,6 +176,9 @@ const canvasCenter = ref({ x: 0, y: 0 })
 // Sibling reorder composable - updates store order when nodes are dragged
 const { updateSiblingOrderIfChanged } = useSiblingReorder(nodes, canvasCenter)
 
+// External sibling positioning - handles position updates when changes come from Writer
+const { swapPositionsOnReorder, calculateInsertPosition } = useExternalSiblingPositioning(nodes, canvasCenter)
+
 const { potentialParent, onPaneMouseMove, onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDrag(
   nodes, viewport, getRootNode, getAllDescendants, getVisibleNodesForLOD, updateEdgesForBranch,
   reparentNode, syncToVueFlow, syncFromVueFlow, resolveAllOverlaps, resolveOverlapsBottomUpLOD,
@@ -232,13 +236,13 @@ function syncFromStore() {
 
   const localNodes: NodeData[] = storeNodes.map(sn => {
     const mindmapPos = sn.views.mindmap?.position
-    console.log(`  Node "${sn.data.content || sn.data.title}" (${sn.id}):`)
+    console.log(`  Node "${sn.data.title}" (${sn.id}):`)
     console.log(`    views.mindmap:`, JSON.stringify(sn.views.mindmap))
     console.log(`    mindmapPosition will be:`, mindmapPos ? JSON.stringify(mindmapPos) : 'null')
 
     return {
       id: sn.id,
-      label: sn.data.content || sn.data.title,
+      label: sn.data.title,
       parentId: sn.data.parentId,
 
       // Active position - use mindmap position if available, else store position
@@ -364,10 +368,8 @@ function rebuildEdgesFromHierarchy() {
     if (node.parentId) {
       const parent = nodes.value.find(n => n.id === node.parentId)
       if (parent) {
-        // Determine edge handles based on node position relative to parent
-        const isLeft = node.x < parent.x
-        const sourceHandle = isLeft ? 'left' : 'right'
-        const targetHandle = isLeft ? 'right' : 'left'
+        // Use optimal handles based on node positions (4-way: top, right, bottom, left)
+        const { sourceHandle, targetHandle } = getOptimalHandles(parent.id, node.id)
 
         hierarchyEdges.push({
           id: `e-${parent.id}-${node.id}`,
@@ -613,8 +615,15 @@ onUnmounted(() => {
 
 // Listen for node creation events from OTHER views (not mindmap)
 // The onStoreEvent automatically ignores events where source === 'mindmap'
-onStoreEvent('store:node-created', ({ nodeId }) => {
-  console.log(`Node created from another view: ${nodeId}, syncing to mindmap...`)
+onStoreEvent('store:node-created', ({ nodeId, parentId }) => {
+  console.log(`Node created from another view: ${nodeId}, parent: ${parentId ?? 'ROOT'}, syncing to mindmap...`)
+
+  // Get the store node to access order information
+  const storeNode = documentStore.getNodeById(nodeId)
+  if (!storeNode) {
+    console.warn(`Could not find newly created node ${nodeId} in store`)
+    return
+  }
 
   // Re-sync from store to get the new node
   syncFromStore()
@@ -622,17 +631,59 @@ onStoreEvent('store:node-created', ({ nodeId }) => {
   // The new node needs layout since it doesn't have mindmapPosition
   const newNode = nodes.value.find(n => n.id === nodeId)
   if (newNode && newNode.mindmapPosition === null) {
-    initializeMindmapLayout()
-    syncToStore()
+    const orientation = orientationStore.orientation
 
-    // After layout, resolve overlaps and update edges
+    // Get siblings sorted by store order (including the new node)
+    const siblings = parentId
+      ? documentStore.getChildNodes(parentId)
+      : documentStore.rootNodes
+
+    const newNodeOrder = storeNode.data.order
+    const siblingCount = siblings.length
+
+    // Find previous and next siblings based on store order
+    let prevSibling: NodeData | null = null
+    let nextSibling: NodeData | null = null
+
+    if (newNodeOrder > 0) {
+      const prevStoreNode = siblings.find(s => s.data.order === newNodeOrder - 1)
+      if (prevStoreNode) {
+        prevSibling = nodes.value.find(n => n.id === prevStoreNode.id) ?? null
+      }
+    }
+
+    if (newNodeOrder < siblingCount - 1) {
+      const nextStoreNode = siblings.find(s => s.data.order === newNodeOrder + 1)
+      if (nextStoreNode) {
+        nextSibling = nodes.value.find(n => n.id === nextStoreNode.id) ?? null
+      }
+    }
+
+    // Calculate position based on sibling context
+    const position = calculateInsertPosition(
+      parentId,
+      prevSibling,
+      nextSibling,
+      newNode.width,
+      newNode.height,
+      orientation
+    )
+
+    console.log(`  Positioning new node at (${position.x.toFixed(0)}, ${position.y.toFixed(0)})`)
+    newNode.x = position.x
+    newNode.y = position.y
+
+    // After positioning, resolve overlaps and update edges
     syncToVueFlow()
     setTimeout(() => {
       void (async () => {
         await updateNodeDimensionsFromDOM()
-        resolveAllOverlaps(nodes.value)
+        const visibleNodes = getVisibleNodesForLOD()
+        resolveOverlapsBottomUpLOD([nodeId], visibleNodes, nodes.value)
+        rebuildEdgesFromHierarchy()
         updateAllEdgeHandles()
         syncToVueFlow()
+        syncToStore()
       })()
     }, 50)
   }
@@ -650,8 +701,9 @@ onStoreEvent('store:node-reparented', ({ nodeId }) => {
   console.log(`Node reparented from another view: ${nodeId}, syncing to mindmap...`)
   syncFromStore()
 
-  // Rebuild edges after reparenting
+  // Rebuild edges after reparenting and update handles based on positions
   rebuildEdgesFromHierarchy()
+  updateAllEdgeHandles()
   syncToVueFlow()
 })
 
@@ -661,6 +713,37 @@ onStoreEvent('store:node-deleted', () => {
   syncFromStore()
   rebuildEdgesFromHierarchy()
   syncToVueFlow()
+})
+
+// Listen for sibling reorder from other views (e.g., Writer)
+onStoreEvent('store:siblings-reordered', ({ parentId, newOrders }) => {
+  console.log(`Siblings reordered for parent ${parentId ?? 'ROOT'} from another view`)
+
+  // Swap positions to match the new order
+  const orientation = orientationStore.orientation
+  const positionUpdates = swapPositionsOnReorder(parentId, newOrders, orientation)
+
+  // Apply position updates to local nodes
+  for (const update of positionUpdates) {
+    const node = nodes.value.find(n => n.id === update.nodeId)
+    if (node) {
+      console.log(`  Moving ${node.label} to (${update.newX.toFixed(0)}, ${update.newY.toFixed(0)})`)
+      node.x = update.newX
+      node.y = update.newY
+    }
+  }
+
+  // Resolve any overlaps after position swaps
+  if (positionUpdates.length > 0) {
+    const affectedNodeIds = positionUpdates.map(u => u.nodeId)
+    const visibleNodes = getVisibleNodesForLOD()
+    resolveOverlapsBottomUpLOD(affectedNodeIds, visibleNodes, nodes.value)
+  }
+
+  // Rebuild edges and sync
+  rebuildEdgesFromHierarchy()
+  syncToVueFlow()
+  syncToStore()
 })
 
 // Listen for reference edge creation from other views

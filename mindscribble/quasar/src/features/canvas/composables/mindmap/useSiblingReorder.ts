@@ -14,7 +14,7 @@ import type { NodeData } from '../../components/mindmap/types'
 import { getOrientationSortKey, type OrientationMode } from './useOrientationSort'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useOrientationStore } from 'src/core/stores/orientationStore'
-import { eventBus, type EventSource } from 'src/core/events'
+import type { EventSource } from 'src/core/events'
 
 export function useSiblingReorder(
   nodes: Ref<NodeData[]>,
@@ -93,26 +93,18 @@ export function useSiblingReorder(
 
     if (!orderChanged) return false
 
-    // Update orders in the store
+    // Update orders in the store (store will emit the event)
     console.log(`🔄 Sibling order changed for parent ${parentId ?? 'ROOT'}:`)
     for (const sibling of siblings) {
       const newOrder = newOrders.get(sibling.id)
-      if (newOrder !== undefined) {
-        const storeNode = documentStore.getNodeById(sibling.id)
-        if (storeNode && storeNode.data.order !== newOrder) {
-          console.log(`  ${sibling.label}: ${storeNode.data.order} → ${newOrder}`)
-          documentStore.updateNode(sibling.id, { order: newOrder }, source)
-        }
+      const storeNode = documentStore.getNodeById(sibling.id)
+      if (storeNode && newOrder !== undefined) {
+        console.log(`  ${sibling.label}: ${storeNode.data.order} → ${newOrder}`)
       }
     }
 
-    // Emit siblings-reordered event
-    eventBus.emit('store:siblings-reordered', {
-      parentId,
-      newOrders,
-      orientation,
-      source
-    })
+    // Call store method which will emit the event
+    documentStore.reorderSiblings(parentId, newOrders, source)
 
     return true
   }

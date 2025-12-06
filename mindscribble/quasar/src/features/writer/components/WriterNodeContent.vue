@@ -1,0 +1,395 @@
+<template>
+  <div
+    class="writer-node"
+    :class="{
+      'is-selected': isSelected,
+      'is-hovered': isHovered
+    }"
+    @mouseenter="isHovered = true"
+    @mouseleave="isHovered = false"
+    @click="handleNodeClick"
+  >
+    <!-- Drag handle (shown on hover) -->
+    <div class="drag-handle" :class="triggerClass">
+      <q-icon name="drag_indicator" size="18px" />
+    </div>
+
+    <!-- Node content -->
+    <div class="node-content">
+      <!-- Title -->
+      <div class="title-wrapper">
+        <div
+          v-if="!isTitleEditing"
+          class="node-title"
+          v-html="displayTitle"
+          @click.stop="handleTitleClick"
+        ></div>
+        <EditorContent
+          v-else-if="titleEditor"
+          :editor="titleEditor"
+          class="node-title editing"
+          @click.stop
+        />
+      </div>
+
+      <!-- Content -->
+      <div class="content-wrapper">
+        <div
+          v-if="!isContentEditing"
+          class="node-body"
+          v-html="displayContent"
+          @click.stop="handleContentClick"
+        ></div>
+        <EditorContent
+          v-else-if="contentEditor"
+          :editor="contentEditor"
+          class="node-body editing"
+          @click.stop
+        />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject, watch } from 'vue'
+import { EditorContent, Editor } from '@tiptap/vue-3'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
+import type { MindscribbleNode } from '../../../core/types'
+import { useDocumentStore } from '../../../core/stores'
+import { createKeyboardHandler } from '../composables/useWriterKeyboardHandlers'
+import type { useWriterNavigation } from '../composables/useWriterNavigation'
+
+const props = defineProps<{
+  node: MindscribbleNode
+  stat: unknown // he-tree stat object
+  triggerClass: string
+}>()
+
+const documentStore = useDocumentStore()
+const navigation = inject<ReturnType<typeof useWriterNavigation>>('writerNavigation')
+
+// UI state
+const isHovered = ref(false)
+const isTitleEditing = ref(false)
+const isContentEditing = ref(false)
+
+// Selection state
+const isSelected = computed(() => documentStore.selectedNodeIds.includes(props.node.id))
+
+// Display values
+const displayTitle = computed(() => props.node.data.title || '<span class="placeholder">Untitled</span>')
+const displayContent = computed(() => {
+  const content = props.node.data.content
+  if (!content || content.trim() === '' || content === '<p></p>') {
+    return '<p class="placeholder">Click to add content...</p>'
+  }
+  return content
+})
+
+// Tiptap editors - use shallowRef for complex objects like Editor
+const titleEditor = shallowRef<Editor | null>(null)
+const contentEditor = shallowRef<Editor | null>(null)
+
+// Click handlers
+function handleNodeClick() {
+  documentStore.selectNode(props.node.id, 'writer', false)
+}
+
+function handleTitleClick() {
+  openTitleEditor('end')
+}
+
+function handleContentClick() {
+  openContentEditor('end')
+}
+
+// Navigation helper
+function navigateToField(nodeId: string, field: 'title' | 'content', cursorPosition: 'start' | 'end') {
+  documentStore.selectNode(nodeId, 'writer', false)
+  void nextTick(() => {
+    // Emit event for target node to open field - we'll use a simple approach with injected event emitter
+    const emitter = inject<{ emit: (event: string, payload: unknown) => void }>('writerEmitter')
+    emitter?.emit('open-field', { nodeId, field, cursorPosition })
+  })
+}
+
+// Title editor
+function openTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
+  if (isTitleEditing.value) return
+  documentStore.selectNode(props.node.id, 'writer', false)
+  isTitleEditing.value = true
+  void nextTick(() => createTitleEditor(cursorPosition))
+}
+
+function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
+  if (titleEditor.value) return
+
+  const isUntitled = !props.node.data.title
+
+  titleEditor.value = new Editor({
+    extensions: [
+      StarterKit.configure({
+        heading: false, codeBlock: false, bulletList: false,
+        orderedList: false, listItem: false, blockquote: false, horizontalRule: false
+      }),
+      Placeholder.configure({ placeholder: 'Node title...' })
+    ],
+    content: props.node.data.title || '',
+    autofocus: cursorPosition,
+    editorProps: {
+      handleKeyDown: createKeyboardHandler({
+        onEnterKey: () => openContentEditor('start'),
+        onRightArrowAtEnd: () => openContentEditor('start'),
+        onLeftArrowAtStart: () => {
+          if (navigation) {
+            const prevField = navigation.getPreviousField(props.node.id, 'title')
+            if (prevField) {
+              navigateToField(prevField.nodeId, prevField.field === 'title' ? 'content' : prevField.field, 'end')
+            }
+          }
+        },
+        onUpArrowAtFirstLine: () => {
+          if (navigation) {
+            const prevField = navigation.getPreviousField(props.node.id, 'title')
+            if (prevField) {
+              navigateToField(prevField.nodeId, prevField.field === 'title' ? 'content' : prevField.field, 'end')
+            }
+          }
+        },
+        onDownArrowAtLastLine: () => openContentEditor('start')
+      })
+    },
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML()
+      // Strip <p> tags for title
+      const text = html.replace(/<\/?p>/g, '')
+      documentStore.updateNode(props.node.id, { title: text }, 'writer')
+    },
+    onBlur: () => destroyTitleEditor()
+  })
+
+  if (isUntitled) {
+    void nextTick(() => titleEditor.value?.commands.selectAll())
+  }
+}
+
+function destroyTitleEditor() {
+  titleEditor.value?.destroy()
+  titleEditor.value = null
+  isTitleEditing.value = false
+}
+
+// Content editor
+function openContentEditor(cursorPosition: 'start' | 'end' = 'end') {
+  if (isContentEditing.value) return
+  documentStore.selectNode(props.node.id, 'writer', false)
+  isContentEditing.value = true
+  void nextTick(() => createContentEditor(cursorPosition))
+}
+
+function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
+  if (contentEditor.value) return
+
+  contentEditor.value = new Editor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({ placeholder: 'Node content...' })
+    ],
+    content: props.node.data.content || '',
+    autofocus: cursorPosition,
+    editorProps: {
+      handleKeyDown: createKeyboardHandler({
+        onLeftArrowAtStart: () => openTitleEditor('end'),
+        onRightArrowAtEnd: () => {
+          if (navigation) {
+            const hasContent = props.node.data.content && (() => {
+              const tmp = document.createElement('div')
+              tmp.innerHTML = props.node.data.content
+              return (tmp.textContent || '').trim() !== ''
+            })()
+            const currentField = hasContent ? 'content' : 'title'
+            const nextField = navigation.getNextField(props.node.id, currentField)
+            if (nextField) {
+              navigateToField(nextField.nodeId, nextField.field, 'start')
+            }
+          }
+        },
+        onUpArrowAtFirstLine: () => openTitleEditor('end'),
+        onDownArrowAtLastLine: () => {
+          if (navigation) {
+            const hasContent = props.node.data.content && (() => {
+              const tmp = document.createElement('div')
+              tmp.innerHTML = props.node.data.content
+              return (tmp.textContent || '').trim() !== ''
+            })()
+            const currentField = hasContent ? 'content' : 'title'
+            const nextField = navigation.getNextField(props.node.id, currentField)
+            if (nextField) {
+              navigateToField(nextField.nodeId, nextField.field, 'start')
+            }
+          }
+        }
+      })
+    },
+    onUpdate: ({ editor }) => {
+      documentStore.updateNode(props.node.id, { content: editor.getHTML() }, 'writer')
+    },
+    onBlur: () => destroyContentEditor()
+  })
+}
+
+function destroyContentEditor() {
+  contentEditor.value?.destroy()
+  contentEditor.value = null
+  isContentEditing.value = false
+}
+
+// Listen for field open events
+const emitter = inject<{ on: (event: string, handler: (payload: unknown) => void) => void }>('writerEmitter')
+emitter?.on('open-field', (payload: unknown) => {
+  const { nodeId, field, cursorPosition } = payload as { nodeId: string; field: 'title' | 'content'; cursorPosition: 'start' | 'end' }
+  if (nodeId === props.node.id) {
+    if (field === 'title') {
+      openTitleEditor(cursorPosition)
+    } else {
+      openContentEditor(cursorPosition)
+    }
+  }
+})
+
+// Watch for external selection changes to scroll into view
+watch(() => documentStore.selectedNodeIds, (newIds) => {
+  if (newIds.includes(props.node.id)) {
+    // Could scroll into view here if needed
+  }
+})
+
+// Cleanup
+onBeforeUnmount(() => {
+  destroyTitleEditor()
+  destroyContentEditor()
+})
+</script>
+
+<style scoped lang="scss">
+.writer-node {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  cursor: default;
+
+  &.is-hovered {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+
+  &.is-selected {
+    border-color: var(--q-primary, #1976d2);
+    background-color: rgba(25, 118, 210, 0.05);
+  }
+}
+
+.drag-handle {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+  opacity: 0;
+  transition: all 0.15s ease;
+  margin-top: 2px;
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .writer-node.is-hovered &,
+  .writer-node.is-selected & {
+    opacity: 1;
+  }
+}
+
+.node-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.title-wrapper {
+  margin-bottom: 2px;
+}
+
+.node-title {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.87);
+  cursor: text;
+
+  :deep(.placeholder) {
+    color: rgba(0, 0, 0, 0.35);
+    font-style: italic;
+    font-weight: normal;
+  }
+
+  :deep(p) {
+    margin: 0;
+  }
+}
+
+.node-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(0, 0, 0, 0.6);
+  cursor: text;
+
+  :deep(p) {
+    margin: 0 0 6px 0;
+    &:last-child { margin-bottom: 0; }
+    &.placeholder {
+      color: rgba(0, 0, 0, 0.3);
+      font-style: italic;
+    }
+  }
+}
+
+// Tiptap editor styles
+:deep(.ProseMirror) {
+  outline: none;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+
+  p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    height: 0;
+    font-style: italic;
+  }
+}
+
+.node-title :deep(.ProseMirror) {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.87);
+}
+
+.node-body :deep(.ProseMirror) {
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(0, 0, 0, 0.6);
+}
+</style>
+
