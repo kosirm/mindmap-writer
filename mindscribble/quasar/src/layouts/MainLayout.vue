@@ -148,16 +148,22 @@
         <ThreePanelContainer />
       </q-page>
     </q-page-container>
+
+    <!-- Command Palette (global) -->
+    <CommandPalette />
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, defineAsyncComponent } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useAppStore } from 'src/core/stores/appStore'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { usePanelStore } from 'src/core/stores/panelStore'
 import PanelManager from 'src/shared/components/PanelManager.vue'
 import ThreePanelContainer from 'src/shared/components/ThreePanelContainer.vue'
+import CommandPalette from 'src/shared/components/CommandPalette.vue'
+import { registerCommands, handleKeyboardEvent, initCommandAPI } from 'src/core/commands'
+import { allCommands } from 'src/core/commands/definitions'
 
 // Dev tools - only imported in development mode (lazy loaded)
 const DevPanel = import.meta.env.DEV
@@ -172,12 +178,60 @@ const panelStore = usePanelStore()
 const leftDrawerTab = ref('tools')
 const isDev = import.meta.env.DEV
 
+// Global keyboard event handler
+function onKeyDown(event: KeyboardEvent) {
+  handleKeyboardEvent(event)
+}
+
+// Listen for command events
+function onCommandPaletteOpen() {
+  appStore.openCommandPalette()
+}
+
+function onThemeToggle() {
+  appStore.toggleDarkMode()
+}
+
+function onLeftDrawerToggle() {
+  appStore.toggleLeftDrawer()
+}
+
+function onRightDrawerToggle() {
+  appStore.toggleRightDrawer()
+}
+
 onMounted(() => {
+  // Register all commands
+  registerCommands(allCommands)
+
+  // Initialize command API for external agents (n8n, etc.)
+  initCommandAPI()
+
   // Initialize online status listeners
   appStore.initOnlineListeners()
 
   // Load saved panel layout
   panelStore.loadLayout()
+
+  // Add global keyboard listener
+  window.addEventListener('keydown', onKeyDown)
+
+  // Listen for command events (from command execution)
+  window.addEventListener('command:palette.open', onCommandPaletteOpen)
+  window.addEventListener('command:view.theme.toggle', onThemeToggle)
+  window.addEventListener('command:view.drawer.left.toggle', onLeftDrawerToggle)
+  window.addEventListener('command:view.drawer.right.toggle', onRightDrawerToggle)
+})
+
+onUnmounted(() => {
+  // Remove global keyboard listener
+  window.removeEventListener('keydown', onKeyDown)
+
+  // Remove command event listeners
+  window.removeEventListener('command:palette.open', onCommandPaletteOpen)
+  window.removeEventListener('command:view.theme.toggle', onThemeToggle)
+  window.removeEventListener('command:view.drawer.left.toggle', onLeftDrawerToggle)
+  window.removeEventListener('command:view.drawer.right.toggle', onRightDrawerToggle)
 })
 </script>
 
