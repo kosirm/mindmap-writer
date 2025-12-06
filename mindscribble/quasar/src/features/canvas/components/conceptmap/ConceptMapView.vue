@@ -305,7 +305,7 @@ function syncFromStore() {
 
     return {
       id: sn.id,
-      label: sn.data.content || sn.data.title,
+      label: sn.data.title,
       parentId: sn.data.parentId,
       x: conceptMapPos?.x ?? 0,
       y: conceptMapPos?.y ?? 0,

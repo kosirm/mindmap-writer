@@ -119,8 +119,6 @@ export interface SiblingsReorderedPayload extends BasePayload {
   parentId: string | null
   /** Map of nodeId -> new order */
   newOrders: Map<string, number>
-  /** The orientation mode used for reordering */
-  orientation: string
 }
 
 // ============================================================

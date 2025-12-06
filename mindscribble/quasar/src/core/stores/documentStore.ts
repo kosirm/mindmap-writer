@@ -80,7 +80,9 @@ export const useDocumentStore = defineStore('document', () => {
   )
 
   const rootNodes = computed(() =>
-    nodes.value.filter((n) => n.data.parentId === null)
+    nodes.value
+      .filter((n) => n.data.parentId === null)
+      .sort((a, b) => a.data.order - b.data.order)
   )
 
   const nodeCount = computed(() => nodes.value.length)
@@ -444,6 +446,39 @@ export const useDocumentStore = defineStore('document', () => {
     })
   }
 
+  /**
+   * Reorder siblings - update order values for multiple nodes at once
+   * Used when nodes are reordered within the same parent
+   */
+  function reorderSiblings(
+    parentId: string | null,
+    newOrders: Map<string, number>,
+    source: EventSource = 'store'
+  ) {
+    let anyChanged = false
+
+    // Update order for each node
+    newOrders.forEach((newOrder, nodeId) => {
+      const node = getNodeById(nodeId)
+      if (node && node.data.order !== newOrder) {
+        node.data.order = newOrder
+        node.data.modified = new Date().toISOString()
+        anyChanged = true
+      }
+    })
+
+    if (anyChanged) {
+      markDirty()
+
+      // Emit siblings-reordered event
+      eventBus.emit('store:siblings-reordered', {
+        parentId,
+        newOrders,
+        source
+      })
+    }
+  }
+
   // ============================================================
   // EDGE ACTIONS
   // ============================================================
@@ -687,6 +722,7 @@ export const useDocumentStore = defineStore('document', () => {
     updateNodePosition,
     deleteNode,
     moveNode,
+    reorderSiblings,
 
     // Edge Actions
     addEdge,

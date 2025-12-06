@@ -21,7 +21,7 @@ export type OrientationMode = 'clockwise' | 'counter-clockwise' | 'left-right' |
  * Calculate angle from reference point to node center
  * Returns angle in degrees, normalized to 0-360 starting from 12 o'clock going clockwise
  */
-function calculateClockwiseAngle(
+export function calculateClockwiseAngle(
   nodeX: number, nodeY: number, nodeWidth: number, nodeHeight: number,
   refX: number, refY: number
 ): number {
