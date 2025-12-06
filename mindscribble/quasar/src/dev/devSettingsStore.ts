@@ -25,9 +25,9 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
   const horizontalSpacing = ref(0)
   const verticalSpacing = ref(0)
 
-  // Edge types
-  const hierarchyEdgeType = ref<EdgeType>('straight')
-  const referenceEdgeType = ref<EdgeType>('straight')
+  // Edge types (default is 'default' which is Bezier in VueFlow)
+  const hierarchyEdgeType = ref<EdgeType>('default')
+  const referenceEdgeType = ref<EdgeType>('default')
 
   // Actions
   function toggleBoundingBoxes() {

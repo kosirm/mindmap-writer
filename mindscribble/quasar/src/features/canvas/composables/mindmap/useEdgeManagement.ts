@@ -168,6 +168,78 @@ export function useEdgeManagement(
   }
 
   /**
+   * Calculate optimal handles for a reference edge based on relative positions of source and target nodes.
+   * Uses the same algorithm as hierarchy edges - compare node centers and choose best connection points.
+   */
+  function getOptimalHandlesForNodes(sourceId: string, targetId: string): { sourceHandle: string, targetHandle: string } {
+    const sourceNode = nodes.value.find(n => n.id === sourceId)
+    const targetNode = nodes.value.find(n => n.id === targetId)
+
+    if (!sourceNode || !targetNode) {
+      return { sourceHandle: 'right-source', targetHandle: 'left-target' }
+    }
+
+    // Calculate centers
+    const sourceCenterX = sourceNode.x + sourceNode.width / 2
+    const sourceCenterY = sourceNode.y + sourceNode.height / 2
+    const targetCenterX = targetNode.x + targetNode.width / 2
+    const targetCenterY = targetNode.y + targetNode.height / 2
+
+    const dx = targetCenterX - sourceCenterX
+    const dy = targetCenterY - sourceCenterY
+
+    // Determine primary direction based on which delta is larger
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Horizontal connection is primary
+      if (dx > 0) {
+        return { sourceHandle: 'right-source', targetHandle: 'left-target' }
+      } else {
+        return { sourceHandle: 'left-source', targetHandle: 'right-target' }
+      }
+    } else {
+      // Vertical connection is primary
+      if (dy > 0) {
+        return { sourceHandle: 'bottom-source', targetHandle: 'top-target' }
+      } else {
+        return { sourceHandle: 'top-source', targetHandle: 'bottom-target' }
+      }
+    }
+  }
+
+  /**
+   * Update reference edge handles based on current node positions.
+   * Reference edges are identified by data.edgeType === 'reference' or class containing 'edge-reference'.
+   * This should be called after nodes are moved to ensure reference edges connect to optimal handles.
+   */
+  function updateReferenceEdgeHandles() {
+    let updated = false
+
+    edges.value = edges.value.map(edge => {
+      // Check if this is a reference edge
+      const classStr = typeof edge.class === 'string' ? edge.class : ''
+      const isReferenceEdge = edge.data?.edgeType === 'reference' || classStr.includes('edge-reference')
+
+      if (!isReferenceEdge) return edge
+
+      // Calculate optimal handles for this reference edge
+      const { sourceHandle, targetHandle } = getOptimalHandlesForNodes(edge.source, edge.target)
+
+      // Only update if handles changed
+      if (edge.sourceHandle !== sourceHandle || edge.targetHandle !== targetHandle) {
+        updated = true
+        return { ...edge, sourceHandle, targetHandle }
+      }
+
+      return edge
+    })
+
+    if (updated) {
+      // Trigger reactivity for edges
+      triggerRef(edges)
+    }
+  }
+
+  /**
    * Create edge between parent and child with handles based on closest connection point
    */
   function createEdge(sourceId: string, targetId: string) {
@@ -205,6 +277,7 @@ export function useEdgeManagement(
     updateEdgeHandles,
     updateEdgesForBranch,
     updateAllEdgeHandles,
+    updateReferenceEdgeHandles,
     createEdge
   }
 }
