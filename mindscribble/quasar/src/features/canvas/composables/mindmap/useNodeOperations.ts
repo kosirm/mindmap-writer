@@ -208,17 +208,13 @@ export function useNodeOperations(
   async function addRootNode() {
     console.log('addRootNode called, current nodes:', nodes.value.length)
 
-    // Default node dimensions - will be updated after DOM measurement
-    const defaultWidth = 150
-    const defaultHeight = 50
-
-    // Position node so its center is at canvas origin (0,0)
-    const x = -defaultWidth / 2
-    const y = -defaultHeight / 2
+    // Position node temporarily at origin - will be adjusted after measuring
+    const x = 0
+    const y = 0
 
     // Add to both local and store
     nodeCounter.value++ // Increment counter for future use
-    addNodeToLocalAndStore(null, 'Untitled', x, y, {
+    const newNode = addNodeToLocalAndStore(null, 'Untitled', x, y, {
       collapsed: false,
       collapsedLeft: false,
       collapsedRight: false
@@ -229,6 +225,17 @@ export function useNodeOperations(
     // Measure actual dimensions after rendering
     await nextTick()
     await updateNodeDimensionsFromDOM()
+
+    // Now reposition the node so its CENTER is at canvas origin (0,0)
+    if (newNode) {
+      const actualWidth = newNode.width ?? 150
+      const actualHeight = newNode.height ?? 50
+      newNode.x = -actualWidth / 2
+      newNode.y = -actualHeight / 2
+      newNode.mindmapPosition = { x: newNode.x, y: newNode.y }
+      console.log(`Centered root node: pos=(${newNode.x}, ${newNode.y}), size=${actualWidth}x${actualHeight}`)
+      syncToVueFlow()
+    }
 
     console.log('After addRootNode, nodes:', nodes.value.length)
   }

@@ -451,7 +451,8 @@ export const useDocumentStore = defineStore('document', () => {
   function addEdge(
     sourceId: string,
     targetId: string,
-    edgeType: 'hierarchy' | 'reference' = 'hierarchy'
+    edgeType: 'hierarchy' | 'reference' = 'hierarchy',
+    source: EventSource = 'store'
   ): MindscribbleEdge | null {
     // Check if edge already exists
     const exists = edges.value.some(
@@ -471,12 +472,27 @@ export const useDocumentStore = defineStore('document', () => {
     edges.value.push(newEdge)
     markDirty()
 
+    // Emit event for edge creation
+    eventBus.emit('store:edge-created', {
+      edgeId: newEdge.id,
+      sourceId,
+      targetId,
+      edgeType,
+      source
+    })
+
     return newEdge
   }
 
-  function removeEdge(edgeId: string) {
+  function removeEdge(edgeId: string, source: EventSource = 'store') {
     edges.value = edges.value.filter((e) => e.id !== edgeId)
     markDirty()
+
+    // Emit event for edge deletion
+    eventBus.emit('store:edge-deleted', {
+      edgeId,
+      source
+    })
   }
 
   // ============================================================

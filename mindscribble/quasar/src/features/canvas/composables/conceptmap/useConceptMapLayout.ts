@@ -266,11 +266,12 @@ export function useConceptMapLayout(
         calculateNodeSizeBottomUp(newRoot)
       }
 
-      newRoot.conceptMapPosition = { x: currentX, y: 0 }
       const size = newRoot.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+      // Position vertically centered (y = -height/2)
+      newRoot.conceptMapPosition = { x: currentX, y: -size.height / 2 }
       currentX += size.width + NODE_SPACING * 3
 
-      console.log(`  New root "${newRoot.label}": pos=(${newRoot.conceptMapPosition.x}, 0)`)
+      console.log(`  New root "${newRoot.label}": pos=(${newRoot.conceptMapPosition.x}, ${newRoot.conceptMapPosition.y})`)
 
       // Position any new children
       positionChildrenTopDown(newRoot.id)
@@ -330,13 +331,24 @@ export function useConceptMapLayout(
       positionChildrenTopDown(root.id)
     }
 
-    // Third pass: Arrange root nodes in a row with spacing
-    let currentX = 0
+    // Third pass: Arrange root nodes in a row centered around origin
+    // First calculate total width of all roots
+    let totalWidth = 0
+    for (const root of rootNodes) {
+      const size = root.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+      totalWidth += size.width
+    }
+    // Add spacing between roots
+    totalWidth += (rootNodes.length - 1) * NODE_SPACING * 3
+
+    // Start from left edge so roots are centered around x=0
+    let currentX = -totalWidth / 2
     for (const root of rootNodes) {
       const size = root.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
 
-      root.conceptMapPosition = { x: currentX, y: 0 }
-      console.log(`Root "${root.label}": pos=(${currentX}, 0), size=${size.width}x${size.height}`)
+      // Position so the node's center (for single root) or the group is centered
+      root.conceptMapPosition = { x: currentX, y: -size.height / 2 }
+      console.log(`Root "${root.label}": pos=(${currentX}, ${-size.height / 2}), size=${size.width}x${size.height}`)
 
       currentX += size.width + NODE_SPACING * 3 // Extra spacing between roots
     }

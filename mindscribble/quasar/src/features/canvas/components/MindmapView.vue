@@ -282,6 +282,8 @@ function syncFromStore() {
  */
 function syncToStore() {
   console.log('=== syncToStore: Saving to store ===')
+  const syncedNodeIds: string[] = []
+
   for (const node of nodes.value) {
     const storeNode = documentStore.nodes.find(n => n.id === node.id)
     if (storeNode) {
@@ -305,9 +307,12 @@ function syncToStore() {
 
       // Also update the active position
       storeNode.position = { x: node.x, y: node.y }
+
+      syncedNodeIds.push(node.id)
     }
   }
-  console.log('=== syncToStore: Complete ===')
+
+  console.log(`=== syncToStore: Complete (synced ${syncedNodeIds.length} nodes) ===`)
 }
 
 /**
@@ -655,6 +660,36 @@ onStoreEvent('store:node-deleted', () => {
   console.log('Node deleted from another view, syncing to mindmap...')
   syncFromStore()
   rebuildEdgesFromHierarchy()
+  syncToVueFlow()
+})
+
+// Listen for reference edge creation from other views
+onStoreEvent('store:edge-created', ({ edgeId, sourceId, targetId, edgeType }) => {
+  if (edgeType !== 'reference') return
+  console.log(`MindmapView: Reference edge created from another view: ${edgeId}`)
+
+  // Calculate optimal handles for the new edge based on mindmap positions
+  const { sourceHandle, targetHandle } = getOptimalHandles(sourceId, targetId)
+
+  // Add to local edges
+  const newEdge: Edge = {
+    id: edgeId,
+    source: sourceId,
+    target: targetId,
+    sourceHandle,
+    targetHandle,
+    type: 'straight',
+    class: 'edge-reference',
+    data: { edgeType: 'reference' }
+  }
+  edges.value = [...edges.value, newEdge]
+  syncToVueFlow()
+})
+
+// Listen for reference edge deletion from other views
+onStoreEvent('store:edge-deleted', ({ edgeId }) => {
+  console.log(`MindmapView: Edge deleted from another view: ${edgeId}`)
+  edges.value = edges.value.filter(e => e.id !== edgeId)
   syncToVueFlow()
 })
 

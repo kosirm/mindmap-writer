@@ -123,6 +123,23 @@ export interface SiblingsReorderedPayload extends BasePayload {
   orientation: string
 }
 
+// ============================================================
+// EDGE EVENT PAYLOADS
+// ============================================================
+
+/** Edge created (reference edge between nodes) */
+export interface EdgeCreatedPayload extends BasePayload {
+  edgeId: string
+  sourceId: string
+  targetId: string
+  edgeType: 'hierarchy' | 'reference'
+}
+
+/** Edge deleted */
+export interface EdgeDeletedPayload extends BasePayload {
+  edgeId: string
+}
+
 /** View switched */
 export interface ViewChangedPayload extends BasePayload {
   previousView: ViewType
@@ -187,6 +204,10 @@ export type StoreEvents = {
   'store:node-moved': NodeMovedPayload
   'store:node-reparented': NodeReparentedPayload
   'store:siblings-reordered': SiblingsReorderedPayload
+
+  // Edge lifecycle events
+  'store:edge-created': EdgeCreatedPayload
+  'store:edge-deleted': EdgeDeletedPayload
 
   // View events
   'store:view-changed': ViewChangedPayload

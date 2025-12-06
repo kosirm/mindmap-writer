@@ -17,9 +17,12 @@ export const edgeTypeOptions: { label: string; value: EdgeType }[] = [
  * These settings are used by MindmapView and ConceptMapView for debugging
  */
 export const useDevSettingsStore = defineStore('devSettings', () => {
-  // Bounding boxes
+  // Mindmap settings
   const showBoundingBoxes = ref(false)
   const showCanvasCenter = ref(false)
+
+  // Conceptmap settings
+  const showConceptMapCanvasCenter = ref(false)
 
   // Layout spacing (affects AABB calculations)
   const horizontalSpacing = ref(0)
@@ -38,6 +41,10 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
     showCanvasCenter.value = !showCanvasCenter.value
   }
 
+  function toggleConceptMapCanvasCenter() {
+    showConceptMapCanvasCenter.value = !showConceptMapCanvasCenter.value
+  }
+
   function setSpacing(horizontal: number, vertical: number) {
     horizontalSpacing.value = horizontal
     verticalSpacing.value = vertical
@@ -52,9 +59,12 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
   }
 
   return {
-    // State
+    // State - Mindmap
     showBoundingBoxes,
     showCanvasCenter,
+    // State - Conceptmap
+    showConceptMapCanvasCenter,
+    // State - Shared
     horizontalSpacing,
     verticalSpacing,
     hierarchyEdgeType,
@@ -62,6 +72,7 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
     // Actions
     toggleBoundingBoxes,
     toggleCanvasCenter,
+    toggleConceptMapCanvasCenter,
     setSpacing,
     setHierarchyEdgeType,
     setReferenceEdgeType
