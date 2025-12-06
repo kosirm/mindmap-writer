@@ -70,6 +70,9 @@ const props = defineProps<{
 const documentStore = useDocumentStore()
 const navigation = inject<ReturnType<typeof useWriterNavigation>>('writerNavigation')
 
+// Inject emitter at setup time (inject must be called during setup, not inside functions)
+const writerEmitter = inject<{ emit: (event: string, payload: unknown) => void; on: (event: string, handler: (payload: unknown) => void) => void }>('writerEmitter')
+
 // UI state
 const isHovered = ref(false)
 const isTitleEditing = ref(false)
@@ -107,11 +110,12 @@ function handleContentClick() {
 
 // Navigation helper
 function navigateToField(nodeId: string, field: 'title' | 'content', cursorPosition: 'start' | 'end') {
+  console.log(`[WriterNodeContent] navigateToField called: nodeId=${nodeId}, field=${field}, cursorPosition=${cursorPosition}`)
   documentStore.selectNode(nodeId, 'writer', false)
   void nextTick(() => {
-    // Emit event for target node to open field - we'll use a simple approach with injected event emitter
-    const emitter = inject<{ emit: (event: string, payload: unknown) => void }>('writerEmitter')
-    emitter?.emit('open-field', { nodeId, field, cursorPosition })
+    // Use the emitter injected at setup time
+    console.log(`[WriterNodeContent] emitting open-field event, writerEmitter exists: ${!!writerEmitter}`)
+    writerEmitter?.emit('open-field', { nodeId, field, cursorPosition })
   })
 }
 
@@ -140,25 +144,38 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
     autofocus: cursorPosition,
     editorProps: {
       handleKeyDown: createKeyboardHandler({
-        onEnterKey: () => openContentEditor('start'),
-        onRightArrowAtEnd: () => openContentEditor('start'),
+        onEnterKey: () => {
+          console.log(`[WriterNodeContent] TITLE onEnterKey callback - node: ${props.node.id}`)
+          openContentEditor('start')
+        },
+        onRightArrowAtEnd: () => {
+          console.log(`[WriterNodeContent] TITLE onRightArrowAtEnd callback - node: ${props.node.id}`)
+          openContentEditor('start')
+        },
         onLeftArrowAtStart: () => {
+          console.log(`[WriterNodeContent] TITLE onLeftArrowAtStart callback - node: ${props.node.id}, navigation exists: ${!!navigation}`)
           if (navigation) {
             const prevField = navigation.getPreviousField(props.node.id, 'title')
+            console.log(`[WriterNodeContent] TITLE prevField:`, prevField)
             if (prevField) {
               navigateToField(prevField.nodeId, prevField.field === 'title' ? 'content' : prevField.field, 'end')
             }
           }
         },
         onUpArrowAtFirstLine: () => {
+          console.log(`[WriterNodeContent] TITLE onUpArrowAtFirstLine callback - node: ${props.node.id}, navigation exists: ${!!navigation}`)
           if (navigation) {
             const prevField = navigation.getPreviousField(props.node.id, 'title')
+            console.log(`[WriterNodeContent] TITLE prevField:`, prevField)
             if (prevField) {
               navigateToField(prevField.nodeId, prevField.field === 'title' ? 'content' : prevField.field, 'end')
             }
           }
         },
-        onDownArrowAtLastLine: () => openContentEditor('start')
+        onDownArrowAtLastLine: () => {
+          console.log(`[WriterNodeContent] TITLE onDownArrowAtLastLine callback - node: ${props.node.id}`)
+          openContentEditor('start')
+        }
       })
     },
     onUpdate: ({ editor }) => {
@@ -201,8 +218,12 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
     autofocus: cursorPosition,
     editorProps: {
       handleKeyDown: createKeyboardHandler({
-        onLeftArrowAtStart: () => openTitleEditor('end'),
+        onLeftArrowAtStart: () => {
+          console.log(`[WriterNodeContent] CONTENT onLeftArrowAtStart callback - node: ${props.node.id}`)
+          openTitleEditor('end')
+        },
         onRightArrowAtEnd: () => {
+          console.log(`[WriterNodeContent] CONTENT onRightArrowAtEnd callback - node: ${props.node.id}, navigation exists: ${!!navigation}`)
           if (navigation) {
             const hasContent = props.node.data.content && (() => {
               const tmp = document.createElement('div')
@@ -211,13 +232,18 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
             })()
             const currentField = hasContent ? 'content' : 'title'
             const nextField = navigation.getNextField(props.node.id, currentField)
+            console.log(`[WriterNodeContent] CONTENT nextField:`, nextField)
             if (nextField) {
               navigateToField(nextField.nodeId, nextField.field, 'start')
             }
           }
         },
-        onUpArrowAtFirstLine: () => openTitleEditor('end'),
+        onUpArrowAtFirstLine: () => {
+          console.log(`[WriterNodeContent] CONTENT onUpArrowAtFirstLine callback - node: ${props.node.id}`)
+          openTitleEditor('end')
+        },
         onDownArrowAtLastLine: () => {
+          console.log(`[WriterNodeContent] CONTENT onDownArrowAtLastLine callback - node: ${props.node.id}, navigation exists: ${!!navigation}`)
           if (navigation) {
             const hasContent = props.node.data.content && (() => {
               const tmp = document.createElement('div')
@@ -226,6 +252,7 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
             })()
             const currentField = hasContent ? 'content' : 'title'
             const nextField = navigation.getNextField(props.node.id, currentField)
+            console.log(`[WriterNodeContent] CONTENT nextField:`, nextField)
             if (nextField) {
               navigateToField(nextField.nodeId, nextField.field, 'start')
             }
@@ -246,11 +273,12 @@ function destroyContentEditor() {
   isContentEditing.value = false
 }
 
-// Listen for field open events
-const emitter = inject<{ on: (event: string, handler: (payload: unknown) => void) => void }>('writerEmitter')
-emitter?.on('open-field', (payload: unknown) => {
+// Listen for field open events (using the writerEmitter injected at setup time)
+writerEmitter?.on('open-field', (payload: unknown) => {
   const { nodeId, field, cursorPosition } = payload as { nodeId: string; field: 'title' | 'content'; cursorPosition: 'start' | 'end' }
+  console.log(`[WriterNodeContent] Received open-field event: nodeId=${nodeId}, field=${field}, cursorPosition=${cursorPosition}, my nodeId=${props.node.id}`)
   if (nodeId === props.node.id) {
+    console.log(`[WriterNodeContent] Opening ${field} editor for my node`)
     if (field === 'title') {
       openTitleEditor(cursorPosition)
     } else {
