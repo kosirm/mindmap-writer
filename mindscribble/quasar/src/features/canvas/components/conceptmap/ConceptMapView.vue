@@ -31,6 +31,15 @@
       </template>
     </VueFlow>
 
+    <!-- SVG Overlay for canvas center indicator -->
+    <svg class="canvas-overlay" v-if="showCanvasCenter">
+      <g :style="{ transform: viewportTransform }">
+        <line x1="-20" y1="0" x2="20" y2="0" stroke="#ff6b6b" stroke-width="2" />
+        <line x1="0" y1="-20" x2="0" y2="20" stroke="#ff6b6b" stroke-width="2" />
+        <circle cx="0" cy="0" r="3" fill="#ff6b6b" />
+      </g>
+    </svg>
+
     <!-- Context Menu -->
     <div v-if="contextMenu.visible" class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
       <div class="context-menu-item" @click="addChildNode">
@@ -54,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { MiniMap } from '@vue-flow/minimap'
@@ -76,7 +85,7 @@ import { useReferenceEdges } from '../../composables/useReferenceEdges'
 // ============================================================
 // STATE & SETUP
 // ============================================================
-const { viewport, fitView, findNode, updateNodeInternals, setNodes } = useVueFlow()
+const { viewport, fitView, setViewport, findNode, updateNodeInternals, setNodes } = useVueFlow()
 const documentStore = useDocumentStore()
 const devSettings = useDevSettingsStore()
 const { referenceEdgeType } = storeToRefs(devSettings)
@@ -206,6 +215,8 @@ const { resolveOverlapsForNode, adjustParentSize, resolveSiblingOverlaps } = use
 // COMPUTED
 // ============================================================
 const zoomPercent = computed(() => Math.round(viewport.value.zoom * 100))
+const viewportTransform = computed(() => `translate(${viewport.value.x}px, ${viewport.value.y}px) scale(${viewport.value.zoom})`)
+const showCanvasCenter = computed(() => devSettings.showConceptMapCanvasCenter)
 
 // Visible edges with dynamic edge type from settings
 const visibleEdges = computed(() => {
@@ -331,6 +342,8 @@ function syncFromStore() {
 
 function syncToStore() {
   console.log('=== ConceptMap syncToStore: Saving to store ===')
+  const syncedNodeIds: string[] = []
+
   for (const node of nodes.value) {
     // Update the views.conceptMap data
     const storeNode = documentStore.nodes.find(n => n.id === node.id)
@@ -343,9 +356,12 @@ function syncToStore() {
         position: node.conceptMapPosition ?? null,
         size: node.conceptMapSize ?? null
       }
+
+      syncedNodeIds.push(node.id)
     }
   }
-  console.log('=== ConceptMap syncToStore: Complete ===')
+
+  console.log(`=== ConceptMap syncToStore: Complete (synced ${syncedNodeIds.length} nodes) ===`)
 }
 
 // ============================================================
@@ -653,7 +669,7 @@ function recalculateAllParentSizesAndResolveOverlaps(): void {
   console.log('ConceptMapView: Overlaps resolved and parent sizes recalculated')
 }
 
-onMounted(() => {
+onMounted(async () => {
   console.log('ConceptMapView mounted')
 
   // Setup keyboard listeners for reference edge creation (C key)
@@ -677,7 +693,13 @@ onMounted(() => {
     syncToStore()
   }
 
-  void fitView({ padding: 0.2, duration: 300 })
+  // Center the viewport on canvas origin (0,0)
+  await nextTick()
+  const vueFlowContainer = document.querySelector('.vue-flow')
+  if (vueFlowContainer) {
+    const rect = vueFlowContainer.getBoundingClientRect()
+    void setViewport({ x: rect.width / 2, y: rect.height / 2, zoom: 1 }, { duration: 0 })
+  }
 })
 
 onUnmounted(() => {
@@ -685,19 +707,80 @@ onUnmounted(() => {
   cleanupReferenceKeyboardListeners()
 })
 
-// Watch store for changes from other views
-watch(() => documentStore.nodes, () => {
+// Listen for node creation events from OTHER views (not concept-map)
+// The onStoreEvent automatically ignores events where source === 'concept-map'
+onStoreEvent('store:node-created', ({ nodeId }) => {
+  console.log(`ConceptMapView: Node created from another view: ${nodeId}, syncing...`)
+
+  // Re-sync from store to get the new node
   syncFromStore()
 
-  // Check if any nodes need layout
+  // The new node needs layout since it doesn't have conceptMapPosition
   const nodesNeedingLayout = getNodesNeedingLayout()
   if (nodesNeedingLayout.length > 0 && nodes.value.length > 0) {
-    console.log(`ConceptMapView watcher: ${nodesNeedingLayout.length} nodes need layout`)
+    console.log(`ConceptMapView: ${nodesNeedingLayout.length} nodes need layout after node creation`)
     initializeLayout()
+    recalculateAllParentSizesAndResolveOverlaps()
     buildVueFlowNodes()
     syncToStore()
   }
-}, { deep: true })
+})
+
+// Listen for node updates from other views
+onStoreEvent('store:node-updated', ({ nodeId }) => {
+  console.log(`ConceptMapView: Node updated from another view: ${nodeId}, syncing...`)
+  syncFromStore()
+  buildVueFlowNodes()
+})
+
+// Listen for node reparenting from other views
+onStoreEvent('store:node-reparented', ({ nodeId }) => {
+  console.log(`ConceptMapView: Node reparented from another view: ${nodeId}, syncing...`)
+  syncFromStore()
+
+  // Reparenting may require layout recalculation
+  recalculateAllParentSizesAndResolveOverlaps()
+  buildVueFlowNodes()
+  syncToStore()
+})
+
+// Listen for node deletion from other views
+onStoreEvent('store:node-deleted', () => {
+  console.log('ConceptMapView: Node deleted from another view, syncing...')
+  syncFromStore()
+  recalculateAllParentSizesAndResolveOverlaps()
+  buildVueFlowNodes()
+})
+
+// Listen for reference edge creation from other views
+onStoreEvent('store:edge-created', ({ edgeId, sourceId, targetId, edgeType }) => {
+  if (edgeType !== 'reference') return
+  console.log(`ConceptMapView: Reference edge created from another view: ${edgeId}`)
+
+  // Calculate optimal handles for the new edge based on concept map positions
+  const { sourceHandle, targetHandle } = getOptimalHandles(sourceId, targetId)
+
+  // Add to local edges
+  const newEdge: Edge = {
+    id: edgeId,
+    source: sourceId,
+    target: targetId,
+    sourceHandle,
+    targetHandle,
+    type: 'straight',
+    class: 'edge-reference',
+    data: { edgeType: 'reference' }
+  }
+  edges.value = [...edges.value, newEdge]
+  buildVueFlowNodes()
+})
+
+// Listen for reference edge deletion from other views
+onStoreEvent('store:edge-deleted', ({ edgeId }) => {
+  console.log(`ConceptMapView: Edge deleted from another view: ${edgeId}`)
+  edges.value = edges.value.filter(e => e.id !== edgeId)
+  buildVueFlowNodes()
+})
 
 // Expose for parent
 defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding: 0.2, duration: 300 }) })
@@ -717,6 +800,17 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
 .conceptmap-canvas :deep(.vue-flow) {
   flex: 1;
   min-height: 0;
+}
+
+/* Canvas center overlay */
+.canvas-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
 }
 
 /* Selected node highlight */

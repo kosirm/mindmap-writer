@@ -34,6 +34,12 @@
       class="q-mb-xs"
     />
     <q-toggle
+      v-model="showCanvasCenter"
+      size="sm"
+      label="Show Canvas Center"
+      class="q-mb-xs"
+    />
+    <q-toggle
       v-model="logCollisions"
       size="sm"
       label="Log Collisions"
@@ -53,8 +59,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useDevSettingsStore } from './devSettingsStore'
+import { storeToRefs } from 'pinia'
 
 const documentStore = useDocumentStore()
+const devSettings = useDevSettingsStore()
+
+const { showConceptMapCanvasCenter: showCanvasCenter } = storeToRefs(devSettings)
 
 const showBoundingBoxes = ref(false)
 const logCollisions = ref(true)

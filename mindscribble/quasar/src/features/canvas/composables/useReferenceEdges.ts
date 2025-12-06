@@ -16,11 +16,11 @@ interface ReferenceEdgeParams {
 
 export function useReferenceEdges(
   edges: Ref<Edge[]>,
-  _source: 'mindmap' | 'conceptmap'
+  viewSource: 'mindmap' | 'conceptmap'
 ) {
   const documentStore = useDocumentStore()
-  // _source parameter reserved for future use (e.g., different edge styles per view)
-  void _source
+  // Map view source to EventSource type used by the store
+  const eventSource = viewSource === 'mindmap' ? 'mindmap' : 'concept-map' as const
 
   // Track if 'C' key is pressed (for reference connection mode)
   const isCKeyPressed = ref(false)
@@ -91,8 +91,8 @@ export function useReferenceEdges(
       return false
     }
 
-    // Create reference edge in store (which will sync to local edges)
-    const storeEdge = documentStore.addEdge(params.source, params.target, 'reference')
+    // Create reference edge in store (which will sync to local edges via event)
+    const storeEdge = documentStore.addEdge(params.source, params.target, 'reference', eventSource)
 
     if (storeEdge) {
       // Also add to local edges for immediate display
