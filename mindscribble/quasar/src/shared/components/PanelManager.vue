@@ -194,6 +194,7 @@ function getViewLabel(position: PanelPosition): string {
   }
 
   .q-btn:first-child {
+    padding: 4px 10px;
     border-radius: 4px 0 0 4px;
   }
 

@@ -27,7 +27,12 @@
       <MiniMap pannable zoomable v-if="showMinimap" />
 
       <template #node-concept="{ data, id }">
-        <ConceptNode :data="data" :node-id="id" :is-parent="hasChildren(id)" />
+        <ConceptNode
+          :data="data"
+          :node-id="id"
+          :is-parent="hasChildren(id)"
+          @open-title-popup="openTitlePopup"
+        />
       </template>
     </VueFlow>
 
@@ -59,6 +64,38 @@
 
     <!-- Zoom Indicator -->
     <div v-if="showZoomIndicator" class="zoom-indicator">{{ zoomPercent }}%</div>
+
+    <!-- Title Edit Popup (teleported to body for z-index) -->
+    <Teleport to="body">
+      <div
+        v-if="titlePopup.visible"
+        class="title-edit-popup"
+        :style="{
+          left: titlePopup.x + 'px',
+          top: titlePopup.y + 'px',
+          minWidth: titlePopup.width + 'px'
+        }"
+      >
+        <div
+          class="title-edit-content"
+          @keydown.stop
+          @keyup.stop
+          @keypress.stop
+        >
+          <EditorContent
+            v-if="titlePopupEditor"
+            :editor="(titlePopupEditor as Editor)"
+            class="title-popup-editor"
+          />
+        </div>
+      </div>
+      <!-- Backdrop to close popup on click outside -->
+      <div
+        v-if="titlePopup.visible"
+        class="title-popup-backdrop"
+        @click="handleBackdropClick"
+      ></div>
+    </Teleport>
   </div>
 </template>
 
@@ -70,12 +107,20 @@ import { MiniMap } from '@vue-flow/minimap'
 import type { Node, Edge, NodeMouseEvent, NodeDragEvent } from '@vue-flow/core'
 import ConceptNode from './ConceptNode.vue'
 import type { NodeData, ContextMenuState } from '../mindmap/types'
+import { EditorContent } from '@tiptap/vue-3'
+import type { Editor } from '@tiptap/vue-3'
 
 // Store & Events
 import { useDocumentStore } from 'src/core/stores/documentStore'
-import { useViewEvents } from 'src/core/events'
+import { useViewEvents, eventBus, type NodeUpdatedPayload } from 'src/core/events'
 import { useDevSettingsStore } from 'src/dev/devSettingsStore'
 import { storeToRefs } from 'pinia'
+import {
+  activeEditingNodeId,
+  destroyActiveEditor,
+  createCanvasTitleEditor,
+  useCanvasNodeEditor
+} from '../../composables/useCanvasNodeEditor'
 
 // Composables
 import { useConceptMapLayout } from '../../composables/conceptmap/useConceptMapLayout'
@@ -115,6 +160,17 @@ const showZoomIndicator = ref(true)
 const contextMenu = ref<ContextMenuState>({ visible: false, x: 0, y: 0, nodeId: null })
 const isUpdatingSelectionFromStore = ref(false)
 
+// Title edit popup state
+const titlePopup = ref<{
+  visible: boolean
+  nodeId: string | null
+  x: number
+  y: number
+  width: number
+}>({ visible: false, nodeId: null, x: 0, y: 0, width: 150 })
+const titlePopupEditor = ref<Editor | null>(null)
+const { updateNodeTitle } = useCanvasNodeEditor()
+
 // Layout constants - consistent across ConceptMapView and useConceptMapLayout
 // Matching mindmap node sizes: min-width: 100px, min-height: 30px
 const PADDING = 20
@@ -139,6 +195,58 @@ function isRootNode(nodeId: string | null): boolean {
   return node?.parentId === null
 }
 
+// ============================================================
+// TITLE EDIT POPUP (for parent nodes)
+// ============================================================
+function openTitlePopup(payload: { nodeId: string; label: string; rect: DOMRect }) {
+  const { nodeId, label, rect } = payload
+
+  // Position popup at the same location as the header
+  titlePopup.value = {
+    visible: true,
+    nodeId,
+    x: rect.left,
+    y: rect.top,
+    width: Math.max(rect.width, 150)
+  }
+
+  // Create editor after DOM updates
+  void nextTick(() => {
+    const isUntitled = label === 'Untitled'
+    titlePopupEditor.value = createCanvasTitleEditor(
+      label,
+      {
+        onSave: saveTitlePopup,
+        onCancel: closeTitlePopup
+      },
+      isUntitled
+    )
+  })
+}
+
+function saveTitlePopup(html?: string) {
+  if (!titlePopup.value.nodeId) return
+
+  // Get HTML from editor if not provided
+  const content = html ?? titlePopupEditor.value?.getHTML() ?? ''
+
+  // Save to store
+  updateNodeTitle(titlePopup.value.nodeId, content, 'concept-map')
+
+  // Close popup
+  closeTitlePopup()
+}
+
+function closeTitlePopup() {
+  titlePopupEditor.value?.destroy()
+  titlePopupEditor.value = null
+  titlePopup.value = { visible: false, nodeId: null, x: 0, y: 0, width: 150 }
+}
+
+function handleBackdropClick() {
+  saveTitlePopup()
+}
+
 function calculateParentSize(nodeId: string): { width: number; height: number } {
   const children = getDirectChildren(nodeId).filter(c => c.conceptMapPosition != null)
   if (children.length === 0) return { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
@@ -146,12 +254,88 @@ function calculateParentSize(nodeId: string): { width: number; height: number } 
   let maxRight = 0, maxBottom = 0
   for (const child of children) {
     const pos = child.conceptMapPosition!
-    const size = hasChildren(child.id) ? calculateParentSize(child.id)
-      : (child.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT })
+    // Use measured size if available, otherwise calculate/default
+    const size = hasChildren(child.id)
+      ? calculateParentSize(child.id)
+      : (child.measuredSize ?? child.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT })
     maxRight = Math.max(maxRight, pos.x + size.width)
     maxBottom = Math.max(maxBottom, pos.y + size.height)
   }
   return { width: Math.max(MIN_NODE_WIDTH, maxRight + PADDING), height: Math.max(MIN_NODE_HEIGHT, maxBottom + PADDING) }
+}
+
+/**
+ * Measure actual DOM dimensions of a node
+ */
+function measureNodeDimensions(nodeId: string): { width: number; height: number } | null {
+  const vueFlowNode = document.querySelector(`[data-id="${nodeId}"]`)
+  if (vueFlowNode) {
+    const conceptNode = vueFlowNode.querySelector('.concept-node')
+    if (conceptNode) {
+      const rect = conceptNode.getBoundingClientRect()
+      // Account for zoom level
+      const actualWidth = rect.width / viewport.value.zoom
+      const actualHeight = rect.height / viewport.value.zoom
+      return { width: actualWidth, height: actualHeight }
+    }
+  }
+  return null
+}
+
+/**
+ * Measure all leaf nodes and update parent sizes accordingly
+ */
+async function updateNodeDimensionsFromDOM() {
+  await nextTick()
+
+  let updated = false
+
+  // Measure all leaf nodes (non-parent nodes)
+  for (const node of nodes.value) {
+    if (!hasChildren(node.id)) {
+      const dimensions = measureNodeDimensions(node.id)
+      if (dimensions) {
+        const currentSize = node.measuredSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+        // Only update if dimensions changed significantly (more than 1px difference)
+        if (Math.abs(currentSize.width - dimensions.width) > 1 ||
+            Math.abs(currentSize.height - dimensions.height) > 1) {
+          console.log(`📏 [ConceptMap] Updated dimensions for ${node.id}: ${dimensions.width.toFixed(0)}x${dimensions.height.toFixed(0)}`)
+          node.measuredSize = dimensions
+          updated = true
+        }
+      }
+    }
+  }
+
+  // If any dimensions changed, rebuild VueFlow nodes to update parent sizes
+  if (updated) {
+    buildVueFlowNodes()
+    // Update VueFlow internals for parent nodes
+    const parentIds = nodes.value.filter(n => hasChildren(n.id)).map(n => n.id)
+    if (parentIds.length > 0) {
+      updateNodeInternals(parentIds)
+    }
+  }
+
+  return updated
+}
+
+/**
+ * Measure node dimensions and resize parent nodes if needed.
+ * This is called after DOM updates to ensure parent containers fit their children.
+ */
+async function measureAndResizeNodes(): Promise<void> {
+  const updated = await updateNodeDimensionsFromDOM()
+  if (updated) {
+    // If dimensions changed, run AABB and parent resize
+    recalculateAllParentSizesAndResolveOverlaps()
+    buildVueFlowNodes()
+    // Force VueFlow to recognize dimension changes on parent nodes
+    const parentIds = nodes.value.filter(n => hasChildren(n.id)).map(n => n.id)
+    if (parentIds.length > 0) {
+      updateNodeInternals(parentIds)
+    }
+  }
 }
 
 /**
@@ -252,26 +436,27 @@ function buildVueFlowNodes() {
   const newNodes: Node[] = sorted.map(node => {
     const isParent = hasChildren(node.id)
     const pos = node.conceptMapPosition ?? { x: 0, y: 0 }
-    const size = isParent
-      ? (node.conceptMapSize ?? calculateParentSize(node.id))
-      : (node.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT })
 
-    if (isParent) {
-      console.log(`[buildVueFlowNodes] Parent ${node.id}: ${size.width}x${size.height}`)
-    }
-
+    // For parent nodes, use calculated size; for leaf nodes, let content determine size
     const vfNode: Node = {
       id: node.id,
       type: 'concept',
       position: { x: pos.x, y: pos.y },
-      data: { label: node.label, isParent },
-      width: size.width,
-      height: size.height,
-      style: {
+      data: { label: node.label, isParent }
+    }
+
+    if (isParent) {
+      // Parent nodes need explicit sizing to contain children
+      const size = node.conceptMapSize ?? calculateParentSize(node.id)
+      console.log(`[buildVueFlowNodes] Parent ${node.id}: ${size.width}x${size.height}`)
+      vfNode.width = size.width
+      vfNode.height = size.height
+      vfNode.style = {
         width: `${size.width}px`,
         height: `${size.height}px`
       }
     }
+    // Leaf nodes: no width/height/style - let CSS handle auto-sizing
 
     if (node.parentId) {
       vfNode.parentNode = node.parentId
@@ -286,8 +471,6 @@ function buildVueFlowNodes() {
   // Force VueFlow to recognize the new nodes
   setNodes(newNodes)
 }
-
-
 
 // ============================================================
 // STORE SYNC
@@ -427,7 +610,7 @@ function onNodeContextMenu(event: NodeMouseEvent) {
 
 // Drag handlers - simplified bottom-up approach
 function onNodeDragStart() {
-  // Nothing needed - VueFlow handles the drag
+  // Drag state tracked but not currently used (tooltip hidden on mousedown in ConceptNode)
 }
 
 function onNodeDrag(event: NodeDragEvent) {
@@ -526,6 +709,10 @@ function addChildNode() {
   buildVueFlowNodes()
   updateNodeInternals([parentNode.id])
   syncToStore()
+  // After DOM renders, measure dimensions and resize parents if needed
+  setTimeout(() => {
+    void measureAndResizeNodes()
+  }, 50)
   closeContextMenu()
 }
 
@@ -567,6 +754,10 @@ function addSiblingNode() {
   }
   syncToStore()
   closeContextMenu()
+  // After DOM renders, measure dimensions and resize parents if needed
+  setTimeout(() => {
+    void measureAndResizeNodes()
+  }, 50)
 }
 
 function detachFromParent() {
@@ -669,11 +860,33 @@ function recalculateAllParentSizesAndResolveOverlaps(): void {
   console.log('ConceptMapView: Overlaps resolved and parent sizes recalculated')
 }
 
+/**
+ * Handle F2 key to start editing selected node
+ */
+function handleKeyDown(e: KeyboardEvent) {
+  // F2 - Start editing selected node
+  if (e.key === 'F2') {
+    const selectedNodeId = documentStore.selectedNodeIds[0]
+    if (selectedNodeId && !activeEditingNodeId.value) {
+      e.preventDefault()
+      eventBus.emit('canvas:edit-node', { nodeId: selectedNodeId })
+    }
+  }
+
+  // Escape - Stop editing (handled by node component, but also clear here)
+  if (e.key === 'Escape' && activeEditingNodeId.value) {
+    destroyActiveEditor()
+  }
+}
+
 onMounted(async () => {
   console.log('ConceptMapView mounted')
 
   // Setup keyboard listeners for reference edge creation (C key)
   setupReferenceKeyboardListeners()
+
+  // Setup F2 keyboard listener for node editing
+  window.addEventListener('keydown', handleKeyDown)
 
   syncFromStore()
 
@@ -700,11 +913,43 @@ onMounted(async () => {
     const rect = vueFlowContainer.getBoundingClientRect()
     void setViewport({ x: rect.width / 2, y: rect.height / 2, zoom: 1 }, { duration: 0 })
   }
+
+  // After initial render, measure node dimensions and update parent sizes
+  setTimeout(() => {
+    void updateNodeDimensionsFromDOM()
+  }, 100)
 })
+
+// Handler for store:node-updated that we need to clean up manually
+// (can't use onStoreEvent because we need to listen to ALL sources including our own)
+function handleNodeUpdated(payload: NodeUpdatedPayload) {
+  const { nodeId, source } = payload
+  console.log(`ConceptMapView: Node updated from ${source}: ${nodeId}, syncing...`)
+  // Only sync from store if the change came from another view
+  if (source !== 'concept-map') {
+    syncFromStore()
+  }
+  buildVueFlowNodes()
+  // After DOM renders, measure dimensions and run AABB + parent resize
+  setTimeout(() => {
+    void measureAndResizeNodes()
+  }, 50)
+}
 
 onUnmounted(() => {
   // Cleanup keyboard listeners for reference edge creation
   cleanupReferenceKeyboardListeners()
+
+  // Cleanup F2 keyboard listener
+  window.removeEventListener('keydown', handleKeyDown)
+
+  // Cleanup direct eventBus listener
+  eventBus.off('store:node-updated', handleNodeUpdated)
+
+  // Cleanup any active editor
+  if (activeEditingNodeId.value) {
+    destroyActiveEditor()
+  }
 })
 
 // Listen for node creation events from OTHER views (not concept-map)
@@ -722,16 +967,23 @@ onStoreEvent('store:node-created', ({ nodeId }) => {
     initializeLayout()
     recalculateAllParentSizesAndResolveOverlaps()
     buildVueFlowNodes()
+    // Force VueFlow to recognize dimension changes on parent nodes
+    const parentIds = nodes.value.filter(n => hasChildren(n.id)).map(n => n.id)
+    if (parentIds.length > 0) {
+      updateNodeInternals(parentIds)
+    }
     syncToStore()
+    // After DOM renders, measure dimensions and resize parents if needed
+    setTimeout(() => {
+      void measureAndResizeNodes()
+    }, 50)
   }
 })
 
-// Listen for node updates from other views
-onStoreEvent('store:node-updated', ({ nodeId }) => {
-  console.log(`ConceptMapView: Node updated from another view: ${nodeId}, syncing...`)
-  syncFromStore()
-  buildVueFlowNodes()
-})
+// Register direct listener for ALL node updates (from any source) for dimension measurement
+// We need to measure dimensions regardless of source since titles can be edited
+// from mindmap, writer, or concept map
+eventBus.on('store:node-updated', handleNodeUpdated)
 
 // Listen for node reparenting from other views
 onStoreEvent('store:node-reparented', ({ nodeId }) => {
@@ -800,6 +1052,12 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
 .conceptmap-canvas :deep(.vue-flow) {
   flex: 1;
   min-height: 0;
+}
+
+/* Allow leaf nodes (without explicit dimensions) to auto-size based on content */
+.conceptmap-canvas :deep(.vue-flow__node:not([style*="width"])) {
+  width: auto !important;
+  height: auto !important;
 }
 
 /* Canvas center overlay */
@@ -905,5 +1163,51 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
 
 .body--dark :deep(.vue-flow__edge.edge-reference:hover) path {
   stroke: #9775fa;
+}
+
+/* Title Edit Popup - appears over everything */
+.title-edit-popup {
+  position: fixed;
+  z-index: 10000;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px 8px;
+}
+
+.title-edit-content {
+  min-height: 24px;
+}
+
+.title-popup-editor {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.title-popup-editor :deep(.ProseMirror) {
+  outline: none;
+  min-height: 20px;
+}
+
+.title-popup-editor :deep(.ProseMirror p) {
+  margin: 0;
+}
+
+/* Invisible backdrop to catch clicks outside */
+.title-popup-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+}
+
+/* Dark mode popup */
+.body--dark .title-edit-popup {
+  background: #2d2d2d;
+  border-color: #444;
+  color: #fff;
 }
 </style>
