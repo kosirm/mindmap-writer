@@ -30,6 +30,7 @@
 
       <template #node-custom="{ data, id }">
         <CustomNode
+          :id="id"
           :data="data"
           @toggle-collapse="toggleCollapse(id)"
           @toggle-collapse-left="toggleCollapseLeft(id)"
@@ -117,8 +118,9 @@ import { useReferenceEdges } from '../composables/useReferenceEdges'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useOrientationStore } from 'src/core/stores/orientationStore'
 import { useDevSettingsStore } from 'src/dev/devSettingsStore'
-import { useViewEvents } from 'src/core/events'
+import { useViewEvents, eventBus } from 'src/core/events'
 import { calculateOrientationTransition, getTransitionOperations, type OrientationMode } from '../composables/mindmap/useOrientationSort'
+import { activeEditingNodeId, destroyActiveEditor } from '../composables/useCanvasNodeEditor'
 
 // VueFlow instance
 const { viewport, fitView, setViewport, findNode, updateNodeInternals } = useVueFlow()
@@ -534,12 +536,34 @@ watch([horizontalSpacing, verticalSpacing], ([h, v]) => {
   // since we just want to see the visualization change
 })
 
+/**
+ * Handle F2 key to start editing selected node
+ */
+function handleKeyDown(e: KeyboardEvent) {
+  // F2 - Start editing selected node
+  if (e.key === 'F2') {
+    const selectedNodeId = documentStore.selectedNodeIds[0]
+    if (selectedNodeId && !activeEditingNodeId.value) {
+      e.preventDefault()
+      eventBus.emit('canvas:edit-node', { nodeId: selectedNodeId })
+    }
+  }
+
+  // Escape - Stop editing (handled by node component, but also clear here)
+  if (e.key === 'Escape' && activeEditingNodeId.value) {
+    destroyActiveEditor()
+  }
+}
+
 onMounted(async () => {
   setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
   console.log('MindmapView mounted')
 
   // Setup keyboard listeners for reference edge creation (C key)
   setupReferenceKeyboardListeners()
+
+  // Setup F2 keyboard listener for node editing
+  window.addEventListener('keydown', handleKeyDown)
 
   // Sync from store to get existing nodes
   syncFromStore()
@@ -611,6 +635,14 @@ onMounted(async () => {
 onUnmounted(() => {
   // Cleanup keyboard listeners for reference edge creation
   cleanupReferenceKeyboardListeners()
+
+  // Cleanup F2 keyboard listener
+  window.removeEventListener('keydown', handleKeyDown)
+
+  // Cleanup any active editor
+  if (activeEditingNodeId.value) {
+    destroyActiveEditor()
+  }
 })
 
 // Listen for node creation events from OTHER views (not mindmap)

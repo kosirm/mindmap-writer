@@ -48,6 +48,9 @@ export interface NodeData {
   // Concept map dimensions (dynamic, expands to fit children)
   conceptMapSize?: ViewSize | null;
 
+  // Measured size from DOM (for auto-sizing leaf nodes)
+  measuredSize?: ViewSize | null;
+
   // Collapse state
   collapsed?: boolean; // For child nodes: whether children are hidden
   collapsedLeft?: boolean; // For root nodes: whether left children are hidden

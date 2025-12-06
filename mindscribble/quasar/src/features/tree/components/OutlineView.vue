@@ -119,12 +119,15 @@ const treeNodes = computed<TreeNode[]>(() => {
   const nodeMap = new Map<string, TreeNode>()
   const rootNodes: TreeNode[] = []
 
+  // Helper to strip HTML tags for clean navigation display
+  const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim()
+
   // First pass: create tree nodes
   for (const node of nodes) {
     const childCount = nodes.filter((n) => n.data.parentId === node.id).length
     nodeMap.set(node.id, {
       id: node.id,
-      label: node.data.title || 'Untitled',
+      label: stripHtml(node.data.title) || 'Untitled',
       icon: node.data.parentId === null ? 'star' : 'circle',
       isRoot: node.data.parentId === null,
       childCount,

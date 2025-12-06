@@ -217,6 +217,11 @@ export type StoreEvents = {
   'store:document-cleared': BasePayload
 }
 
+/** Canvas edit node payload (F2 key) */
+export interface CanvasEditNodePayload {
+  nodeId: string
+}
+
 export type UIEvents = {
   // Viewport
   'ui:viewport-changed': ViewportChangedPayload
@@ -228,6 +233,9 @@ export type UIEvents = {
   // Edit mode
   'ui:node-edit-start': NodeEditPayload
   'ui:node-edit-end': NodeEditPayload
+
+  // Canvas node editing (F2 key)
+  'canvas:edit-node': CanvasEditNodePayload
 
   // Keyboard
   'ui:keyboard-shortcut': { shortcut: string; context: string }

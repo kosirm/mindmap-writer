@@ -71,16 +71,31 @@ export function useConceptMapCollision(
     }
 
     const pos = node.conceptMapPosition
+    const isParent = hasChildren(node.id)
 
-    // Use stored conceptMapSize if available (this is what adjustParentSize sets)
-    // Only fall back to calculateParentSize if no stored size
+    // Size priority differs for parent vs leaf nodes:
+    // - Parent nodes: conceptMapSize > calculateParentSize > fallback
+    // - Leaf nodes: measuredSize > conceptMapSize > fallback
+    // This ensures leaf nodes use their measured DOM dimensions for AABB
     let size: { width: number; height: number }
-    if (node.conceptMapSize) {
-      size = node.conceptMapSize
-    } else if (hasChildren(node.id) && calculateParentSize) {
-      size = calculateParentSize(node.id)
+    if (isParent) {
+      // Parent nodes - use conceptMapSize (set by adjustParentSize) or calculate
+      if (node.conceptMapSize) {
+        size = node.conceptMapSize
+      } else if (calculateParentSize) {
+        size = calculateParentSize(node.id)
+      } else {
+        size = { width: node.width, height: node.height }
+      }
     } else {
-      size = { width: node.width, height: node.height }
+      // Leaf nodes - prefer measuredSize (actual DOM dimensions)
+      if (node.measuredSize) {
+        size = node.measuredSize
+      } else if (node.conceptMapSize) {
+        size = node.conceptMapSize
+      } else {
+        size = { width: node.width, height: node.height }
+      }
     }
 
     return {
