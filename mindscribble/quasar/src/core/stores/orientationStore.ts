@@ -10,8 +10,8 @@ import { ref, computed } from 'vue'
 import type { OrientationMode } from 'src/features/canvas/composables/mindmap/useOrientationSort'
 
 export const useOrientationStore = defineStore('orientation', () => {
-  // Current orientation mode
-  const orientation = ref<OrientationMode>('clockwise')
+  // Current orientation mode (default: counter-clockwise)
+  const orientation = ref<OrientationMode>('counter-clockwise')
 
   // All available orientations
   const orientations: OrientationMode[] = ['clockwise', 'counter-clockwise', 'left-right', 'right-left']

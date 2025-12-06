@@ -16,7 +16,11 @@ export function useNodeDrag(
   resolveAllOverlaps: (nodes: NodeData[]) => void,
   resolveOverlapsForAffectedRootsLOD: (affectedNodeIds: string[], visibleNodes: NodeData[], allNodes: NodeData[]) => void,
   // VueFlow function to force re-render of nodes (fixes visible-only rendering issue)
-  updateNodeInternals: (nodeIds?: string[]) => void
+  updateNodeInternals: (nodeIds?: string[]) => void,
+  // Optional callback to update sibling order after drag
+  onSiblingOrderUpdate?: (draggedNodeId: string) => void,
+  // Optional callback to sync positions to store after drag (persists positions)
+  onDragComplete?: () => void
 ) {
 
   // ============================================================
@@ -323,6 +327,11 @@ function onNodeDragStop(event: NodeDragEvent) {
 
     // Update VueFlow with resolved positions
     syncToVueFlow()
+
+    // Save positions to store (persists across view switches)
+    if (onDragComplete) {
+      onDragComplete()
+    }
   } else {
     // Normal drag without reparenting
 
@@ -394,6 +403,20 @@ function onNodeDragStop(event: NodeDragEvent) {
       getAllDescendants(id, nodes.value).forEach(d => allAffectedIds.push(d.id))
     })
     updateNodeInternals(allAffectedIds)
+
+    // Update sibling order based on new positions (orientation-aware)
+    if (onSiblingOrderUpdate && draggedNodeIds.length === 1 && draggedNodeIds[0]) {
+      onSiblingOrderUpdate(draggedNodeIds[0])
+    }
+
+    // Save positions to store (persists across view switches)
+    console.log('  📦 Calling onDragComplete to save positions...')
+    if (onDragComplete) {
+      console.log('  📦 onDragComplete callback exists, calling...')
+      onDragComplete()
+    } else {
+      console.log('  ⚠️ onDragComplete callback is undefined!')
+    }
 
     const endTime = performance.now()
     console.log(`  ✓ Drag complete in ${(endTime - startTime).toFixed(2)}ms`)

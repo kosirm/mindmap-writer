@@ -15,10 +15,23 @@
     <div v-if="isParent" class="node-content">
       <!-- Children are automatically rendered here by VueFlow -->
     </div>
+
+    <!-- Handles for connections - 4 sides (matching mindmap node) -->
+    <!-- Each position has both source and target handles for bi-directional connections -->
+    <Handle id="top-target" type="target" :position="Position.Top" class="handle" />
+    <Handle id="top-source" type="source" :position="Position.Top" class="handle" />
+    <Handle id="bottom-target" type="target" :position="Position.Bottom" class="handle" />
+    <Handle id="bottom-source" type="source" :position="Position.Bottom" class="handle" />
+    <Handle id="left-target" type="target" :position="Position.Left" class="handle" />
+    <Handle id="left-source" type="source" :position="Position.Left" class="handle" />
+    <Handle id="right-target" type="target" :position="Position.Right" class="handle" />
+    <Handle id="right-source" type="source" :position="Position.Right" class="handle" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { Handle, Position } from '@vue-flow/core'
+
 interface NodeDataProps {
   label: string
   isParent?: boolean
@@ -32,52 +45,62 @@ defineProps<{
 </script>
 
 <style scoped>
+/* Base node style - matching mindmap CustomNode */
 .concept-node {
   width: 100%;
   height: 100%;
+  min-width: 100px;
+  min-height: 30px;
   background: white;
-  border: 2px solid #4a90d9;
+  border: 1px solid rgba(77, 171, 247, 0.5);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 2px 18px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  transition: box-shadow 0.2s ease;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .concept-node:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  border-color: #339af0;
 }
 
+/* Parent nodes (containers) - dashed border to indicate they contain children */
 .concept-node.is-parent {
   background: #f8f9fa;
-  border-color: #6c757d;
+  border-color: rgba(77, 171, 247, 0.5);
   border-width: 2px;
   border-style: dashed;
 }
 
+/* Leaf nodes - same style as mindmap nodes */
 .concept-node.is-leaf {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: white;
 }
 
 .node-header {
-  padding: 8px 12px;
   font-weight: 500;
   font-size: 14px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  color: #212529;
+  text-align: center;
 }
 
 .is-parent .node-header {
   background: #e9ecef;
   color: #495057;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .is-leaf .node-header {
-  border-bottom: none;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
-  text-align: center;
+  padding-bottom: 2px;
 }
 
 .node-content {
@@ -92,24 +115,42 @@ defineProps<{
   text-overflow: ellipsis;
 }
 
+/* Handles - matching mindmap node handles */
+.handle {
+  width: 8px;
+  height: 8px;
+  background: rgba(77, 171, 247, 0.2);
+  border: 2px solid rgba(19, 110, 230, 0.2);
+  border-radius: 50%;
+}
+
+.handle:hover {
+  background: #339af0;
+}
+
 /* Dark mode */
 :global(.body--dark) .concept-node {
-  background: #2d2d2d;
-  border-color: #5a9fd4;
+  background: #2d3748;
+  border-color: rgba(77, 171, 247, 0.4);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+:global(.body--dark) .concept-node .node-header {
+  color: #e2e8f0;
+}
+
+:global(.body--dark) .concept-node:hover {
+  border-color: #4dabf7;
 }
 
 :global(.body--dark) .concept-node.is-parent {
   background: #1e1e1e;
-  border-color: #888;
+  border-color: rgba(77, 171, 247, 0.4);
 }
 
 :global(.body--dark) .is-parent .node-header {
   background: #333;
   color: #e0e0e0;
-}
-
-:global(.body--dark) .concept-node.is-leaf {
-  background: linear-gradient(135deg, #4a5568 0%, #553c9a 100%);
 }
 </style>
 

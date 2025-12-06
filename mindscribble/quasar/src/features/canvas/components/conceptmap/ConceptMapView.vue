@@ -2,13 +2,16 @@
   <div class="conceptmap-canvas">
     <VueFlow
       :nodes="vueFlowNodes"
-      :edges="[]"
+      :edges="visibleEdges"
       :min-zoom="0.05"
       :max-zoom="3"
       :only-render-visible-elements="true"
       :selection-key-code="null"
       :multi-selection-key-code="'Shift'"
       :select-nodes-on-drag="true"
+      :connect-on-click="false"
+      :default-edge-options="{ type: 'straight' }"
+      :is-valid-connection="isValidConnection"
       @node-drag-start="onNodeDragStart"
       @node-drag="onNodeDrag"
       @node-drag-stop="onNodeDragStop"
@@ -16,6 +19,9 @@
       @node-click="onNodeClick"
       @selection-change="onSelectionChange"
       @pane-click="onPaneClick"
+      @connect="onConnect"
+      @connect-start="onConnectStart"
+      @connect-end="onConnectEnd"
     >
       <Background />
       <MiniMap pannable zoomable v-if="showMinimap" />
@@ -48,34 +54,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { MiniMap } from '@vue-flow/minimap'
-import type { Node, NodeMouseEvent, NodeDragEvent } from '@vue-flow/core'
+import type { Node, Edge, NodeMouseEvent, NodeDragEvent } from '@vue-flow/core'
 import ConceptNode from './ConceptNode.vue'
 import type { NodeData, ContextMenuState } from '../mindmap/types'
 
 // Store & Events
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useViewEvents } from 'src/core/events'
+import { useDevSettingsStore } from 'src/dev/devSettingsStore'
+import { storeToRefs } from 'pinia'
 
 // Composables
 import { useConceptMapLayout } from '../../composables/conceptmap/useConceptMapLayout'
 import { useConceptMapCollision } from '../../composables/conceptmap/useConceptMapCollision'
+import { useReferenceEdges } from '../../composables/useReferenceEdges'
 
 // ============================================================
 // STATE & SETUP
 // ============================================================
 const { viewport, fitView, findNode, updateNodeInternals, setNodes } = useVueFlow()
 const documentStore = useDocumentStore()
+const devSettings = useDevSettingsStore()
+const { referenceEdgeType } = storeToRefs(devSettings)
 const { onStoreEvent, source } = useViewEvents('concept-map')
 
 // Local node state (converted from store)
 const nodes = ref<NodeData[]>([])
 
+// Local edge state (for reference edges)
+const edges = ref<Edge[]>([])
+
 // VueFlow nodes (managed by VueFlow via v-model)
 const vueFlowNodes = ref<Node[]>([])
+
+// Reference edges composable - for creating non-hierarchical connections
+const {
+  onConnectStart: onReferenceConnectStart,
+  onConnectEnd: onReferenceConnectEnd,
+  onConnect: onReferenceConnect,
+  setupKeyboardListeners: setupReferenceKeyboardListeners,
+  cleanupKeyboardListeners: cleanupReferenceKeyboardListeners
+} = useReferenceEdges(edges, 'conceptmap')
 
 // UI state
 const showMinimap = ref(true)
@@ -84,10 +107,11 @@ const contextMenu = ref<ContextMenuState>({ visible: false, x: 0, y: 0, nodeId: 
 const isUpdatingSelectionFromStore = ref(false)
 
 // Layout constants - consistent across ConceptMapView and useConceptMapLayout
+// Matching mindmap node sizes: min-width: 100px, min-height: 30px
 const PADDING = 20
 const HEADER_HEIGHT = 30
-const MIN_NODE_WIDTH = 72
-const MIN_NODE_HEIGHT = 20
+const MIN_NODE_WIDTH = 100
+const MIN_NODE_HEIGHT = 30
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -121,16 +145,75 @@ function calculateParentSize(nodeId: string): { width: number; height: number } 
   return { width: Math.max(MIN_NODE_WIDTH, maxRight + PADDING), height: Math.max(MIN_NODE_HEIGHT, maxBottom + PADDING) }
 }
 
+/**
+ * Calculate optimal handles for an edge based on relative positions of source and target nodes.
+ * Returns the best handles to connect the nodes based on their positions.
+ */
+function getOptimalHandles(sourceId: string, targetId: string): { sourceHandle: string, targetHandle: string } {
+  const sourceNode = nodes.value.find(n => n.id === sourceId)
+  const targetNode = nodes.value.find(n => n.id === targetId)
+
+  if (!sourceNode || !targetNode) {
+    return { sourceHandle: 'right-source', targetHandle: 'left-target' }
+  }
+
+  // Get concept map positions (use x,y as fallback)
+  const sourcePos = sourceNode.conceptMapPosition ?? { x: sourceNode.x, y: sourceNode.y }
+  const targetPos = targetNode.conceptMapPosition ?? { x: targetNode.x, y: targetNode.y }
+
+  // Get sizes
+  const sourceSize = sourceNode.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+  const targetSize = targetNode.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+
+  // Calculate centers
+  const sourceCenterX = sourcePos.x + sourceSize.width / 2
+  const sourceCenterY = sourcePos.y + sourceSize.height / 2
+  const targetCenterX = targetPos.x + targetSize.width / 2
+  const targetCenterY = targetPos.y + targetSize.height / 2
+
+  const dx = targetCenterX - sourceCenterX
+  const dy = targetCenterY - sourceCenterY
+
+  // Determine primary direction based on which delta is larger
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal connection is primary
+    if (dx > 0) {
+      // Target is to the right of source
+      return { sourceHandle: 'right-source', targetHandle: 'left-target' }
+    } else {
+      // Target is to the left of source
+      return { sourceHandle: 'left-source', targetHandle: 'right-target' }
+    }
+  } else {
+    // Vertical connection is primary
+    if (dy > 0) {
+      // Target is below source
+      return { sourceHandle: 'bottom-source', targetHandle: 'top-target' }
+    } else {
+      // Target is above source
+      return { sourceHandle: 'top-source', targetHandle: 'bottom-target' }
+    }
+  }
+}
+
 // ============================================================
 // COMPOSABLES
 // ============================================================
-const { initializeLayout, isInitialized } = useConceptMapLayout(nodes, getDirectChildren)
-const { resolveOverlapsForNode, adjustParentSize } = useConceptMapCollision(nodes, getDirectChildren, calculateParentSize)
+const { initializeLayout, getNodesNeedingLayout, getBottomUpOrder } = useConceptMapLayout(nodes, getDirectChildren)
+const { resolveOverlapsForNode, adjustParentSize, resolveSiblingOverlaps } = useConceptMapCollision(nodes, getDirectChildren, calculateParentSize)
 
 // ============================================================
 // COMPUTED
 // ============================================================
 const zoomPercent = computed(() => Math.round(viewport.value.zoom * 100))
+
+// Visible edges with dynamic edge type from settings
+const visibleEdges = computed(() => {
+  return edges.value.map(edge => ({
+    ...edge,
+    type: referenceEdgeType.value
+  }))
+})
 
 // Topological sort for VueFlow (parents before children)
 function getTopologicalOrder(): NodeData[] {
@@ -200,32 +283,69 @@ function buildVueFlowNodes() {
 // ============================================================
 function syncFromStore() {
   const storeNodes = documentStore.nodes
-  nodes.value = storeNodes.map(sn => ({
-    id: sn.id,
-    label: sn.data.content || sn.data.title,
-    parentId: sn.data.parentId,
-    x: sn.views.conceptMap?.position?.x ?? 0,
-    y: sn.views.conceptMap?.position?.y ?? 0,
-    width: MIN_NODE_WIDTH,
-    height: MIN_NODE_HEIGHT,
-    conceptMapPosition: sn.views.conceptMap?.position ?? null,
-    conceptMapSize: sn.views.conceptMap?.size ?? null
-  }))
+  console.log('=== ConceptMap syncFromStore: Processing store nodes ===')
+
+  nodes.value = storeNodes.map(sn => {
+    const conceptMapPos = sn.views.conceptMap?.position
+    const conceptMapSize = sn.views.conceptMap?.size
+    console.log(`  Node "${sn.data.content || sn.data.title}" (${sn.id}):`)
+    console.log(`    views.conceptMap:`, JSON.stringify(sn.views.conceptMap))
+    console.log(`    conceptMapPosition will be:`, conceptMapPos ? JSON.stringify(conceptMapPos) : 'null')
+
+    return {
+      id: sn.id,
+      label: sn.data.content || sn.data.title,
+      parentId: sn.data.parentId,
+      x: conceptMapPos?.x ?? 0,
+      y: conceptMapPos?.y ?? 0,
+      width: MIN_NODE_WIDTH,
+      height: MIN_NODE_HEIGHT,
+      conceptMapPosition: conceptMapPos ?? null,
+      conceptMapSize: conceptMapSize ?? null
+    }
+  })
+
+  // Load reference edges from store and recalculate optimal handles based on concept map positions
+  const storeEdges = documentStore.edges
+  edges.value = storeEdges
+    .filter(e => e.data?.edgeType === 'reference')
+    .map(e => {
+      // Recalculate optimal handles based on current concept map node positions
+      const { sourceHandle, targetHandle } = getOptimalHandles(e.source, e.target)
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle,
+        targetHandle,
+        type: 'straight' as const,
+        class: 'edge-reference',
+        data: { edgeType: 'reference' }
+      }
+    })
+  console.log(`=== ConceptMap syncFromStore: Loaded ${edges.value.length} reference edges with recalculated handles ===`)
+
   // Rebuild VueFlow nodes after syncing from store
   buildVueFlowNodes()
 }
 
 function syncToStore() {
+  console.log('=== ConceptMap syncToStore: Saving to store ===')
   for (const node of nodes.value) {
     // Update the views.conceptMap data
     const storeNode = documentStore.nodes.find(n => n.id === node.id)
     if (storeNode) {
+      console.log(`  Node "${node.label}" (${node.id}):`)
+      console.log(`    saving position:`, JSON.stringify(node.conceptMapPosition))
+      console.log(`    saving size:`, JSON.stringify(node.conceptMapSize))
+
       storeNode.views.conceptMap = {
         position: node.conceptMapPosition ?? null,
         size: node.conceptMapSize ?? null
       }
     }
   }
+  console.log('=== ConceptMap syncToStore: Complete ===')
 }
 
 // ============================================================
@@ -238,6 +358,29 @@ function closeContextMenu() {
 function onPaneClick() {
   closeContextMenu()
   documentStore.clearSelection(source)
+}
+
+// Connection handlers for reference edges
+function onConnectStart() {
+  onReferenceConnectStart()
+}
+
+function onConnectEnd() {
+  onReferenceConnectEnd()
+}
+
+function onConnect(params: { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) {
+  // Try to create a reference edge (only if C key was pressed)
+  const created = onReferenceConnect(params)
+  if (created) {
+    console.log('Reference edge created via C+drag in concept map')
+  }
+}
+
+// Connection validation - allow all connections (we handle validation in onConnect)
+function isValidConnection() {
+  // Always return true - we validate in onConnect based on C key state
+  return true
 }
 
 function onNodeClick(event: NodeMouseEvent) {
@@ -342,7 +485,7 @@ function addChildNode() {
   const conceptSize = { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
 
   // Add to store first to get the real ID
-  const storeNode = documentStore.addNode(parentNode.id, 'New Node', '', conceptPos, source)
+  const storeNode = documentStore.addNode(parentNode.id, 'Untitled', '', conceptPos, source)
 
   // Set conceptMap view data on the store node
   storeNode.views.conceptMap = { position: conceptPos, size: conceptSize }
@@ -350,7 +493,7 @@ function addChildNode() {
   // Create local node with store ID
   const newNode: NodeData = {
     id: storeNode.id,
-    label: 'New Node',
+    label: 'Untitled',
     parentId: parentNode.id,
     x: conceptPos.x,
     y: conceptPos.y,
@@ -380,7 +523,7 @@ function addSiblingNode() {
   const conceptSize = { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
 
   // Add to store first to get the real ID
-  const storeNode = documentStore.addNode(targetNode.parentId, 'New Node', '', conceptPos, source)
+  const storeNode = documentStore.addNode(targetNode.parentId, 'Untitled', '', conceptPos, source)
 
   // Set conceptMap view data on the store node
   storeNode.views.conceptMap = { position: conceptPos, size: conceptSize }
@@ -388,7 +531,7 @@ function addSiblingNode() {
   // Create local node with store ID
   const newNode: NodeData = {
     id: storeNode.id,
-    label: 'New Node',
+    label: 'Untitled',
     parentId: targetNode.parentId,
     x: conceptPos.x,
     y: conceptPos.y,
@@ -480,20 +623,76 @@ onStoreEvent('store:nodes-selected', ({ nodeIds }) => {
 // ============================================================
 // LIFECYCLE
 // ============================================================
+
+/**
+ * Recalculate all parent sizes (bottom-up) and resolve overlaps.
+ * Called when switching to concept map view - nodes may have gained/lost children in mindmap.
+ *
+ * Order is important:
+ * 1. First resolve sibling overlaps (push siblings away from enlarged nodes)
+ * 2. Then resize parents to fit all children (including pushed siblings)
+ */
+function recalculateAllParentSizesAndResolveOverlaps(): void {
+  console.log('ConceptMapView: Resolving overlaps and recalculating parent sizes...')
+  const bottomUpOrder = getBottomUpOrder()
+
+  // Process bottom-up: for each level, first resolve sibling overlaps, then adjust parent size
+  for (const node of bottomUpOrder) {
+    const children = getDirectChildren(node.id)
+    if (children.length > 0) {
+      // First: resolve sibling overlaps among this node's children
+      resolveSiblingOverlaps(node.id)
+      // Then: adjust this node's size to fit all children (including pushed ones)
+      adjustParentSize(node.id)
+    }
+  }
+
+  // Finally: resolve root-level sibling overlaps
+  resolveSiblingOverlaps(null)
+
+  console.log('ConceptMapView: Overlaps resolved and parent sizes recalculated')
+}
+
 onMounted(() => {
+  console.log('ConceptMapView mounted')
+
+  // Setup keyboard listeners for reference edge creation (C key)
+  setupReferenceKeyboardListeners()
+
   syncFromStore()
-  if (nodes.value.length > 0 && !isInitialized()) {
-    initializeLayout()
+
+  if (nodes.value.length > 0) {
+    // Check if any nodes need layout (not whether the view is "initialized")
+    const nodesNeedingLayout = getNodesNeedingLayout()
+    console.log(`ConceptMapView: ${nodesNeedingLayout.length} nodes need layout out of ${nodes.value.length} total`)
+
+    if (nodesNeedingLayout.length > 0) {
+      console.log('ConceptMapView: Running initializeLayout for nodes without positions...')
+      initializeLayout()
+    }
+
+    // ALWAYS recalculate parent sizes - nodes may have gained/lost children in mindmap view
+    recalculateAllParentSizesAndResolveOverlaps()
     buildVueFlowNodes()
     syncToStore()
   }
+
   void fitView({ padding: 0.2, duration: 300 })
+})
+
+onUnmounted(() => {
+  // Cleanup keyboard listeners for reference edge creation
+  cleanupReferenceKeyboardListeners()
 })
 
 // Watch store for changes from other views
 watch(() => documentStore.nodes, () => {
   syncFromStore()
-  if (!isInitialized() && nodes.value.length > 0) {
+
+  // Check if any nodes need layout
+  const nodesNeedingLayout = getNodesNeedingLayout()
+  if (nodesNeedingLayout.length > 0 && nodes.value.length > 0) {
+    console.log(`ConceptMapView watcher: ${nodesNeedingLayout.length} nodes need layout`)
     initializeLayout()
     buildVueFlowNodes()
     syncToStore()
@@ -586,5 +785,31 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
 
 .body--dark .context-menu-item-danger:hover {
   background: #3a2020;
+}
+
+/* Reference edge styling - dashed line with different color */
+/* Ensure edges are rendered above nodes (parent boxes) - VueFlow sets selected nodes to z-index: 1000 */
+:deep(.vue-flow__edges) {
+  z-index: 1001 !important;
+}
+
+:deep(.vue-flow__edge.edge-reference) path {
+  stroke: #9775fa;
+  stroke-dasharray: 5 3;
+  stroke-width: 2;
+}
+
+:deep(.vue-flow__edge.edge-reference:hover) path {
+  stroke: #7950f2;
+  stroke-width: 3;
+}
+
+/* Dark mode reference edge */
+.body--dark :deep(.vue-flow__edge.edge-reference) path {
+  stroke: #b197fc;
+}
+
+.body--dark :deep(.vue-flow__edge.edge-reference:hover) path {
+  stroke: #9775fa;
 }
 </style>

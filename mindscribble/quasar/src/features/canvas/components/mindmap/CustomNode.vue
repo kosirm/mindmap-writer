@@ -37,30 +37,15 @@
     </div>
 
     <!-- Handles for connections - 4 sides -->
-    <Handle
-      id="top"
-      type="target"
-      :position="Position.Top"
-      class="handle"
-    />
-    <Handle
-      id="bottom"
-      type="source"
-      :position="Position.Bottom"
-      class="handle"
-    />
-    <Handle
-      id="left"
-      type="target"
-      :position="Position.Left"
-      class="handle"
-    />
-    <Handle
-      id="right"
-      type="source"
-      :position="Position.Right"
-      class="handle"
-    />
+    <!-- Each position has both source and target handles for bi-directional connections -->
+    <Handle id="top-target" type="target" :position="Position.Top" class="handle" />
+    <Handle id="top-source" type="source" :position="Position.Top" class="handle" />
+    <Handle id="bottom-target" type="target" :position="Position.Bottom" class="handle" />
+    <Handle id="bottom-source" type="source" :position="Position.Bottom" class="handle" />
+    <Handle id="left-target" type="target" :position="Position.Left" class="handle" />
+    <Handle id="left-source" type="source" :position="Position.Left" class="handle" />
+    <Handle id="right-target" type="target" :position="Position.Right" class="handle" />
+    <Handle id="right-source" type="source" :position="Position.Right" class="handle" />
   </div>
 </template>
 

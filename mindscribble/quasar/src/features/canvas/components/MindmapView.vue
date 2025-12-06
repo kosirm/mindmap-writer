@@ -10,6 +10,9 @@
       :selection-key-code="null"
       :multi-selection-key-code="'Shift'"
       :select-nodes-on-drag="true"
+      :connect-on-click="false"
+      :default-edge-options="{ type: 'straight' }"
+      :is-valid-connection="isValidConnection"
       @node-drag-start="onNodeDragStart"
       @node-drag="onNodeDrag"
       @node-drag-stop="onNodeDragStop"
@@ -18,6 +21,9 @@
       @selection-change="onSelectionChange"
       @pane-click="onPaneClick"
       @pane-mousemove="onPaneMouseMove"
+      @connect="onConnect"
+      @connect-start="onConnectStart"
+      @connect-end="onConnectEnd"
     >
       <Background />
       <MiniMap pannable zoomable v-if="showMinimap" />
@@ -84,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { MiniMap } from '@vue-flow/minimap'
@@ -103,6 +109,8 @@ import { useVueFlowSync } from '../composables/mindmap/useVueFlowSync'
 import { useNodeDrag } from '../composables/mindmap/useNodeDrag'
 import { useMindmapGenerator } from '../composables/mindmap/useMindmapGenerator'
 import { useMindmapLayout } from '../composables/mindmap/useMindmapLayout'
+import { useSiblingReorder } from '../composables/mindmap/useSiblingReorder'
+import { useReferenceEdges } from '../composables/useReferenceEdges'
 
 // Store & Events for selection sync
 import { useDocumentStore } from 'src/core/stores/documentStore'
@@ -151,7 +159,7 @@ const { vueFlowNodes, updateNodeDimensionsFromDOM, syncToVueFlow, syncFromVueFlo
   calculateHiddenChildrenBounds, getDirectChildren, getChildrenSide, getNodeDepth, currentLodLevel
 )
 
-const { edgeType, edgeTypeOptions, visibleEdges, updateEdgesForBranch, updateAllEdgeHandles, createEdge } = useEdgeManagement(
+const { hierarchyEdgeType, referenceEdgeType, edgeTypeOptions, visibleEdges, updateEdgesForBranch, updateAllEdgeHandles, createEdge } = useEdgeManagement(
   nodes, edges, vueFlowNodes, getRootNode, isNodeOnLeftOfRoot
 )
 
@@ -161,10 +169,20 @@ const { closeContextMenu, toggleCollapse, toggleCollapseLeft, toggleCollapseRigh
   'mindmap' // Event source for store operations
 )
 
+// Canvas center for orientation calculations (root nodes reference point)
+const canvasCenter = ref({ x: 0, y: 0 })
+
+// Sibling reorder composable - updates store order when nodes are dragged
+const { updateSiblingOrderIfChanged } = useSiblingReorder(nodes, canvasCenter)
+
 const { potentialParent, onPaneMouseMove, onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDrag(
   nodes, viewport, getRootNode, getAllDescendants, getVisibleNodesForLOD, updateEdgesForBranch,
   reparentNode, syncToVueFlow, syncFromVueFlow, resolveAllOverlaps, resolveOverlapsBottomUpLOD,
-  updateNodeInternals
+  updateNodeInternals,
+  // Callback to update sibling order after drag
+  (draggedNodeId: string) => updateSiblingOrderIfChanged(draggedNodeId, 'mindmap'),
+  // Callback to save positions to store after drag
+  () => syncToStore()
 )
 
 watch(potentialParent, (newVal) => { potentialParentRef.value = newVal })
@@ -175,6 +193,15 @@ const { algorithm, generatorNodeCount, lastPerformance, generateNodeTree, clearA
 )
 
 const { initializeLayout: initializeMindmapLayout } = useMindmapLayout(nodes, getDirectChildren, getRootNode)
+
+// Reference edges composable - for creating non-hierarchical connections
+const {
+  onConnectStart: onReferenceConnectStart,
+  onConnectEnd: onReferenceConnectEnd,
+  onConnect: onReferenceConnect,
+  setupKeyboardListeners: setupReferenceKeyboardListeners,
+  cleanupKeyboardListeners: cleanupReferenceKeyboardListeners
+} = useReferenceEdges(edges, 'mindmap')
 
 // Store & Events for selection
 const documentStore = useDocumentStore()
@@ -198,34 +225,44 @@ function syncFromStore() {
   isSyncingFromStore.value = true
 
   const storeNodes = documentStore.nodes
-  const localNodes: NodeData[] = storeNodes.map(sn => ({
-    id: sn.id,
-    label: sn.data.content || sn.data.title,
-    parentId: sn.data.parentId,
+  console.log('=== syncFromStore: Processing store nodes ===')
 
-    // Active position - use mindmap position if available, else store position
-    x: sn.views.mindmap?.position?.x ?? sn.position.x,
-    y: sn.views.mindmap?.position?.y ?? sn.position.y,
+  const localNodes: NodeData[] = storeNodes.map(sn => {
+    const mindmapPos = sn.views.mindmap?.position
+    console.log(`  Node "${sn.data.content || sn.data.title}" (${sn.id}):`)
+    console.log(`    views.mindmap:`, JSON.stringify(sn.views.mindmap))
+    console.log(`    mindmapPosition will be:`, mindmapPos ? JSON.stringify(mindmapPos) : 'null')
 
-    // Dimensions
-    width: 150, // Default, will be updated from DOM
-    height: 50,
+    return {
+      id: sn.id,
+      label: sn.data.content || sn.data.title,
+      parentId: sn.data.parentId,
 
-    // Mindmap view-specific position (null means needs layout)
-    mindmapPosition: sn.views.mindmap?.position ?? null,
+      // Active position - use mindmap position if available, else store position
+      x: mindmapPos?.x ?? sn.position.x,
+      y: mindmapPos?.y ?? sn.position.y,
 
-    // Collapse state from view data
-    collapsed: sn.views.mindmap?.collapsed ?? false,
-    collapsedLeft: sn.views.mindmap?.collapsedLeft ?? false,
-    collapsedRight: sn.views.mindmap?.collapsedRight ?? false,
+      // Dimensions
+      width: 150, // Default, will be updated from DOM
+      height: 50,
 
-    // Layout flags
-    isDirty: sn.views.mindmap?.isDirty ?? true,
-    lastCalculatedZoom: sn.views.mindmap?.lastCalculatedZoom ?? viewport.value.zoom
-  }))
+      // Mindmap view-specific position (null means needs layout)
+      mindmapPosition: mindmapPos ?? null,
+
+      // Collapse state from view data
+      collapsed: sn.views.mindmap?.collapsed ?? false,
+      collapsedLeft: sn.views.mindmap?.collapsedLeft ?? false,
+      collapsedRight: sn.views.mindmap?.collapsedRight ?? false,
+
+      // Layout flags
+      isDirty: sn.views.mindmap?.isDirty ?? true,
+      lastCalculatedZoom: sn.views.mindmap?.lastCalculatedZoom ?? viewport.value.zoom
+    }
+  })
 
   // Update local nodes
   nodes.value = localNodes
+  console.log('=== syncFromStore: Complete ===')
 
   // Rebuild edges from parent-child relationships
   rebuildEdgesFromHierarchy()
@@ -241,12 +278,21 @@ function syncFromStore() {
  * Updates mindmap view-specific data
  */
 function syncToStore() {
+  console.log('=== syncToStore: Saving to store ===')
   for (const node of nodes.value) {
     const storeNode = documentStore.nodes.find(n => n.id === node.id)
     if (storeNode) {
+      // ALWAYS use current x,y position - this is the source of truth after dragging
+      // Update local mindmapPosition to match current x,y
+      node.mindmapPosition = { x: node.x, y: node.y }
+
+      const positionToSave = { x: node.x, y: node.y }
+      console.log(`  Node "${node.label}" (${node.id}):`)
+      console.log(`    saving position: (${positionToSave.x}, ${positionToSave.y})`)
+
       // Update mindmap view data (use defaults for optional properties to satisfy exactOptionalPropertyTypes)
       storeNode.views.mindmap = {
-        position: node.mindmapPosition ?? (node.x !== 0 || node.y !== 0 ? { x: node.x, y: node.y } : null),
+        position: positionToSave,
         collapsed: node.collapsed ?? false,
         collapsedLeft: node.collapsedLeft ?? false,
         collapsedRight: node.collapsedRight ?? false,
@@ -258,13 +304,53 @@ function syncToStore() {
       storeNode.position = { x: node.x, y: node.y }
     }
   }
+  console.log('=== syncToStore: Complete ===')
+}
+
+/**
+ * Calculate optimal handles for an edge based on relative positions of source and target nodes.
+ * Returns the best handles to connect the nodes based on their positions.
+ */
+function getOptimalHandles(sourceId: string, targetId: string): { sourceHandle: string, targetHandle: string } {
+  const sourceNode = nodes.value.find(n => n.id === sourceId)
+  const targetNode = nodes.value.find(n => n.id === targetId)
+
+  if (!sourceNode || !targetNode) {
+    return { sourceHandle: 'right-source', targetHandle: 'left-target' }
+  }
+
+  // Calculate centers
+  const sourceCenterX = sourceNode.x + sourceNode.width / 2
+  const sourceCenterY = sourceNode.y + sourceNode.height / 2
+  const targetCenterX = targetNode.x + targetNode.width / 2
+  const targetCenterY = targetNode.y + targetNode.height / 2
+
+  const dx = targetCenterX - sourceCenterX
+  const dy = targetCenterY - sourceCenterY
+
+  // Determine primary direction based on which delta is larger
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal connection is primary
+    if (dx > 0) {
+      return { sourceHandle: 'right-source', targetHandle: 'left-target' }
+    } else {
+      return { sourceHandle: 'left-source', targetHandle: 'right-target' }
+    }
+  } else {
+    // Vertical connection is primary
+    if (dy > 0) {
+      return { sourceHandle: 'bottom-source', targetHandle: 'top-target' }
+    } else {
+      return { sourceHandle: 'top-source', targetHandle: 'bottom-target' }
+    }
+  }
 }
 
 /**
  * Rebuild edges based on parent-child hierarchy
  */
 function rebuildEdgesFromHierarchy() {
-  const newEdges: Edge[] = []
+  const hierarchyEdges: Edge[] = []
 
   for (const node of nodes.value) {
     if (node.parentId) {
@@ -275,7 +361,7 @@ function rebuildEdgesFromHierarchy() {
         const sourceHandle = isLeft ? 'left' : 'right'
         const targetHandle = isLeft ? 'right' : 'left'
 
-        newEdges.push({
+        hierarchyEdges.push({
           id: `e-${parent.id}-${node.id}`,
           source: parent.id,
           sourceHandle,
@@ -287,7 +373,29 @@ function rebuildEdgesFromHierarchy() {
     }
   }
 
-  edges.value = newEdges
+  // Load reference edges from store and recalculate optimal handles based on mindmap positions
+  const storeEdges = documentStore.edges
+  const referenceEdges: Edge[] = storeEdges
+    .filter(e => e.data?.edgeType === 'reference')
+    .map(e => {
+      // Recalculate optimal handles based on current mindmap node positions
+      const { sourceHandle, targetHandle } = getOptimalHandles(e.source, e.target)
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle,
+        targetHandle,
+        type: 'straight' as const,
+        class: 'edge-reference',
+        data: { edgeType: 'reference' }
+      }
+    })
+
+  console.log(`rebuildEdgesFromHierarchy: ${hierarchyEdges.length} hierarchy edges, ${referenceEdges.length} reference edges`)
+
+  // Combine hierarchy and reference edges
+  edges.value = [...hierarchyEdges, ...referenceEdges]
 }
 
 // Computed
@@ -338,6 +446,29 @@ function onPaneClick() {
   documentStore.clearSelection(source)
 }
 
+// Connection handlers for reference edges
+function onConnectStart() {
+  onReferenceConnectStart()
+}
+
+function onConnectEnd() {
+  onReferenceConnectEnd()
+}
+
+function onConnect(params: { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) {
+  // Try to create a reference edge (only if C key was pressed)
+  const created = onReferenceConnect(params)
+  if (created) {
+    console.log('Reference edge created via C+drag')
+  }
+}
+
+// Connection validation - allow all connections (we handle validation in onConnect)
+function isValidConnection() {
+  // Always return true - we validate in onConnect based on C key state
+  return true
+}
+
 // Helper to update VueFlow selection state
 function updateVueFlowSelection(selectedIds: string[]) {
   isUpdatingSelectionFromStore.value = true
@@ -372,7 +503,7 @@ onStoreEvent('store:nodes-selected', ({ nodeIds }) => {
 defineExpose({
   nodes, edges, viewport, showBoundingBoxes, showMinimap, showCanvasCenter, showZoomIndicator, lodEnabled,
   horizontalSpacing, verticalSpacing, maxTreeDepth, currentLodLevel, zoomPercent, rootNodes, renderedNodeCount,
-  algorithm, generatorNodeCount, lastPerformance, edgeType, edgeTypeOptions,
+  algorithm, generatorNodeCount, lastPerformance, hierarchyEdgeType, referenceEdgeType, edgeTypeOptions,
   addRootNode, generateNodeTree, clearAllNodes, generateAndLayoutMindmap, syncToVueFlow, resolveAllOverlaps: () => { resolveAllOverlaps(nodes.value); syncToVueFlow() },
   fitView: () => fitView({ padding: 0.2, duration: 300 }),
   setSpacing: (h: number, v: number) => { devSettings.setSpacing(h, v); resolveAllOverlaps(nodes.value); syncToVueFlow() },
@@ -397,9 +528,19 @@ onMounted(async () => {
   setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
   console.log('MindmapView mounted')
 
+  // Setup keyboard listeners for reference edge creation (C key)
+  setupReferenceKeyboardListeners()
+
   // Sync from store to get existing nodes
   syncFromStore()
   console.log('After syncFromStore, nodes:', nodes.value.length)
+
+  // DEBUG: Log positions after syncFromStore
+  console.log('=== Node positions after syncFromStore ===')
+  nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}, mindmapPos=${JSON.stringify(n.mindmapPosition)}`))
+
+  // Track if we need to resolve overlaps (only for newly laid out nodes)
+  let needsOverlapResolution = false
 
   // If store is empty, create initial root node
   if (nodes.value.length === 0) {
@@ -408,13 +549,19 @@ onMounted(async () => {
     // Save the new node back to store
     syncToStore()
     console.log('Initial root node created, nodes:', nodes.value.length)
+    needsOverlapResolution = true
   } else {
-    // Check if layout needs initialization (nodes without mindmapPosition)
-    const needsLayout = nodes.value.some(n => n.mindmapPosition === null)
-    if (needsLayout) {
-      console.log('Some nodes need mindmap layout, initializing...')
+    // Check if ANY node needs layout (nodes without mindmapPosition)
+    const nodesNeedingLayout = nodes.value.filter(n => n.mindmapPosition === null)
+    if (nodesNeedingLayout.length > 0) {
+      console.log(`${nodesNeedingLayout.length} nodes need mindmap layout, initializing...`)
+      // initializeMindmapLayout only layouts nodes with mindmapPosition === null
+      // It preserves existing positions for nodes that already have mindmapPosition
       initializeMindmapLayout()
       syncToStore()
+      needsOverlapResolution = true
+    } else {
+      console.log('All nodes already have mindmap positions, preserving layout')
     }
   }
 
@@ -423,13 +570,24 @@ onMounted(async () => {
   await nextTick()
   await updateNodeDimensionsFromDOM()
 
-  // Resolve any overlaps after layout initialization
-  // This ensures nodes from other views don't overlap
-  resolveAllOverlaps(nodes.value)
-  syncToVueFlow()
+  // DEBUG: Log positions after syncToVueFlow
+  console.log('=== Node positions after syncToVueFlow ===')
+  nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}`))
+
+  // ONLY resolve overlaps if new nodes were laid out
+  // This preserves user's manual adjustments for existing nodes
+  if (needsOverlapResolution) {
+    console.log('Resolving overlaps for newly laid out nodes...')
+    resolveAllOverlaps(nodes.value)
+    syncToVueFlow()
+  }
 
   // Update edge handles based on node positions (important after view switch)
   updateAllEdgeHandles()
+
+  // DEBUG: Log final positions
+  console.log('=== Final node positions after all processing ===')
+  nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}`))
 
   // Center view on the node after it's rendered
   await nextTick()
@@ -438,6 +596,11 @@ onMounted(async () => {
     const rect = vueFlowContainer.getBoundingClientRect()
     void setViewport({ x: rect.width / 2, y: rect.height / 2, zoom: 1 }, { duration: 0 })
   }
+})
+
+onUnmounted(() => {
+  // Cleanup keyboard listeners for reference edge creation
+  cleanupReferenceKeyboardListeners()
 })
 
 // Listen for node creation events from OTHER views (not mindmap)
@@ -691,6 +854,27 @@ watch(
 
 .body--dark :deep(.vue-flow__node.selected) .custom-node .node-content {
   color: #90cdf4 !important;
+}
+
+/* Reference edge styling - dashed line with different color */
+:deep(.vue-flow__edge.edge-reference) path {
+  stroke: #9775fa;
+  stroke-dasharray: 5 3;
+  stroke-width: 2;
+}
+
+:deep(.vue-flow__edge.edge-reference:hover) path {
+  stroke: #7950f2;
+  stroke-width: 3;
+}
+
+/* Dark mode reference edge */
+.body--dark :deep(.vue-flow__edge.edge-reference) path {
+  stroke: #b197fc;
+}
+
+.body--dark :deep(.vue-flow__edge.edge-reference:hover) path {
+  stroke: #9775fa;
 }
 </style>
 

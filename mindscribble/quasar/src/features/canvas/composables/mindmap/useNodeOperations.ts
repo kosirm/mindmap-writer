@@ -216,11 +216,9 @@ export function useNodeOperations(
     const x = -defaultWidth / 2
     const y = -defaultHeight / 2
 
-    // Use counter for label (but ID comes from store)
-    const labelNum = nodeCounter.value++
-
     // Add to both local and store
-    addNodeToLocalAndStore(null, `Root ${labelNum}`, x, y, {
+    nodeCounter.value++ // Increment counter for future use
+    addNodeToLocalAndStore(null, 'Untitled', x, y, {
       collapsed: false,
       collapsedLeft: false,
       collapsedRight: false
@@ -312,11 +310,9 @@ export function useNodeOperations(
       childY = lastChild.y + (lastChild.height ?? 50) + VERTICAL_SPACING
     }
 
-    // Use counter for label (but ID comes from store)
-    const labelNum = nodeCounter.value++
-
     // Add to both local and store
-    const newNode = addNodeToLocalAndStore(parent.id, `Child ${labelNum}`, childX, childY, {
+    nodeCounter.value++ // Increment counter for future use
+    const newNode = addNodeToLocalAndStore(parent.id, 'Untitled', childX, childY, {
       collapsed: false
     })
 
@@ -324,8 +320,9 @@ export function useNodeOperations(
     syncToVueFlow()
 
     // Add edge with correct handles based on side
-    const sourceHandle = side === 'left' ? 'left' : 'right'
-    const targetHandle = side === 'left' ? 'right' : 'left'
+    // Handle IDs now include -source/-target suffix for bi-directional connections
+    const sourceHandle = side === 'left' ? 'left-source' : 'right-source'
+    const targetHandle = side === 'left' ? 'right-target' : 'left-target'
 
     console.log('Adding edge:', { source: parent.id, target: newNode.id, sourceHandle, targetHandle, side })
 
@@ -373,21 +370,20 @@ export function useNodeOperations(
     const newX = sibling.x
     const newY = sibling.y + (sibling.height ?? 50) + VERTICAL_SPACING
 
-    // Use counter for label (but ID comes from store)
-    const labelNum = nodeCounter.value++
-
     // Add to both local and store
-    const newNode = addNodeToLocalAndStore(sibling.parentId, `Sibling ${labelNum}`, newX, newY, {
+    nodeCounter.value++ // Increment counter for future use
+    const newNode = addNodeToLocalAndStore(sibling.parentId, 'Untitled', newX, newY, {
       collapsed: false
     })
 
     // Add edge if parent exists
     if (sibling.parentId) {
       // Determine edge handles based on which side of root this sibling is
+      // Handle IDs now include -source/-target suffix for bi-directional connections
       const root = getRootNode(sibling.id)
       const isLeftOfRoot = root ? sibling.x < root.x : sibling.x < 0
-      const sourceHandle = isLeftOfRoot ? 'left' : 'right'
-      const targetHandle = isLeftOfRoot ? 'right' : 'left'
+      const sourceHandle = isLeftOfRoot ? 'left-source' : 'right-source'
+      const targetHandle = isLeftOfRoot ? 'right-target' : 'left-target'
 
       edges.value.push({
         id: `e-${sibling.parentId}-${newNode.id}`,

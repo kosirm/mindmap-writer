@@ -1,7 +1,9 @@
-import { ref, computed, triggerRef, type Ref } from 'vue'
+import { computed, triggerRef, type Ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import type { Node, Edge } from '@vue-flow/core'
 import type { NodeData } from '../../components/mindmap/types'
 import { getAllDescendants } from '../../components/mindmap/layout'
+import { useDevSettingsStore, edgeTypeOptions } from '../../../../dev/devSettingsStore'
 
 export function useEdgeManagement(
   nodes: Ref<NodeData[]>,
@@ -12,37 +14,42 @@ export function useEdgeManagement(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isNodeOnLeftOfRoot: (node: NodeData) => boolean
 ) {
+  // ============================================================
+  // STATE - Use devSettings for edge types
+  // ============================================================
+  const devSettings = useDevSettingsStore()
+  const { hierarchyEdgeType, referenceEdgeType } = storeToRefs(devSettings)
 
   // ============================================================
-  // STATE - Copy from App.vue lines 409-416
-  // ============================================================
-
-  const edgeType = ref<'default' | 'straight' | 'step' | 'smoothstep' | 'simplebezier'>('default')
-const edgeTypeOptions = [
-  { value: 'straight', label: 'Straight' },
-  { value: 'default', label: 'Bezier' },
-  { value: 'simplebezier', label: 'Simple Bezier' },
-  { value: 'step', label: 'Step' },
-  { value: 'smoothstep', label: 'Smooth Step' },
-]
-
-
-
-  // ============================================================
-  // COMPUTED - Copy from App.vue lines 457-467
+  // COMPUTED
   // ============================================================
 
   const visibleEdges = computed(() => {
-  const visibleNodeIds = new Set(vueFlowNodes.value.map(n => n.id))
-  return edges.value
-    .filter(edge =>
-      visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
-    )
-    .map(edge => ({
-      ...edge,
-      type: edgeType.value
-    }))
-})
+    const visibleNodeIds = new Set(vueFlowNodes.value.map(n => n.id))
+    return edges.value
+      .filter(edge =>
+        visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
+      )
+      .map(edge => {
+        // Preserve reference edge styling, apply edgeType to hierarchy edges only
+        // Check data.edgeType or if class is a string containing 'edge-reference'
+        const classStr = typeof edge.class === 'string' ? edge.class : ''
+        const isReferenceEdge = edge.data?.edgeType === 'reference' || classStr.includes('edge-reference')
+
+        if (isReferenceEdge) {
+          return {
+            ...edge,
+            type: referenceEdgeType.value,
+            class: 'edge-reference'
+          }
+        }
+        // For hierarchy edges, use hierarchyEdgeType
+        return {
+          ...edge,
+          type: hierarchyEdgeType.value
+        }
+      })
+  })
 
 
 
@@ -69,23 +76,25 @@ const edgeTypeOptions = [
     const dy = childCenterY - parentCenterY
 
     // Determine primary direction based on which delta is larger
+    // Handle IDs now include -source/-target suffix for bi-directional connections
+    // Parent uses -source handles, child uses -target handles
     if (Math.abs(dx) > Math.abs(dy)) {
       // Horizontal connection is primary
       if (dx > 0) {
         // Child is to the right of parent
-        return { sourceHandle: 'right', targetHandle: 'left' }
+        return { sourceHandle: 'right-source', targetHandle: 'left-target' }
       } else {
         // Child is to the left of parent
-        return { sourceHandle: 'left', targetHandle: 'right' }
+        return { sourceHandle: 'left-source', targetHandle: 'right-target' }
       }
     } else {
       // Vertical connection is primary
       if (dy > 0) {
         // Child is below parent
-        return { sourceHandle: 'bottom', targetHandle: 'top' }
+        return { sourceHandle: 'bottom-source', targetHandle: 'top-target' }
       } else {
         // Child is above parent
-        return { sourceHandle: 'top', targetHandle: 'bottom' }
+        return { sourceHandle: 'top-source', targetHandle: 'bottom-target' }
       }
     }
   }
@@ -189,7 +198,8 @@ const edgeTypeOptions = [
   // ============================================================
 
   return {
-    edgeType,
+    hierarchyEdgeType,
+    referenceEdgeType,
     edgeTypeOptions,
     visibleEdges,
     updateEdgeHandles,

@@ -1,6 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+// Edge type options for VueFlow
+export type EdgeType = 'default' | 'straight' | 'step' | 'smoothstep' | 'simplebezier'
+
+export const edgeTypeOptions: { label: string; value: EdgeType }[] = [
+  { label: 'Bezier', value: 'default' },
+  { label: 'Straight', value: 'straight' },
+  { label: 'Step', value: 'step' },
+  { label: 'Smooth Step', value: 'smoothstep' },
+  { label: 'Simple Bezier', value: 'simplebezier' }
+]
+
 /**
  * Dev settings store - for development/debug settings that affect view components
  * These settings are used by MindmapView and ConceptMapView for debugging
@@ -13,6 +24,10 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
   // Layout spacing (affects AABB calculations)
   const horizontalSpacing = ref(0)
   const verticalSpacing = ref(0)
+
+  // Edge types
+  const hierarchyEdgeType = ref<EdgeType>('straight')
+  const referenceEdgeType = ref<EdgeType>('straight')
 
   // Actions
   function toggleBoundingBoxes() {
@@ -28,16 +43,28 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
     verticalSpacing.value = vertical
   }
 
+  function setHierarchyEdgeType(type: EdgeType) {
+    hierarchyEdgeType.value = type
+  }
+
+  function setReferenceEdgeType(type: EdgeType) {
+    referenceEdgeType.value = type
+  }
+
   return {
     // State
     showBoundingBoxes,
     showCanvasCenter,
     horizontalSpacing,
     verticalSpacing,
+    hierarchyEdgeType,
+    referenceEdgeType,
     // Actions
     toggleBoundingBoxes,
     toggleCanvasCenter,
-    setSpacing
+    setSpacing,
+    setHierarchyEdgeType,
+    setReferenceEdgeType
   }
 })
 

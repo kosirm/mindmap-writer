@@ -72,6 +72,39 @@
 
     <q-separator class="q-my-sm" />
 
+    <!-- Edge Types -->
+    <div class="text-caption q-mb-xs">Edge Types</div>
+    <div class="row items-center q-mb-xs">
+      <div class="col-4 text-caption">Hierarchy:</div>
+      <div class="col">
+        <q-select
+          v-model="devSettings.hierarchyEdgeType"
+          :options="edgeTypeOptions"
+          emit-value
+          map-options
+          dense
+          options-dense
+          size="sm"
+        />
+      </div>
+    </div>
+    <div class="row items-center q-mb-sm">
+      <div class="col-4 text-caption">Reference:</div>
+      <div class="col">
+        <q-select
+          v-model="devSettings.referenceEdgeType"
+          :options="edgeTypeOptions"
+          emit-value
+          map-options
+          dense
+          options-dense
+          size="sm"
+        />
+      </div>
+    </div>
+
+    <q-separator class="q-my-sm" />
+
     <!-- Basic Actions -->
     <q-btn
       outline
@@ -124,7 +157,7 @@
 import { computed } from 'vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useOrientationStore } from 'src/core/stores/orientationStore'
-import { useDevSettingsStore } from './devSettingsStore'
+import { useDevSettingsStore, edgeTypeOptions } from './devSettingsStore'
 
 const documentStore = useDocumentStore()
 const orientationStore = useOrientationStore()

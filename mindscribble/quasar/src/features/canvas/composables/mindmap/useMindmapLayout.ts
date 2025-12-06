@@ -160,12 +160,25 @@ export function useMindmapLayout(
 
   /**
    * Layout root nodes - position them horizontally centered
+   * For incremental layout: positions new roots after existing ones
    */
   function layoutRootNodes(rootNodes: NodeData[]): void {
     if (rootNodes.length === 0) return
 
-    // Position root nodes horizontally, centered around origin
+    // Find existing root nodes (already positioned)
+    const existingRoots = getRootNodes().filter(r => !rootNodes.includes(r) && r.mindmapPosition != null)
+
+    // Calculate starting X position after existing roots
     let currentX = 0
+    if (existingRoots.length > 0) {
+      // Find rightmost position of existing roots
+      for (const existingRoot of existingRoots) {
+        const rightEdge = existingRoot.x + (existingRoot.width ?? DEFAULT_WIDTH)
+        currentX = Math.max(currentX, rightEdge + HORIZONTAL_SPACING)
+      }
+    }
+
+    // Position new root nodes
     for (const root of rootNodes) {
       const width = root.width ?? DEFAULT_WIDTH
       const height = root.height ?? DEFAULT_HEIGHT

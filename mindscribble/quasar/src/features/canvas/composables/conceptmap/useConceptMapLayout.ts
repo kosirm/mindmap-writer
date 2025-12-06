@@ -24,9 +24,9 @@ export function useConceptMapLayout(
 
   const CONTAINER_PADDING = 20 // Padding inside container nodes
   const NODE_SPACING = 10 // Spacing between sibling nodes
-  // Consistent with ConceptMapView.vue
-  const MIN_NODE_WIDTH = 72
-  const MIN_NODE_HEIGHT = 20
+  // Consistent with ConceptMapView.vue and mindmap CustomNode (min-width: 100px, min-height: 30px)
+  const MIN_NODE_WIDTH = 100
+  const MIN_NODE_HEIGHT = 30
 
   // ============================================================
   // HELPER FUNCTIONS
@@ -83,22 +83,41 @@ export function useConceptMapLayout(
   }
 
   /**
+   * Get nodes that need layout (no conceptMapPosition)
+   */
+  function getNodesNeedingLayout(): NodeData[] {
+    return nodes.value.filter(n => n.conceptMapPosition == null)
+  }
+
+  /**
    * Initialize layout for concept map view
    *
    * This is the main entry point for view initialization:
-   * - If positions already exist → do nothing (idempotent)
-   * - If no positions → calculate from hierarchy structure
+   * - If ALL nodes have positions → do nothing (idempotent)
+   * - If SOME nodes need positions → incremental layout for new nodes only
+   * - If NO nodes have positions → full layout calculation
    *
-   * @returns true if layout was calculated, false if already initialized
+   * @returns true if layout was calculated, false if nothing needed
    */
   function initializeLayout(): boolean {
-    if (isInitialized()) {
-      console.log('ConceptMap: Already initialized, using existing positions')
+    const nodesNeedingLayout = getNodesNeedingLayout()
+
+    if (nodesNeedingLayout.length === 0) {
+      console.log('ConceptMap: All nodes have positions, nothing to layout')
       return false
     }
 
-    console.log('ConceptMap: Calculating initial layout from hierarchy')
-    calculateConceptMapPositions()
+    // Check if this is a full layout or incremental
+    const hasExistingPositions = isInitialized()
+
+    if (hasExistingPositions) {
+      console.log(`ConceptMap: Incremental layout for ${nodesNeedingLayout.length} new nodes`)
+      layoutNewNodesIncrementally(nodesNeedingLayout)
+    } else {
+      console.log('ConceptMap: Full layout calculation from hierarchy')
+      calculateConceptMapPositions()
+    }
+
     return true
   }
 
@@ -114,6 +133,164 @@ export function useConceptMapLayout(
       node.conceptMapSize = null
     }
     calculateConceptMapPositions()
+  }
+
+  /**
+   * Layout only new nodes incrementally, preserving existing node positions
+   *
+   * Strategy:
+   * 1. For new child nodes: re-layout ALL children of parent using grid (preserves sibling order)
+   * 2. For new root nodes: position after existing root nodes
+   * 3. Recalculate parent sizes bottom-up for affected parents
+   */
+  function layoutNewNodesIncrementally(newNodes: NodeData[]): void {
+    console.log(`=== ConceptMap: Incremental Layout for ${newNodes.length} nodes ===`)
+
+    // Separate new roots from new children
+    const newRoots = newNodes.filter(n => n.parentId === null)
+    const newChildren = newNodes.filter(n => n.parentId !== null)
+
+    // Collect affected parent IDs
+    const affectedParentIds = new Set<string>()
+    for (const child of newChildren) {
+      if (child.parentId) affectedParentIds.add(child.parentId)
+    }
+
+    // First, set initial sizes for new children (bottom-up from leaves)
+    for (const child of newChildren) {
+      const descendants = getDirectChildren(child.id)
+      if (descendants.length === 0) {
+        child.conceptMapSize = { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+      } else {
+        calculateNodeSizeBottomUp(child)
+      }
+    }
+
+    // Re-layout all children for each affected parent using grid layout
+    // This ensures grid consistency when adding new nodes
+    for (const parentId of affectedParentIds) {
+      positionChildrenInGrid(parentId)
+    }
+
+    // Then, position new root nodes
+    if (newRoots.length > 0) {
+      positionNewRootNodes(newRoots)
+    }
+
+    // Finally, recalculate sizes for affected parents (bottom-up)
+    for (const parentId of affectedParentIds) {
+      recalculateParentSizeBottomUp(parentId)
+    }
+
+    console.log('=== ConceptMap: Incremental Layout Complete ===')
+  }
+
+  /**
+   * Position all children of a parent in grid layout
+   * This is called when new children are added to maintain grid consistency
+   */
+  function positionChildrenInGrid(parentId: string): void {
+    const children = getDirectChildren(parentId)
+    if (children.length === 0) return
+
+    const { cols } = calculateGridDimensions(children.length)
+
+    // Find max dimensions for uniform grid cells
+    let maxChildWidth = MIN_NODE_WIDTH
+    let maxChildHeight = MIN_NODE_HEIGHT
+
+    for (const child of children) {
+      const childSize = child.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+      maxChildWidth = Math.max(maxChildWidth, childSize.width)
+      maxChildHeight = Math.max(maxChildHeight, childSize.height)
+    }
+
+    // Position children in grid
+    const HEADER_HEIGHT = 30
+    const startY = CONTAINER_PADDING + HEADER_HEIGHT
+
+    children.forEach((child, i) => {
+      const row = Math.floor(i / cols)
+      const col = i % cols
+
+      // Position is RELATIVE to parent (VueFlow nested nodes)
+      child.conceptMapPosition = {
+        x: CONTAINER_PADDING + col * (maxChildWidth + NODE_SPACING),
+        y: startY + row * (maxChildHeight + NODE_SPACING)
+      }
+
+      console.log(`  Child "${child.label}": grid[${row},${col}], pos=(${child.conceptMapPosition.x}, ${child.conceptMapPosition.y})`)
+
+      // Recursively position any new grandchildren
+      const grandchildren = getDirectChildren(child.id)
+      const newGrandchildren = grandchildren.filter(gc => gc.conceptMapPosition == null)
+      if (newGrandchildren.length > 0) {
+        positionChildrenInGrid(child.id)
+      }
+    })
+  }
+
+  /**
+   * Position a new child node inside its parent (used for single additions)
+   */
+  function positionNewChildNode(newChild: NodeData): void {
+    if (!newChild.parentId) return
+    // Just call positionChildrenInGrid on parent - it will position all children including new one
+    positionChildrenInGrid(newChild.parentId)
+  }
+
+  /**
+   * Position new root nodes after existing root nodes
+   */
+  function positionNewRootNodes(newRoots: NodeData[]): void {
+    const existingRoots = getRootNodes().filter(r => !newRoots.includes(r) && r.conceptMapPosition != null)
+
+    // Find rightmost position of existing roots
+    let rightmost = 0
+    for (const root of existingRoots) {
+      const pos = root.conceptMapPosition
+      const size = root.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+      if (pos) {
+        rightmost = Math.max(rightmost, pos.x + size.width)
+      }
+    }
+
+    // Position new roots after existing ones
+    let currentX = rightmost + NODE_SPACING * 3
+    for (const newRoot of newRoots) {
+      // Calculate size first
+      const children = getDirectChildren(newRoot.id)
+      if (children.length === 0) {
+        newRoot.conceptMapSize = { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+      } else {
+        calculateNodeSizeBottomUp(newRoot)
+      }
+
+      newRoot.conceptMapPosition = { x: currentX, y: 0 }
+      const size = newRoot.conceptMapSize ?? { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+      currentX += size.width + NODE_SPACING * 3
+
+      console.log(`  New root "${newRoot.label}": pos=(${newRoot.conceptMapPosition.x}, 0)`)
+
+      // Position any new children
+      positionChildrenTopDown(newRoot.id)
+    }
+  }
+
+  /**
+   * Recalculate parent size and propagate up the tree
+   */
+  function recalculateParentSizeBottomUp(nodeId: string): void {
+    const node = nodes.value.find(n => n.id === nodeId)
+    if (!node) return
+
+    // Recalculate this node's size based on children
+    calculateNodeSizeBottomUp(node)
+
+    // Propagate up to parent
+    if (node.parentId) {
+      recalculateParentSizeBottomUp(node.parentId)
+    }
   }
 
   // ============================================================
@@ -307,6 +484,7 @@ export function useConceptMapLayout(
     isInitialized,
     initializeLayout,
     recalculateLayout,
+    getNodesNeedingLayout,
 
     // Helper functions
     getRootNodes,
@@ -317,7 +495,12 @@ export function useConceptMapLayout(
     // Internal (exposed for direct access if needed)
     calculateConceptMapPositions,
     calculateNodeSizeBottomUp,
-    positionChildrenTopDown
+    positionChildrenTopDown,
+    layoutNewNodesIncrementally,
+    positionNewChildNode,
+    positionNewRootNodes,
+    recalculateParentSizeBottomUp,
+    positionChildrenInGrid
   }
 }
 
