@@ -159,7 +159,7 @@ const { vueFlowNodes, updateNodeDimensionsFromDOM, syncToVueFlow, syncFromVueFlo
   calculateHiddenChildrenBounds, getDirectChildren, getChildrenSide, getNodeDepth, currentLodLevel
 )
 
-const { hierarchyEdgeType, referenceEdgeType, edgeTypeOptions, visibleEdges, updateEdgesForBranch, updateAllEdgeHandles, createEdge } = useEdgeManagement(
+const { hierarchyEdgeType, referenceEdgeType, edgeTypeOptions, visibleEdges, updateEdgesForBranch, updateAllEdgeHandles, updateReferenceEdgeHandles, createEdge } = useEdgeManagement(
   nodes, edges, vueFlowNodes, getRootNode, isNodeOnLeftOfRoot
 )
 
@@ -181,8 +181,11 @@ const { potentialParent, onPaneMouseMove, onNodeDragStart, onNodeDrag, onNodeDra
   updateNodeInternals,
   // Callback to update sibling order after drag
   (draggedNodeId: string) => updateSiblingOrderIfChanged(draggedNodeId, 'mindmap'),
-  // Callback to save positions to store after drag
-  () => syncToStore()
+  // Callback to save positions to store after drag and update reference edge handles
+  () => {
+    updateReferenceEdgeHandles()
+    syncToStore()
+  }
 )
 
 watch(potentialParent, (newVal) => { potentialParentRef.value = newVal })
