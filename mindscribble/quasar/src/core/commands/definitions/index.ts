@@ -5,11 +5,13 @@
  * Import and register these at app startup.
  */
 
+export { fileCommands } from './fileCommands'
 export { nodeCommands } from './nodeCommands'
 export { viewCommands } from './viewCommands'
 export { editCommands } from './editCommands'
 export { paletteCommands } from './paletteCommands'
 
+import { fileCommands } from './fileCommands'
 import { nodeCommands } from './nodeCommands'
 import { viewCommands } from './viewCommands'
 import { editCommands } from './editCommands'
@@ -20,6 +22,7 @@ import type { Command } from '../types'
  * All commands combined
  */
 export const allCommands: Command[] = [
+  ...fileCommands,
   ...nodeCommands,
   ...viewCommands,
   ...editCommands,

@@ -555,6 +555,14 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
+// Handler for "Add Root Node" command
+function onCommandAddRootNode() {
+  void addRootNode().then(() => {
+    syncToStore()
+    syncToVueFlow()
+  })
+}
+
 onMounted(async () => {
   setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
   console.log('MindmapView mounted')
@@ -564,6 +572,9 @@ onMounted(async () => {
 
   // Setup F2 keyboard listener for node editing
   window.addEventListener('keydown', handleKeyDown)
+
+  // Listen for "Add Root Node" command from command palette / toolbar
+  window.addEventListener('command:node.add.root', onCommandAddRootNode)
 
   // Sync from store to get existing nodes
   syncFromStore()
@@ -576,15 +587,9 @@ onMounted(async () => {
   // Track if we need to resolve overlaps (only for newly laid out nodes)
   let needsOverlapResolution = false
 
-  // If store is empty, create initial root node
-  if (nodes.value.length === 0) {
-    console.log('No nodes in store, creating initial root node...')
-    await addRootNode()
-    // Save the new node back to store
-    syncToStore()
-    console.log('Initial root node created, nodes:', nodes.value.length)
-    needsOverlapResolution = true
-  } else {
+  // Don't auto-create initial node - let user add root node via toolbar/command
+  // This ensures consistent behavior with ConceptMapView and proper file loading
+  if (nodes.value.length > 0) {
     // Check if ANY node needs layout (nodes without mindmapPosition)
     const nodesNeedingLayout = nodes.value.filter(n => n.mindmapPosition === null)
     if (nodesNeedingLayout.length > 0) {
@@ -597,6 +602,8 @@ onMounted(async () => {
     } else {
       console.log('All nodes already have mindmap positions, preserving layout')
     }
+  } else {
+    console.log('No nodes in store, waiting for user to add root node')
   }
 
   // Sync to VueFlow and measure dimensions
@@ -638,6 +645,12 @@ onUnmounted(() => {
 
   // Cleanup F2 keyboard listener
   window.removeEventListener('keydown', handleKeyDown)
+
+  // Cleanup command listener
+  window.removeEventListener('command:node.add.root', onCommandAddRootNode)
+
+  // Cleanup document-loaded listener
+  eventBus.off('store:document-loaded')
 
   // Cleanup any active editor
   if (activeEditingNodeId.value) {
@@ -806,6 +819,27 @@ onStoreEvent('store:edge-deleted', ({ edgeId }) => {
   console.log(`MindmapView: Edge deleted from another view: ${edgeId}`)
   edges.value = edges.value.filter(e => e.id !== edgeId)
   syncToVueFlow()
+})
+
+// Listen for document loaded (e.g., from Google Drive)
+// Note: Using eventBus directly because document-loaded doesn't have a "source" view
+eventBus.on('store:document-loaded', () => {
+  console.log('MindmapView: Document loaded, re-syncing from store...')
+  syncFromStore()
+
+  // Initialize layout for nodes that need it
+  if (nodes.value.length > 0) {
+    const nodesNeedingLayout = nodes.value.filter(n => n.mindmapPosition === null)
+    if (nodesNeedingLayout.length > 0) {
+      console.log(`MindmapView: ${nodesNeedingLayout.length} nodes need layout after document load`)
+      initializeMindmapLayout()
+      syncToStore()
+    }
+  }
+
+  syncToVueFlow()
+  rebuildEdgesFromHierarchy()
+  updateAllEdgeHandles()
 })
 
 // ============================================================

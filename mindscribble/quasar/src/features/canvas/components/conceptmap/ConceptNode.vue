@@ -371,8 +371,8 @@ watch(isEditing, (newValue) => {
 .handle {
   width: 8px;
   height: 8px;
-  background: rgba(77, 171, 247, 0.2);
-  border: 2px solid rgba(19, 110, 230, 0.2);
+  background: rgba(77, 171, 247, 0);
+  border: 2px solid rgba(19, 110, 230, 0);
   border-radius: 50%;
 }
 

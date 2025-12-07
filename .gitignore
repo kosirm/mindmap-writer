@@ -38,6 +38,10 @@ lerna-debug.log*
 .env.local
 .env.*.local
 
+# Secrets
+client_secret*.json
+**/client_secret*.json
+
 # Quasar
 .quasar
 

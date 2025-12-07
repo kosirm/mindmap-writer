@@ -879,6 +879,50 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
+// Handler for "Add Root Node" command - creates a root node in concept map
+function onCommandAddRootNode() {
+  // Find rightmost root node to position new one after it
+  const roots = nodes.value.filter(n => n.parentId === null)
+  let posX = 0
+  if (roots.length > 0) {
+    const rightmost = roots.reduce((max, r) => {
+      const pos = r.conceptMapPosition ?? { x: 0, y: 0 }
+      const size = calculateParentSize(r.id)
+      return Math.max(max, pos.x + size.width)
+    }, 0)
+    posX = rightmost + 50
+  }
+
+  const conceptPos = { x: posX, y: 0 }
+  const conceptSize = { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT }
+
+  // Add to store
+  const storeNode = documentStore.addNode(null, 'Untitled', '', conceptPos, source)
+  storeNode.views.conceptMap = { position: conceptPos, size: conceptSize }
+
+  // Create local node
+  const newNode: NodeData = {
+    id: storeNode.id,
+    label: 'Untitled',
+    parentId: null,
+    x: conceptPos.x,
+    y: conceptPos.y,
+    width: MIN_NODE_WIDTH,
+    height: MIN_NODE_HEIGHT,
+    conceptMapPosition: conceptPos,
+    conceptMapSize: conceptSize
+  }
+
+  nodes.value.push(newNode)
+  buildVueFlowNodes()
+  syncToStore()
+
+  // Measure dimensions after DOM render
+  setTimeout(() => {
+    void measureAndResizeNodes()
+  }, 50)
+}
+
 onMounted(async () => {
   console.log('ConceptMapView mounted')
 
@@ -887,6 +931,9 @@ onMounted(async () => {
 
   // Setup F2 keyboard listener for node editing
   window.addEventListener('keydown', handleKeyDown)
+
+  // Listen for "Add Root Node" command
+  window.addEventListener('command:node.add.root', onCommandAddRootNode)
 
   syncFromStore()
 
@@ -943,8 +990,12 @@ onUnmounted(() => {
   // Cleanup F2 keyboard listener
   window.removeEventListener('keydown', handleKeyDown)
 
-  // Cleanup direct eventBus listener
+  // Cleanup command listener
+  window.removeEventListener('command:node.add.root', onCommandAddRootNode)
+
+  // Cleanup direct eventBus listeners
   eventBus.off('store:node-updated', handleNodeUpdated)
+  eventBus.off('store:document-loaded')
 
   // Cleanup any active editor
   if (activeEditingNodeId.value) {
@@ -1032,6 +1083,25 @@ onStoreEvent('store:edge-deleted', ({ edgeId }) => {
   console.log(`ConceptMapView: Edge deleted from another view: ${edgeId}`)
   edges.value = edges.value.filter(e => e.id !== edgeId)
   buildVueFlowNodes()
+})
+
+// Listen for document loaded (e.g., from Google Drive)
+// Note: Using eventBus directly because document-loaded doesn't have a "source" view
+eventBus.on('store:document-loaded', () => {
+  console.log('ConceptMapView: Document loaded, re-syncing from store...')
+  syncFromStore()
+
+  // Initialize layout for nodes that need it
+  if (nodes.value.length > 0) {
+    const nodesNeedingLayout = getNodesNeedingLayout()
+    if (nodesNeedingLayout.length > 0) {
+      console.log(`ConceptMapView: ${nodesNeedingLayout.length} nodes need layout after document load`)
+      initializeLayout()
+    }
+    recalculateAllParentSizesAndResolveOverlaps()
+    buildVueFlowNodes()
+    syncToStore()
+  }
 })
 
 // Expose for parent

@@ -2,14 +2,6 @@
 
 ## TODO
 
-### Load test nodes (50)
-
-  - defaultExpanded: false
-
-### Connect Mindmap, Concept map, Outline
-
-  - defaultExpanded: false
-
 ### Converters Mindmap<->ConceptMap
 
   - defaultExpanded: false
@@ -25,6 +17,10 @@
 
   - defaultExpanded: false
 
+### Google Drive Integration
+
+  - defaultExpanded: false
+
 ## In Progress
 
 ## Done
@@ -35,4 +31,14 @@
     ```md
     Description
     ```
+
+### Connect Mindmap, Concept map, Outline
+
+  - defaultExpanded: false
+
+## IceBox
+
+### Load test nodes (50)
+
+  - defaultExpanded: false
 

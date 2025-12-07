@@ -410,6 +410,12 @@ export function findCommandByKeybinding(event: KeyboardEvent): Command | undefin
 }
 
 /**
+ * Commands that should always prevent browser default behavior
+ * even if the command itself is not available (e.g., user not authenticated)
+ */
+const ALWAYS_PREVENT_DEFAULT = ['file.save', 'file.open', 'file.new']
+
+/**
  * Handle keyboard event - find and execute matching command
  * Returns true if a command was executed
  */
@@ -432,10 +438,17 @@ export function handleKeyboardEvent(event: KeyboardEvent): boolean {
   }
 
   const command = findCommandByKeybinding(event)
-  if (command && isCommandAvailable(command.id)) {
-    event.preventDefault()
-    void executeCommand(command.id)
-    return true
+  if (command) {
+    // Always prevent browser default for certain shortcuts (like Ctrl+S)
+    if (ALWAYS_PREVENT_DEFAULT.includes(command.id)) {
+      event.preventDefault()
+    }
+
+    if (isCommandAvailable(command.id)) {
+      event.preventDefault()
+      void executeCommand(command.id)
+      return true
+    }
   }
 
   return false
