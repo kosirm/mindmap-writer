@@ -64,6 +64,7 @@ function delay(ms: number): Promise<void> {
     id,
     label,
     parentId,
+    order: nodes.value.filter(n => n.parentId === parentId).length, // Order based on current sibling count
     x,
     y,
     width: 150,

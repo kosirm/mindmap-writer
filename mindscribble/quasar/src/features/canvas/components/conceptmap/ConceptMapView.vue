@@ -186,7 +186,9 @@ function hasChildren(nodeId: string): boolean {
 }
 
 function getDirectChildren(nodeId: string): NodeData[] {
-  return nodes.value.filter(n => n.parentId === nodeId)
+  return nodes.value
+    .filter(n => n.parentId === nodeId)
+    .sort((a, b) => a.order - b.order)
 }
 
 function isRootNode(nodeId: string | null): boolean {
@@ -490,6 +492,7 @@ function syncFromStore() {
       id: sn.id,
       label: sn.data.title,
       parentId: sn.data.parentId,
+      order: sn.data.order, // Include order for consistent child sorting
       x: conceptMapPos?.x ?? 0,
       y: conceptMapPos?.y ?? 0,
       width: MIN_NODE_WIDTH,
@@ -694,6 +697,7 @@ function addChildNode() {
     id: storeNode.id,
     label: 'Untitled',
     parentId: parentNode.id,
+    order: storeNode.data.order,
     x: conceptPos.x,
     y: conceptPos.y,
     width: MIN_NODE_WIDTH,
@@ -736,6 +740,7 @@ function addSiblingNode() {
     id: storeNode.id,
     label: 'Untitled',
     parentId: targetNode.parentId,
+    order: storeNode.data.order,
     x: conceptPos.x,
     y: conceptPos.y,
     width: MIN_NODE_WIDTH,
@@ -905,6 +910,7 @@ function onCommandAddRootNode() {
     id: storeNode.id,
     label: 'Untitled',
     parentId: null,
+    order: storeNode.data.order,
     x: conceptPos.x,
     y: conceptPos.y,
     width: MIN_NODE_WIDTH,

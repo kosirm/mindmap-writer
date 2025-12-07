@@ -35,6 +35,7 @@ export function useStoreSync(
       id: node.id,
       label: node.data.title,
       parentId: node.data.parentId,
+      order: node.data.order,
       x: mindmapPos?.x ?? 0,
       y: mindmapPos?.y ?? 0,
       width: 150,  // Default width

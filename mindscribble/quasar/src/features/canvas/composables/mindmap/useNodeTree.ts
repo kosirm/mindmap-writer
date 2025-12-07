@@ -5,7 +5,9 @@ import { getAllDescendants } from '../../components/mindmap/layout'
 export function useNodeTree(nodes: Ref<NodeData[]>) {
 
     function getDirectChildren(nodeId: string): NodeData[] {
-  return nodes.value.filter(n => n.parentId === nodeId)
+  return nodes.value
+    .filter(n => n.parentId === nodeId)
+    .sort((a, b) => a.order - b.order)
 }
 
 function getVisibleDescendants(nodeId: string): NodeData[] {
