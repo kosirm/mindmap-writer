@@ -246,6 +246,7 @@ function syncFromStore() {
       id: sn.id,
       label: sn.data.title,
       parentId: sn.data.parentId,
+      order: sn.data.order, // Include order for consistent child sorting
 
       // Active position - use mindmap position if available, else store position
       x: mindmapPos?.x ?? sn.position.x,
@@ -563,6 +564,63 @@ function onCommandAddRootNode() {
   })
 }
 
+/**
+ * Reconcile visual positions with store order.
+ * When mindmap opens after order changes were made in another view (e.g., Writer),
+ * the visual positions may not match the store order. This function detects the mismatch
+ * and applies position swaps using the same logic as store:siblings-reordered event.
+ *
+ * @returns true if any positions were updated
+ */
+function reconcilePositionsWithStoreOrder(): boolean {
+  const orientation = orientationStore.orientation
+  let anyChanges = false
+
+  // Group nodes by parent
+  const parentIds = new Set<string | null>([null]) // Include null for root nodes
+  for (const node of nodes.value) {
+    if (node.parentId) parentIds.add(node.parentId)
+  }
+
+  for (const parentId of parentIds) {
+    // Get siblings for this parent
+    const siblings = nodes.value.filter(n => n.parentId === parentId)
+    if (siblings.length <= 1) continue
+
+    // Only check nodes that already have positions (mindmapPosition !== null)
+    const positionedSiblings = siblings.filter(n => n.mindmapPosition !== null)
+    if (positionedSiblings.length <= 1) continue
+
+    // Build newOrders map from the store order
+    const newOrders = new Map<string, number>()
+    for (const sibling of positionedSiblings) {
+      newOrders.set(sibling.id, sibling.order)
+    }
+
+    // Use swapPositionsOnReorder to calculate position updates
+    const positionUpdates = swapPositionsOnReorder(parentId, newOrders, orientation)
+
+    if (positionUpdates.length > 0) {
+      console.log(`Reconciling positions for parent ${parentId ?? 'ROOT'}: ${positionUpdates.length} nodes need repositioning`)
+      anyChanges = true
+
+      // Apply position updates
+      for (const update of positionUpdates) {
+        const node = nodes.value.find(n => n.id === update.nodeId)
+        if (node) {
+          console.log(`  Moving ${node.label} to (${update.newX.toFixed(0)}, ${update.newY.toFixed(0)})`)
+          node.x = update.newX
+          node.y = update.newY
+          // Update mindmapPosition as well
+          node.mindmapPosition = { x: update.newX, y: update.newY }
+        }
+      }
+    }
+  }
+
+  return anyChanges
+}
+
 onMounted(async () => {
   setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
   console.log('MindmapView mounted')
@@ -601,6 +659,15 @@ onMounted(async () => {
       needsOverlapResolution = true
     } else {
       console.log('All nodes already have mindmap positions, preserving layout')
+
+      // Reconcile positions with store order - handles case where order was changed
+      // in another view (e.g., Writer) while mindmap was closed
+      const positionsReconciled = reconcilePositionsWithStoreOrder()
+      if (positionsReconciled) {
+        console.log('Positions reconciled with store order, resolving overlaps...')
+        needsOverlapResolution = true
+        syncToStore() // Save reconciled positions back to store
+      }
     }
   } else {
     console.log('No nodes in store, waiting for user to add root node')
@@ -763,6 +830,14 @@ onStoreEvent('store:node-deleted', () => {
 // Listen for sibling reorder from other views (e.g., Writer)
 onStoreEvent('store:siblings-reordered', ({ parentId, newOrders }) => {
   console.log(`Siblings reordered for parent ${parentId ?? 'ROOT'} from another view`)
+
+  // Update local order property to match store
+  for (const [nodeId, order] of newOrders) {
+    const node = nodes.value.find(n => n.id === nodeId)
+    if (node) {
+      node.order = order
+    }
+  }
 
   // Swap positions to match the new order
   const orientation = orientationStore.orientation

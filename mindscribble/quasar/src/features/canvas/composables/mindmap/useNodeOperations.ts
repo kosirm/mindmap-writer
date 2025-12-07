@@ -107,6 +107,7 @@ export function useNodeOperations(
       id: storeNode.id,
       label,
       parentId,
+      order: storeNode.data.order,
       x,
       y,
       width: defaultWidth,

@@ -33,6 +33,9 @@ export interface NodeData {
   label: string;
   parentId: string | null;
 
+  // Order among siblings (from store, used for consistent child ordering)
+  order: number;
+
   // Active position (used by VueFlow, synced with current view)
   x: number;
   y: number;
