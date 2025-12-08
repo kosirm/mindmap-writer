@@ -964,6 +964,15 @@ onStoreEvent('store:edge-deleted', ({ edgeId }) => {
   syncToVueFlow()
 })
 
+// Listen for view changes to sync when switching back to mindmap
+onStoreEvent('store:view-changed', ({ newView }) => {
+  if (newView === 'mindmap') {
+    console.log('MindmapView: Switched to mindmap view, syncing from store...')
+    syncFromStore()
+    syncToVueFlow()
+  }
+})
+
 // Listen for document loaded (e.g., from Google Drive)
 // Note: Using eventBus directly because document-loaded doesn't have a "source" view
 eventBus.on('store:document-loaded', () => {
