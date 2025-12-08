@@ -206,6 +206,29 @@ onStoreEvent('store:node-reparented', () => {
 onStoreEvent('store:siblings-reordered', () => {
   treeData.value = buildTreeFromStore()
 })
+
+// Listen to select-navigate events from other views
+onStoreEvent('store:select-navigate', ({ nodeId, source }) => {
+  console.log('WriterView: select-navigate received for node:', nodeId, 'from source:', source)
+  // Scroll the node into view
+  if (nodeId) {
+    setTimeout(() => {
+      // Try to find within the writer view container
+      const writerView = document.querySelector('.writer-view')
+      console.log('WriterView: writer view element:', writerView)
+      if (writerView) {
+        const nodeElement = writerView.querySelector(`[data-node-id="${nodeId}"]`)
+        console.log('WriterView: found element in writer view:', nodeElement)
+        if (nodeElement) {
+          console.log('WriterView: scrolling element into view')
+          nodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        } else {
+          console.log('WriterView: element not found in writer view')
+        }
+      }
+    }, 100)
+  }
+})
 </script>
 
 <style scoped lang="scss">

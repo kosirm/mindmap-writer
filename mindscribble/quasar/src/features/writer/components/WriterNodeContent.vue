@@ -5,6 +5,7 @@
       'is-selected': isSelected,
       'is-hovered': isHovered
     }"
+    :data-node-id="node.id"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
     @click="handleNodeClick"
@@ -96,8 +97,14 @@ const titleEditor = shallowRef<Editor | null>(null)
 const contentEditor = shallowRef<Editor | null>(null)
 
 // Click handlers
-function handleNodeClick() {
-  documentStore.selectNode(props.node.id, 'writer', false)
+function handleNodeClick(event: MouseEvent) {
+  if (event.ctrlKey || event.metaKey) {
+    // Ctrl+click: Select and navigate
+    documentStore.selectNavigateNode(props.node.id, 'writer')
+  } else {
+    // Regular click: Select without navigation
+    documentStore.selectNode(props.node.id, 'writer', false)
+  }
 }
 
 function handleTitleClick() {
