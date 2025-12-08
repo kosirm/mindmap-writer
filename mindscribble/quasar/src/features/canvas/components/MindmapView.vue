@@ -2,6 +2,7 @@
   <div class="mindmap-canvas">
     <VueFlow
       ref="vueFlowRef"
+      :key="documentStore.currentDocumentId || 'default'"
       :nodes="vueFlowNodes"
       :edges="visibleEdges"
       :min-zoom="0.05"
