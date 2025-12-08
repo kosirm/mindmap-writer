@@ -128,7 +128,7 @@ import { calculateOrientationTransition, getTransitionOperations, type Orientati
 import { activeEditingNodeId, destroyActiveEditor } from '../composables/useCanvasNodeEditor'
 
 // VueFlow instance
-const { viewport, fitView, setViewport, findNode, updateNodeInternals } = useVueFlow()
+const { viewport, fitView, setViewport, findNode, updateNodeInternals, setNodes } = useVueFlow()
 
 // Dev settings store (for bounding boxes, spacing, etc.)
 const devSettings = useDevSettingsStore()
@@ -287,6 +287,7 @@ function syncFromStore() {
 
   // Sync to VueFlow
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
 
   isSyncingFromStore.value = false
 }
@@ -528,6 +529,7 @@ function onNodesChange(changes: NodeChange[]) {
     // Rebuild edges and sync to VueFlow
     rebuildEdgesFromHierarchy()
     syncToVueFlow()
+    setNodes(vueFlowNodes.value)
   }
 }
 
@@ -747,6 +749,7 @@ onMounted(async () => {
 
   // Sync to VueFlow and measure dimensions
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
   await nextTick()
   await updateNodeDimensionsFromDOM()
 
@@ -760,6 +763,7 @@ onMounted(async () => {
     console.log('Resolving overlaps for newly laid out nodes...')
     resolveAllOverlaps(nodes.value)
     syncToVueFlow()
+    setNodes(vueFlowNodes.value)
   }
 
   // Update edge handles based on node positions (important after view switch)
@@ -859,6 +863,7 @@ onStoreEvent('store:node-created', ({ nodeId, parentId }) => {
 
     // After positioning, resolve overlaps and update edges
     syncToVueFlow()
+    setNodes(vueFlowNodes.value)
     setTimeout(() => {
       void (async () => {
         await updateNodeDimensionsFromDOM()
@@ -878,6 +883,7 @@ onStoreEvent('store:node-updated', ({ nodeId }) => {
   console.log(`Node updated from another view: ${nodeId}, syncing to mindmap...`)
   syncFromStore()
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
 })
 
 // Listen for node reparenting from other views
@@ -889,6 +895,7 @@ onStoreEvent('store:node-reparented', ({ nodeId }) => {
   rebuildEdgesFromHierarchy()
   updateAllEdgeHandles()
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
 })
 
 // Listen for node deletion from other views
@@ -897,6 +904,7 @@ onStoreEvent('store:node-deleted', () => {
   syncFromStore()
   rebuildEdgesFromHierarchy()
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
 })
 
 // Listen for sibling reorder from other views (e.g., Writer)
@@ -935,6 +943,7 @@ onStoreEvent('store:siblings-reordered', ({ parentId, newOrders }) => {
   // Rebuild edges and sync
   rebuildEdgesFromHierarchy()
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
   syncToStore()
 })
 
@@ -959,6 +968,7 @@ onStoreEvent('store:edge-created', ({ edgeId, sourceId, targetId, edgeType }) =>
   }
   edges.value = [...edges.value, newEdge]
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
 })
 
 // Listen for reference edge deletion from other views
@@ -966,6 +976,7 @@ onStoreEvent('store:edge-deleted', ({ edgeId }) => {
   console.log(`MindmapView: Edge deleted from another view: ${edgeId}`)
   edges.value = edges.value.filter(e => e.id !== edgeId)
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
 })
 
 // Listen for view changes to sync when switching back to mindmap
@@ -974,6 +985,7 @@ onStoreEvent('store:view-changed', ({ newView }) => {
     console.log('MindmapView: Switched to mindmap view, syncing from store...')
     syncFromStore()
     syncToVueFlow()
+    setNodes(vueFlowNodes.value)
   }
 })
 
@@ -994,6 +1006,7 @@ eventBus.on('store:document-loaded', () => {
   }
 
   syncToVueFlow()
+  setNodes(vueFlowNodes.value)
   rebuildEdgesFromHierarchy()
   updateAllEdgeHandles()
 })
@@ -1098,6 +1111,7 @@ function applyOrientationTransition(fromOrientation: OrientationMode, toOrientat
 
     // Sync to VueFlow
     syncToVueFlow()
+    setNodes(vueFlowNodes.value)
 
     // Sync to store
     syncToStore()
