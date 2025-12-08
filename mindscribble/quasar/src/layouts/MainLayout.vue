@@ -16,24 +16,26 @@
         <!-- LEFT SECTION: Document title + Save status -->
         <div class="toolbar-left q-ml-md">
           <span class="document-title">{{ documentStore.documentName }}</span>
-          <span class="save-status q-ml-sm">
-            <template v-if="driveStore.syncStatus === 'saving'">
-              <q-spinner-dots size="14px" color="white" class="q-mr-xs" />
-              Saving...
-            </template>
-            <template v-else-if="driveStore.syncStatus === 'synced'">
-              <q-icon name="cloud_done" size="14px" class="q-mr-xs" />
-              Saved
-            </template>
-            <template v-else-if="driveStore.syncStatus === 'error'">
-              <q-icon name="cloud_off" size="14px" class="q-mr-xs" />
-              Save failed
-            </template>
-            <template v-else-if="documentStore.isDirty && driveStore.hasOpenFile">
-              <q-icon name="fiber_manual_record" size="8px" class="q-mr-xs" />
-              Unsaved
-            </template>
-          </span>
+          <div class="save-status-container q-ml-sm">
+            <span class="save-status">
+              <template v-if="driveStore.syncStatus === 'saving'">
+                <q-spinner-dots size="14px" color="white" class="q-mr-xs" />
+                Saving...
+              </template>
+              <template v-else-if="driveStore.syncStatus === 'synced'">
+                <q-icon name="cloud_done" size="14px" class="q-mr-xs" />
+                Saved
+              </template>
+              <template v-else-if="driveStore.syncStatus === 'error'">
+                <q-icon name="cloud_off" size="14px" class="q-mr-xs" />
+                Save failed
+              </template>
+              <template v-else-if="documentStore.isDirty && driveStore.hasOpenFile">
+                <q-icon name="fiber_manual_record" size="8px" class="q-mr-xs" />
+                Unsaved
+              </template>
+            </span>
+          </div>
         </div>
 
         <!-- CENTER SECTION: Panel Manager -->
@@ -534,6 +536,12 @@ onUnmounted(() => {
 .document-title {
   font-weight: 500;
   font-size: 1rem;
+}
+
+.save-status-container {
+  width: 100px; // Fixed width to prevent layout shift
+  display: flex;
+  justify-content: flex-start;
 }
 
 .save-status {
