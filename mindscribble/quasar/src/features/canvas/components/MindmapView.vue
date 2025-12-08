@@ -1010,6 +1010,14 @@ eventBus.on('store:document-loaded', () => {
   setNodes(vueFlowNodes.value)
   rebuildEdgesFromHierarchy()
   updateAllEdgeHandles()
+
+  // Center viewport on nodes after loading
+  setTimeout(() => {
+    if (vueFlowNodes.value.length > 0) {
+      void fitView({ padding: 0.2, duration: 300 })
+    }
+  }, 100)
+
   console.log('MindmapView: Document loaded sync complete, nodes:', nodes.value.length, 'vueFlowNodes:', vueFlowNodes.value.length)
 })
 

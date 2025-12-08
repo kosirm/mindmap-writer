@@ -1189,6 +1189,13 @@ eventBus.on('store:document-loaded', () => {
     buildVueFlowNodes()
     syncToStore()
   }
+
+  // Center viewport on nodes after loading
+  setTimeout(() => {
+    if (vueFlowNodes.value.length > 0) {
+      void fitView({ padding: 0.2, duration: 300 })
+    }
+  }, 100)
 })
 
 // Expose for parent
