@@ -5,3 +5,25 @@
 @import '@vue-flow/core/dist/theme-default.css';
 @import '@vue-flow/minimap/dist/style.css';
 @import '@vue-flow/controls/dist/style.css';
+
+// Prevent text selection in outline and writer views during canvas selection
+.canvas-selecting {
+  // Disable text selection on the entire document during canvas selection
+  * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+  }
+
+  // But re-enable it for the canvas
+  .mindmap-canvas,
+  .conceptmap-canvas {
+    * {
+      user-select: auto;
+      -webkit-user-select: auto;
+      -moz-user-select: auto;
+      -ms-user-select: auto;
+    }
+  }
+}
