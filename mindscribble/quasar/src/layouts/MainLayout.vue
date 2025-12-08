@@ -246,7 +246,10 @@ import { registerCommands, handleKeyboardEvent, initCommandAPI, updateContext } 
 import { allCommands } from 'src/core/commands/definitions'
 import { signIn, signOut } from 'src/boot/google-api'
 import { useAutosave } from 'src/composables/useAutosave'
-import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
+import {
+  updateMindmapFile,
+  type DriveFileMetadata
+} from 'src/core/services/googleDriveService'
 
 // Dev tools - only imported in development mode (lazy loaded)
 const DevPanel = import.meta.env.DEV
@@ -350,8 +353,58 @@ function onFileSave() {
     $q.notify({ type: 'warning', message: 'Please sign in to save files to Google Drive' })
     return
   }
+
+  console.log('onFileSave - currentFile:', driveStore.currentFile, 'hasOpenFile:', driveStore.hasOpenFile)
+
+  // If we have a current file, save directly without modal
+  if (driveStore.hasOpenFile) {
+    void saveCurrentFile()
+    return
+  }
+
+  // No current file - open Save As modal
   fileModalMode.value = 'save'
   showFileModal.value = true
+}
+
+async function saveCurrentFile() {
+  if (!driveStore.currentFile) return
+
+  driveStore.setSyncStatus('saving')
+  try {
+    const document = documentStore.toDocument()
+    document.metadata.name = driveStore.currentFileName || documentStore.documentName || 'Untitled'
+
+    const savedFile = await updateMindmapFile(
+      driveStore.currentFile.id,
+      document,
+      document.metadata.name
+    )
+    driveStore.updateFileInList(savedFile)
+    driveStore.setCurrentFile(savedFile)
+    documentStore.markClean()
+
+    // Show "synced" status briefly
+    driveStore.setSyncStatus('synced')
+    setTimeout(() => {
+      if (driveStore.syncStatus === 'synced') {
+        driveStore.setSyncStatus('idle')
+      }
+    }, 3000)
+
+    $q.notify({
+      type: 'positive',
+      message: `Saved "${document.metadata.name}"`,
+      timeout: 1500
+    })
+  } catch (error) {
+    console.error('Failed to save file:', error)
+    driveStore.setSyncError('Failed to save file')
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to save to Google Drive'
+    })
+  }
 }
 
 function onFileSaveAs() {

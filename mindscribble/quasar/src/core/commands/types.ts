@@ -102,6 +102,7 @@ export type MenuGroup =
   | 'formatting'
   | 'ai'
   | 'settings'
+  | 'context'
 
 /**
  * Full command definition

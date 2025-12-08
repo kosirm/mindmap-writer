@@ -57,6 +57,55 @@ export const viewCommands: Command[] = [
   },
 
   // ============================================================================
+  // Context Switching (Panel Focus)
+  // ============================================================================
+  {
+    id: 'view.context.left',
+    label: 'Focus Left Panel',
+    icon: 'west',
+    category: 'view',
+    keybinding: 'Alt+1',
+    description: 'Switch focus context to the left panel',
+    keywords: ['focus', 'context', 'left', 'outline'],
+    group: 'context',
+    order: 5,
+    showInPalette: true,
+    execute: () => {
+      window.dispatchEvent(new CustomEvent('command:view.context.left'))
+    },
+  },
+  {
+    id: 'view.context.center',
+    label: 'Focus Center Panel',
+    icon: 'center_focus_strong',
+    category: 'view',
+    keybinding: 'Alt+2',
+    description: 'Switch focus context to the center panel (canvas)',
+    keywords: ['focus', 'context', 'center', 'canvas', 'mindmap'],
+    group: 'context',
+    order: 6,
+    showInPalette: true,
+    execute: () => {
+      window.dispatchEvent(new CustomEvent('command:view.context.center'))
+    },
+  },
+  {
+    id: 'view.context.right',
+    label: 'Focus Right Panel',
+    icon: 'east',
+    category: 'view',
+    keybinding: 'Alt+3',
+    description: 'Switch focus context to the right panel (writer)',
+    keywords: ['focus', 'context', 'right', 'writer'],
+    group: 'context',
+    order: 7,
+    showInPalette: true,
+    execute: () => {
+      window.dispatchEvent(new CustomEvent('command:view.context.right'))
+    },
+  },
+
+  // ============================================================================
   // Zoom Controls
   // ============================================================================
   {

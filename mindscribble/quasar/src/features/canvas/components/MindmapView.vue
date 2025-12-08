@@ -7,11 +7,12 @@
       :min-zoom="0.05"
       :max-zoom="maxZoom"
       :only-render-visible-elements="true"
-      :selection-key-code="null"
+      :selection-key-code="'Shift'"
       :multi-selection-key-code="'Shift'"
-      :select-nodes-on-drag="true"
+      :select-nodes-on-drag="false"
       :connect-on-click="false"
       :default-edge-options="{ type: 'straight' }"
+      :delete-key-code="['Backspace', 'Delete']"
       :is-valid-connection="isValidConnection"
       @node-drag-start="onNodeDragStart"
       @node-drag="onNodeDrag"
@@ -24,6 +25,9 @@
       @connect="onConnect"
       @connect-start="onConnectStart"
       @connect-end="onConnectEnd"
+      @nodes-change="onNodesChange"
+      @selection-start="onSelectionStart"
+      @selection-end="onSelectionEnd"
     >
       <Background />
       <MiniMap pannable zoomable v-if="showMinimap" />
@@ -95,7 +99,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { MiniMap } from '@vue-flow/minimap'
-import type { Node, Edge, NodeMouseEvent } from '@vue-flow/core'
+import type { Node, Edge, NodeMouseEvent, NodeChange } from '@vue-flow/core'
 import CustomNode from './mindmap/CustomNode.vue'
 import LodBadgeNode from './mindmap/LodBadgeNode.vue'
 import type { NodeData, ContextMenuState, BoundingRect } from './mindmap/types'
@@ -117,6 +121,7 @@ import { useReferenceEdges } from '../composables/useReferenceEdges'
 // Store & Events for selection sync
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useOrientationStore } from 'src/core/stores/orientationStore'
+import { useContextStore } from 'src/core/stores/contextStore'
 import { useDevSettingsStore } from 'src/dev/devSettingsStore'
 import { useViewEvents, eventBus } from 'src/core/events'
 import { calculateOrientationTransition, getTransitionOperations, type OrientationMode } from '../composables/mindmap/useOrientationSort'
@@ -127,6 +132,9 @@ const { viewport, fitView, setViewport, findNode, updateNodeInternals } = useVue
 
 // Dev settings store (for bounding boxes, spacing, etc.)
 const devSettings = useDevSettingsStore()
+
+// Context store (for panel focus management)
+const contextStore = useContextStore()
 
 // Core state
 const nodes = ref<NodeData[]>([])
@@ -434,6 +442,9 @@ function onNodeContextMenu(event: NodeMouseEvent) {
 
 // Selection handlers
 function onNodeClick(event: NodeMouseEvent) {
+  // Set context to center panel when interacting with canvas
+  contextStore.setContext('center')
+
   // Single node click - select it (unless shift is held for multi-select)
   if (!event.event.shiftKey) {
     documentStore.selectNode(event.node.id, source, false)
@@ -455,8 +466,65 @@ function onSelectionChange({ nodes: selectedNodes }: { nodes: Node[] }) {
 }
 
 function onPaneClick() {
+  // Set context to center panel when clicking on canvas
+  contextStore.setContext('center')
+
   closeContextMenu()
   documentStore.clearSelection(source)
+  // Clear dragging state when click ends
+  contextStore.setDragging(false)
+}
+
+/**
+ * Handle selection box start (shift+drag on pane)
+ * Set dragging state to prevent text selection in other panels
+ */
+function onSelectionStart() {
+  contextStore.setDragging(true)
+}
+
+/**
+ * Handle selection box end
+ */
+function onSelectionEnd() {
+  contextStore.setDragging(false)
+}
+
+/**
+ * Handle VueFlow node changes (including delete via Backspace/Delete keys)
+ * VueFlow automatically applies other changes, we only intercept deletions to sync to store
+ */
+function onNodesChange(changes: NodeChange[]) {
+  // Find remove changes
+  const removeChanges = changes.filter(c => c.type === 'remove')
+
+  // Handle deletions - sync to store
+  if (removeChanges.length > 0) {
+    console.log(`MindmapView: Deleting ${removeChanges.length} node(s) via keyboard`)
+
+    for (const change of removeChanges) {
+      if (change.type === 'remove') {
+        const nodeId = change.id
+
+        // Get all descendants to remove from local state
+        const nodeToDelete = nodes.value.find(n => n.id === nodeId)
+        if (nodeToDelete) {
+          const idsToDelete = [nodeId, ...getAllDescendants(nodeId, nodes.value).map(n => n.id)]
+
+          // Remove from local state
+          nodes.value = nodes.value.filter(n => !idsToDelete.includes(n.id))
+          edges.value = edges.value.filter(e => !idsToDelete.includes(e.source) && !idsToDelete.includes(e.target))
+
+          // Delete from store (deleteChildren=true, so just delete the root)
+          documentStore.deleteNode(nodeId, true, source)
+        }
+      }
+    }
+
+    // Rebuild edges and sync to VueFlow
+    rebuildEdgesFromHierarchy()
+    syncToVueFlow()
+  }
 }
 
 // Connection handlers for reference edges
