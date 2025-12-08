@@ -1,6 +1,7 @@
 <template>
   <div class="conceptmap-canvas">
     <VueFlow
+      :key="documentStore.currentDocumentId || 'default'"
       :nodes="vueFlowNodes"
       :edges="visibleEdges"
       :min-zoom="0.05"
