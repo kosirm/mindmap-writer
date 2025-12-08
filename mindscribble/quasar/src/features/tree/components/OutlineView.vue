@@ -36,6 +36,8 @@
               'outline-node-selected': selectedNodeIds.includes(prop.node.id),
               'outline-node-root': prop.node.isRoot
             }"
+            :data-node-id="prop.node.id"
+            @click="onNodeClick($event, prop.node.id)"
             @dblclick="onNodeDoubleClick(prop.node.id)"
           >
             <q-icon
@@ -75,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import type { QTree } from 'quasar'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useViewEvents } from 'src/core/events'
@@ -200,6 +202,24 @@ onStoreEvent('store:nodes-selected', ({ nodeIds }) => {
   })
 })
 
+// Listen to select-navigate events from other views
+onStoreEvent('store:select-navigate', ({ nodeId }) => {
+  selectedNodeId.value = nodeId
+  selectedNodeIds.value = nodeId ? [nodeId] : []
+
+  // Expand parent path and scroll into view
+  if (nodeId) {
+    expandToNode(nodeId)
+    // Scroll the node into view after next DOM update
+    void nextTick(() => {
+      const nodeElement = document.querySelector(`[data-node-id="${nodeId}"]`)
+      if (nodeElement) {
+        nodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    })
+  }
+})
+
 // Listen to node creation
 onStoreEvent('store:node-created', ({ parentId }) => {
   // Auto-expand parent when child is added
@@ -217,6 +237,16 @@ onStoreEvent('store:document-loaded', () => {
 // ============================================================
 // EVENT HANDLERS - User interactions
 // ============================================================
+
+function onNodeClick(event: MouseEvent, nodeId: string) {
+  if (event.ctrlKey || event.metaKey) {
+    // Ctrl+click: Select and navigate
+    documentStore.selectNavigateNode(nodeId, source)
+  } else {
+    // Regular click: Select without navigation
+    onNodeSelected(nodeId)
+  }
+}
 
 function onNodeSelected(nodeId: string | null) {
   selectedNodeId.value = nodeId

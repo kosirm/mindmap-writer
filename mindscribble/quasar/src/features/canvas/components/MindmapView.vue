@@ -451,7 +451,13 @@ function onNodeClick(event: NodeMouseEvent) {
 
   // Single node click - select it (unless shift is held for multi-select)
   if (!event.event.shiftKey) {
-    documentStore.selectNode(event.node.id, source, false)
+    if (event.event.ctrlKey || event.event.metaKey) {
+      // Ctrl+click: Select and navigate
+      documentStore.selectNavigateNode(event.node.id, source)
+    } else {
+      // Regular click: Select without navigation
+      documentStore.selectNode(event.node.id, source, false)
+    }
   }
 }
 
@@ -587,6 +593,20 @@ onStoreEvent('store:node-selected', ({ nodeId, scrollIntoView }) => {
 
 onStoreEvent('store:nodes-selected', ({ nodeIds }) => {
   updateVueFlowSelection(nodeIds)
+})
+
+// Listen to select-navigate events from other views
+onStoreEvent('store:select-navigate', ({ nodeId }) => {
+  updateVueFlowSelection(nodeId ? [nodeId] : [])
+
+  // Navigate to the node by fitting view to center on it
+  if (nodeId) {
+    void fitView({
+      nodes: [nodeId],
+      duration: 300,
+      padding: 0.2
+    })
+  }
 })
 
 // Expose methods and state to parent

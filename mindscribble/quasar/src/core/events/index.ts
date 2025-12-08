@@ -194,6 +194,7 @@ export type StoreEvents = {
   // Selection events
   'store:node-selected': NodeSelectedPayload
   'store:nodes-selected': NodesSelectedPayload
+  'store:select-navigate': NodeSelectedPayload
 
   // Node lifecycle events
   'store:node-created': NodeCreatedPayload
