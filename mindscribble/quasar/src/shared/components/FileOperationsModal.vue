@@ -30,11 +30,13 @@
       <q-card-section v-if="mode === 'open' || mode === 'manage'" class="q-pt-sm">
         <!-- Search -->
         <q-input
+          ref="searchInput"
           v-model="searchQuery"
           placeholder="Search files..."
           outlined
           dense
           class="q-mb-md"
+          @keydown="handleSearchKeydown"
         >
           <template #prepend>
             <q-icon name="search" />
@@ -67,10 +69,14 @@
             :active="selectedFileId === file.id"
             active-class="bg-primary text-white"
             @click="selectFile(file)"
-            @dblclick="handleOpen(file)"
           >
             <q-item-section avatar>
-              <q-icon name="description" :color="selectedFileId === file.id ? 'white' : 'primary'" />
+              <q-icon
+                name="description"
+                :color="selectedFileId === file.id ? 'white' : 'primary'"
+                class="cursor-pointer"
+                @click.stop="handleOpen(file)"
+              />
             </q-item-section>
             <q-item-section>
               <q-item-label>{{ getDisplayName(file.name) }}</q-item-label>
@@ -144,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useQuasar } from 'quasar'
 import { useGoogleDriveStore, useDocumentStore, useAuthStore } from 'src/core/stores'
 import {
@@ -186,6 +192,9 @@ const isLoading = ref(false)
 const isDeleting = ref(false)
 const showDeleteConfirm = ref(false)
 const fileToDelete = ref<DriveFileMetadata | null>(null)
+
+// Refs
+const searchInput = ref()
 
 // Computed
 const isOpen = computed({
@@ -229,12 +238,23 @@ watch(() => props.modelValue, async (open) => {
     // Load files if opening or managing
     if (props.mode === 'open' || props.mode === 'manage') {
       await loadFiles()
+      // Auto-focus search input and select first item
+      await nextTick()
+      if (searchInput.value) {
+        searchInput.value.focus()
+      }
+      selectFirstItem()
     }
   } else {
     // Reset state on close
     searchQuery.value = ''
     selectedFileId.value = null
   }
+})
+
+// Watch for search query changes to update selection
+watch(searchQuery, () => {
+  selectFirstItem()
 })
 
 // Methods
@@ -335,6 +355,50 @@ async function handleSave() {
 
 function selectFile(file: DriveFileMetadata) {
   selectedFileId.value = file.id
+}
+
+function selectFirstItem() {
+  if (filteredFiles.value.length > 0) {
+    selectedFileId.value = filteredFiles.value[0]?.id ?? null
+  } else {
+    selectedFileId.value = null
+  }
+}
+
+function handleSearchKeydown(event: KeyboardEvent) {
+  if (props.mode !== 'open' && props.mode !== 'manage') return
+
+  const files = filteredFiles.value
+  if (files.length === 0) return
+
+  const currentIndex = selectedFileId.value
+    ? files.findIndex(f => f.id === selectedFileId.value)
+    : -1
+
+  switch (event.key) {
+    case 'ArrowDown': {
+      event.preventDefault()
+      const nextIndex = currentIndex < files.length - 1 ? currentIndex + 1 : 0
+      selectedFileId.value = files[nextIndex]?.id ?? null
+      break
+    }
+    case 'ArrowUp': {
+      event.preventDefault()
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : files.length - 1
+      selectedFileId.value = files[prevIndex]?.id ?? null
+      break
+    }
+    case 'Enter': {
+      event.preventDefault()
+      if (selectedFileId.value) {
+        const selectedFile = files.find(f => f.id === selectedFileId.value)
+        if (selectedFile) {
+          void handleOpen(selectedFile)
+        }
+      }
+      break
+    }
+  }
 }
 
 async function handleOpen(file: DriveFileMetadata) {
