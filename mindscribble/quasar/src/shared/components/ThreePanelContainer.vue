@@ -1,16 +1,18 @@
 <template>
-  <div class="three-panel-container">
+  <div class="three-panel-container" :class="{ 'dragging-active': contextStore.isDragging }">
     <!-- Left Panel -->
     <div
       v-show="!panelStore.leftPanel.isCollapsed"
       class="panel left-panel"
+      :class="{ 'panel-active': contextStore.isLeftActive }"
       :style="getLeftPanelStyle()"
+      @mousedown="contextStore.setContext('left')"
     >
-      <div class="panel-header">
+      <div class="panel-header" :class="{ 'panel-header-active': contextStore.isLeftActive }">
         <q-icon :name="getViewIcon('left')" size="xs" class="q-mr-xs" />
         <span class="panel-title">{{ getViewLabel('left') }}</span>
         <q-space />
-        <q-btn flat dense round size="xs" icon="close" @click="panelStore.collapsePanel('left')" />
+        <q-btn flat dense round size="xs" icon="close" @click.stop="panelStore.collapsePanel('left')" />
       </div>
       <div class="panel-content">
         <component :is="getViewComponent('left')" />
@@ -19,7 +21,7 @@
       <div
         v-if="!panelStore.centerPanel.isCollapsed || showTwoPanelResizer"
         class="resize-handle resize-handle-right"
-        @mousedown="startResize('left', $event)"
+        @mousedown.stop="startResize('left', $event)"
       />
     </div>
 
@@ -27,8 +29,10 @@
     <div
       v-show="!panelStore.centerPanel.isCollapsed"
       class="panel center-panel"
+      :class="{ 'panel-active': contextStore.isCenterActive }"
+      @mousedown="contextStore.setContext('center')"
     >
-      <div class="panel-header">
+      <div class="panel-header" :class="{ 'panel-header-active': contextStore.isCenterActive }">
         <q-icon :name="getViewIcon('center')" size="xs" class="q-mr-xs" />
         <span class="panel-title">{{ getViewLabel('center') }}</span>
       </div>
@@ -41,19 +45,21 @@
     <div
       v-show="!panelStore.rightPanel.isCollapsed"
       class="panel right-panel"
+      :class="{ 'panel-active': contextStore.isRightActive }"
       :style="getRightPanelStyle()"
+      @mousedown="contextStore.setContext('right')"
     >
       <!-- Resize handle (only show when center is visible, NOT for two-panel mode) -->
       <div
         v-if="!panelStore.centerPanel.isCollapsed"
         class="resize-handle resize-handle-left"
-        @mousedown="startResize('right', $event)"
+        @mousedown.stop="startResize('right', $event)"
       />
-      <div class="panel-header">
+      <div class="panel-header" :class="{ 'panel-header-active': contextStore.isRightActive }">
         <q-icon :name="getViewIcon('right')" size="xs" class="q-mr-xs" />
         <span class="panel-title">{{ getViewLabel('right') }}</span>
         <q-space />
-        <q-btn flat dense round size="xs" icon="close" @click="panelStore.collapsePanel('right')" />
+        <q-btn flat dense round size="xs" icon="close" @click.stop="panelStore.collapsePanel('right')" />
       </div>
       <div class="panel-content">
         <component :is="getViewComponent('right')" />
@@ -63,11 +69,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineAsyncComponent, type Component } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onUnmounted, type Component } from 'vue'
 import { usePanelStore } from 'src/core/stores/panelStore'
+import { useContextStore } from 'src/core/stores/contextStore'
 import { VIEW_CONFIGS, type PanelPosition, type ViewType } from 'src/core/types'
 
 const panelStore = usePanelStore()
+const contextStore = useContextStore()
+
+// Listen for context switch commands
+function onContextLeft() {
+  contextStore.setContext('left')
+}
+
+function onContextCenter() {
+  contextStore.setContext('center')
+}
+
+function onContextRight() {
+  contextStore.setContext('right')
+}
+
+onMounted(() => {
+  window.addEventListener('command:view.context.left', onContextLeft)
+  window.addEventListener('command:view.context.center', onContextCenter)
+  window.addEventListener('command:view.context.right', onContextRight)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('command:view.context.left', onContextLeft)
+  window.removeEventListener('command:view.context.center', onContextCenter)
+  window.removeEventListener('command:view.context.right', onContextRight)
+})
 
 // Check if we're in two-panel mode (center collapsed, left and right visible)
 const showTwoPanelResizer = computed(() => {
@@ -264,6 +297,36 @@ function stopResize() {
 
 .resize-handle-left {
   left: 0;
+}
+
+// Active panel header highlight
+.panel-header-active {
+  background: rgba(25, 118, 210, 0.15) !important;
+  border-bottom-color: rgba(25, 118, 210, 0.3) !important;
+
+  .body--dark & {
+    background: rgba(25, 118, 210, 0.25) !important;
+    border-bottom-color: rgba(25, 118, 210, 0.4) !important;
+  }
+
+  .panel-title {
+    color: rgba(25, 118, 210, 1);
+
+    .body--dark & {
+      color: rgba(100, 181, 246, 1);
+    }
+  }
+}
+
+// Prevent text selection in non-active panels during canvas drag
+.dragging-active {
+  .panel:not(.panel-active) {
+    user-select: none;
+
+    .panel-content {
+      pointer-events: none;
+    }
+  }
 }
 </style>
 

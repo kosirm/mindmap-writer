@@ -2,6 +2,7 @@ import { triggerRef, nextTick, type Ref } from 'vue'
 import type { Edge } from '@vue-flow/core'
 import type { NodeData, ContextMenuState } from '../../components/mindmap/types'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useOrientationStore } from 'src/core/stores/orientationStore'
 import type { EventSource } from 'src/core/events'
 
 export function useNodeOperations(
@@ -22,8 +23,9 @@ export function useNodeOperations(
   // Event source for store operations
   eventSource: EventSource = 'mindmap'
 ) {
-  // Get document store
+  // Get stores
   const documentStore = useDocumentStore()
+  const orientationStore = useOrientationStore()
 
   // ============================================================
   // HELPER FUNCTIONS
@@ -279,17 +281,41 @@ export function useNodeOperations(
 
 
   /**
+   * Determine if new children should be added above (negative Y direction) or below (positive Y)
+   * based on orientation and side:
+   *
+   * Counter-clockwise:
+   * - Left side (180-360°): nodes ordered top-to-bottom → add below
+   * - Right side (0-180°): nodes ordered bottom-to-top → add above
+   *
+   * Clockwise:
+   * - Left side: nodes ordered bottom-to-top → add above
+   * - Right side: nodes ordered top-to-bottom → add below
+   *
+   * Left-right / Right-left: both sides are top-to-bottom → add below
+   */
+  function shouldAddChildAbove(side: 'left' | 'right'): boolean {
+    const orientation = orientationStore.orientation
+
+    if (orientation === 'counter-clockwise') {
+      // Counter-clockwise: right side is bottom-to-top, so add above
+      return side === 'right'
+    } else if (orientation === 'clockwise') {
+      // Clockwise: left side is bottom-to-top, so add above
+      return side === 'left'
+    }
+    // left-right and right-left: always top-to-bottom on both sides
+    return false
+  }
+
+  /**
    * Add child on a specific side with proper positioning:
    * - First child: at parent's horizontal level (same Y)
-   * - Subsequent children: below (or above) the last existing child
-   *
-   * TODO: When orientation is implemented, "below" vs "above" will depend on:
-   * - For clockwise/anticlockwise: depends on which side and visual order
-   * - For left-right/right-left: always same direction
+   * - Subsequent children: below or above the last existing child (depending on orientation)
    */
   function addChildToSide(parent: NodeData, side: 'left' | 'right') {
     const HORIZONTAL_SPACING = 200
-    const VERTICAL_SPACING = 60 // Space between sibling nodes
+    const VERTICAL_SPACING = 30 // Space between sibling nodes
 
     const offsetX = side === 'left' ? -HORIZONTAL_SPACING : HORIZONTAL_SPACING
     const childX = parent.x + offsetX
@@ -308,14 +334,25 @@ export function useNodeOperations(
       // First child: same Y as parent (horizontal level)
       childY = parent.y
     } else {
-      // Find the bottommost child on this side
-      const lastChild = existingChildren.reduce((lowest, child) => {
-        return child.y > lowest.y ? child : lowest
-      }, existingChildren[0]!)
+      const addAbove = shouldAddChildAbove(side)
 
-      // Position new child below the last one
-      // TODO: In clockwise orientation on left side, this should be ABOVE (negative Y)
-      childY = lastChild.y + (lastChild.height ?? 50) + VERTICAL_SPACING
+      if (addAbove) {
+        // Find the topmost child on this side
+        const topChild = existingChildren.reduce((highest, child) => {
+          return child.y < highest.y ? child : highest
+        }, existingChildren[0]!)
+
+        // Position new child above the topmost one
+        childY = topChild.y - (topChild.height ?? 50) - VERTICAL_SPACING
+      } else {
+        // Find the bottommost child on this side
+        const bottomChild = existingChildren.reduce((lowest, child) => {
+          return child.y > lowest.y ? child : lowest
+        }, existingChildren[0]!)
+
+        // Position new child below the bottommost one
+        childY = bottomChild.y + (bottomChild.height ?? 50) + VERTICAL_SPACING
+      }
     }
 
     // Add to both local and store
@@ -364,7 +401,8 @@ export function useNodeOperations(
 
 
   /**
-   * Add sibling node - positioned below the clicked sibling node
+   * Add sibling node - positioned below or above the clicked sibling node
+   * based on orientation
    */
   function addSibling() {
     if (!contextMenu.value.nodeId) return
@@ -372,11 +410,21 @@ export function useNodeOperations(
     const sibling = nodes.value.find(n => n.id === contextMenu.value.nodeId)
     if (!sibling) return
 
-    const VERTICAL_SPACING = 60
+    const VERTICAL_SPACING = 30
 
-    // Position new sibling below the current sibling (same X, below Y)
+    // Determine which side this sibling is on (relative to its root)
+    const root = getRootNode(sibling.id)
+    const isLeftOfRoot = root ? sibling.x < root.x : sibling.x < 0
+    const side: 'left' | 'right' = isLeftOfRoot ? 'left' : 'right'
+
+    // Use the same logic as addChildToSide to determine direction
+    const addAbove = shouldAddChildAbove(side)
+
+    // Position new sibling above or below the current sibling based on orientation
     const newX = sibling.x
-    const newY = sibling.y + (sibling.height ?? 50) + VERTICAL_SPACING
+    const newY = addAbove
+      ? sibling.y - (sibling.height ?? 50) - VERTICAL_SPACING
+      : sibling.y + (sibling.height ?? 50) + VERTICAL_SPACING
 
     // Add to both local and store
     nodeCounter.value++ // Increment counter for future use
@@ -388,8 +436,6 @@ export function useNodeOperations(
     if (sibling.parentId) {
       // Determine edge handles based on which side of root this sibling is
       // Handle IDs now include -source/-target suffix for bi-directional connections
-      const root = getRootNode(sibling.id)
-      const isLeftOfRoot = root ? sibling.x < root.x : sibling.x < 0
       const sourceHandle = isLeftOfRoot ? 'left-source' : 'right-source'
       const targetHandle = isLeftOfRoot ? 'right-target' : 'left-target'
 

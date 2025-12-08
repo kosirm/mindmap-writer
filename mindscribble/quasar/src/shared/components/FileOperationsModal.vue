@@ -1,5 +1,5 @@
 <template>
-  <q-dialog v-model="isOpen" persistent>
+  <q-dialog v-model="isOpen">
     <q-card class="file-operations-modal" style="min-width: 500px; max-width: 700px;">
       <!-- Header -->
       <q-card-section class="row items-center q-pb-none">
@@ -7,8 +7,6 @@
           <q-icon :name="modeIcon" class="q-mr-sm" />
           {{ modeTitle }}
         </div>
-        <q-space />
-        <q-btn icon="close" flat round dense v-close-popup />
       </q-card-section>
 
       <!-- Save Mode: Name Input -->

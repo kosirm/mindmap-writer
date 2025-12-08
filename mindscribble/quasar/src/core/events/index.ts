@@ -222,6 +222,12 @@ export interface CanvasEditNodePayload {
   nodeId: string
 }
 
+/** Context changed payload */
+export interface ContextChangedPayload {
+  context: 'left' | 'center' | 'right'
+  previous: 'left' | 'center' | 'right' | null
+}
+
 export type UIEvents = {
   // Viewport
   'ui:viewport-changed': ViewportChangedPayload
@@ -239,6 +245,9 @@ export type UIEvents = {
 
   // Keyboard
   'ui:keyboard-shortcut': { shortcut: string; context: string }
+
+  // Context (panel focus)
+  'context:changed': ContextChangedPayload
 }
 
 /** All events */

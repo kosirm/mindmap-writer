@@ -6,11 +6,12 @@
       :min-zoom="0.05"
       :max-zoom="3"
       :only-render-visible-elements="true"
-      :selection-key-code="null"
+      :selection-key-code="'Shift'"
       :multi-selection-key-code="'Shift'"
-      :select-nodes-on-drag="true"
+      :select-nodes-on-drag="false"
       :connect-on-click="false"
       :default-edge-options="{ type: 'straight' }"
+      :delete-key-code="['Backspace', 'Delete']"
       :is-valid-connection="isValidConnection"
       @node-drag-start="onNodeDragStart"
       @node-drag="onNodeDrag"
@@ -22,6 +23,9 @@
       @connect="onConnect"
       @connect-start="onConnectStart"
       @connect-end="onConnectEnd"
+      @nodes-change="onNodesChange"
+      @selection-start="onSelectionStart"
+      @selection-end="onSelectionEnd"
     >
       <Background />
       <MiniMap pannable zoomable v-if="showMinimap" />
@@ -104,7 +108,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { MiniMap } from '@vue-flow/minimap'
-import type { Node, Edge, NodeMouseEvent, NodeDragEvent } from '@vue-flow/core'
+import type { Node, Edge, NodeMouseEvent, NodeDragEvent, NodeChange } from '@vue-flow/core'
 import ConceptNode from './ConceptNode.vue'
 import type { NodeData, ContextMenuState } from '../mindmap/types'
 import { EditorContent } from '@tiptap/vue-3'
@@ -112,6 +116,7 @@ import type { Editor } from '@tiptap/vue-3'
 
 // Store & Events
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useContextStore } from 'src/core/stores/contextStore'
 import { useViewEvents, eventBus, type NodeUpdatedPayload } from 'src/core/events'
 import { useDevSettingsStore } from 'src/dev/devSettingsStore'
 import { storeToRefs } from 'pinia'
@@ -132,6 +137,7 @@ import { useReferenceEdges } from '../../composables/useReferenceEdges'
 // ============================================================
 const { viewport, fitView, setViewport, findNode, updateNodeInternals, setNodes } = useVueFlow()
 const documentStore = useDocumentStore()
+const contextStore = useContextStore()
 const devSettings = useDevSettingsStore()
 const { referenceEdgeType } = storeToRefs(devSettings)
 const { onStoreEvent, source } = useViewEvents('concept-map')
@@ -558,8 +564,66 @@ function closeContextMenu() {
 }
 
 function onPaneClick() {
+  // Set context to center panel when clicking on canvas
+  contextStore.setContext('center')
+
   closeContextMenu()
   documentStore.clearSelection(source)
+  // Clear dragging state when click ends
+  contextStore.setDragging(false)
+}
+
+/**
+ * Handle selection box start (shift+drag on pane)
+ * Set dragging state to prevent text selection in other panels
+ */
+function onSelectionStart() {
+  contextStore.setDragging(true)
+}
+
+/**
+ * Handle selection box end
+ */
+function onSelectionEnd() {
+  contextStore.setDragging(false)
+}
+
+/**
+ * Handle VueFlow node changes (including delete via Backspace/Delete keys)
+ * VueFlow automatically applies other changes, we only intercept deletions to sync to store
+ */
+function onNodesChange(changes: NodeChange[]) {
+  // Find remove changes
+  const removeChanges = changes.filter(c => c.type === 'remove')
+
+  // Handle deletions - sync to store
+  if (removeChanges.length > 0) {
+    console.log(`ConceptMapView: Deleting ${removeChanges.length} node(s) via keyboard`)
+
+    for (const change of removeChanges) {
+      if (change.type === 'remove') {
+        const nodeId = change.id
+        const parentId = nodes.value.find(n => n.id === nodeId)?.parentId
+
+        // Get all descendants to remove from local state
+        function getAllDescendantIds(id: string): string[] {
+          const children = getDirectChildren(id)
+          return [id, ...children.flatMap(c => getAllDescendantIds(c.id))]
+        }
+        const idsToDelete = getAllDescendantIds(nodeId)
+
+        // Remove from local state
+        nodes.value = nodes.value.filter(n => !idsToDelete.includes(n.id))
+        if (parentId) adjustParentSize(parentId)
+
+        // Delete from store (deleteChildren=true, so just delete the root)
+        documentStore.deleteNode(nodeId, true, source)
+      }
+    }
+
+    // Rebuild VueFlow nodes
+    buildVueFlowNodes()
+  }
 }
 
 // Connection handlers for reference edges
@@ -586,6 +650,9 @@ function isValidConnection() {
 }
 
 function onNodeClick(event: NodeMouseEvent) {
+  // Set context to center panel when interacting with canvas
+  contextStore.setContext('center')
+
   closeContextMenu()
   if (!event.event.shiftKey) {
     documentStore.selectNode(event.node.id, source, false)
