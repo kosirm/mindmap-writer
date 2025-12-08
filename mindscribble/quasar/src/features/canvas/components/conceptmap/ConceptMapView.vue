@@ -579,6 +579,8 @@ function onPaneClick() {
  */
 function onSelectionStart() {
   contextStore.setDragging(true)
+  // Prevent text selection in other panels during canvas selection
+  document.body.classList.add('canvas-selecting')
 }
 
 /**
@@ -586,6 +588,8 @@ function onSelectionStart() {
  */
 function onSelectionEnd() {
   contextStore.setDragging(false)
+  // Re-enable text selection in other panels
+  document.body.classList.remove('canvas-selecting')
 }
 
 /**
