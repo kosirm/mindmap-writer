@@ -1158,6 +1158,15 @@ onStoreEvent('store:edge-deleted', ({ edgeId }) => {
   buildVueFlowNodes()
 })
 
+// Listen for view changes to sync when switching back to concept-map
+onStoreEvent('store:view-changed', ({ newView }) => {
+  if (newView === 'concept-map') {
+    console.log('ConceptMapView: Switched to concept-map view, syncing from store...')
+    syncFromStore()
+    buildVueFlowNodes()
+  }
+})
+
 // Listen for document loaded (e.g., from Google Drive)
 // Note: Using eventBus directly because document-loaded doesn't have a "source" view
 eventBus.on('store:document-loaded', () => {
