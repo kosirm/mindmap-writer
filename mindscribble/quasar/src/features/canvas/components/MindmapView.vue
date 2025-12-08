@@ -242,7 +242,7 @@ function syncFromStore() {
   isSyncingFromStore.value = true
 
   const storeNodes = documentStore.nodes
-  console.log('=== syncFromStore: Processing store nodes ===')
+  console.log('=== MindmapView syncFromStore: Processing store nodes ===', storeNodes.length)
 
   const localNodes: NodeData[] = storeNodes.map(sn => {
     const mindmapPos = sn.views.mindmap?.position
@@ -1009,6 +1009,7 @@ eventBus.on('store:document-loaded', () => {
   setNodes(vueFlowNodes.value)
   rebuildEdgesFromHierarchy()
   updateAllEdgeHandles()
+  console.log('MindmapView: Document loaded sync complete, nodes:', nodes.value.length, 'vueFlowNodes:', vueFlowNodes.value.length)
 })
 
 // ============================================================
