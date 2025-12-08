@@ -30,6 +30,7 @@
     >
       <Background />
       <MiniMap pannable zoomable v-if="showMinimap" />
+      <Controls position="top-left" />
 
       <template #node-concept="{ data, id }">
         <ConceptNode
@@ -105,10 +106,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { MiniMap } from '@vue-flow/minimap'
+import { Controls } from '@vue-flow/controls'
 import type { Node, Edge, NodeMouseEvent, NodeDragEvent, NodeChange } from '@vue-flow/core'
 import ConceptNode from './ConceptNode.vue'
 import type { NodeData, ContextMenuState } from '../mindmap/types'
@@ -903,6 +905,45 @@ onStoreEvent('store:node-selected', ({ nodeId }) => {
 onStoreEvent('store:nodes-selected', ({ nodeIds }) => {
   updateVueFlowSelection(nodeIds)
 })
+
+// Watch for document ID changes (e.g., when loading a new file from Google Drive)
+// This handles the case where VueFlow's :key changes and remounts the internal component
+// We need to sync after VueFlow has remounted with the new key
+watch(
+  () => documentStore.currentDocumentId,
+  async (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      console.log('ConceptMapView: Document ID changed, syncing after VueFlow remount...')
+      // Wait for Vue to complete the reactivity cycle and VueFlow to remount
+      await nextTick()
+      await nextTick() // Double nextTick to ensure VueFlow has fully remounted
+
+      // Sync from store to get the new document data
+      syncFromStore()
+
+      // Initialize layout for nodes that need it
+      if (nodes.value.length > 0) {
+        const nodesNeedingLayout = getNodesNeedingLayout()
+        if (nodesNeedingLayout.length > 0) {
+          console.log(`ConceptMapView: ${nodesNeedingLayout.length} nodes need layout after document change`)
+          initializeLayout()
+        }
+        recalculateAllParentSizesAndResolveOverlaps()
+        buildVueFlowNodes()
+        syncToStore()
+      }
+
+      // Center viewport on nodes after loading
+      setTimeout(() => {
+        if (vueFlowNodes.value.length > 0) {
+          void fitView({ padding: 0.2, duration: 300 })
+        }
+      }, 100)
+
+      console.log('ConceptMapView: Document ID change sync complete, nodes:', nodes.value.length)
+    }
+  }
+)
 
 // ============================================================
 // LIFECYCLE
