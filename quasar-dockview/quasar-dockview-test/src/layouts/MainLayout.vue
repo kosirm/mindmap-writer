@@ -62,32 +62,6 @@
             </q-list>
           </q-menu>
         </q-btn>
-
-        <q-separator vertical inset class="q-mx-sm" />
-
-        <q-btn
-          flat
-          dense
-          icon="save"
-          label="Save"
-          @click="handleSaveLayout"
-        />
-
-        <q-btn
-          flat
-          dense
-          icon="folder_open"
-          label="Load"
-          @click="handleLoadLayout"
-        />
-
-        <q-btn
-          flat
-          dense
-          icon="refresh"
-          label="Reset"
-          @click="handleResetLayout"
-        />
       </q-toolbar>
     </q-header>
 
@@ -114,9 +88,6 @@ import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink
 // Define interface for the page component with exposed methods
 interface DockviewPageRef {
   addPanel: (type: string) => void;
-  saveLayoutToStorage: () => void;
-  loadLayoutFromStorage: () => boolean;
-  resetLayoutToDefault: () => void;
   getOpenPanelTypes: () => string[];
 }
 
@@ -177,24 +148,6 @@ function toggleLeftDrawer() {
 function handleAddPanel(type: string) {
   if (pageRef.value && pageRef.value.addPanel) {
     pageRef.value.addPanel(type);
-  }
-}
-
-function handleSaveLayout() {
-  if (pageRef.value && pageRef.value.saveLayoutToStorage) {
-    pageRef.value.saveLayoutToStorage();
-  }
-}
-
-function handleLoadLayout() {
-  if (pageRef.value && pageRef.value.loadLayoutFromStorage) {
-    pageRef.value.loadLayoutFromStorage();
-  }
-}
-
-function handleResetLayout() {
-  if (pageRef.value && pageRef.value.resetLayoutToDefault) {
-    pageRef.value.resetLayoutToDefault();
   }
 }
 

@@ -25,6 +25,11 @@ function onReady(event: { api: DockviewApi }) {
   dockviewApi.value = event.api
   console.log('Dockview API ready', event.api)
 
+  // Set up auto-save on layout changes
+  dockviewApi.value.onDidLayoutChange(() => {
+    saveLayoutToStorage()
+  })
+
   // Try to load saved layout, otherwise create default
   const loaded = loadLayoutFromStorage()
   if (!loaded) {
@@ -83,12 +88,7 @@ function saveLayoutToStorage() {
 
   const layout = dockviewApi.value.toJSON()
   localStorage.setItem('dockview-layout', JSON.stringify(layout))
-
-  $q.notify({
-    type: 'positive',
-    message: 'Layout saved to localStorage',
-    timeout: 2000
-  })
+  console.log('Layout auto-saved to localStorage')
 }
 
 function loadLayoutFromStorage(): boolean {
@@ -96,48 +96,19 @@ function loadLayoutFromStorage(): boolean {
 
   const saved = localStorage.getItem('dockview-layout')
   if (!saved) {
+    console.log('No saved layout found')
     return false
   }
 
   try {
     const layout = JSON.parse(saved)
     dockviewApi.value.fromJSON(layout)
-
-    $q.notify({
-      type: 'positive',
-      message: 'Layout loaded from localStorage',
-      timeout: 2000
-    })
+    console.log('Layout loaded from localStorage')
     return true
   } catch (error) {
     console.error('Failed to load layout:', error)
-    $q.notify({
-      type: 'warning',
-      message: 'Failed to load saved layout',
-      timeout: 2000
-    })
     return false
   }
-}
-
-function resetLayoutToDefault() {
-  if (!dockviewApi.value) return
-
-  // Clear all panels
-  const panels = dockviewApi.value.panels
-  panels.forEach(panel => panel.api.close())
-
-  // Clear saved layout
-  localStorage.removeItem('dockview-layout')
-
-  // Create default layout
-  createDefaultLayout()
-
-  $q.notify({
-    type: 'info',
-    message: 'Layout reset to default',
-    timeout: 2000
-  })
 }
 
 function getOpenPanelTypes(): string[] {
@@ -158,9 +129,6 @@ function getOpenPanelTypes(): string[] {
 // Expose functions to parent component
 defineExpose({
   addPanel,
-  saveLayoutToStorage,
-  loadLayoutFromStorage,
-  resetLayoutToDefault,
   getOpenPanelTypes
 })
 </script>
