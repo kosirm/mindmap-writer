@@ -1,0 +1,18 @@
+// app global css in SCSS form
+
+// Ensure full height for dockview
+html, body, #q-app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.q-layout,
+.q-page-container {
+  height: 100%;
+}
+
+.q-page {
+  display: flex;
+  flex-direction: column;
+}

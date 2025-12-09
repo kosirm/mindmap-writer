@@ -1,0 +1,1 @@
+Devstral 2 (Spectre) is free for all of December
