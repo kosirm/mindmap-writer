@@ -3,6 +3,7 @@
     <div class="dockview-container">
       <DockviewVue
         class="dockview-theme-abyss"
+        :right-header-actions-component="'group-controls'"
         @ready="onReady"
       />
     </div>
@@ -139,12 +140,28 @@ function resetLayoutToDefault() {
   })
 }
 
+function getOpenPanelTypes(): string[] {
+  if (!dockviewApi.value) return []
+
+  const openTypes = new Set<string>()
+  dockviewApi.value.panels.forEach(panel => {
+    // Get the component name from the panel
+    const componentName = panel.api.component
+    if (componentName) {
+      openTypes.add(componentName)
+    }
+  })
+
+  return Array.from(openTypes)
+}
+
 // Expose functions to parent component
 defineExpose({
   addPanel,
   saveLayoutToStorage,
   loadLayoutFromStorage,
-  resetLayoutToDefault
+  resetLayoutToDefault,
+  getOpenPanelTypes
 })
 </script>
 

@@ -12,29 +12,48 @@
           dense
           icon="add"
           label="Add Panel"
-          @click="showAddPanelMenu = true"
         >
-          <q-menu v-model="showAddPanelMenu">
+          <q-menu>
             <q-list style="min-width: 150px">
-              <q-item clickable v-close-popup @click="handleAddPanel('default-panel')">
+              <q-item
+                clickable
+                v-close-popup
+                @click="handleAddPanel('default-panel')"
+                :disable="isPanelTypeOpen('default-panel')"
+              >
                 <q-item-section avatar>
                   <q-icon name="widgets" />
                 </q-item-section>
                 <q-item-section>Default</q-item-section>
               </q-item>
-              <q-item clickable v-close-popup @click="handleAddPanel('mindmap-panel')">
+              <q-item
+                clickable
+                v-close-popup
+                @click="handleAddPanel('mindmap-panel')"
+                :disable="isPanelTypeOpen('mindmap-panel')"
+              >
                 <q-item-section avatar>
                   <q-icon name="account_tree" />
                 </q-item-section>
                 <q-item-section>Mindmap</q-item-section>
               </q-item>
-              <q-item clickable v-close-popup @click="handleAddPanel('writer-panel')">
+              <q-item
+                clickable
+                v-close-popup
+                @click="handleAddPanel('writer-panel')"
+                :disable="isPanelTypeOpen('writer-panel')"
+              >
                 <q-item-section avatar>
                   <q-icon name="edit" />
                 </q-item-section>
                 <q-item-section>Writer</q-item-section>
               </q-item>
-              <q-item clickable v-close-popup @click="handleAddPanel('outline-panel')">
+              <q-item
+                clickable
+                v-close-popup
+                @click="handleAddPanel('outline-panel')"
+                :disable="isPanelTypeOpen('outline-panel')"
+              >
                 <q-item-section avatar>
                   <q-icon name="list" />
                 </q-item-section>
@@ -98,10 +117,10 @@ interface DockviewPageRef {
   saveLayoutToStorage: () => void;
   loadLayoutFromStorage: () => boolean;
   resetLayoutToDefault: () => void;
+  getOpenPanelTypes: () => string[];
 }
 
 const pageRef = ref<DockviewPageRef | null>(null);
-const showAddPanelMenu = ref(false);
 
 const linksList: EssentialLinkProps[] = [
   {
@@ -177,5 +196,13 @@ function handleResetLayout() {
   if (pageRef.value && pageRef.value.resetLayoutToDefault) {
     pageRef.value.resetLayoutToDefault();
   }
+}
+
+function isPanelTypeOpen(type: string): boolean {
+  if (pageRef.value && pageRef.value.getOpenPanelTypes) {
+    const openTypes = pageRef.value.getOpenPanelTypes();
+    return openTypes.includes(type);
+  }
+  return false;
 }
 </script>
