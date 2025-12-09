@@ -1,0 +1,8 @@
+In connection to our command manager we will need to have a toolbar system. Toolbar system will be based on the same command manager because the same command can be represented in toolbar, context menu, command palette and keyboard shortcut.
+
+Toolbar system will be view specific. Each view will have it's own toolbar. Toolbar will be defined in the view configuration file. Toolbar will be an array of commands. Each command will have an icon and a label. Icon will be shown in the toolbar and label will be shown in the context menu and command palette. Commands in toolbar can be part of a group. Groups will be represnted by icon and label. In toolbar group will be icon which would open a dropdown with all commands in the group (organized in grid). Commands in a group can be organized in sub-groups. In group dropdown these sub-groups will be represented by a separator line or some other visual clue.
+For the future: Toolbar will be configurable by the user. User will be able to add/remove commands from the toolbar. User will be able to rearrange commands in the toolbar. (edit configuration file).
+
+Context menu will be based on the same command manager. Context menu will be view specific. Each view will have it's own context menus. Context menu will be defined in the view configuration file. Context menu will be an array of commands. Each command will have an icon and a label. Icon will be shown in the toolbar and label will be shown in the context menu and command palette. Context menu will be configurable by the user. 
+For the future: User will be able to add/remove commands from the context menu. User will be able to rearrange commands in the context menu. (edit configuration file)
+
