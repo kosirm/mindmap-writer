@@ -9,6 +9,7 @@ import MindmapPanel from 'src/pages/components/MindmapPanel.vue'
 import WriterPanel from 'src/pages/components/WriterPanel.vue'
 import OutlinePanel from 'src/pages/components/OutlinePanel.vue'
 import WatermarkPanel from 'src/pages/components/Watermark.vue'
+import GroupControls from 'src/pages/components/GroupControls.vue'
 
 export default boot(({ app }) => {
   // Register dockview panel components globally
@@ -18,6 +19,9 @@ export default boot(({ app }) => {
   app.component('writer-panel', WriterPanel)
   app.component('outline-panel', OutlinePanel)
   app.component('watermark-panel', WatermarkPanel)
+
+  // Register group controls component
+  app.component('group-controls', GroupControls)
 
   console.log('Dockview components registered')
 })
