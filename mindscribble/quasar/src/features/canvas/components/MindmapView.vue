@@ -245,13 +245,13 @@ function syncFromStore() {
   isSyncingFromStore.value = true
 
   const storeNodes = documentStore.nodes
-  console.log('=== MindmapView syncFromStore: Processing store nodes ===', storeNodes.length)
+  // console.log('=== MindmapView syncFromStore: Processing store nodes ===', storeNodes.length)
 
   const localNodes: NodeData[] = storeNodes.map(sn => {
     const mindmapPos = sn.views.mindmap?.position
-    console.log(`  Node "${sn.data.title}" (${sn.id}):`)
-    console.log(`    views.mindmap:`, JSON.stringify(sn.views.mindmap))
-    console.log(`    mindmapPosition will be:`, mindmapPos ? JSON.stringify(mindmapPos) : 'null')
+    // console.log(`  Node "${sn.data.title}" (${sn.id}):`)
+    // console.log(`    views.mindmap:`, JSON.stringify(sn.views.mindmap))
+    // console.log(`    mindmapPosition will be:`, mindmapPos ? JSON.stringify(mindmapPos) : 'null')
 
     return {
       id: sn.id,
@@ -283,7 +283,7 @@ function syncFromStore() {
 
   // Update local nodes
   nodes.value = localNodes
-  console.log('=== syncFromStore: Complete ===')
+  // console.log('=== syncFromStore: Complete ===')
 
   // Rebuild edges from parent-child relationships
   rebuildEdgesFromHierarchy()
@@ -300,7 +300,7 @@ function syncFromStore() {
  * Updates mindmap view-specific data
  */
 function syncToStore() {
-  console.log('=== syncToStore: Saving to store ===')
+  // console.log('=== syncToStore: Saving to store ===')
   const syncedNodeIds: string[] = []
 
   for (const node of nodes.value) {
@@ -311,8 +311,8 @@ function syncToStore() {
       node.mindmapPosition = { x: node.x, y: node.y }
 
       const positionToSave = { x: node.x, y: node.y }
-      console.log(`  Node "${node.label}" (${node.id}):`)
-      console.log(`    saving position: (${positionToSave.x}, ${positionToSave.y})`)
+      // console.log(`  Node "${node.label}" (${node.id}):`)
+      // console.log(`    saving position: (${positionToSave.x}, ${positionToSave.y})`)
 
       // Update mindmap view data (use defaults for optional properties to satisfy exactOptionalPropertyTypes)
       storeNode.views.mindmap = {
@@ -331,7 +331,7 @@ function syncToStore() {
     }
   }
 
-  console.log(`=== syncToStore: Complete (synced ${syncedNodeIds.length} nodes) ===`)
+  // console.log(`=== syncToStore: Complete (synced ${syncedNodeIds.length} nodes) ===`)
 }
 
 /**
@@ -417,7 +417,7 @@ function rebuildEdgesFromHierarchy() {
       }
     })
 
-  console.log(`rebuildEdgesFromHierarchy: ${hierarchyEdges.length} hierarchy edges, ${referenceEdges.length} reference edges`)
+  // console.log(`rebuildEdgesFromHierarchy: ${hierarchyEdges.length} hierarchy edges, ${referenceEdges.length} reference edges`)
 
   // Combine hierarchy and reference edges
   edges.value = [...hierarchyEdges, ...referenceEdges]
@@ -514,7 +514,7 @@ function onNodesChange(changes: NodeChange[]) {
 
   // Handle deletions - sync to store
   if (removeChanges.length > 0) {
-    console.log(`MindmapView: Deleting ${removeChanges.length} node(s) via keyboard`)
+    // console.log(`MindmapView: Deleting ${removeChanges.length} node(s) via keyboard`)
 
     for (const change of removeChanges) {
       if (change.type === 'remove') {
@@ -555,7 +555,7 @@ function onConnect(params: { source: string; target: string; sourceHandle?: stri
   // Try to create a reference edge (only if C key was pressed)
   const created = onReferenceConnect(params)
   if (created) {
-    console.log('Reference edge created via C+drag')
+    // console.log('Reference edge created via C+drag')
   }
 }
 
@@ -641,7 +641,7 @@ watch(
   () => documentStore.currentDocumentId,
   async (newId, oldId) => {
     if (newId && newId !== oldId) {
-      console.log('MindmapView: Document ID changed, syncing after VueFlow remount...')
+      // console.log('MindmapView: Document ID changed, syncing after VueFlow remount...')
       // Wait for Vue to complete the reactivity cycle and VueFlow to remount
       await nextTick()
       await nextTick() // Double nextTick to ensure VueFlow has fully remounted
@@ -653,7 +653,7 @@ watch(
       if (nodes.value.length > 0) {
         const nodesNeedingLayout = nodes.value.filter(n => n.mindmapPosition === null)
         if (nodesNeedingLayout.length > 0) {
-          console.log(`MindmapView: ${nodesNeedingLayout.length} nodes need layout after document change`)
+          // console.log(`MindmapView: ${nodesNeedingLayout.length} nodes need layout after document change`)
           initializeMindmapLayout()
           syncToStore()
         }
@@ -671,7 +671,7 @@ watch(
         }
       }, 100)
 
-      console.log('MindmapView: Document ID change sync complete, nodes:', nodes.value.length)
+      // console.log('MindmapView: Document ID change sync complete, nodes:', nodes.value.length)
     }
   }
 )
@@ -740,14 +740,14 @@ function reconcilePositionsWithStoreOrder(): boolean {
     const positionUpdates = swapPositionsOnReorder(parentId, newOrders, orientation)
 
     if (positionUpdates.length > 0) {
-      console.log(`Reconciling positions for parent ${parentId ?? 'ROOT'}: ${positionUpdates.length} nodes need repositioning`)
+      // console.log(`Reconciling positions for parent ${parentId ?? 'ROOT'}: ${positionUpdates.length} nodes need repositioning`)
       anyChanges = true
 
       // Apply position updates
       for (const update of positionUpdates) {
         const node = nodes.value.find(n => n.id === update.nodeId)
         if (node) {
-          console.log(`  Moving ${node.label} to (${update.newX.toFixed(0)}, ${update.newY.toFixed(0)})`)
+          // console.log(`  Moving ${node.label} to (${update.newX.toFixed(0)}, ${update.newY.toFixed(0)})`)
           node.x = update.newX
           node.y = update.newY
           // Update mindmapPosition as well
@@ -762,7 +762,7 @@ function reconcilePositionsWithStoreOrder(): boolean {
 
 onMounted(async () => {
   setLayoutSpacing(horizontalSpacing.value, verticalSpacing.value)
-  console.log('MindmapView mounted')
+  // console.log('MindmapView mounted')
 
   // Setup keyboard listeners for reference edge creation (C key)
   setupReferenceKeyboardListeners()
@@ -775,11 +775,11 @@ onMounted(async () => {
 
   // Sync from store to get existing nodes
   syncFromStore()
-  console.log('After syncFromStore, nodes:', nodes.value.length)
+  // console.log('After syncFromStore, nodes:', nodes.value.length)
 
   // DEBUG: Log positions after syncFromStore
-  console.log('=== Node positions after syncFromStore ===')
-  nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}, mindmapPos=${JSON.stringify(n.mindmapPosition)}`))
+  // console.log('=== Node positions after syncFromStore ===')
+  // nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}, mindmapPos=${JSON.stringify(n.mindmapPosition)}`))
 
   // Track if we need to resolve overlaps (only for newly laid out nodes)
   let needsOverlapResolution = false
@@ -790,26 +790,26 @@ onMounted(async () => {
     // Check if ANY node needs layout (nodes without mindmapPosition)
     const nodesNeedingLayout = nodes.value.filter(n => n.mindmapPosition === null)
     if (nodesNeedingLayout.length > 0) {
-      console.log(`${nodesNeedingLayout.length} nodes need mindmap layout, initializing...`)
+      // console.log(`${nodesNeedingLayout.length} nodes need mindmap layout, initializing...`)
       // initializeMindmapLayout only layouts nodes with mindmapPosition === null
       // It preserves existing positions for nodes that already have mindmapPosition
       initializeMindmapLayout()
       syncToStore()
       needsOverlapResolution = true
     } else {
-      console.log('All nodes already have mindmap positions, preserving layout')
+      // console.log('All nodes already have mindmap positions, preserving layout')
 
       // Reconcile positions with store order - handles case where order was changed
       // in another view (e.g., Writer) while mindmap was closed
       const positionsReconciled = reconcilePositionsWithStoreOrder()
       if (positionsReconciled) {
-        console.log('Positions reconciled with store order, resolving overlaps...')
+        // console.log('Positions reconciled with store order, resolving overlaps...')
         needsOverlapResolution = true
         syncToStore() // Save reconciled positions back to store
       }
     }
   } else {
-    console.log('No nodes in store, waiting for user to add root node')
+    // console.log('No nodes in store, waiting for user to add root node')
   }
 
   // Sync to VueFlow and measure dimensions
@@ -819,13 +819,13 @@ onMounted(async () => {
   await updateNodeDimensionsFromDOM()
 
   // DEBUG: Log positions after syncToVueFlow
-  console.log('=== Node positions after syncToVueFlow ===')
-  nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}`))
+  // console.log('=== Node positions after syncToVueFlow ===')
+  // nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}`))
 
   // ONLY resolve overlaps if new nodes were laid out
   // This preserves user's manual adjustments for existing nodes
   if (needsOverlapResolution) {
-    console.log('Resolving overlaps for newly laid out nodes...')
+    // console.log('Resolving overlaps for newly laid out nodes...')
     resolveAllOverlaps(nodes.value)
     syncToVueFlow()
     setNodes(vueFlowNodes.value)
@@ -835,8 +835,8 @@ onMounted(async () => {
   updateAllEdgeHandles()
 
   // DEBUG: Log final positions
-  console.log('=== Final node positions after all processing ===')
-  nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}`))
+  // console.log('=== Final node positions after all processing ===')
+  // nodes.value.forEach(n => console.log(`  ${n.label}: x=${n.x}, y=${n.y}`))
 
   // Center view on the node after it's rendered
   await nextTick()

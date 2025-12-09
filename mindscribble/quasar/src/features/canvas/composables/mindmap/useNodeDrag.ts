@@ -339,7 +339,7 @@ function onNodeDragStop(event: NodeDragEvent) {
     potentialParent.value = null
 
     // Sync final positions (only updates dragged nodes)
-    console.log(`📍 Drag stopped - syncing ${event.nodes.length} dragged nodes`)
+    // console.log(`📍 Drag stopped - syncing ${event.nodes.length} dragged nodes`)
     syncFromVueFlow()
 
     // Get IDs of all dragged nodes
@@ -347,10 +347,10 @@ function onNodeDragStop(event: NodeDragEvent) {
 
     // Log dragged node and descendants positions BEFORE layout recalculation
     if (nodeCrossedSides.value) {
-      console.log(`📍 Positions BEFORE layout recalculation (after side crossing):`)
+      // console.log(`📍 Positions BEFORE layout recalculation (after side crossing):`)
       const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
       if (draggedNode) {
-        console.log(`  Dragged node ${draggedNode.id}: (${draggedNode.x.toFixed(0)}, ${draggedNode.y.toFixed(0)})`)
+        // console.log(`  Dragged node ${draggedNode.id}: (${draggedNode.x.toFixed(0)}, ${draggedNode.y.toFixed(0)})`)
         const descendants = getAllDescendants(draggedNode.id, nodes.value)
         descendants.forEach(d => {
           console.log(`    Descendant ${d.id}: (${d.x.toFixed(0)}, ${d.y.toFixed(0)})`)
@@ -364,7 +364,7 @@ function onNodeDragStop(event: NodeDragEvent) {
     // OPTIMIZED: Bottom-up AABB - only process ancestor chain + siblings
     // No side filtering needed - bottom-up is already O(d×s) complexity
     // This also fixes edge case with 360° orientations where nodes at 1° and 179° could overlap
-    console.log(`🔄 Recalculating layout (bottom-up AABB)...`)
+    // console.log(`🔄 Recalculating layout (bottom-up AABB)...`)
     const lodTime = performance.now()
     const visibleNodes = getVisibleNodesForLOD()
     console.log(`  ⏱️ LOD filtering: ${(performance.now() - lodTime).toFixed(2)}ms`)
@@ -375,7 +375,7 @@ function onNodeDragStop(event: NodeDragEvent) {
 
     // Log positions AFTER layout recalculation
     if (nodeCrossedSides.value) {
-      console.log(`📍 Positions AFTER layout recalculation:`)
+      // console.log(`📍 Positions AFTER layout recalculation:`)
       const draggedNode = nodes.value.find(n => n.id === draggedNodeIds[0])
       if (draggedNode) {
         console.log(`  Dragged node ${draggedNode.id}: (${draggedNode.x.toFixed(0)}, ${draggedNode.y.toFixed(0)})`)
@@ -412,10 +412,10 @@ function onNodeDragStop(event: NodeDragEvent) {
     // Save positions to store (persists across view switches)
     console.log('  📦 Calling onDragComplete to save positions...')
     if (onDragComplete) {
-      console.log('  📦 onDragComplete callback exists, calling...')
+      // console.log('  📦 onDragComplete callback exists, calling...')
       onDragComplete()
     } else {
-      console.log('  ⚠️ onDragComplete callback is undefined!')
+      // console.log('  ⚠️ onDragComplete callback is undefined!')
     }
 
     const endTime = performance.now()

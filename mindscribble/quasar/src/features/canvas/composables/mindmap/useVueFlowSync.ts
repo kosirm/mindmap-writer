@@ -55,7 +55,7 @@ export function useVueFlowSync(
     if (dimensions) {
       // Only update if dimensions changed significantly (more than 1px difference)
       if (Math.abs(node.width - dimensions.width) > 1 || Math.abs(node.height - dimensions.height) > 1) {
-        console.log(`📏 Updated dimensions for ${node.id}: ${node.width.toFixed(0)}x${node.height.toFixed(0)} → ${dimensions.width.toFixed(0)}x${dimensions.height.toFixed(0)}`)
+        // console.log(`📏 Updated dimensions for ${node.id}: ${node.width.toFixed(0)}x${node.height.toFixed(0)} → ${dimensions.width.toFixed(0)}x${dimensions.height.toFixed(0)}`)
         node.width = dimensions.width
         node.height = dimensions.height
         updated = true
@@ -65,7 +65,7 @@ export function useVueFlowSync(
   }
 
   if (updateCount > 0) {
-    console.log(`📏 Updated dimensions for ${updateCount} nodes`)
+    // console.log(`📏 Updated dimensions for ${updateCount} nodes`)
   }
 
   return updated
@@ -78,11 +78,11 @@ export function useVueFlowSync(
   // ============================================================
 
   function syncToVueFlow() {
-  console.log('syncToVueFlow called: nodes.value.length =', nodes.value.length)
+  // console.log('syncToVueFlow called: nodes.value.length =', nodes.value.length)
 
   // Step 1: Apply LOD filtering (zoom-based visibility)
   const lodFilteredNodes = getVisibleNodesForLOD()
-  console.log('syncToVueFlow: lodFilteredNodes.length =', lodFilteredNodes.length)
+  // console.log('syncToVueFlow: lodFilteredNodes.length =', lodFilteredNodes.length)
 
   // Step 2: Filter by collapse state (only show nodes not in collapsed branches)
   const visibleNodes = lodFilteredNodes.filter(node => {
@@ -247,7 +247,7 @@ export function useVueFlowSync(
 
   vueFlowNodes.value = [...regularNodes, ...lodBadgeNodes]
 
-  console.log('syncToVueFlow DONE: vueFlowNodes.value.length =', vueFlowNodes.value.length, 'first node:', vueFlowNodes.value[0])
+  // console.log('syncToVueFlow DONE: vueFlowNodes.value.length =', vueFlowNodes.value.length, 'first node:', vueFlowNodes.value[0])
 }
 
 

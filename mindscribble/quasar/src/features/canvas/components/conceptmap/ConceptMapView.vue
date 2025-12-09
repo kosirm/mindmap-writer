@@ -310,7 +310,7 @@ async function updateNodeDimensionsFromDOM() {
         // Only update if dimensions changed significantly (more than 1px difference)
         if (Math.abs(currentSize.width - dimensions.width) > 1 ||
             Math.abs(currentSize.height - dimensions.height) > 1) {
-          console.log(`📏 [ConceptMap] Updated dimensions for ${node.id}: ${dimensions.width.toFixed(0)}x${dimensions.height.toFixed(0)}`)
+          // console.log(`📏 [ConceptMap] Updated dimensions for ${node.id}: ${dimensions.width.toFixed(0)}x${dimensions.height.toFixed(0)}`)
           node.measuredSize = dimensions
           updated = true
         }
