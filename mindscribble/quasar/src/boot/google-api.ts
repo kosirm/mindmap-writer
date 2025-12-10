@@ -302,15 +302,46 @@ export async function tryRestoreSession(): Promise<boolean> {
     // We have a valid token from storage, initialize gapi and set the token
     try {
       await initGoogleAPI()
-      gapi.client.setToken({ access_token: authStore.accessToken! })
+
+      // Ensure gapi client is fully initialized before setting token
+      if (!gapi.client || !gapiInited) {
+        throw new Error('GAPI client not initialized')
+      }
+
+      const token = authStore.accessToken
+      if (!token) {
+        throw new Error('No access token available')
+      }
+
+      gapi.client.setToken({ access_token: token })
+      console.log('✅ Token set for gapi client:', token.substring(0, 20) + '...')
+
+      // Verify token works by making a test call
+      try {
+        await gapi.client.drive.files.list({
+          pageSize: 1,
+          fields: 'files(id)'
+        })
+        console.log('✅ Token verified - Drive API accessible')
+      } catch (error) {
+        console.error('❌ Token verification failed, attempting silent refresh:', error)
+        // Token is invalid, try silent refresh
+        const refreshed = await silentTokenRefresh()
+        if (!refreshed) {
+          console.error('❌ Silent refresh failed, clearing auth')
+          authStore.clearAuth()
+          return false
+        }
+        console.log('✅ Token refreshed successfully')
+      }
 
       // Schedule refresh for the remaining token lifetime
       scheduleTokenRefresh(remainingSeconds)
 
       console.log('✅ Session restored from storage, token valid for', Math.round(remainingSeconds / 60), 'minutes')
       return true
-    } catch {
-      console.error('❌ Failed to initialize Google API after storage restore')
+    } catch (error) {
+      console.error('❌ Failed to initialize Google API after storage restore:', error)
       authStore.clearAuth()
       return false
     }

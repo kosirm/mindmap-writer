@@ -38,9 +38,7 @@
           </div>
         </div>
 
-        <!-- CENTER SECTION: Panel Manager -->
-        <q-space />
-        <PanelManager />
+        <!-- CENTER SECTION: Add File button -->
         <q-space />
 
         <!-- Add File button (for dockview) -->
@@ -54,6 +52,8 @@
         >
           <q-tooltip>Add a new file panel</q-tooltip>
         </q-btn>
+
+        <q-space />
 
         <!-- RIGHT SECTION: Theme + User + Right drawer -->
         <div class="toolbar-right q-mr-md">
@@ -256,7 +256,7 @@ import { useAuthStore } from 'src/core/stores/authStore'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { usePanelStore } from 'src/core/stores/panelStore'
-import PanelManager from 'src/shared/components/PanelManager.vue'
+import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
 import DockviewLayout from './DockviewLayout.vue'
 import MobileLayout from './MobileLayout.vue'
 // import ThreePanelContainer from 'src/shared/components/ThreePanelContainer.vue'
@@ -270,6 +270,7 @@ import {
   updateMindmapFile,
   type DriveFileMetadata
 } from 'src/core/services/googleDriveService'
+import type { MindscribbleDocument } from 'src/core/types'
 
 // Dev tools - only imported in development mode (lazy loaded)
 const DevPanel = import.meta.env.DEV
@@ -282,6 +283,8 @@ const authStore = useAuthStore()
 const documentStore = useDocumentStore()
 const driveStore = useGoogleDriveStore()
 const panelStore = usePanelStore()
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const multiDocStore = useMultiDocumentStore()
 
 // Initialize autosave (2 second debounce)
 useAutosave(2000)
@@ -296,7 +299,10 @@ const showFileModal = ref(false)
 const fileModalMode = ref<'save' | 'open' | 'manage'>('save')
 
 // Dockview layout reference
-const dockviewLayoutRef = ref<{ addFile: () => void } | null>(null)
+const dockviewLayoutRef = ref<{
+  addFile: () => void
+  openFileFromDrive: (document: MindscribbleDocument, driveFile: DriveFileMetadata) => void
+} | null>(null)
 
 // Handle adding a new file panel
 function handleAddFile() {
@@ -463,8 +469,13 @@ function onFileSaved(file: DriveFileMetadata) {
   console.log('✅ File saved:', file.name)
 }
 
-function onFileOpened(file: DriveFileMetadata) {
-  console.log('✅ File opened:', file.name)
+function onFileOpened(payload: { file: DriveFileMetadata; document: MindscribbleDocument }) {
+  console.log('✅ File opened:', payload.file.name)
+
+  // Open the file in a new dockview panel
+  if (dockviewLayoutRef.value) {
+    dockviewLayoutRef.value.openFileFromDrive(payload.document, payload.file)
+  }
 }
 
 function onFileDeleted(fileId: string) {

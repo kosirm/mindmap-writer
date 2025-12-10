@@ -153,6 +153,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useQuasar } from 'quasar'
 import { useGoogleDriveStore, useDocumentStore, useAuthStore } from 'src/core/stores'
+import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
 import {
   getOrCreateAppFolder,
   listMindmapFiles,
@@ -173,7 +174,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
   (e: 'saved', file: DriveFileMetadata): void
-  (e: 'opened', file: DriveFileMetadata): void
+  (e: 'opened', payload: { file: DriveFileMetadata; document: MindscribbleDocument }): void
   (e: 'deleted', fileId: string): void
 }>()
 
@@ -182,6 +183,7 @@ const $q = useQuasar()
 const driveStore = useGoogleDriveStore()
 const documentStore = useDocumentStore()
 const authStore = useAuthStore()
+const multiDocStore = useMultiDocumentStore()
 
 // State
 const fileName = ref('')
@@ -302,6 +304,16 @@ async function handleSave() {
     const document = documentStore.toDocument()
     document.metadata.name = fileName.value.trim()
 
+    // Include child dockview layout from multi-document store
+    const activeFilePanelId = multiDocStore.activeFilePanelId
+    if (activeFilePanelId) {
+      const docInstance = multiDocStore.getDocument(activeFilePanelId)
+      if (docInstance && docInstance.childLayoutState) {
+        document.dockviewLayout = docInstance.childLayoutState
+        console.log('✅ Including dockview layout in saved document')
+      }
+    }
+
     let savedFile: DriveFileMetadata
 
     if (driveStore.currentFile) {
@@ -325,6 +337,16 @@ async function handleSave() {
     driveStore.setCurrentFile(savedFile)
     documentStore.documentName = fileName.value.trim()
     documentStore.markClean()
+
+    // Update the document name in multi-document store for the active file panel
+    if (activeFilePanelId) {
+      const docInstance = multiDocStore.getDocument(activeFilePanelId)
+      if (docInstance) {
+        docInstance.document.metadata.name = fileName.value.trim()
+        docInstance.driveFile = savedFile
+        console.log('✅ Updated document name in multi-doc store:', fileName.value.trim())
+      }
+    }
 
     // Show "synced" status briefly
     driveStore.setSyncStatus('synced')
@@ -417,15 +439,14 @@ async function handleOpenSelected() {
 
   try {
     const content = await loadMindmapFile(file.id) as MindscribbleDocument
-    documentStore.fromDocument(content)
-    driveStore.setCurrentFile(file)
 
     $q.notify({
       type: 'positive',
       message: `Opened "${getDisplayName(file.name)}"`
     })
 
-    emit('opened', file)
+    // Emit the file and document content to MainLayout
+    emit('opened', { file, document: content })
     isOpen.value = false
   } catch (error) {
     console.error('Failed to load file:', error)

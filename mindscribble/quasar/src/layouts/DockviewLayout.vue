@@ -16,11 +16,15 @@ import { DockviewVue } from 'dockview-vue'
 import { type DockviewApi } from 'dockview-core'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
+import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
+import type { MindscribbleDocument } from 'src/core/types'
+import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
 
 const $q = useQuasar()
 const dockviewApi = ref<DockviewApi | null>(null)
 const documentStore = useDocumentStore()
 const driveStore = useGoogleDriveStore()
+const multiDocStore = useMultiDocumentStore()
 let fileCounter = 0
 
 function onReady(event: { api: DockviewApi }) {
@@ -50,8 +54,40 @@ function addFile() {
 
   fileCounter++
   const fileId = `file-${fileCounter}`
-  const fileName = `Document ${fileCounter}`
+  const fileName = `Untitled ${fileCounter}`
 
+  // Create a new empty document
+  const newDocument: MindscribbleDocument = {
+    version: '1.0',
+    metadata: {
+      id: `doc-${Date.now()}-${fileCounter}`,
+      name: fileName,
+      description: '',
+      tags: [],
+      created: new Date().toISOString(),
+      modified: new Date().toISOString(),
+      searchableText: '',
+      nodeCount: 0,
+      edgeCount: 0,
+      maxDepth: 0
+    },
+    nodes: [],
+    edges: [],
+    interMapLinks: [],
+    layout: {
+      activeView: 'mindmap',
+      orientationMode: 'anticlockwise',
+      lodEnabled: true,
+      lodThresholds: [10, 30, 50, 70, 90],
+      horizontalSpacing: 50,
+      verticalSpacing: 20
+    }
+  }
+
+  // Create document instance in multi-document store
+  multiDocStore.createDocument(fileId, newDocument, null, null)
+
+  // Add panel to dockview
   dockviewApi.value.addPanel({
     id: fileId,
     component: 'file-panel',
@@ -60,9 +96,32 @@ function addFile() {
 
   $q.notify({
     type: 'positive',
-    message: `${fileName} opened`,
+    message: `${fileName} created`,
     timeout: 1000
   })
+}
+
+function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileMetadata) {
+  if (!dockviewApi.value) return
+
+  fileCounter++
+  const fileId = `file-${fileCounter}`
+  const fileName = document.metadata.name || driveFile.name.replace('.mindscribble', '')
+
+  // Extract child dockview layout from document if available
+  const childLayoutState = document.dockviewLayout || null
+
+  // Create document instance in multi-document store with Drive file metadata and layout
+  multiDocStore.createDocument(fileId, document, driveFile, childLayoutState)
+
+  // Add panel to dockview
+  dockviewApi.value.addPanel({
+    id: fileId,
+    component: 'file-panel',
+    title: `📄 ${fileName}`
+  })
+
+  console.log(`✅ Opened file "${fileName}" in new panel ${fileId}`, childLayoutState ? 'with saved layout' : 'without layout')
 }
 
 function saveParentLayoutToStorage() {
@@ -106,12 +165,20 @@ function loadParentLayoutFromStorage(): boolean {
 
 // Expose functions to parent component (MainLayout)
 defineExpose({
-  addFile
+  addFile,
+  openFileFromDrive
 })
+
+// Clear parent layout on page unload
+function clearParentLayoutOnUnload() {
+  localStorage.removeItem('dockview-parent-layout')
+  console.log('✅ Cleared parent layout from localStorage on page unload')
+}
 
 // Listen for document loaded events
 onMounted(() => {
   window.addEventListener('store:document-loaded', handleDocumentLoaded)
+  window.addEventListener('beforeunload', clearParentLayoutOnUnload)
 
   // Log initial state
   console.log('DockviewLayout mounted. Current document:', documentStore.documentName)
@@ -123,6 +190,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('store:document-loaded', handleDocumentLoaded)
+  window.removeEventListener('beforeunload', clearParentLayoutOnUnload)
 })
 
 function handleDocumentLoaded() {

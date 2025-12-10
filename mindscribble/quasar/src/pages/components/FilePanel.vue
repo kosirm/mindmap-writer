@@ -15,6 +15,7 @@ import { DockviewVue } from 'dockview-vue'
 import { type IDockviewPanelProps, type DockviewApi } from 'dockview-core'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
+import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
 
 defineOptions({
   name: 'FilePanelComponent'
@@ -30,6 +31,10 @@ let childPanelCounter = 0
 // Stores
 const documentStore = useDocumentStore()
 const driveStore = useGoogleDriveStore()
+const multiDocStore = useMultiDocumentStore()
+
+// Get file panel ID
+const filePanelId = ref<string>('')
 
 // Create the API object that will be provided to child components
 const filePanelApi = {
@@ -51,90 +56,104 @@ onUnmounted(() => {
 function onChildReady(event: { api: DockviewApi }) {
   childDockviewApi.value = event.api
 
-  // Set up auto-save for this file's layout
-  // Get the file ID from the parent panel's ID
-  const fileId = props.params?.api?.id || 'unknown'
+  // Get the file panel ID from the parent panel's ID
+  filePanelId.value = props.params?.api?.id || 'unknown'
 
+  // Set active file panel in multi-document store
+  multiDocStore.setActiveFilePanel(filePanelId.value)
+
+  // Load document for this file panel
+  loadDocumentForPanel()
+
+  // Set up auto-save for this file's layout
   childDockviewApi.value?.onDidLayoutChange(() => {
-    saveChildLayoutToStorage(fileId)
+    saveChildLayoutToMultiDocStore()
   })
 
-  // Try to load saved layout, otherwise create default
-  const loaded = loadChildLayoutFromStorage(fileId)
+  // Try to load saved layout from multi-doc store, then localStorage, otherwise create default
+  const loaded = loadChildLayoutFromMultiDocStore() || loadChildLayoutFromStorage(filePanelId.value)
   if (!loaded) {
     createDefaultChildLayout()
   }
 
   // Set up watchers for document changes
   setupDocumentWatchers()
+
+  // Listen for panel activation to switch active document
+  props.params?.api?.onDidActiveChange(() => {
+    if (props.params?.api?.isActive) {
+      multiDocStore.setActiveFilePanel(filePanelId.value)
+      loadDocumentForPanel()
+    }
+  })
 }
 
 // Set up watchers for document store changes
 function setupDocumentWatchers() {
-  // Watch for document changes to update panel titles
-  watch(() => documentStore.documentName, () => {
-    updatePanelContent()
+  // Watch for changes to THIS file panel's document in the multi-doc store
+  watch(() => {
+    const docInstance = multiDocStore.getDocument(filePanelId.value)
+    return docInstance?.document.metadata.name
+  }, (newName) => {
+    if (newName && props.params?.api) {
+      props.params.api.setTitle(`📄 ${newName}`)
+    }
   })
 
   // Watch for active view changes to update panel content
   watch(() => documentStore.activeView, (newView) => {
     console.log('Active view changed to:', newView)
-    updatePanelContent()
   })
 
   // Watch for node count changes
   watch(() => documentStore.nodeCount, (newCount) => {
     console.log('Node count changed to:', newCount)
-    updatePanelContent()
-  })
-
-  // Watch for drive store changes
-  watch(() => driveStore.currentFile, (newFile) => {
-    console.log('Current file changed:', newFile?.name || 'none')
-    updatePanelContent()
   })
 }
 
-// Listen for document loaded events
-onMounted(() => {
-  window.addEventListener('store:document-loaded', handleDocumentLoaded)
-})
 
-onUnmounted(() => {
-  window.removeEventListener('store:document-loaded', handleDocumentLoaded)
-})
-
-function handleDocumentLoaded() {
-  console.log('Document loaded event received in FilePanel')
-  // When a document is loaded, update the panel title with the document name
-  if (props.params?.api && documentStore.documentName) {
-    props.params.api.setTitle(`📄 ${documentStore.documentName}`)
-  }
-}
 
 function createDefaultChildLayout() {
   if (!childDockviewApi.value) return
 
-  // Create default 3-panel layout for this file
+  // Create default 3-panel layout: Outline (20%) | Mindmap (40%) | Writer (40%)
+  const outlinePanel = childDockviewApi.value.addPanel({
+    id: `outline-${Date.now()}`,
+    component: 'outline-panel',
+    title: 'Outline'
+  })
+
   const mindmapPanel = childDockviewApi.value.addPanel({
     id: `mindmap-${Date.now()}`,
     component: 'mindmap-panel',
-    title: 'Mind Map'
+    title: 'Mind Map',
+    position: { referencePanel: outlinePanel, direction: 'right' }
   })
 
-  const writerPanel = childDockviewApi.value.addPanel({
+  childDockviewApi.value.addPanel({
     id: `writer-${Date.now()}`,
     component: 'writer-panel',
     title: 'Writer',
     position: { referencePanel: mindmapPanel, direction: 'right' }
   })
 
-  childDockviewApi.value.addPanel({
-    id: `outline-${Date.now()}`,
-    component: 'outline-panel',
-    title: 'Outline',
-    position: { referencePanel: writerPanel, direction: 'right' }
-  })
+  // Set sizes after panels are created
+  setTimeout(() => {
+    if (childDockviewApi.value) {
+      const containerWidth = childDockviewApi.value.width
+      console.log('Container width:', containerWidth)
+
+      const outlineWidth = Math.floor(containerWidth * 0.2)
+      const mindmapWidth = Math.floor(containerWidth * 0.4)
+
+      console.log('Setting outline width to:', outlineWidth)
+      console.log('Setting mindmap width to:', mindmapWidth)
+
+      outlinePanel.api.setSize({ width: outlineWidth })
+      mindmapPanel.api.setSize({ width: mindmapWidth })
+      // Writer panel will automatically take the remaining space
+    }
+  }, 100)
 }
 
 function addChildPanel(type: string) {
@@ -172,30 +191,60 @@ function getOpenChildPanelTypes(): string[] {
   return Array.from(openTypes)
 }
 
-// Add a method to update panel content based on document changes
-function updatePanelContent() {
-  console.log('Updating panel content for document:', documentStore.documentName)
 
-  // Update the file panel title to show the document name
-  if (props.params?.api) {
-    props.params.api.setTitle(`📄 ${documentStore.documentName}`)
+
+/**
+ * Load document from multi-document store into the main documentStore
+ */
+function loadDocumentForPanel() {
+  const docInstance = multiDocStore.getDocument(filePanelId.value)
+  if (docInstance) {
+    // Load document into the main document store
+    documentStore.fromDocument(docInstance.document, 'store')
+
+    // Update drive store if this document has a drive file
+    if (docInstance.driveFile) {
+      driveStore.setCurrentFile(docInstance.driveFile)
+    } else {
+      driveStore.clearCurrentFile()
+    }
   }
-
-  // Log current document state
-  console.log('Document state:', {
-    nodes: documentStore.nodeCount,
-    edges: documentStore.edges.length,
-    activeView: documentStore.activeView
-  })
 }
 
-function saveChildLayoutToStorage(fileId: string) {
+/**
+ * Save child dockview layout to multi-document store
+ */
+function saveChildLayoutToMultiDocStore() {
   if (!childDockviewApi.value) return
 
   const layout = childDockviewApi.value.toJSON()
-  localStorage.setItem(`dockview-file-${fileId}-layout`, JSON.stringify(layout))
+  multiDocStore.updateChildLayout(filePanelId.value, layout)
 }
 
+/**
+ * Load child dockview layout from multi-document store
+ */
+function loadChildLayoutFromMultiDocStore(): boolean {
+  if (!childDockviewApi.value) return false
+
+  const docInstance = multiDocStore.getDocument(filePanelId.value)
+  if (!docInstance || !docInstance.childLayoutState) {
+    return false
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    childDockviewApi.value.fromJSON(docInstance.childLayoutState as any)
+    return true
+  } catch (error) {
+    console.error(`Failed to load child layout from multi-doc store:`, error)
+    return false
+  }
+}
+
+/**
+ * Load child layout from localStorage (fallback/legacy)
+ */
 function loadChildLayoutFromStorage(fileId: string): boolean {
   if (!childDockviewApi.value) return false
 
