@@ -1,49 +1,41 @@
 # Dockview Implementation Guide for MindScribble
 
-This document provides a comprehensive guide for replacing the existing 3-panel layout in MindScribble with Dockview, based on the successful implementation in the test project.
+This document provides a comprehensive guide for implementing nested Dockview in MindScribble, based on the successful implementation in the test project.
+
+## Architecture Overview
+
+The implementation uses **nested dockview** architecture:
+- **Parent Dockview**: Contains file panels (one panel per document/file)
+- **Child Dockview**: Each file panel contains its own dockview with view panels (Mindmap, Writer, Outline)
+
+This allows users to:
+- Work on multiple files simultaneously
+- Each file has its own independent set of views
+- Views cannot escape to other files
+- Layouts are saved per-file
 
 ## Table of Contents
 - [Dockview Implementation Guide for MindScribble](#dockview-implementation-guide-for-mindscribble)
+  - [Architecture Overview](#architecture-overview)
   - [Table of Contents](#table-of-contents)
   - [1. Installation](#1-installation)
-    - [Install Dependencies](#install-dependencies)
   - [2. Project Structure](#2-project-structure)
-    - [Files to Create/Modify](#files-to-createmodify)
   - [3. Core Implementation](#3-core-implementation)
-    - [Step 1: Create Boot File for Component Registration](#step-1-create-boot-file-for-component-registration)
-    - [Step 2: Main Page Implementation](#step-2-main-page-implementation)
-  - [4. Panel Components](#4-panel-components)
-  - [5. Group Controls (Float/Maximize)](#5-group-controls-floatmaximize)
-  - [6. Auto-save Layout](#6-auto-save-layout)
-  - [7. Add Panel Functionality](#7-add-panel-functionality)
-  - [8. Styling and Theming](#8-styling-and-theming)
-  - [9. Code to Remove](#9-code-to-remove)
-    - [1. **Remove 3-Panel Layout Code**](#1-remove-3-panel-layout-code)
-    - [2. **Remove Keyboard Shortcuts for Panel Focus**](#2-remove-keyboard-shortcuts-for-panel-focus)
-    - [3. **Remove Panel State Management**](#3-remove-panel-state-management)
-    - [4. **Update Store Events**](#4-update-store-events)
-    - [5. **Remove Manual Save/Load Layout Buttons**](#5-remove-manual-saveload-layout-buttons)
-  - [10. Migration Checklist](#10-migration-checklist)
-    - [Installation \& Setup](#installation--setup)
-    - [Component Creation](#component-creation)
-    - [Main Page Implementation](#main-page-implementation)
-    - [Toolbar Integration](#toolbar-integration)
-    - [Code Removal](#code-removal)
-    - [Testing](#testing)
-  - [Additional Resources](#additional-resources)
-  - [Common Issues and Solutions](#common-issues-and-solutions)
-    - [Issue 1: Panels Not Visible](#issue-1-panels-not-visible)
-    - [Issue 2: "Failed to find Vue Component" Error](#issue-2-failed-to-find-vue-component-error)
-    - [Issue 3: TypeScript Errors with Dockview Types](#issue-3-typescript-errors-with-dockview-types)
-    - [Issue 4: Layout Not Persisting](#issue-4-layout-not-persisting)
-    - [Issue 5: Maximize Button Not Working](#issue-5-maximize-button-not-working)
+    - [Step 1: Create Boot File](#step-1-create-boot-file)
+    - [Step 2: Parent Dockview (IndexPage)](#step-2-parent-dockview-indexpage)
+    - [Step 3: File Panel Component](#step-3-file-panel-component)
+    - [Step 4: File Controls Component](#step-4-file-controls-component)
+  - [4. View Panel Components](#4-view-panel-components)
+  - [5. Group Controls](#5-group-controls)
+  - [6. Layout Persistence](#6-layout-persistence)
+  - [7. Styling](#7-styling)
+  - [8. Migration Checklist](#8-migration-checklist)
+  - [9. Common Issues](#9-common-issues)
   - [Summary](#summary)
 
 ---
 
 ## 1. Installation
-
-### Install Dependencies
 
 ```bash
 npm install dockview-vue dockview-core
@@ -57,80 +49,80 @@ npm install dockview-vue dockview-core
 
 ## 2. Project Structure
 
-### Files to Create/Modify
-
 ```
 src/
 ├── boot/
-│   └── dockview.ts                    # NEW: Register dockview components globally
+│   └── dockview.ts                    # NEW: Register all dockview components
 ├── pages/
-│   ├── IndexPage.vue                  # MODIFY: Replace 3-panel layout with DockviewVue
+│   ├── IndexPage.vue                  # MODIFY: Parent dockview (files)
 │   └── components/
-│       ├── GroupControls.vue          # NEW: Float/Maximize buttons for group headers
-│       ├── MindmapPanel.vue           # MODIFY: Wrap existing mindmap in dockview panel
-│       ├── WriterPanel.vue            # MODIFY: Wrap existing writer in dockview panel
-│       └── OutlinePanel.vue           # MODIFY: Wrap existing outline in dockview panel
-└── layouts/
-    └── MainLayout.vue                 # MODIFY: Add "Add Panel" button to toolbar
+│       ├── FilePanel.vue              # NEW: Child dockview container (views per file)
+│       ├── FileControls.vue           # NEW: Add View button for file panels
+│       ├── GroupControls.vue          # NEW: Float/Maximize buttons
+│       ├── MindmapPanel.vue           # MODIFY: Mindmap view
+│       ├── WriterPanel.vue            # MODIFY: Writer view
+│       └── OutlinePanel.vue           # MODIFY: Outline view
+├── layouts/
+│   └── MainLayout.vue                 # MODIFY: Add "Add File" button
+└── css/
+    └── app.scss                       # MODIFY: Critical height fixes
 ```
 
 ---
 
 ## 3. Core Implementation
 
-### Step 1: Create Boot File for Component Registration
+### Step 1: Create Boot File
 
 **File: `src/boot/dockview.ts`**
 
-Dockview-vue requires all panel components to be registered globally using `app.component()`.
+Register all dockview components globally:
 
 ```typescript
 import { boot } from 'quasar/wrappers'
+import FilePanel from 'src/pages/components/FilePanel.vue'
+import FileControls from 'src/pages/components/FileControls.vue'
+import GroupControls from 'src/pages/components/GroupControls.vue'
 import MindmapPanel from 'src/pages/components/MindmapPanel.vue'
 import WriterPanel from 'src/pages/components/WriterPanel.vue'
 import OutlinePanel from 'src/pages/components/OutlinePanel.vue'
-import GroupControls from 'src/pages/components/GroupControls.vue'
 
 export default boot(({ app }) => {
-  // Register dockview panel components globally
+  // Parent dockview components (files)
+  app.component('file-panel', FilePanel)
+  app.component('file-controls', FileControls)
+
+  // Child dockview components (views)
   app.component('mindmap-panel', MindmapPanel)
   app.component('writer-panel', WriterPanel)
   app.component('outline-panel', OutlinePanel)
-  
-  // Register group controls component
+
+  // Group controls (Float/Maximize buttons)
   app.component('group-controls', GroupControls)
-  
-  console.log('Dockview components registered')
 })
 ```
 
-**Important:**
-- Component names MUST be kebab-case strings (e.g., 'mindmap-panel')
-- Do NOT pass components as props to DockviewVue - this will not work
-- Register the boot file in `quasar.config.ts`:
+**Register in `quasar.config.ts`:**
 
 ```typescript
-boot: [
-  'dockview'  // Add this
-]
+boot: ['dockview']
 ```
 
 ---
 
-### Step 2: Main Page Implementation
+### Step 2: Parent Dockview (IndexPage)
 
 **File: `src/pages/IndexPage.vue`**
 
-Replace the existing 3-panel layout with DockviewVue component.
+The parent dockview contains file panels:
 
 ```vue
 <template>
   <q-page class="dockview-page">
     <div class="dockview-container">
       <DockviewVue
-        class="dockview-theme-abyss"
-        :right-header-actions-component="'group-controls'"
-        @ready="onReady"
+        class="dockview-theme-abyss parent-dockview"
+        @ready="onParentReady"
       />
     </div>
   </q-page>
@@ -138,122 +130,94 @@ Replace the existing 3-panel layout with DockviewVue component.
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useQuasar } from 'quasar'
 import { DockviewVue, type DockviewApi } from 'dockview-vue'
 
-const $q = useQuasar()
 const dockviewApi = ref<DockviewApi>()
-let panelCounter = 0
+let fileCounter = 0
 
-function onReady(event: { api: DockviewApi }) {
+function onParentReady(event: { api: DockviewApi }) {
   dockviewApi.value = event.api
 
-  // Set up auto-save on layout changes
+  // Auto-save parent layout
   dockviewApi.value.onDidLayoutChange(() => {
-    saveLayoutToStorage()
+    saveParentLayoutToStorage()
   })
 
-  // Try to load saved layout, otherwise create default
-  const loaded = loadLayoutFromStorage()
+  // Load saved layout or create default
+  const loaded = loadParentLayoutFromStorage()
   if (!loaded) {
-    createDefaultLayout()
+    addFile() // Create first file
   }
 }
 
-function createDefaultLayout() {
+function addFile() {
   if (!dockviewApi.value) return
 
-  // Add initial panels (left to right: Mindmap | Writer | Outline)
-  const mindmapPanel = dockviewApi.value.addPanel({
-    id: 'mindmap-1',
-    component: 'mindmap-panel',
-    title: 'Mind Map'
-  })
-
-  const writerPanel = dockviewApi.value.addPanel({
-    id: 'writer-1',
-    component: 'writer-panel',
-    title: 'Writer',
-    position: { referencePanel: mindmapPanel, direction: 'right' }
-  })
+  fileCounter++
+  const fileId = `file-${fileCounter}`
+  const fileName = `Document ${fileCounter}`
 
   dockviewApi.value.addPanel({
-    id: 'outline-1',
-    component: 'outline-panel',
-    title: 'Outline',
-    position: { referencePanel: writerPanel, direction: 'right' }
+    id: fileId,
+    component: 'file-panel',
+    title: `📄 ${fileName}`
   })
 }
 
-function addPanel(type: string) {
-  if (!dockviewApi.value) return
-
-  panelCounter++
-  const panelId = `${type}-${panelCounter}`
-
-  const titleMap: Record<string, string> = {
-    'mindmap-panel': 'Mind Map',
-    'writer-panel': 'Writer',
-    'outline-panel': 'Outline'
-  }
-
-  const title = titleMap[type] || type
-
-  dockviewApi.value.addPanel({
-    id: panelId,
-    component: type,
-    title: title
-  })
-}
-
-function saveLayoutToStorage() {
+function saveParentLayoutToStorage() {
   if (!dockviewApi.value) return
   const layout = dockviewApi.value.toJSON()
-  localStorage.setItem('dockview-layout', JSON.stringify(layout))
+  localStorage.setItem('dockview-parent-layout', JSON.stringify(layout))
 }
 
-function loadLayoutFromStorage(): boolean {
+function loadParentLayoutFromStorage(): boolean {
   if (!dockviewApi.value) return false
-  const saved = localStorage.getItem('dockview-layout')
+  const saved = localStorage.getItem('dockview-parent-layout')
   if (!saved) return false
 
   try {
     const layout = JSON.parse(saved)
     dockviewApi.value.fromJSON(layout)
+
+    // Update fileCounter to avoid duplicate IDs
+    let maxFileNum = 0
+    dockviewApi.value.panels.forEach(panel => {
+      const match = panel.id.match(/^file-(\d+)$/)
+      if (match && match[1]) {
+        const num = parseInt(match[1], 10)
+        if (num > maxFileNum) maxFileNum = num
+      }
+    })
+    fileCounter = maxFileNum
+
     return true
   } catch (error) {
-    console.error('Failed to load layout:', error)
+    console.error('Failed to load parent layout:', error)
     return false
   }
 }
 
-function getOpenPanelTypes(): string[] {
-  if (!dockviewApi.value) return []
-  const openTypes = new Set<string>()
-  dockviewApi.value.panels.forEach(panel => {
-    const componentName = panel.api.component
-    if (componentName) {
-      openTypes.add(componentName)
-    }
-  })
-  return Array.from(openTypes)
+defineExpose({ addFile })
+</script>
+
+<style scoped lang="scss">
+.dockview-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
-defineExpose({
-  addPanel,
-  getOpenPanelTypes
-})
-</script>
-```
+.dockview-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
 
-**CRITICAL CSS Fix** - Add this to the scoped styles:
-
-```scss
-:deep(.dockview-theme-abyss) {
+:deep(.parent-dockview) {
   height: 100%;
   width: 100%;
 
-  // WITHOUT THIS FIX, PANELS WON'T BE VISIBLE!
+  // CRITICAL: Without this fix, panels won't be visible!
   .dv-popover-anchor {
     position: absolute !important;
     top: 0;
@@ -273,13 +237,311 @@ defineExpose({
     z-index: 1;
   }
 }
+</style>
 ```
 
 ---
 
-## 4. Panel Components
+### Step 3: File Panel Component
 
-Each panel component should be a simple Vue component that wraps your existing panel content.
+**File: `src/pages/components/FilePanel.vue`**
+
+Each file panel contains a nested dockview with view panels:
+
+```vue
+<template>
+  <div class="file-panel">
+    <DockviewVue
+      class="dockview-theme-abyss nested-dockview"
+      :right-header-actions-component="'group-controls'"
+      :left-header-actions-component="'file-controls'"
+      @ready="onChildReady"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, provide } from 'vue'
+import { DockviewVue, type DockviewApi, type IDockviewPanelProps } from 'dockview-vue'
+
+defineOptions({
+  name: 'FilePanelComponent'
+})
+
+const props = defineProps<{
+  params?: IDockviewPanelProps
+}>()
+
+const childDockviewApi = ref<DockviewApi>()
+let childPanelCounter = 0
+
+// Create API for child components (FileControls)
+const filePanelApi = {
+  addChildPanel: (type: string) => addChildPanel(type),
+  getOpenChildPanelTypes: () => getOpenChildPanelTypes()
+}
+
+provide('filePanelApi', filePanelApi)
+
+function onChildReady(event: { api: DockviewApi }) {
+  childDockviewApi.value = event.api
+  const fileId = props.params?.api?.id || 'unknown'
+
+  // Auto-save child layout
+  childDockviewApi.value.onDidLayoutChange(() => {
+    saveChildLayoutToStorage(fileId)
+  })
+
+  // Load saved layout or create default
+  const loaded = loadChildLayoutFromStorage(fileId)
+  if (!loaded) {
+    createDefaultChildLayout()
+  }
+}
+
+function createDefaultChildLayout() {
+  if (!childDockviewApi.value) return
+
+  // Create Mindmap | Writer | Outline layout
+  const mindmapPanel = childDockviewApi.value.addPanel({
+    id: `mindmap-${Date.now()}`,
+    component: 'mindmap-panel',
+    title: 'Mind Map'
+  })
+
+  const writerPanel = childDockviewApi.value.addPanel({
+    id: `writer-${Date.now()}`,
+    component: 'writer-panel',
+    title: 'Writer',
+    position: { referencePanel: mindmapPanel, direction: 'right' }
+  })
+
+  childDockviewApi.value.addPanel({
+    id: `outline-${Date.now()}`,
+    component: 'outline-panel',
+    title: 'Outline',
+    position: { referencePanel: writerPanel, direction: 'right' }
+  })
+}
+
+function addChildPanel(type: string) {
+  if (!childDockviewApi.value) return
+
+  childPanelCounter++
+  const panelId = `${type}-${Date.now()}-${childPanelCounter}`
+
+  const titleMap: Record<string, string> = {
+    'mindmap-panel': 'Mind Map',
+    'writer-panel': 'Writer',
+    'outline-panel': 'Outline'
+  }
+
+  childDockviewApi.value.addPanel({
+    id: panelId,
+    component: type,
+    title: titleMap[type] || type
+  })
+}
+
+function getOpenChildPanelTypes(): string[] {
+  if (!childDockviewApi.value) return []
+
+  const openTypes = new Set<string>()
+  childDockviewApi.value.panels.forEach(panel => {
+    const componentName = panel.api.component
+    if (componentName) openTypes.add(componentName)
+  })
+
+  return Array.from(openTypes)
+}
+
+function saveChildLayoutToStorage(fileId: string) {
+  if (!childDockviewApi.value) return
+  const layout = childDockviewApi.value.toJSON()
+  localStorage.setItem(`dockview-file-${fileId}-layout`, JSON.stringify(layout))
+}
+
+function loadChildLayoutFromStorage(fileId: string): boolean {
+  if (!childDockviewApi.value) return false
+  const saved = localStorage.getItem(`dockview-file-${fileId}-layout`)
+  if (!saved) return false
+
+  try {
+    const layout = JSON.parse(saved)
+    childDockviewApi.value.fromJSON(layout)
+    return true
+  } catch (error) {
+    console.error(`Failed to load child layout for file ${fileId}:`, error)
+    return false
+  }
+}
+</script>
+
+<style scoped lang="scss">
+.file-panel {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.nested-dockview {
+  height: 100%;
+  width: 100%;
+}
+</style>
+```
+
+---
+
+### Step 4: File Controls Component
+
+**File: `src/pages/components/FileControls.vue`**
+
+The "Add View" button for file panel headers:
+
+```vue
+<template>
+  <div class="file-controls" @mousedown.stop="handleMouseDown">
+    <q-btn
+      flat
+      dense
+      round
+      size="sm"
+      icon="add"
+      class="file-control-btn"
+    >
+      <q-tooltip>Add View</q-tooltip>
+      <q-menu>
+        <q-list style="min-width: 150px">
+          <q-item
+            clickable
+            v-close-popup
+            @click="handleAddView('mindmap-panel')"
+            :disable="isViewTypeOpen('mindmap-panel')"
+          >
+            <q-item-section avatar>
+              <q-icon name="account_tree" />
+            </q-item-section>
+            <q-item-section>Mind Map</q-item-section>
+          </q-item>
+
+          <q-item
+            clickable
+            v-close-popup
+            @click="handleAddView('writer-panel')"
+            :disable="isViewTypeOpen('writer-panel')"
+          >
+            <q-item-section avatar>
+              <q-icon name="edit" />
+            </q-item-section>
+            <q-item-section>Writer</q-item-section>
+          </q-item>
+
+          <q-item
+            clickable
+            v-close-popup
+            @click="handleAddView('outline-panel')"
+            :disable="isViewTypeOpen('outline-panel')"
+          >
+            <q-item-section avatar>
+              <q-icon name="list" />
+            </q-item-section>
+            <q-item-section>Outline</q-item-section>
+          </q-item>
+        </q-list>
+      </q-menu>
+    </q-btn>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { inject } from 'vue'
+
+defineOptions({
+  name: 'FileControlsComponent'
+})
+
+interface DockviewPanelApi {
+  id: string
+  setActive: () => void
+}
+
+interface DockviewPanel {
+  id: string
+  api: DockviewPanelApi
+}
+
+interface DockviewGroupPanel {
+  id: string
+  activePanel?: DockviewPanel
+}
+
+interface GroupPanelPartInitParameters {
+  group?: DockviewGroupPanel
+}
+
+const props = defineProps<{
+  params?: GroupPanelPartInitParameters
+}>()
+
+interface FilePanelApi {
+  addChildPanel: (type: string) => void
+  getOpenChildPanelTypes: () => string[]
+}
+
+const filePanelApi = inject<FilePanelApi>('filePanelApi', {
+  addChildPanel: () => console.warn('filePanelApi not provided'),
+  getOpenChildPanelTypes: () => []
+})
+
+// Activate group on mousedown so views are added to correct group
+function handleMouseDown() {
+  if (props.params?.group?.activePanel?.api) {
+    props.params.group.activePanel.api.setActive()
+  }
+}
+
+function handleAddView(type: string) {
+  const openTypes = filePanelApi.getOpenChildPanelTypes()
+  if (openTypes.includes(type)) return // Already open
+
+  filePanelApi.addChildPanel(type)
+}
+
+function isViewTypeOpen(type: string): boolean {
+  const openTypes = filePanelApi.getOpenChildPanelTypes()
+  return openTypes.includes(type)
+}
+</script>
+
+<style scoped lang="scss">
+.file-controls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 4px;
+}
+
+.file-control-btn {
+  color: white !important;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+}
+</style>
+```
+
+**Key Feature:** The `@mousedown.stop="handleMouseDown"` activates the group before showing the menu, ensuring views are added to the correct group.
+
+---
+
+## 4. View Panel Components
+
+Each view panel wraps your existing view content.
 
 **Example: `src/pages/components/MindmapPanel.vue`**
 
