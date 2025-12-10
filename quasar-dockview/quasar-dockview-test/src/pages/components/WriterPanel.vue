@@ -60,7 +60,7 @@ const editorDefinitions = {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff3e0; // Light orange background for visibility
+  background: #fff3e0;
 }
 
 .writer-header {
