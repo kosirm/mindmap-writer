@@ -1,6 +1,10 @@
-# Dockview Quick Start Guide
+# Nested Dockview Quick Start Guide
 
-This is a condensed version of the full implementation guide. For complete details, see `DOCKVIEW_IMPLEMENTATION_GUIDE.md`.
+Quick guide for implementing nested dockview in MindScribble. For complete details, see `NESTED_DOCKVIEW_GUIDE.md`.
+
+## Architecture
+
+**Nested Dockview** = Parent dockview (files) → Child dockview (views per file)
 
 ## Installation
 
@@ -8,20 +12,24 @@ This is a condensed version of the full implementation guide. For complete detai
 npm install dockview-vue dockview-core
 ```
 
-## Minimal Setup (3 Steps)
+## Setup Steps
 
-### 1. Create Boot File
+### 1. Boot File + CSS Fixes
 
 **File: `src/boot/dockview.ts`**
 
 ```typescript
 import { boot } from 'quasar/wrappers'
+import FilePanel from 'src/pages/components/FilePanel.vue'
+import FileControls from 'src/pages/components/FileControls.vue'
+import GroupControls from 'src/pages/components/GroupControls.vue'
 import MindmapPanel from 'src/pages/components/MindmapPanel.vue'
 import WriterPanel from 'src/pages/components/WriterPanel.vue'
 import OutlinePanel from 'src/pages/components/OutlinePanel.vue'
-import GroupControls from 'src/pages/components/GroupControls.vue'
 
 export default boot(({ app }) => {
+  app.component('file-panel', FilePanel)
+  app.component('file-controls', FileControls)
   app.component('mindmap-panel', MindmapPanel)
   app.component('writer-panel', WriterPanel)
   app.component('outline-panel', OutlinePanel)
@@ -29,21 +37,39 @@ export default boot(({ app }) => {
 })
 ```
 
+**File: `src/css/app.scss`** (CRITICAL!)
+
+```scss
+html, body, #q-app {
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.q-layout {
+  height: 100vh;
+}
+
+.q-page-container {
+  height: 100%;
+}
+```
+
 Register in `quasar.config.ts`:
 ```typescript
 boot: ['dockview']
 ```
 
-### 2. Replace Layout in IndexPage
+### 2. IndexPage (Parent Dockview)
 
 ```vue
 <template>
   <q-page class="dockview-page">
     <div class="dockview-container">
       <DockviewVue
-        class="dockview-theme-abyss"
-        :right-header-actions-component="'group-controls'"
-        @ready="onReady"
+        class="dockview-theme-abyss parent-dockview"
+        @ready="onParentReady"
       />
     </div>
   </q-page>
@@ -54,67 +80,61 @@ import { ref } from 'vue'
 import { DockviewVue, type DockviewApi } from 'dockview-vue'
 
 const dockviewApi = ref<DockviewApi>()
+let fileCounter = 0
 
-function onReady(event: { api: DockviewApi }) {
+function onParentReady(event: { api: DockviewApi }) {
   dockviewApi.value = event.api
-  
-  // Auto-save on every change
+
   dockviewApi.value.onDidLayoutChange(() => {
     const layout = dockviewApi.value!.toJSON()
-    localStorage.setItem('dockview-layout', JSON.stringify(layout))
+    localStorage.setItem('dockview-parent-layout', JSON.stringify(layout))
   })
 
-  // Load saved layout or create default
-  const saved = localStorage.getItem('dockview-layout')
+  const saved = localStorage.getItem('dockview-parent-layout')
   if (saved) {
     try {
       dockviewApi.value.fromJSON(JSON.parse(saved))
+      // Update fileCounter to avoid duplicate IDs
+      let maxFileNum = 0
+      dockviewApi.value.panels.forEach(panel => {
+        const match = panel.id.match(/^file-(\d+)$/)
+        if (match) maxFileNum = Math.max(maxFileNum, parseInt(match[1]))
+      })
+      fileCounter = maxFileNum
     } catch {
-      createDefaultLayout()
+      addFile()
     }
   } else {
-    createDefaultLayout()
+    addFile()
   }
 }
 
-function createDefaultLayout() {
-  const mindmap = dockviewApi.value!.addPanel({
-    id: 'mindmap-1',
-    component: 'mindmap-panel',
-    title: 'Mind Map'
-  })
-  
-  const writer = dockviewApi.value!.addPanel({
-    id: 'writer-1',
-    component: 'writer-panel',
-    title: 'Writer',
-    position: { referencePanel: mindmap, direction: 'right' }
-  })
-  
+function addFile() {
+  fileCounter++
   dockviewApi.value!.addPanel({
-    id: 'outline-1',
-    component: 'outline-panel',
-    title: 'Outline',
-    position: { referencePanel: writer, direction: 'right' }
+    id: `file-${fileCounter}`,
+    component: 'file-panel',
+    title: `📄 Document ${fileCounter}`
   })
 }
+
+defineExpose({ addFile })
 </script>
 
 <style scoped lang="scss">
 .dockview-page {
-  width: 100%;
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow: hidden;
 }
 
 .dockview-container {
-  width: 100%;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   position: relative;
 }
 
-// CRITICAL FIX - Without this, panels won't be visible!
-:deep(.dockview-theme-abyss) {
+:deep(.parent-dockview) {
   height: 100%;
   width: 100%;
 
@@ -140,9 +160,38 @@ function createDefaultLayout() {
 </style>
 ```
 
-### 3. Create Panel Components
+### 3. FilePanel (Child Dockview)
 
-Wrap your existing components:
+See `NESTED_DOCKVIEW_GUIDE.md` for complete FilePanel.vue code (~130 lines).
+
+**Key points:**
+- Contains nested DockviewVue
+- Creates default Mindmap | Writer | Outline layout
+- Saves layout to `dockview-file-{fileId}-layout`
+- Provides API to FileControls via inject/provide
+
+### 4. FileControls (Add View Button)
+
+See `NESTED_DOCKVIEW_GUIDE.md` for complete FileControls.vue code (~140 lines).
+
+**Key points:**
+- Left header action for file panels
+- Dropdown menu to add views
+- Activates group on mousedown
+- Disables already-open views
+
+### 5. GroupControls (Float/Maximize)
+
+See test project for complete GroupControls.vue code (~180 lines).
+
+**Key points:**
+- Right header action for view groups
+- Float and Maximize buttons
+- Buttons hidden when panel is floating
+
+### 6. View Panels
+
+Simple wrappers:
 
 ```vue
 <template>
@@ -153,10 +202,7 @@ Wrap your existing components:
 
 <script setup lang="ts">
 import MindmapView from 'src/components/MindmapView.vue'
-
-defineOptions({
-  name: 'MindmapPanelComponent'
-})
+defineOptions({ name: 'MindmapPanelComponent' })
 </script>
 
 <style scoped lang="scss">
@@ -170,13 +216,14 @@ defineOptions({
 
 ## That's It!
 
-You now have a fully functional dockview layout with:
-- ✅ Auto-save
+You now have nested dockview with:
+- ✅ Multiple files
+- ✅ Independent view layouts per file
+- ✅ Auto-save (parent + per-file)
 - ✅ Drag & drop
-- ✅ Resizable panels
 - ✅ Floating windows
 - ✅ Maximize/restore
 
-For GroupControls component and Add Panel dropdown, see the full guide.
+**See test project:** `quasar-dockview/quasar-dockview-test/`
 
 

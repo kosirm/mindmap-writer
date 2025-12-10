@@ -1,6 +1,7 @@
 <template>
   <div class="group-controls">
     <q-btn
+      v-if="!isFloating"
       flat
       dense
       round
@@ -13,6 +14,7 @@
     </q-btn>
 
     <q-btn
+      v-if="!isFloating"
       flat
       dense
       round
@@ -57,6 +59,7 @@ interface DockviewGroupPanelApi {
   maximize: () => void
   exitMaximized: () => void
   onDidMaximizedGroupChange: (callback: () => void) => { dispose: () => void }
+  onDidLocationChange?: (callback: () => void) => { dispose: () => void }
   location: { type: string }
   group: DockviewGroupPanel
   accessor: DockviewApi
@@ -82,6 +85,7 @@ const props = defineProps<{
 }>()
 
 const isMaximized = ref(false)
+const isFloating = ref(false)
 let disposables: (() => void)[] = []
 
 // Watch for params to be set
@@ -98,6 +102,15 @@ watch(() => props.params, (params) => {
 
     // Set initial state
     isMaximized.value = params.api.isMaximized() || false
+    isFloating.value = params.api.location?.type === 'floating'
+
+    // Listen for location changes (floating/docked)
+    const locationDisposable = params.api.onDidLocationChange?.(() => {
+      isFloating.value = params.api?.location?.type === 'floating'
+    })
+    if (locationDisposable) {
+      disposables.push(locationDisposable.dispose.bind(locationDisposable))
+    }
   }
 }, { immediate: true })
 
