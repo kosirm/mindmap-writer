@@ -116,7 +116,7 @@ function setupDocumentWatchers() {
 function createDefaultChildLayout() {
   if (!childDockviewApi.value) return
 
-  // Create default 3-panel layout: Outline (20%) | Mindmap (40%) | Writer (40%)
+  // Create default 3-panel layout: Outline | Mindmap | Writer (left to right)
   const outlinePanel = childDockviewApi.value.addPanel({
     id: `outline-${Date.now()}`,
     component: 'outline-panel',
@@ -136,24 +136,6 @@ function createDefaultChildLayout() {
     title: 'Writer',
     position: { referencePanel: mindmapPanel, direction: 'right' }
   })
-
-  // Set sizes after panels are created
-  setTimeout(() => {
-    if (childDockviewApi.value) {
-      const containerWidth = childDockviewApi.value.width
-      console.log('Container width:', containerWidth)
-
-      const outlineWidth = Math.floor(containerWidth * 0.2)
-      const mindmapWidth = Math.floor(containerWidth * 0.4)
-
-      console.log('Setting outline width to:', outlineWidth)
-      console.log('Setting mindmap width to:', mindmapWidth)
-
-      outlinePanel.api.setSize({ width: outlineWidth })
-      mindmapPanel.api.setSize({ width: mindmapWidth })
-      // Writer panel will automatically take the remaining space
-    }
-  }, 100)
 }
 
 function addChildPanel(type: string) {
@@ -218,6 +200,23 @@ function saveChildLayoutToMultiDocStore() {
   if (!childDockviewApi.value) return
 
   const layout = childDockviewApi.value.toJSON()
+
+  // Convert fixed pixel sizes to proportional sizes to avoid positioning restrictions
+  // This ensures the layout is flexible when restored
+  if (layout.grid?.root?.type === 'branch' && Array.isArray(layout.grid.root.data)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const totalSize = layout.grid.root.data.reduce((sum: number, item: any) => sum + (item.size || 0), 0)
+    if (totalSize > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      layout.grid.root.data.forEach((item: any) => {
+        if (item.size) {
+          // Convert to proportion (0-1 range)
+          item.size = item.size / totalSize
+        }
+      })
+    }
+  }
+
   multiDocStore.updateChildLayout(filePanelId.value, layout)
 }
 
@@ -233,8 +232,10 @@ function loadChildLayoutFromMultiDocStore(): boolean {
   }
 
   try {
+    console.log('📂 Loading child layout from multi-doc store:', docInstance.childLayoutState)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     childDockviewApi.value.fromJSON(docInstance.childLayoutState as any)
+    console.log('✅ Child layout loaded successfully')
     return true
   } catch (error) {
     console.error(`Failed to load child layout from multi-doc store:`, error)

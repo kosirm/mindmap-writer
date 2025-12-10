@@ -110,6 +110,9 @@ function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileM
 
   // Extract child dockview layout from document if available
   const childLayoutState = document.dockviewLayout || null
+  console.log('📂 Opening file from Drive:', fileName)
+  console.log('📂 Document has dockviewLayout?', !!document.dockviewLayout)
+  console.log('📂 Child layout state:', childLayoutState)
 
   // Create document instance in multi-document store with Drive file metadata and layout
   multiDocStore.createDocument(fileId, document, driveFile, childLayoutState)

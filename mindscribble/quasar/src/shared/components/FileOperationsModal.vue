@@ -306,12 +306,18 @@ async function handleSave() {
 
     // Include child dockview layout from multi-document store
     const activeFilePanelId = multiDocStore.activeFilePanelId
+    console.log('💾 Active file panel ID:', activeFilePanelId)
     if (activeFilePanelId) {
       const docInstance = multiDocStore.getDocument(activeFilePanelId)
+      console.log('💾 Document instance:', docInstance)
       if (docInstance && docInstance.childLayoutState) {
         document.dockviewLayout = docInstance.childLayoutState
-        console.log('✅ Including dockview layout in saved document')
+        console.log('✅ Including dockview layout in saved document:', docInstance.childLayoutState)
+      } else {
+        console.warn('⚠️ No child layout state found for active file panel')
       }
+    } else {
+      console.warn('⚠️ No active file panel ID')
     }
 
     let savedFile: DriveFileMetadata
