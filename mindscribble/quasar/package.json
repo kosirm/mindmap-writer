@@ -26,6 +26,8 @@
     "@vue-flow/core": "^1.48.0",
     "@vue-flow/minimap": "^1.5.4",
     "axios": "^1.2.1",
+    "dockview-core": "^4.11.0",
+    "dockview-vue": "^4.11.0",
     "mitt": "^3.0.1",
     "pinia": "^3.0.1",
     "quasar": "^2.16.0",

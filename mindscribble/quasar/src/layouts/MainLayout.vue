@@ -211,11 +211,15 @@
       </q-scroll-area>
     </q-drawer>
 
-    <!-- Main Content - 3 Panel Layout -->
+    <!-- Main Content - Platform-specific Layout -->
     <q-page-container>
-      <q-page class="three-panel-layout">
-        <ThreePanelContainer />
-      </q-page>
+      <div class="main-layout">
+        <!-- Dockview layout for desktop -->
+        <DockviewLayout v-if="!isMobile" ref="dockviewLayoutRef" />
+
+        <!-- Mobile layout for mobile devices -->
+        <MobileLayout v-else />
+      </div>
     </q-page-container>
 
     <!-- Command Palette (global) -->
@@ -234,14 +238,16 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
-import { useQuasar } from 'quasar'
+import { useQuasar, Platform } from 'quasar'
 import { useAppStore } from 'src/core/stores/appStore'
 import { useAuthStore } from 'src/core/stores/authStore'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { usePanelStore } from 'src/core/stores/panelStore'
 import PanelManager from 'src/shared/components/PanelManager.vue'
-import ThreePanelContainer from 'src/shared/components/ThreePanelContainer.vue'
+import DockviewLayout from './DockviewLayout.vue'
+import MobileLayout from './MobileLayout.vue'
+// import ThreePanelContainer from 'src/shared/components/ThreePanelContainer.vue'
 import CommandPalette from 'src/shared/components/CommandPalette.vue'
 import FileOperationsModal from 'src/shared/components/FileOperationsModal.vue'
 import { registerCommands, handleKeyboardEvent, initCommandAPI, updateContext } from 'src/core/commands'
@@ -271,6 +277,7 @@ useAutosave(2000)
 // Left drawer tab state
 const leftDrawerTab = ref('tools')
 const isDev = import.meta.env.DEV
+const isMobile = Platform.is.mobile
 
 // File operations modal state
 const showFileModal = ref(false)
@@ -555,6 +562,12 @@ onUnmounted(() => {
 .three-panel-layout {
   height: calc(100vh - 50px); // Full viewport height minus header
   overflow: hidden;
+}
+
+.main-layout {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .drawer-content {

@@ -7,8 +7,6 @@
       :min-zoom="0.05"
       :max-zoom="3"
       :only-render-visible-elements="true"
-      :selection-key-code="'Shift'"
-      :multi-selection-key-code="'Shift'"
       :select-nodes-on-drag="false"
       :connect-on-click="false"
       :default-edge-options="{ type: 'straight' }"
