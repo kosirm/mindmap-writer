@@ -86,7 +86,7 @@ let disposables: (() => void)[] = []
 
 // Watch for params to be set
 watch(() => props.params, (params) => {
-  console.log('GroupControls params changed', params)
+  // console.log('GroupControls params changed', params)
 
   if (params?.containerApi && params?.api) {
     // Listen to the main container API for maximize changes
@@ -122,10 +122,10 @@ function handleFloat() {
 
   if (location.type === 'floating') {
     // Already floating, do nothing or could dock it back
-    console.log('Group is already floating')
+    // console.log('Group is already floating')
   } else {
     // Make it float
-    console.log('Making group float', props.params.group)
+    // console.log('Making group float', props.params.group)
     props.params.containerApi.addFloatingGroup(props.params.group, {
       position: { top: 100, left: 100 },
       height: 400,
@@ -135,7 +135,7 @@ function handleFloat() {
 }
 
 function handleMaximize() {
-  console.log('handleMaximize clicked', { params: props.params, isMaximized: isMaximized.value })
+  // console.log('handleMaximize clicked', { params: props.params, isMaximized: isMaximized.value })
 
   if (!props.params?.api) {
     console.warn('Missing api')
@@ -143,10 +143,10 @@ function handleMaximize() {
   }
 
   if (isMaximized.value) {
-    console.log('Exiting maximized')
+    // console.log('Exiting maximized')
     props.params.api.exitMaximized()
   } else {
-    console.log('Maximizing')
+    // console.log('Maximizing')
     props.params.api.maximize()
   }
 }

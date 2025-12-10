@@ -4,63 +4,17 @@
       <q-toolbar>
         <q-btn flat dense round icon="menu" aria-label="Menu" @click="toggleLeftDrawer" />
 
-        <q-toolbar-title> Dockview Test </q-toolbar-title>
+        <q-toolbar-title> Dockview Test - Nested Mode </q-toolbar-title>
 
-        <!-- Dockview controls -->
+        <!-- Add File Button -->
         <q-btn
           flat
           dense
-          icon="add"
-          label="Add Panel"
+          icon="note_add"
+          label="Add File"
+          @click="handleAddFile"
         >
-          <q-menu>
-            <q-list style="min-width: 150px">
-              <q-item
-                clickable
-                v-close-popup
-                @click="handleAddPanel('default-panel')"
-                :disable="isPanelTypeOpen('default-panel')"
-              >
-                <q-item-section avatar>
-                  <q-icon name="widgets" />
-                </q-item-section>
-                <q-item-section>Default</q-item-section>
-              </q-item>
-              <q-item
-                clickable
-                v-close-popup
-                @click="handleAddPanel('mindmap-panel')"
-                :disable="isPanelTypeOpen('mindmap-panel')"
-              >
-                <q-item-section avatar>
-                  <q-icon name="account_tree" />
-                </q-item-section>
-                <q-item-section>Mindmap</q-item-section>
-              </q-item>
-              <q-item
-                clickable
-                v-close-popup
-                @click="handleAddPanel('writer-panel')"
-                :disable="isPanelTypeOpen('writer-panel')"
-              >
-                <q-item-section avatar>
-                  <q-icon name="edit" />
-                </q-item-section>
-                <q-item-section>Writer</q-item-section>
-              </q-item>
-              <q-item
-                clickable
-                v-close-popup
-                @click="handleAddPanel('outline-panel')"
-                :disable="isPanelTypeOpen('outline-panel')"
-              >
-                <q-item-section avatar>
-                  <q-icon name="list" />
-                </q-item-section>
-                <q-item-section>Outline</q-item-section>
-              </q-item>
-            </q-list>
-          </q-menu>
+          <q-tooltip>Open a new document</q-tooltip>
         </q-btn>
       </q-toolbar>
     </q-header>
@@ -87,8 +41,7 @@ import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink
 
 // Define interface for the page component with exposed methods
 interface DockviewPageRef {
-  addPanel: (type: string) => void;
-  getOpenPanelTypes: () => string[];
+  addFile: () => void;
 }
 
 const pageRef = ref<DockviewPageRef | null>(null);
@@ -144,18 +97,10 @@ function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value;
 }
 
-// Handler functions for dockview controls
-function handleAddPanel(type: string) {
-  if (pageRef.value && pageRef.value.addPanel) {
-    pageRef.value.addPanel(type);
+// Handler function for adding files
+function handleAddFile() {
+  if (pageRef.value && pageRef.value.addFile) {
+    pageRef.value.addFile();
   }
-}
-
-function isPanelTypeOpen(type: string): boolean {
-  if (pageRef.value && pageRef.value.getOpenPanelTypes) {
-    const openTypes = pageRef.value.getOpenPanelTypes();
-    return openTypes.includes(type);
-  }
-  return false;
 }
 </script>

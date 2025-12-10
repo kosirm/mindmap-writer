@@ -10,19 +10,24 @@ import WriterPanel from 'src/pages/components/WriterPanel.vue'
 import OutlinePanel from 'src/pages/components/OutlinePanel.vue'
 import WatermarkPanel from 'src/pages/components/Watermark.vue'
 import GroupControls from 'src/pages/components/GroupControls.vue'
+import FilePanel from 'src/pages/components/FilePanel.vue'
+import FileControls from 'src/pages/components/FileControls.vue'
 
 export default boot(({ app }) => {
-  // Register dockview panel components globally
-  // Using multi-word names to satisfy ESLint vue/multi-word-component-names rule
+  // Register child panel components (views)
   app.component('default-panel', DefaultPanel)
   app.component('mindmap-panel', MindmapPanel)
   app.component('writer-panel', WriterPanel)
   app.component('outline-panel', OutlinePanel)
   app.component('watermark-panel', WatermarkPanel)
 
-  // Register group controls component
-  app.component('group-controls', GroupControls)
+  // Register parent panel component (file)
+  app.component('file-panel', FilePanel)
 
-  console.log('Dockview components registered')
+  // Register control components
+  app.component('group-controls', GroupControls)
+  app.component('file-controls', FileControls)
+
+  // console.log('Dockview components registered (nested mode)')
 })
 

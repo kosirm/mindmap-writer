@@ -2,8 +2,7 @@
   <q-page class="dockview-page">
     <div class="dockview-container">
       <DockviewVue
-        class="dockview-theme-abyss"
-        :right-header-actions-component="'group-controls'"
+        class="dockview-theme-abyss parent-dockview"
         @ready="onReady"
       />
     </div>
@@ -18,20 +17,20 @@ import { DockviewVue, type DockviewApi } from 'dockview-vue'
 const $q = useQuasar()
 const dockviewApi = ref<DockviewApi>()
 
-// Counter for unique panel IDs
-let panelCounter = 0
+// Counter for unique file IDs
+let fileCounter = 0
 
 function onReady(event: { api: DockviewApi }) {
   dockviewApi.value = event.api
-  console.log('Dockview API ready', event.api)
+  // console.log('Parent Dockview API ready', event.api)
 
-  // Set up auto-save on layout changes
+  // Set up auto-save on parent layout changes
   dockviewApi.value.onDidLayoutChange(() => {
-    saveLayoutToStorage()
+    saveParentLayoutToStorage()
   })
 
-  // Try to load saved layout, otherwise create default
-  const loaded = loadLayoutFromStorage()
+  // Try to load saved parent layout, otherwise create default
+  const loaded = loadParentLayoutFromStorage()
   if (!loaded) {
     createDefaultLayout()
   }
@@ -40,118 +39,82 @@ function onReady(event: { api: DockviewApi }) {
 function createDefaultLayout() {
   if (!dockviewApi.value) return
 
-  // Add initial panels in a default layout
-  const mindmapPanel = dockviewApi.value.addPanel({
-    id: 'mindmap-1',
-    component: 'mindmap-panel',
-    title: 'Mind Map'
-  })
+  // Add initial file panel
+  addFile()
 
-  const writerPanel = dockviewApi.value.addPanel({
-    id: 'writer-1',
-    component: 'writer-panel',
-    title: 'Writer',
-    position: { referencePanel: mindmapPanel, direction: 'right' }
-  })
-
-  dockviewApi.value.addPanel({
-    id: 'outline-1',
-    component: 'outline-panel',
-    title: 'Outline',
-    position: { referencePanel: writerPanel, direction: 'right' }
-  })
-
-  console.log('Default layout created')
+  // console.log('Default parent layout created')
 }
 
-function addPanel(type: string) {
+function addFile() {
   if (!dockviewApi.value) return
 
-  panelCounter++
-  const panelId = `${type}-${panelCounter}`
-
-  // Map component types to display titles
-  const titleMap: Record<string, string> = {
-    'default-panel': 'Default',
-    'mindmap-panel': 'Mind Map',
-    'writer-panel': 'Writer',
-    'outline-panel': 'Outline',
-    'watermark-panel': 'Watermark'
-  }
-
-  const title = titleMap[type] || type.charAt(0).toUpperCase() + type.slice(1)
+  fileCounter++
+  const fileId = `file-${fileCounter}`
+  const fileName = `Document ${fileCounter}`
 
   dockviewApi.value.addPanel({
-    id: panelId,
-    component: type,
-    title: title
+    id: fileId,
+    component: 'file-panel',
+    title: `📄 ${fileName}`
   })
 
   $q.notify({
     type: 'positive',
-    message: `${title} panel added`,
+    message: `${fileName} opened`,
     timeout: 1000
   })
+
+  // console.log(`Added file panel: ${fileName}`)
 }
 
-function saveLayoutToStorage() {
+function saveParentLayoutToStorage() {
   if (!dockviewApi.value) return
 
   const layout = dockviewApi.value.toJSON()
-  localStorage.setItem('dockview-layout', JSON.stringify(layout))
-  console.log('Layout auto-saved to localStorage')
+  localStorage.setItem('dockview-parent-layout', JSON.stringify(layout))
+  // console.log('Parent layout auto-saved to localStorage')
 }
 
-function loadLayoutFromStorage(): boolean {
+function loadParentLayoutFromStorage(): boolean {
   if (!dockviewApi.value) return false
 
-  const saved = localStorage.getItem('dockview-layout')
+  const saved = localStorage.getItem('dockview-parent-layout')
   if (!saved) {
-    console.log('No saved layout found')
+    // console.log('No saved parent layout found')
     return false
   }
 
   try {
     const layout = JSON.parse(saved)
     dockviewApi.value.fromJSON(layout)
-    console.log('Layout loaded from localStorage')
+
+    // Update fileCounter to avoid duplicate IDs
+    // Find the highest file number in existing panels
+    let maxFileNum = 0
+    dockviewApi.value.panels.forEach(panel => {
+      const match = panel.id.match(/^file-(\d+)$/)
+      if (match && match[1]) {
+        const num = parseInt(match[1], 10)
+        if (num > maxFileNum) {
+          maxFileNum = num
+        }
+      }
+    })
+    fileCounter = maxFileNum
+
+    // console.log('Parent layout loaded from localStorage, fileCounter:', fileCounter)
     return true
   } catch (error) {
-    console.error('Failed to load layout:', error)
+    console.error('Failed to load parent layout:', error)
     return false
   }
 }
 
-function getOpenPanelTypes(): string[] {
-  if (!dockviewApi.value) return []
-
-  const openTypes = new Set<string>()
-  dockviewApi.value.panels.forEach(panel => {
-    // Get the component name from the panel
-    const componentName = panel.api.component
-    if (componentName) {
-      openTypes.add(componentName)
-    }
-  })
-
-  return Array.from(openTypes)
-}
-
-// Expose functions to parent component
+// Expose functions to parent component (MainLayout)
 defineExpose({
-  addPanel,
-  getOpenPanelTypes
+  addFile
 })
 </script>
-
-<style lang="scss">
-// Global styles for q-page to ensure full height
-.q-page {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-</style>
 
 <style scoped lang="scss">
 .dockview-page {
@@ -169,8 +132,8 @@ defineExpose({
   overflow: hidden;
 }
 
-// Ensure dockview takes full height
-:deep(.dockview-theme-abyss) {
+// Parent dockview styles
+:deep(.parent-dockview) {
   height: 100%;
   width: 100%;
   position: relative;
@@ -181,6 +144,31 @@ defineExpose({
   }
 
   // Fix positioning issue with popover anchor - make it not take up space
+  .dv-popover-anchor {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  .dv-grid-view {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+  }
+}
+
+// Nested dockview styles (inside FilePanel)
+:deep(.nested-dockview) {
+  height: 100%;
+  width: 100%;
+
   .dv-popover-anchor {
     position: absolute !important;
     top: 0;

@@ -2,12 +2,18 @@
 
 // Ensure full height for dockview
 html, body, #q-app {
-  height: 100%;
+  height: 100vh;
   margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
-.q-layout,
+// Ensure Quasar layout takes full height
+.q-layout {
+  height: 100vh;
+}
+
+// Ensure page container and page take full available height
 .q-page-container {
   height: 100%;
 }
@@ -15,4 +21,6 @@ html, body, #q-app {
 .q-page {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 100%;
 }
