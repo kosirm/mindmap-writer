@@ -70,15 +70,26 @@ function addPanel(type: string) {
   panelCounter++
   const panelId = `${type}-${panelCounter}`
 
+  // Map component types to display titles
+  const titleMap: Record<string, string> = {
+    'default-panel': 'Default',
+    'mindmap-panel': 'Mind Map',
+    'writer-panel': 'Writer',
+    'outline-panel': 'Outline',
+    'watermark-panel': 'Watermark'
+  }
+
+  const title = titleMap[type] || type.charAt(0).toUpperCase() + type.slice(1)
+
   dockviewApi.value.addPanel({
     id: panelId,
     component: type,
-    title: type.charAt(0).toUpperCase() + type.slice(1)
+    title: title
   })
 
   $q.notify({
     type: 'positive',
-    message: `${type} panel added`,
+    message: `${title} panel added`,
     timeout: 1000
   })
 }
