@@ -10,9 +10,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, provide } from 'vue'
+import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
 import { DockviewVue } from 'dockview-vue'
 import { type IDockviewPanelProps, type DockviewApi } from 'dockview-core'
+import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 
 defineOptions({
   name: 'FilePanelComponent'
@@ -24,6 +26,10 @@ const props = defineProps<{
 
 const childDockviewApi = ref<DockviewApi | null>(null)
 let childPanelCounter = 0
+
+// Stores
+const documentStore = useDocumentStore()
+const driveStore = useGoogleDriveStore()
 
 // Create the API object that will be provided to child components
 const filePanelApi = {
@@ -57,6 +63,52 @@ function onChildReady(event: { api: DockviewApi }) {
   const loaded = loadChildLayoutFromStorage(fileId)
   if (!loaded) {
     createDefaultChildLayout()
+  }
+
+  // Set up watchers for document changes
+  setupDocumentWatchers()
+}
+
+// Set up watchers for document store changes
+function setupDocumentWatchers() {
+  // Watch for document changes to update panel titles
+  watch(() => documentStore.documentName, () => {
+    updatePanelContent()
+  })
+
+  // Watch for active view changes to update panel content
+  watch(() => documentStore.activeView, (newView) => {
+    console.log('Active view changed to:', newView)
+    updatePanelContent()
+  })
+
+  // Watch for node count changes
+  watch(() => documentStore.nodeCount, (newCount) => {
+    console.log('Node count changed to:', newCount)
+    updatePanelContent()
+  })
+
+  // Watch for drive store changes
+  watch(() => driveStore.currentFile, (newFile) => {
+    console.log('Current file changed:', newFile?.name || 'none')
+    updatePanelContent()
+  })
+}
+
+// Listen for document loaded events
+onMounted(() => {
+  window.addEventListener('store:document-loaded', handleDocumentLoaded)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('store:document-loaded', handleDocumentLoaded)
+})
+
+function handleDocumentLoaded() {
+  console.log('Document loaded event received in FilePanel')
+  // When a document is loaded, update the panel title with the document name
+  if (props.params?.api && documentStore.documentName) {
+    props.params.api.setTitle(`📄 ${documentStore.documentName}`)
   }
 }
 
@@ -118,6 +170,23 @@ function getOpenChildPanelTypes(): string[] {
   })
 
   return Array.from(openTypes)
+}
+
+// Add a method to update panel content based on document changes
+function updatePanelContent() {
+  console.log('Updating panel content for document:', documentStore.documentName)
+
+  // Update the file panel title to show the document name
+  if (props.params?.api) {
+    props.params.api.setTitle(`📄 ${documentStore.documentName}`)
+  }
+
+  // Log current document state
+  console.log('Document state:', {
+    nodes: documentStore.nodeCount,
+    edges: documentStore.edges.length,
+    activeView: documentStore.activeView
+  })
 }
 
 function saveChildLayoutToStorage(fileId: string) {

@@ -43,6 +43,18 @@
         <PanelManager />
         <q-space />
 
+        <!-- Add File button (for dockview) -->
+        <q-btn
+          v-if="!isMobile"
+          flat
+          dense
+          icon="add"
+          label="Add File"
+          @click="handleAddFile"
+        >
+          <q-tooltip>Add a new file panel</q-tooltip>
+        </q-btn>
+
         <!-- RIGHT SECTION: Theme + User + Right drawer -->
         <div class="toolbar-right q-mr-md">
           <!-- Dark mode toggle -->
@@ -282,6 +294,16 @@ const isMobile = Platform.is.mobile
 // File operations modal state
 const showFileModal = ref(false)
 const fileModalMode = ref<'save' | 'open' | 'manage'>('save')
+
+// Dockview layout reference
+const dockviewLayoutRef = ref<{ addFile: () => void } | null>(null)
+
+// Handle adding a new file panel
+function handleAddFile() {
+  if (dockviewLayoutRef.value && dockviewLayoutRef.value.addFile) {
+    dockviewLayoutRef.value.addFile()
+  }
+}
 
 // Global keyboard event handler
 function onKeyDown(event: KeyboardEvent) {

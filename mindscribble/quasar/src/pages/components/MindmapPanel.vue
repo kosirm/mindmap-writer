@@ -5,10 +5,29 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, watch } from 'vue'
 import MindmapView from 'src/features/canvas/components/MindmapView.vue'
+import { useDocumentStore } from 'src/core/stores/documentStore'
 
 defineOptions({
   name: 'MindmapPanelComponent'
+})
+
+const documentStore = useDocumentStore()
+
+onMounted(() => {
+  // Ensure the document store is set to mindmap view when this panel is active
+  if (documentStore.activeView !== 'mindmap') {
+    documentStore.switchView('mindmap', 'mindmap')
+  }
+})
+
+// Watch for active view changes and update if needed
+watch(() => documentStore.activeView, (newView) => {
+  if (newView !== 'mindmap') {
+    // If the active view changed away from mindmap, we might want to switch back
+    // when this panel becomes active again
+  }
 })
 </script>
 

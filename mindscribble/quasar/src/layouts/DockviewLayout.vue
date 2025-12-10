@@ -10,13 +10,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { DockviewVue } from 'dockview-vue'
 import { type DockviewApi } from 'dockview-core'
+import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 
 const $q = useQuasar()
 const dockviewApi = ref<DockviewApi | null>(null)
+const documentStore = useDocumentStore()
+const driveStore = useGoogleDriveStore()
 let fileCounter = 0
 
 function onReady(event: { api: DockviewApi }) {
@@ -104,6 +108,41 @@ function loadParentLayoutFromStorage(): boolean {
 defineExpose({
   addFile
 })
+
+// Listen for document loaded events
+onMounted(() => {
+  window.addEventListener('store:document-loaded', handleDocumentLoaded)
+
+  // Log initial state
+  console.log('DockviewLayout mounted. Current document:', documentStore.documentName)
+  console.log('Drive store state:', {
+    hasOpenFile: driveStore.hasOpenFile,
+    currentFile: driveStore.currentFile?.name || 'none'
+  })
+})
+
+onUnmounted(() => {
+  window.removeEventListener('store:document-loaded', handleDocumentLoaded)
+})
+
+function handleDocumentLoaded() {
+  console.log('Document loaded event received in DockviewLayout')
+  console.log('Loaded document:', documentStore.documentName)
+
+  // When a document is loaded, update the dockview layout if needed
+  if (dockviewApi.value) {
+    // Save the current layout state
+    const layout = dockviewApi.value.toJSON()
+    console.log('Current dockview layout:', layout)
+
+    // Update panel titles to reflect the loaded document
+    dockviewApi.value.panels.forEach(panel => {
+      if (panel.id.startsWith('file-')) {
+        panel.api.setTitle(`📄 ${documentStore.documentName}`)
+      }
+    })
+  }
+}
 </script>
 
 <style scoped lang="scss">
