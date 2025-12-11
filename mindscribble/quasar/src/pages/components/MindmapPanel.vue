@@ -36,7 +36,6 @@ watch(() => documentStore.activeView, (newView) => {
   width: 100%;
   height: 100%;
   overflow: auto;
-  padding: 8px;
   background-color: #1e1e1e;
 }
 </style>

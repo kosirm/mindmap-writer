@@ -101,6 +101,8 @@ export interface MindscribbleDocument {
   edges: MindscribbleEdge[]
   interMapLinks: InterMapLink[]   // Links to other maps/nodes
   layout: LayoutSettings
+  dockviewLayout?: unknown        // Child dockview layout state (optional for backward compatibility)
+  dockviewLayoutId?: string       // Unique ID for localStorage key (optional for backward compatibility)
 }
 
 /**

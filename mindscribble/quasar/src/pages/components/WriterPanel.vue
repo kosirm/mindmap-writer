@@ -13,9 +13,12 @@ defineOptions({
   name: 'WriterPanelComponent'
 })
 
+console.log('🔍🔍🔍 WriterPanel.vue script setup running')
+
 const documentStore = useDocumentStore()
 
 onMounted(() => {
+  console.log('🔍🔍🔍 WriterPanel.vue mounted!')
   // Ensure the document store is set to writer view when this panel is active
   if (documentStore.activeView !== 'writer') {
     documentStore.switchView('writer', 'writer')
@@ -36,7 +39,6 @@ watch(() => documentStore.activeView, (newView) => {
   width: 100%;
   height: 100%;
   overflow: auto;
-  padding: 8px;
   background-color: #1e1e1e;
 }
 </style>
