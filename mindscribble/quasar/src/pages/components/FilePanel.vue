@@ -39,6 +39,10 @@ const filePanelId = ref<string>('')
 // Flag to prevent saving during layout restoration (currently unused - layout save/restore disabled)
 // const isRestoringLayout = ref<boolean>(false)
 
+// Shield overlay state - show during dockview panel drag to prevent interference from child components
+// This will be provided to child view panels (WriterPanel, MindmapPanel, OutlinePanel)
+const isDraggingPanel = ref(false)
+
 // Create the API object that will be provided to child components
 const filePanelApi = {
   addChildPanel: (type: string) => addChildPanel(type),
@@ -48,8 +52,25 @@ const filePanelApi = {
 // Provide the API to descendant components (including FileControls)
 provide('filePanelApi', filePanelApi)
 
+// Provide the drag state to child view panels so they can show shields
+provide('isDraggingPanel', isDraggingPanel)
+
+// Global mouseup listener to ensure shield is always removed (safety fallback)
+function onGlobalMouseUp() {
+  if (isDraggingPanel.value) {
+    console.log('🛡️ Global mouseup - hiding shield (fallback)')
+    isDraggingPanel.value = false
+  }
+}
+
 onMounted(() => {
-  // Component mounted
+  // Add global mouseup listener as fallback
+  document.addEventListener('mouseup', onGlobalMouseUp)
+})
+
+onUnmounted(() => {
+  // Remove global mouseup listener
+  document.removeEventListener('mouseup', onGlobalMouseUp)
 })
 
 onUnmounted(() => {
@@ -77,8 +98,26 @@ function onChildReady(event: { api: DockviewApi }) {
   console.log('⚠️ Layout save/restore DISABLED for testing')
   createDefaultChildLayout()
 
-  // DEBUGGING: Monitor dockview size changes
+  // Shield overlay: Show during panel drag to prevent interference from child components
+  childDockviewApi.value?.onWillDragPanel(() => {
+    console.log('🛡️ Panel drag started - showing shield')
+    isDraggingPanel.value = true
+  })
+
+  // Hide shield on drop
+  childDockviewApi.value?.onDidDrop(() => {
+    console.log('🛡️ Panel dropped - hiding shield (onDidDrop)')
+    isDraggingPanel.value = false
+  })
+
+  // DEBUGGING: Monitor dockview size changes and hide shield on layout change
   childDockviewApi.value?.onDidLayoutChange(() => {
+    // Hide shield when layout changes (panel was moved)
+    if (isDraggingPanel.value) {
+      console.log('🛡️ Layout changed - hiding shield (onDidLayoutChange)')
+      isDraggingPanel.value = false
+    }
+
     const width = childDockviewApi.value?.width || 0
     const height = childDockviewApi.value?.height || 0
     const layout = childDockviewApi.value?.toJSON()
