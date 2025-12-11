@@ -1,5 +1,12 @@
 <template>
-  <div class="writer-view">
+  <div
+    class="writer-view"
+    @dragstart="onDragStart"
+    @drag="onDrag"
+    @dragend="onDragEnd"
+    @dragover="onDragOver"
+    @drop="onDrop"
+  >
     <Draggable
       v-if="treeData.length > 0"
       ref="treeRef"
@@ -28,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, provide, reactive } from 'vue'
+import { ref, watch, provide, reactive, onMounted } from 'vue'
 import { Draggable } from '@he-tree/vue'
 import '@he-tree/vue/style/default.css'
 import WriterNodeContent from './WriterNodeContent.vue'
@@ -40,6 +47,13 @@ const TRIGGER_CLASS = 'drag-handle'
 
 const documentStore = useDocumentStore()
 const { onStoreEvent } = useViewEvents('writer')
+
+console.log('🔍 WriterView.vue script setup running')
+
+onMounted(() => {
+  console.log('🔍 WriterView.vue mounted!')
+  console.log('🔍 Initial treeData length:', treeData.value.length)
+})
 
 // Tree reference
 const treeRef = ref<InstanceType<typeof Draggable> | null>(null)
@@ -164,6 +178,42 @@ function onTreeChange() {
     documentStore.reorderSiblings(parentId, nodeOrders, 'writer')
   }
 }
+
+// DEBUG: Drag event handlers
+function onDragStart(event: DragEvent) {
+  console.log('🔍 WriterView dragstart:', event.target)
+  console.log('🔍 Target draggable attr:', (event.target as HTMLElement)?.getAttribute('draggable'))
+}
+
+function onDrag() {
+  // Too noisy, comment out
+  // console.log('🔍 WriterView drag:', event.target)
+}
+
+function onDragEnd(event: DragEvent) {
+  console.log('🔍 WriterView dragend:', event.target)
+}
+
+function onDragOver() {
+  // Too noisy, comment out
+  // console.log('🔍 WriterView dragover:', event.target)
+}
+
+function onDrop(event: DragEvent) {
+  console.log('🔍 WriterView drop:', event.target)
+}
+
+// DEBUG: Check what he-tree is doing
+watch(() => treeData.value.length, (newLength) => {
+  console.log('🔍 TreeData length changed to:', newLength)
+  setTimeout(() => {
+    const draggableElements = document.querySelectorAll('[draggable="true"]')
+    console.log('🔍 Found', draggableElements.length, 'draggable elements in document')
+    draggableElements.forEach(el => {
+      console.log('🔍 Draggable element:', el.className, el.tagName)
+    })
+  }, 100)
+}, { immediate: true })
 
 // Initial load
 treeData.value = buildTreeFromStore()

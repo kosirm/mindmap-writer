@@ -83,8 +83,21 @@ function onChildReady(event: { api: DockviewApi }) {
     const height = childDockviewApi.value?.height || 0
     const layout = childDockviewApi.value?.toJSON()
     console.log('🔍 Dockview layout changed! Size:', width, 'x', height)
-    console.log('🔍 Layout structure:', layout)
+    console.log('🔍 Layout structure:', JSON.stringify(layout, null, 2))
   })
+
+  // DEBUGGING: Add global function to dump layout
+  interface WindowWithDebug extends Window {
+    dumpLayout?: () => unknown
+  }
+  ;(window as WindowWithDebug).dumpLayout = () => {
+    if (childDockviewApi.value) {
+      const layout = childDockviewApi.value.toJSON()
+      console.log('📊 LAYOUT DUMP:', JSON.stringify(layout, null, 2))
+      return layout
+    }
+    return null
+  }
 
   // Set up watchers for document changes
   setupDocumentWatchers()
