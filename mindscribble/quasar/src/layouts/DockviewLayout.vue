@@ -3,6 +3,7 @@
     <div class="dockview-container">
       <DockviewVue
         class="dockview-theme-abyss parent-dockview"
+        data-dockview-level="parent"
         @ready="onReady"
       />
     </div>
@@ -281,6 +282,103 @@ function handleDocumentLoaded() {
     right: 0;
     bottom: 0;
     z-index: 1;
+  }
+
+}
+
+// Style ONLY file tabs (parent dockview), NOT view tabs (nested dockview)
+// Use data attribute to distinguish parent from nested dockviews
+:deep([data-dockview-level="parent"]) {
+  .dv-tabs-and-actions-container {
+    background-color: #1976d2 !important; // Match Quasar primary color
+    height: 32px !important; // Reduced height
+    min-height: 32px !important;
+  }
+
+  // Common styles for all file tabs
+  .dv-tab {
+    border: none !important;
+    height: 28px !important;
+    margin: 2px 2px 0 2px !important;
+    border-radius: 4px 4px 0 0 !important;
+  }
+
+  // INACTIVE FILE TAB - customize colors here
+  .dv-inactive-tab {
+    background-color: rgba(255, 255, 255, 0) !important;
+    border-left-color: rgba(255, 255, 255, 0) !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.15) !important;
+      color: rgba(255, 255, 255, 0.9) !important;
+    }
+  }
+
+  // ACTIVE FILE TAB - customize colors here
+  .dv-active-tab {
+    background-color: #1976d2 !important;
+    color: white !important;
+
+    &:hover {
+      background-color: #1976d2 !important;
+    }
+  }
+
+  .dv-default-tab-content {
+    color: inherit !important;
+    font-size: 13px !important;
+  }
+
+  .dv-default-tab-action {
+    color: inherit !important;
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  // Style action buttons in tab bar
+  .dv-left-actions-container,
+  .dv-right-actions-container {
+    color: white !important;
+
+    button {
+      color: rgba(255, 255, 255, 0.7) !important;
+
+      &:hover {
+        color: white !important;
+        background-color: rgba(255, 255, 255, 0.1) !important;
+      }
+    }
+  }
+}
+
+// Ensure nested dockview tabs are NOT styled
+:deep([data-dockview-level="nested"]) {
+  .dv-tabs-and-actions-container {
+    background-color: var(--dv-tabs-and-actions-container-background-color) !important;
+    color: rgb(255, 255, 255,.7);
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  .dv-tab {
+    background-color: var(--dv-tabs-container-background-color) !important;
+    color: var(--dv-tabs-container-color) !important;
+    border: var(--dv-separator-border) !important;
+    height: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .dv-inactive-tab,
+  .dv-active-tab {
+    // Let dockview theme handle these
+    background-color: var(--dv-tabs-container-background-color) !important;
+    color: unset !important;
+    color: rgb(255, 255, 255, 1) !important;
   }
 }
 

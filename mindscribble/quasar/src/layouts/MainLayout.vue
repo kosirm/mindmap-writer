@@ -1,8 +1,8 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <!-- Header -->
-    <q-header elevated class="bg-primary text-white">
-      <q-toolbar>
+    <q-header class="bg-primary text-white custom-header">
+      <q-toolbar class="custom-toolbar">
         <!-- Left drawer toggle -->
         <q-btn
           flat
@@ -15,7 +15,7 @@
 
         <!-- LEFT SECTION: Document title + Save status -->
         <div class="toolbar-left q-ml-md">
-          <span class="document-title">{{ documentStore.documentName }}</span>
+          <!-- <span class="document-title">{{ documentStore.documentName }}</span> -->
           <div class="save-status-container q-ml-sm">
             <span class="save-status">
               <template v-if="driveStore.syncStatus === 'saving'">
@@ -592,8 +592,20 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+// Custom header styling - reduced height
+.custom-header {
+  min-height: 40px;
+  height: 40px;
+}
+
+.custom-toolbar {
+  min-height: 40px;
+  height: 40px;
+  padding: 0 12px;
+}
+
 .three-panel-layout {
-  height: calc(100vh - 50px); // Full viewport height minus header
+  height: calc(100vh - 40px); // Full viewport height minus header (reduced from 50px to 40px)
   overflow: hidden;
 }
 

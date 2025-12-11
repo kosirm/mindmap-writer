@@ -2,6 +2,7 @@
   <div class="file-panel">
     <DockviewVue
       class="dockview-theme-abyss nested-dockview"
+      data-dockview-level="nested"
       :right-header-actions-component="'group-controls'"
       :left-header-actions-component="'file-controls'"
       @ready="onChildReady"
