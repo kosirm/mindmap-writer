@@ -107,15 +107,22 @@ function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileM
   fileCounter++
   const fileId = `file-${fileCounter}`
   const fileName = document.metadata.name || driveFile.name.replace('.mindscribble', '')
+  const documentId = document.dockviewLayoutId || document.metadata.id
 
-  // Extract child dockview layout from document if available
-  const childLayoutState = document.dockviewLayout || null
   console.log('📂 Opening file from Drive:', fileName)
+  console.log('📂 Document ID:', documentId)
   console.log('📂 Document has dockviewLayout?', !!document.dockviewLayout)
-  console.log('📂 Child layout state:', childLayoutState)
 
-  // Create document instance in multi-document store with Drive file metadata and layout
-  multiDocStore.createDocument(fileId, document, driveFile, childLayoutState)
+  // If document has a saved layout, save it to localStorage using document ID
+  if (document.dockviewLayout) {
+    const storageKey = `dockview-child-${documentId}-layout`
+    localStorage.setItem(storageKey, JSON.stringify(document.dockviewLayout))
+    console.log(`✅ Saved layout to localStorage: ${storageKey}`)
+  }
+
+  // Create document instance in multi-document store with Drive file metadata
+  // Pass the document ID so FilePanel can use it for localStorage key
+  multiDocStore.createDocument(fileId, document, driveFile, null)
 
   // Add panel to dockview
   dockviewApi.value.addPanel({
@@ -124,7 +131,7 @@ function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileM
     title: `📄 ${fileName}`
   })
 
-  console.log(`✅ Opened file "${fileName}" in new panel ${fileId}`, childLayoutState ? 'with saved layout' : 'without layout')
+  console.log(`✅ Opened file "${fileName}" in new panel ${fileId}`, document.dockviewLayout ? 'with saved layout' : 'without layout')
 }
 
 function saveParentLayoutToStorage() {
@@ -172,10 +179,22 @@ defineExpose({
   openFileFromDrive
 })
 
-// Clear parent layout on page unload
+// Clear parent layout and all child layouts on page unload
 function clearParentLayoutOnUnload() {
+  // Clear parent layout
   localStorage.removeItem('dockview-parent-layout')
-  console.log('✅ Cleared parent layout from localStorage on page unload')
+
+  // Clear all child layouts (they start with 'dockview-child-')
+  const keysToRemove: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith('dockview-child-')) {
+      keysToRemove.push(key)
+    }
+  }
+  keysToRemove.forEach(key => localStorage.removeItem(key))
+
+  console.log('✅ Cleared parent layout and', keysToRemove.length, 'child layouts from localStorage on page unload')
 }
 
 // Listen for document loaded events

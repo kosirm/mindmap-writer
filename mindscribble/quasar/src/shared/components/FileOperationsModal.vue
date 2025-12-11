@@ -304,20 +304,23 @@ async function handleSave() {
     const document = documentStore.toDocument()
     document.metadata.name = fileName.value.trim()
 
-    // Include child dockview layout from multi-document store
-    const activeFilePanelId = multiDocStore.activeFilePanelId
-    console.log('💾 Active file panel ID:', activeFilePanelId)
-    if (activeFilePanelId) {
-      const docInstance = multiDocStore.getDocument(activeFilePanelId)
-      console.log('💾 Document instance:', docInstance)
-      if (docInstance && docInstance.childLayoutState) {
-        document.dockviewLayout = docInstance.childLayoutState
-        console.log('✅ Including dockview layout in saved document:', docInstance.childLayoutState)
-      } else {
-        console.warn('⚠️ No child layout state found for active file panel')
+    // Include child dockview layout from localStorage using document ID
+    const documentId = document.metadata.id
+    const storageKey = `dockview-child-${documentId}-layout`
+    console.log('💾 Document ID:', documentId)
+    console.log('💾 Storage key:', storageKey)
+
+    const savedLayout = localStorage.getItem(storageKey)
+    if (savedLayout) {
+      try {
+        document.dockviewLayout = JSON.parse(savedLayout)
+        document.dockviewLayoutId = documentId
+        console.log('✅ Including dockview layout from localStorage in saved document')
+      } catch (error) {
+        console.error('Failed to parse layout from localStorage:', error)
       }
     } else {
-      console.warn('⚠️ No active file panel ID')
+      console.warn('⚠️ No child layout found in localStorage:', storageKey)
     }
 
     let savedFile: DriveFileMetadata
@@ -345,6 +348,7 @@ async function handleSave() {
     documentStore.markClean()
 
     // Update the document name in multi-document store for the active file panel
+    const activeFilePanelId = multiDocStore.activeFilePanelId
     if (activeFilePanelId) {
       const docInstance = multiDocStore.getDocument(activeFilePanelId)
       if (docInstance) {

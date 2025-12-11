@@ -36,6 +36,9 @@ const multiDocStore = useMultiDocumentStore()
 // Get file panel ID
 const filePanelId = ref<string>('')
 
+// Flag to prevent saving during layout restoration (currently unused - layout save/restore disabled)
+// const isRestoringLayout = ref<boolean>(false)
+
 // Create the API object that will be provided to child components
 const filePanelApi = {
   addChildPanel: (type: string) => addChildPanel(type),
@@ -65,16 +68,23 @@ function onChildReady(event: { api: DockviewApi }) {
   // Load document for this file panel
   loadDocumentForPanel()
 
-  // Set up auto-save for this file's layout
-  childDockviewApi.value?.onDidLayoutChange(() => {
-    saveChildLayoutToMultiDocStore()
-  })
+  // Get the document ID for localStorage key
+  const docInstance = multiDocStore.getDocument(filePanelId.value)
+  const documentId = docInstance?.document.metadata.id || filePanelId.value
+  console.log('📂 FilePanel ready - File Panel ID:', filePanelId.value, 'Document ID:', documentId)
 
-  // Try to load saved layout from multi-doc store, then localStorage, otherwise create default
-  const loaded = loadChildLayoutFromMultiDocStore() || loadChildLayoutFromStorage(filePanelId.value)
-  if (!loaded) {
-    createDefaultChildLayout()
-  }
+  // TEMPORARY: Disable layout save/restore to test if that's causing the restrictions
+  console.log('⚠️ Layout save/restore DISABLED for testing')
+  createDefaultChildLayout()
+
+  // DEBUGGING: Monitor dockview size changes
+  childDockviewApi.value?.onDidLayoutChange(() => {
+    const width = childDockviewApi.value?.width || 0
+    const height = childDockviewApi.value?.height || 0
+    const layout = childDockviewApi.value?.toJSON()
+    console.log('🔍 Dockview layout changed! Size:', width, 'x', height)
+    console.log('🔍 Layout structure:', layout)
+  })
 
   // Set up watchers for document changes
   setupDocumentWatchers()
@@ -116,6 +126,8 @@ function setupDocumentWatchers() {
 function createDefaultChildLayout() {
   if (!childDockviewApi.value) return
 
+  console.log('🔧 Creating default child layout...')
+
   // Create default 3-panel layout: Outline | Mindmap | Writer (left to right)
   const outlinePanel = childDockviewApi.value.addPanel({
     id: `outline-${Date.now()}`,
@@ -136,6 +148,9 @@ function createDefaultChildLayout() {
     title: 'Writer',
     position: { referencePanel: mindmapPanel, direction: 'right' }
   })
+
+  console.log('✅ Default child layout created')
+  console.log('📊 Current layout:', childDockviewApi.value.toJSON())
 }
 
 function addChildPanel(type: string) {
@@ -193,76 +208,56 @@ function loadDocumentForPanel() {
   }
 }
 
-/**
- * Save child dockview layout to multi-document store
- */
-function saveChildLayoutToMultiDocStore() {
+// TEMPORARILY DISABLED - Testing if layout save/restore is causing restrictions
+/*
+function saveChildLayoutToStorage(documentId: string) {
   if (!childDockviewApi.value) return
 
   const layout = childDockviewApi.value.toJSON()
 
-  // Convert fixed pixel sizes to proportional sizes to avoid positioning restrictions
-  // This ensures the layout is flexible when restored
-  if (layout.grid?.root?.type === 'branch' && Array.isArray(layout.grid.root.data)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const totalSize = layout.grid.root.data.reduce((sum: number, item: any) => sum + (item.size || 0), 0)
-    if (totalSize > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      layout.grid.root.data.forEach((item: any) => {
-        if (item.size) {
-          // Convert to proportion (0-1 range)
-          item.size = item.size / totalSize
-        }
-      })
-    }
+  // CRITICAL: Don't save layouts with 0x0 dimensions - they cause movement restrictions
+  if (layout.grid && (layout.grid.width === 0 || layout.grid.height === 0)) {
+    console.warn('⚠️ Skipping save - layout has 0x0 dimensions:', layout.grid.width, 'x', layout.grid.height)
+    return
   }
 
-  multiDocStore.updateChildLayout(filePanelId.value, layout)
+  const storageKey = `dockview-child-${documentId}-layout`
+  localStorage.setItem(storageKey, JSON.stringify(layout))
+  console.log(`💾 Saved child layout to localStorage: ${storageKey} (${layout.grid.width}x${layout.grid.height})`)
 }
 
-/**
- * Load child dockview layout from multi-document store
- */
-function loadChildLayoutFromMultiDocStore(): boolean {
+function loadChildLayoutFromStorage(documentId: string): boolean {
   if (!childDockviewApi.value) return false
 
-  const docInstance = multiDocStore.getDocument(filePanelId.value)
-  if (!docInstance || !docInstance.childLayoutState) {
-    return false
-  }
-
-  try {
-    console.log('📂 Loading child layout from multi-doc store:', docInstance.childLayoutState)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childDockviewApi.value.fromJSON(docInstance.childLayoutState as any)
-    console.log('✅ Child layout loaded successfully')
-    return true
-  } catch (error) {
-    console.error(`Failed to load child layout from multi-doc store:`, error)
-    return false
-  }
-}
-
-/**
- * Load child layout from localStorage (fallback/legacy)
- */
-function loadChildLayoutFromStorage(fileId: string): boolean {
-  if (!childDockviewApi.value) return false
-
-  const saved = localStorage.getItem(`dockview-file-${fileId}-layout`)
+  const storageKey = `dockview-child-${documentId}-layout`
+  const saved = localStorage.getItem(storageKey)
   if (!saved) {
+    console.log(`📂 No saved layout found in localStorage: ${storageKey}`)
     return false
   }
 
   try {
     const layout = JSON.parse(saved)
+    console.log(`📂 Layout to restore (original):`, layout)
+
+    // CRITICAL FIX: Remove width/height from grid to prevent 0x0 sizing issues
+    // When dockview restores with width:0, height:0, it creates rigid proportional layouts
+    // that restrict panel movement. Let dockview calculate sizes dynamically instead.
+    if (layout.grid) {
+      delete layout.grid.width
+      delete layout.grid.height
+      console.log(`📂 Layout to restore (cleaned):`, layout)
+    }
+
     childDockviewApi.value.fromJSON(layout)
+    console.log(`✅ Loaded child layout from localStorage: ${storageKey}`)
     return true
   } catch (error) {
-    console.error(`Failed to load child layout for file ${fileId}:`, error)
+    console.error(`❌ Failed to load child layout for document ${documentId}:`, error)
     return false
   }
 }
+*/
 
 // Expose methods to FileControls component
 defineExpose({
