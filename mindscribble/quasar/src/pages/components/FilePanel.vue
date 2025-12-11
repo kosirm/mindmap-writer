@@ -91,12 +91,15 @@ function onChildReady(event: { api: DockviewApi }) {
 
   // Get the document ID for localStorage key
   const docInstance = multiDocStore.getDocument(filePanelId.value)
-  const documentId = docInstance?.document.metadata.id || filePanelId.value
+  const documentId = docInstance?.document.dockviewLayoutId || docInstance?.document.metadata.id || filePanelId.value
   console.log('📂 FilePanel ready - File Panel ID:', filePanelId.value, 'Document ID:', documentId)
 
-  // TEMPORARY: Disable layout save/restore to test if that's causing the restrictions
-  console.log('⚠️ Layout save/restore DISABLED for testing')
-  createDefaultChildLayout()
+  // Try to load saved layout, otherwise create default
+  const layoutLoaded = loadChildLayoutFromStorage(documentId)
+  if (!layoutLoaded) {
+    console.log('📂 No saved layout found, creating default layout')
+    createDefaultChildLayout()
+  }
 
   // Shield overlay: Show during panel drag to prevent interference from child components
   childDockviewApi.value?.onWillDragPanel(() => {
@@ -110,12 +113,19 @@ function onChildReady(event: { api: DockviewApi }) {
     isDraggingPanel.value = false
   })
 
-  // DEBUGGING: Monitor dockview size changes and hide shield on layout change
+  // Monitor dockview layout changes
   childDockviewApi.value?.onDidLayoutChange(() => {
     // Hide shield when layout changes (panel was moved)
     if (isDraggingPanel.value) {
       console.log('🛡️ Layout changed - hiding shield (onDidLayoutChange)')
       isDraggingPanel.value = false
+    }
+
+    // Auto-save layout to localStorage when it changes
+    const docInstance = multiDocStore.getDocument(filePanelId.value)
+    if (docInstance) {
+      const documentId = docInstance.document.dockviewLayoutId || docInstance.document.metadata.id
+      saveChildLayoutToStorage(documentId)
     }
 
     const width = childDockviewApi.value?.width || 0
@@ -260,14 +270,16 @@ function loadDocumentForPanel() {
   }
 }
 
-// TEMPORARILY DISABLED - Testing if layout save/restore is causing restrictions
-/*
+/**
+ * Save child dockview layout to localStorage
+ * This is called when the layout changes (panels moved, resized, etc.)
+ */
 function saveChildLayoutToStorage(documentId: string) {
   if (!childDockviewApi.value) return
 
   const layout = childDockviewApi.value.toJSON()
 
-  // CRITICAL: Don't save layouts with 0x0 dimensions - they cause movement restrictions
+  // Don't save layouts with 0x0 dimensions
   if (layout.grid && (layout.grid.width === 0 || layout.grid.height === 0)) {
     console.warn('⚠️ Skipping save - layout has 0x0 dimensions:', layout.grid.width, 'x', layout.grid.height)
     return
@@ -278,6 +290,10 @@ function saveChildLayoutToStorage(documentId: string) {
   console.log(`💾 Saved child layout to localStorage: ${storageKey} (${layout.grid.width}x${layout.grid.height})`)
 }
 
+/**
+ * Load child dockview layout from localStorage
+ * This is called when opening a file to restore the saved panel arrangement
+ */
 function loadChildLayoutFromStorage(documentId: string): boolean {
   if (!childDockviewApi.value) return false
 
@@ -292,9 +308,8 @@ function loadChildLayoutFromStorage(documentId: string): boolean {
     const layout = JSON.parse(saved)
     console.log(`📂 Layout to restore (original):`, layout)
 
-    // CRITICAL FIX: Remove width/height from grid to prevent 0x0 sizing issues
-    // When dockview restores with width:0, height:0, it creates rigid proportional layouts
-    // that restrict panel movement. Let dockview calculate sizes dynamically instead.
+    // Remove width/height from grid to let dockview calculate sizes dynamically
+    // This prevents issues when restoring layouts in different window sizes
     if (layout.grid) {
       delete layout.grid.width
       delete layout.grid.height
@@ -309,7 +324,6 @@ function loadChildLayoutFromStorage(documentId: string): boolean {
     return false
   }
 }
-*/
 
 // Expose methods to FileControls component
 defineExpose({
