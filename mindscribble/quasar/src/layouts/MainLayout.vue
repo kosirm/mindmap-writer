@@ -128,14 +128,14 @@
     </div>
 
     <!-- Expanded Drawer Content - Positioned to the right of mini sidebar -->
-    <transition name="slide-drawer">
-      <div
-        v-if="drawerExpanded"
-        class="drawer-expanded"
-        @mouseleave="handleDrawerMouseLeave"
-      >
-        <q-scroll-area class="drawer-scroll-area-full">
-          <q-tab-panels v-model="leftDrawerTab" animated>
+    <div
+      v-if="drawerExpanded"
+      class="drawer-expanded"
+      @mouseleave="handleDrawerMouseLeave"
+    >
+      <q-scroll-area class="drawer-scroll-area-full">
+        <transition name="fade-drawer" mode="out-in">
+          <q-tab-panels v-model="leftDrawerTab" :key="leftDrawerTab">
             <!-- Files Tab -->
             <q-tab-panel name="files" class="q-pa-none">
               <FileManagement />
@@ -183,9 +183,9 @@
               <AIChat />
             </q-tab-panel>
           </q-tab-panels>
-        </q-scroll-area>
-      </div>
-    </transition>
+        </transition>
+      </q-scroll-area>
+    </div>
 
 
     <!-- Main Content - Platform-specific Layout -->
@@ -677,20 +677,20 @@ onUnmounted(() => {
   background-color: var(--ms-drawer-expanded-bg);
 }
 
-// Slide animation for drawer
-.slide-drawer-enter-active,
-.slide-drawer-leave-active {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+// Fade animation for drawer
+.fade-drawer-enter-active,
+.fade-drawer-leave-active {
+  transition: opacity 0.1s ease-in-out;
 }
 
-.slide-drawer-enter-from {
-  transform: translateX(-100%);
+.fade-drawer-enter-from {
   opacity: 0;
+  // transform: translateX(10px);
 }
 
-.slide-drawer-leave-to {
-  transform: translateX(-100%);
+.fade-drawer-leave-to {
   opacity: 0;
+  // transform: translateX(10px);
 }
 
 .menu-text {
