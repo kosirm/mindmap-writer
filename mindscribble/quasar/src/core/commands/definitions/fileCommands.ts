@@ -27,6 +27,22 @@ export const fileCommands: Command[] = [
   },
 
   {
+    id: 'file.close',
+    label: 'Close File',
+    icon: 'close',
+    category: 'file',
+    group: 'file',
+    keybinding: 'Alt+W',
+    description: 'Close the current file tab',
+    keywords: ['close', 'file', 'tab', 'dispose'],
+    order: 2,
+    showInPalette: true,
+    execute: () => {
+      window.dispatchEvent(new CustomEvent('file:close'))
+    }
+  },
+
+  {
     id: 'file.open',
     label: 'Open from Google Drive',
     icon: 'folder_open',
