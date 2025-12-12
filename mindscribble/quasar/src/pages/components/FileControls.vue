@@ -46,6 +46,18 @@
             </q-item-section>
             <q-item-section>Outline</q-item-section>
           </q-item>
+
+          <q-item
+            clickable
+            v-close-popup
+            @click="handleAddView('concept-map-panel')"
+            :disable="isViewTypeOpen('concept-map-panel')"
+          >
+            <q-item-section avatar>
+              <q-icon name="hub" />
+            </q-item-section>
+            <q-item-section>Concept Map</q-item-section>
+          </q-item>
         </q-list>
       </q-menu>
     </q-btn>
