@@ -366,15 +366,20 @@ function handleDocumentLoaded() {
   // Common styles for all file tabs
   .dv-tab {
     border: none !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.2) !important;
     height: 28px !important;
     margin: 2px 2px 0 2px !important;
     border-radius: 4px 4px 0 0 !important;
+
+    // Remove border from first tab
+    &:first-child {
+      border-left: none !important;
+    }
   }
 
   // INACTIVE FILE TAB - customize colors here
   .dv-inactive-tab {
     background-color: rgba(255, 255, 255, 0) !important;
-    border-left-color: rgba(255, 255, 255, 0) !important;
     color: rgba(255, 255, 255, 0.5) !important;
 
     &:hover {
@@ -423,39 +428,58 @@ function handleDocumentLoaded() {
   }
 }
 
-// Ensure nested dockview tabs use theme colors, NOT parent styles
+// Nested dockview - LIGHT MODE (default)
 :deep([data-dockview-level="nested"]) {
   .dv-tabs-and-actions-container {
-    background-color: var(--dv-tabs-and-actions-container-background-color) !important;
+    background-color: #f3f3f3 !important;
     height: auto !important;
     min-height: auto !important;
   }
 
   .dv-tab {
-    border: var(--dv-separator-border) !important;
+    border: 1px solid #e0e0e0 !important;
     height: auto !important;
     margin: 0 !important;
     border-radius: 0 !important;
   }
 
-  // Reset parent tab styles and use theme variables
+  // Separators/sashes between panels
+  .dv-separator {
+    background-color: #e0e0e0 !important;
+  }
+
+  .dv-sash {
+    background-color: #e0e0e0 !important;
+  }
+
+  .dv-split-view-container {
+    .dv-separator {
+      background-color: #e0e0e0 !important;
+    }
+
+    .dv-sash {
+      background-color: #e0e0e0 !important;
+    }
+  }
+
+  // Light mode tab colors
   .dv-inactive-tab {
-    background-color: var(--dv-inactivegroup-visiblepanel-tab-background-color) !important;
-    color: var(--dv-inactivegroup-visiblepanel-tab-color) !important;
+    background-color: #ececec !important;
+    color: #1d1d1d !important;
 
     &:hover {
-      background-color: var(--dv-icon-hover-background-color) !important;
-      color: var(--dv-inactivegroup-visiblepanel-tab-color) !important;
+      background-color: rgba(0, 0, 0, 0.1) !important;
+      color: #1d1d1d !important;
     }
   }
 
   .dv-active-tab {
-    background-color: var(--dv-activegroup-visiblepanel-tab-background-color) !important;
-    color: var(--dv-activegroup-visiblepanel-tab-color) !important;
+    background-color: #ffffff !important;
+    color: #1d1d1d !important;
 
     &:hover {
-      background-color: var(--dv-activegroup-visiblepanel-tab-background-color) !important;
-      color: var(--dv-activegroup-visiblepanel-tab-color) !important;
+      background-color: #ffffff !important;
+      color: #1d1d1d !important;
     }
   }
 
@@ -474,15 +498,61 @@ function handleDocumentLoaded() {
 
   .dv-left-actions-container,
   .dv-right-actions-container {
-    color: var(--dv-activegroup-visiblepanel-tab-color) !important;
+    color: #1d1d1d !important;
 
     button {
-      color: var(--dv-activegroup-visiblepanel-tab-color) !important;
+      color: #1d1d1d !important;
       opacity: 0.7;
 
       &:hover {
         opacity: 1;
-        background-color: var(--dv-icon-hover-background-color) !important;
+        background-color: rgba(0, 0, 0, 0.1) !important;
+      }
+    }
+  }
+}
+
+// Nested dockview - DARK MODE
+:deep(.body--dark [data-dockview-level="nested"]) {
+  .dv-tabs-and-actions-container {
+    background-color: #252526 !important;
+  }
+
+  .dv-tab {
+    border: 1px solid #3e3e42 !important;
+  }
+
+  // Dark mode tab colors
+  .dv-inactive-tab {
+    background-color: #2d2d30 !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+
+    &:hover {
+      background-color: #3e3e42 !important;
+      color: rgba(255, 255, 255, 0.9) !important;
+    }
+  }
+
+  .dv-active-tab {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+
+    &:hover {
+      background-color: #1e1e1e !important;
+      color: #ffffff !important;
+    }
+  }
+
+  .dv-left-actions-container,
+  .dv-right-actions-container {
+    color: rgba(255, 255, 255, 0.9) !important;
+
+    button {
+      color: rgba(255, 255, 255, 0.7) !important;
+
+      &:hover {
+        color: rgba(255, 255, 255, 0.9) !important;
+        background-color: rgba(255, 255, 255, 0.1) !important;
       }
     }
   }
@@ -510,6 +580,73 @@ function handleDocumentLoaded() {
     right: 0;
     bottom: 0;
     z-index: 1;
+  }
+}
+</style>
+
+<style lang="scss">
+// Global styles for nested dockview dark mode (must be unscoped to work with .body--dark)
+.body--dark [data-dockview-level="nested"] {
+  .dv-tabs-and-actions-container {
+    background-color: #252526 !important;
+  }
+
+  .dv-tab {
+    border: 1px solid #3e3e42 !important;
+  }
+
+  // Separators/sashes between panels
+  .dv-separator {
+    background-color: #3e3e42 !important;
+  }
+
+  .dv-sash {
+    background-color: #3e3e42 !important;
+  }
+
+  .dv-split-view-container {
+    .dv-separator {
+      background-color: #3e3e42 !important;
+    }
+
+    .dv-sash {
+      background-color: #3e3e42 !important;
+    }
+  }
+
+  // Dark mode tab colors
+  .dv-inactive-tab {
+    background-color: #2d2d30 !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+
+    &:hover {
+      background-color: #3e3e42 !important;
+      color: rgba(255, 255, 255, 0.9) !important;
+    }
+  }
+
+  .dv-active-tab {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+
+    &:hover {
+      background-color: #1e1e1e !important;
+      color: #ffffff !important;
+    }
+  }
+
+  .dv-left-actions-container,
+  .dv-right-actions-container {
+    color: rgba(255, 255, 255, 0.9) !important;
+
+    button {
+      color: rgba(255, 255, 255, 0.7) !important;
+
+      &:hover {
+        color: rgba(255, 255, 255, 0.9) !important;
+        background-color: rgba(255, 255, 255, 0.1) !important;
+      }
+    }
   }
 }
 </style>
