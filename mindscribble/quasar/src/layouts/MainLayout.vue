@@ -1,97 +1,5 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <!-- Header -->
-    <q-header class="bg-primary text-white custom-header">
-      <q-toolbar class="custom-toolbar">
-        <!-- LEFT SECTION: Menu text -->
-        <div class="toolbar-left">
-          <span class="menu-text">MindScribble</span>
-        </div>
-
-        <!-- CENTER SECTION: Search input -->
-        <q-space />
-        <q-input
-          v-model="searchQuery"
-          dense
-          borderless
-          placeholder="Search..."
-          class="search-input"
-          style="width: 400px;"
-        >
-          <template v-slot:prepend>
-            <q-icon name="search" />
-          </template>
-        </q-input>
-        <q-space />
-
-        <!-- RIGHT SECTION: Theme + User -->
-        <div class="toolbar-right">
-          <!-- Dark mode toggle -->
-          <q-btn
-            flat
-            dense
-            round
-            :icon="appStore.isDarkMode ? 'light_mode' : 'dark_mode'"
-            :aria-label="appStore.isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-            @click="appStore.toggleDarkMode"
-          >
-            <q-tooltip>{{ appStore.isDarkMode ? 'Light mode' : 'Dark mode' }}</q-tooltip>
-          </q-btn>
-
-          <!-- User authentication -->
-          <q-btn
-            v-if="!authStore.isSignedIn"
-            flat
-            dense
-            round
-            icon="login"
-            aria-label="Sign in with Google"
-            :loading="authStore.isLoading"
-            @click="handleSignIn"
-          >
-            <q-tooltip>Sign in with Google</q-tooltip>
-          </q-btn>
-
-          <q-btn
-            v-else
-            flat
-            dense
-            round
-            aria-label="User menu"
-          >
-            <q-avatar
-              size="28px"
-              :src="authStore.user?.imageUrl"
-              @img-error="onImageError"
-            >
-              <q-icon name="account_circle" />
-            </q-avatar>
-            <q-menu>
-              <q-list style="min-width: 200px">
-                <q-item>
-                  <q-item-section avatar>
-                    <q-avatar size="40px" :src="authStore.user?.imageUrl">
-                      <q-icon name="account_circle" />
-                    </q-avatar>
-                  </q-item-section>
-                  <q-item-section>
-                    <q-item-label>{{ authStore.user?.name }}</q-item-label>
-                    <q-item-label caption>{{ authStore.user?.email }}</q-item-label>
-                  </q-item-section>
-                </q-item>
-                <q-separator />
-                <q-item clickable v-close-popup @click="handleSignOut">
-                  <q-item-section avatar>
-                    <q-icon name="logout" />
-                  </q-item-section>
-                  <q-item-section>Sign out</q-item-section>
-                </q-item>
-              </q-list>
-            </q-menu>
-          </q-btn>
-        </div>
-      </q-toolbar>
-    </q-header>
 
     <!-- Mini Mode Sidebar - Always visible, not overlayed -->
     <div class="mini-sidebar">
@@ -352,7 +260,6 @@ useAutosave(2000)
 const leftDrawerTab = ref('tools')
 const drawerExpanded = ref(false)
 const drawerPinned = ref(false)
-const searchQuery = ref('')
 const isDev = import.meta.env.DEV
 const isMobile = Platform.is.mobile
 
@@ -679,20 +586,8 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-// Custom header styling - 30px height
-.custom-header {
-  min-height: 30px;
-  height: 30px;
-}
-
-.custom-toolbar {
-  min-height: 30px;
-  height: 30px;
-  padding: 0 12px;
-}
-
 .three-panel-layout {
-  height: calc(100vh - 30px); // Full viewport height minus header
+  height: 100vh; // Full viewport height
   overflow: hidden;
 }
 
@@ -706,14 +601,14 @@ onUnmounted(() => {
 .mini-sidebar {
   position: fixed;
   left: 0;
-  top: 30px; // Below header
+  top: 0; // Start from top of screen
   bottom: 0;
   width: 56px;
   background-color: var(--q-primary);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 48px 0 0 0; // Padding only at top, bottom handled by flex layout
+  padding: 90px 0 0 0; // Reduced padding since no header
   gap: 8px;
   z-index: 3000; // Above everything to stay visible
   border-right: 1px solid rgba(0, 0, 0, 0.12);
@@ -766,7 +661,7 @@ onUnmounted(() => {
 .drawer-expanded {
   position: fixed;
   left: 56px; // Right next to mini sidebar
-  top: 30px; // Below header
+  top: 0; // Start from top of screen
   bottom: 0;
   width: 280px;
   background-color: var(--q-dark);
@@ -774,14 +669,12 @@ onUnmounted(() => {
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
-  border-top-right-radius: 20px;
 }
 
 .drawer-scroll-area-full {
   flex: 1;
   height: 100%;
   background-color: white;
-  border-top-right-radius: 20px;
 }
 
 // Slide animation for drawer
@@ -806,59 +699,6 @@ onUnmounted(() => {
   color: white;
 }
 
-.search-input {
-  margin-top: 0px;
-  margin-bottom: 1px;
-
-  // Style the outer wrapper with :deep to penetrate component
-  :deep(.q-field__control) {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    // border: 1px solid rgba(255, 255, 255, 0.5);
-    transition: all 0.3s ease;
-    height: 24px;
-
-    &:before,
-    &:after {
-      display: none !important;
-    }
-  }
-
-  &:hover :deep(.q-field__control) {
-    background-color: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.7);
-  }
-
-  &.q-field--focused :deep(.q-field__control) {
-    background-color: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 1);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
-  }
-
-  :deep(.q-field__native) {
-    color: white;
-    font-size: 14px;
-    padding: 0 16px;
-    line-height: 30px;
-  }
-
-  :deep(.q-field__label) {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-  }
-
-  :deep(.q-field__prepend) {
-    color: rgba(255, 255, 255, 0.7);
-    padding-left: 12px;
-    display: flex;
-    align-items: center;
-    height: 100%;
-  }
-
-  :deep(input::placeholder) {
-    color: rgba(255, 255, 255, 0.5);
-  }
-}
 
 // Adjust main content to account for mini sidebar
 .q-page-container {
