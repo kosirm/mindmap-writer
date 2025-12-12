@@ -13,7 +13,6 @@ const DARK_MODE_KEY = 'mindscribble-dark-mode'
 export const useAppStore = defineStore('app', () => {
   // UI State
   const leftDrawerOpen = ref(false)
-  const rightDrawerOpen = ref(false)
   const commandPaletteOpen = ref(false)
   const searchOpen = ref(false)
 
@@ -43,9 +42,6 @@ export const useAppStore = defineStore('app', () => {
     leftDrawerOpen.value = !leftDrawerOpen.value
   }
 
-  function toggleRightDrawer() {
-    rightDrawerOpen.value = !rightDrawerOpen.value
-  }
 
   function openCommandPalette() {
     commandPaletteOpen.value = true
@@ -84,7 +80,6 @@ export const useAppStore = defineStore('app', () => {
   return {
     // State
     leftDrawerOpen,
-    rightDrawerOpen,
     commandPaletteOpen,
     searchOpen,
     activeContext,
@@ -93,7 +88,6 @@ export const useAppStore = defineStore('app', () => {
 
     // Actions
     toggleLeftDrawer,
-    toggleRightDrawer,
     openCommandPalette,
     closeCommandPalette,
     openSearch,

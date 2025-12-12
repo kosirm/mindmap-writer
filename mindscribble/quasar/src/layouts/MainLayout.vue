@@ -3,60 +3,29 @@
     <!-- Header -->
     <q-header class="bg-primary text-white custom-header">
       <q-toolbar class="custom-toolbar">
-        <!-- Left drawer toggle -->
-        <q-btn
-          flat
-          dense
-          round
-          icon="widgets"
-          aria-label="Tools"
-          @click="appStore.toggleLeftDrawer"
-        />
-
-        <!-- LEFT SECTION: Document title + Save status -->
-        <div class="toolbar-left q-ml-md">
-          <!-- <span class="document-title">{{ documentStore.documentName }}</span> -->
-          <div class="save-status-container q-ml-sm">
-            <span class="save-status">
-              <template v-if="driveStore.syncStatus === 'saving'">
-                <q-spinner-dots size="14px" color="white" class="q-mr-xs" />
-                Saving...
-              </template>
-              <template v-else-if="driveStore.syncStatus === 'synced'">
-                <q-icon name="cloud_done" size="14px" class="q-mr-xs" />
-                Saved
-              </template>
-              <template v-else-if="driveStore.syncStatus === 'error'">
-                <q-icon name="cloud_off" size="14px" class="q-mr-xs" />
-                Save failed
-              </template>
-              <template v-else-if="documentStore.isDirty && driveStore.hasOpenFile">
-                <q-icon name="fiber_manual_record" size="8px" class="q-mr-xs" />
-                Unsaved
-              </template>
-            </span>
-          </div>
+        <!-- LEFT SECTION: Menu text -->
+        <div class="toolbar-left">
+          <span class="menu-text">MindScribble</span>
         </div>
 
-        <!-- CENTER SECTION: Add File button -->
+        <!-- CENTER SECTION: Search input -->
         <q-space />
-
-        <!-- Add File button (for dockview) -->
-        <q-btn
-          v-if="!isMobile"
-          flat
+        <q-input
+          v-model="searchQuery"
           dense
-          icon="add"
-          label="Add File"
-          @click="handleAddFile"
+          borderless
+          placeholder="Search..."
+          class="search-input"
+          style="width: 400px;"
         >
-          <q-tooltip>Add a new file panel</q-tooltip>
-        </q-btn>
-
+          <template v-slot:prepend>
+            <q-icon name="search" />
+          </template>
+        </q-input>
         <q-space />
 
-        <!-- RIGHT SECTION: Theme + User + Right drawer -->
-        <div class="toolbar-right q-mr-md">
+        <!-- RIGHT SECTION: Theme + User -->
+        <div class="toolbar-right">
           <!-- Dark mode toggle -->
           <q-btn
             flat
@@ -121,47 +90,76 @@
             </q-menu>
           </q-btn>
         </div>
-
-        <!-- Right drawer toggle -->
-        <q-btn
-          flat
-          dense
-          round
-          icon="smart_toy"
-          aria-label="AI Assistant"
-          @click="appStore.toggleRightDrawer"
-        />
       </q-toolbar>
     </q-header>
 
-    <!-- Left Drawer - Tools & Dev -->
-    <q-drawer
-      v-model="appStore.leftDrawerOpen"
-      side="left"
-      bordered
-      overlay
-      :width="280"
-      :breakpoint="700"
-    >
-      <div class="drawer-content">
-        <!-- Tabs Header -->
-        <q-tabs
-          v-model="leftDrawerTab"
-          dense
-          class="text-grey"
-          active-color="primary"
-          indicator-color="primary"
-          align="justify"
-        >
-          <q-tab name="tools" icon="build" label="Tools" />
-          <q-tab v-if="isDev" name="dev" icon="code" label="Dev" />
-        </q-tabs>
+    <!-- Mini Mode Sidebar - Always visible, not overlayed -->
+    <div class="mini-sidebar">
+      <q-btn
+        flat
+        dense
+        round
+        icon="folder"
+        class="mini-btn"
+        :class="{ active: leftDrawerTab === 'files', pinned: drawerPinned && leftDrawerTab === 'files' }"
+        @mouseenter="handleMiniHover('files')"
+        @click="handleMiniClick('files')"
+      >
+        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Files</q-tooltip>
+      </q-btn>
+      <q-btn
+        flat
+        dense
+        round
+        icon="build"
+        class="mini-btn"
+        :class="{ active: leftDrawerTab === 'tools', pinned: drawerPinned && leftDrawerTab === 'tools' }"
+        @mouseenter="handleMiniHover('tools')"
+        @click="handleMiniClick('tools')"
+      >
+        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Tools</q-tooltip>
+      </q-btn>
+      <q-btn
+        v-if="isDev"
+        flat
+        dense
+        round
+        icon="code"
+        class="mini-btn"
+        :class="{ active: leftDrawerTab === 'dev', pinned: drawerPinned && leftDrawerTab === 'dev' }"
+        @mouseenter="handleMiniHover('dev')"
+        @click="handleMiniClick('dev')"
+      >
+        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Dev</q-tooltip>
+      </q-btn>
+      <q-btn
+        flat
+        dense
+        round
+        icon="smart_toy"
+        class="mini-btn"
+        :class="{ active: leftDrawerTab === 'ai', pinned: drawerPinned && leftDrawerTab === 'ai' }"
+        @mouseenter="handleMiniHover('ai')"
+        @click="handleMiniClick('ai')"
+      >
+        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">AI</q-tooltip>
+      </q-btn>
+    </div>
 
-        <q-separator />
-
-        <!-- Tab Panels -->
-        <q-scroll-area class="drawer-scroll-area">
+    <!-- Expanded Drawer Content - Positioned to the right of mini sidebar -->
+    <transition name="slide-drawer">
+      <div
+        v-if="drawerExpanded"
+        class="drawer-expanded"
+        @mouseleave="handleDrawerMouseLeave"
+      >
+        <q-scroll-area class="drawer-scroll-area-full">
           <q-tab-panels v-model="leftDrawerTab" animated>
+            <!-- Files Tab -->
+            <q-tab-panel name="files" class="q-pa-none">
+              <FileManagement />
+            </q-tab-panel>
+
             <!-- Tools Tab -->
             <q-tab-panel name="tools" class="q-pa-md">
               <div class="text-h6 q-mb-md">Tools</div>
@@ -198,32 +196,16 @@
             <q-tab-panel v-if="isDev" name="dev" class="q-pa-none">
               <DevPanel />
             </q-tab-panel>
+
+            <!-- AI Tab -->
+            <q-tab-panel name="ai" class="q-pa-none">
+              <AIChat />
+            </q-tab-panel>
           </q-tab-panels>
         </q-scroll-area>
       </div>
-    </q-drawer>
+    </transition>
 
-    <!-- Right Drawer - AI Chat -->
-    <q-drawer
-      v-model="appStore.rightDrawerOpen"
-      side="right"
-      bordered
-      overlay
-      :width="350"
-      :breakpoint="700"
-    >
-      <q-scroll-area class="fit">
-        <div class="q-pa-md">
-          <div class="text-h6 q-mb-md">
-            <q-icon name="smart_toy" class="q-mr-sm" />
-            AI Assistant
-          </div>
-          <div class="text-grey-6">
-            AI chat will be implemented here.
-          </div>
-        </div>
-      </q-scroll-area>
-    </q-drawer>
 
     <!-- Main Content - Platform-specific Layout -->
     <q-page-container>
@@ -264,6 +246,8 @@ import MobileLayout from './MobileLayout.vue'
 // import ThreePanelContainer from 'src/shared/components/ThreePanelContainer.vue'
 import CommandPalette from 'src/shared/components/CommandPalette.vue'
 import FileOperationsModal from 'src/shared/components/FileOperationsModal.vue'
+import FileManagement from 'src/shared/components/FileManagement.vue'
+import AIChat from 'src/features/ai/components/AIChat.vue'
 import { registerCommands, handleKeyboardEvent, initCommandAPI, updateContext } from 'src/core/commands'
 import { allCommands } from 'src/core/commands/definitions'
 import { signIn, signOut } from 'src/boot/google-api'
@@ -291,8 +275,11 @@ const multiDocStore = useMultiDocumentStore()
 // Initialize autosave (2 second debounce)
 useAutosave(2000)
 
-// Left drawer tab state
+// Left drawer state
 const leftDrawerTab = ref('tools')
+const drawerExpanded = ref(false)
+const drawerPinned = ref(false)
+const searchQuery = ref('')
 const isDev = import.meta.env.DEV
 const isMobile = Platform.is.mobile
 
@@ -300,16 +287,37 @@ const isMobile = Platform.is.mobile
 const showFileModal = ref(false)
 const fileModalMode = ref<'save' | 'open' | 'manage'>('save')
 
-// Dockview layout reference
+// Dockview layout reference (for file operations)
 const dockviewLayoutRef = ref<{
-  addFile: () => void
   openFileFromDrive: (document: MindscribbleDocument, driveFile: DriveFileMetadata) => void
 } | null>(null)
 
-// Handle adding a new file panel
-function handleAddFile() {
-  if (dockviewLayoutRef.value && dockviewLayoutRef.value.addFile) {
-    dockviewLayoutRef.value.addFile()
+// Handle mini sidebar hover - expand drawer temporarily
+function handleMiniHover(tab: string) {
+  if (!drawerPinned.value) {
+    leftDrawerTab.value = tab
+    drawerExpanded.value = true
+  }
+}
+
+// Handle mini sidebar click - toggle pin/unpin
+function handleMiniClick(tab: string) {
+  // If clicking the same tab that's already pinned, unpin it
+  if (drawerPinned.value && leftDrawerTab.value === tab) {
+    drawerPinned.value = false
+    drawerExpanded.value = false
+  } else {
+    // Otherwise, switch to this tab and pin it
+    leftDrawerTab.value = tab
+    drawerExpanded.value = true
+    drawerPinned.value = true
+  }
+}
+
+// Handle drawer mouse leave - collapse if not pinned
+function handleDrawerMouseLeave() {
+  if (!drawerPinned.value) {
+    drawerExpanded.value = false
   }
 }
 
@@ -331,9 +339,6 @@ function onLeftDrawerToggle() {
   appStore.toggleLeftDrawer()
 }
 
-function onRightDrawerToggle() {
-  appStore.toggleRightDrawer()
-}
 
 // Google authentication handlers
 async function handleSignIn() {
@@ -535,7 +540,6 @@ onMounted(() => {
   window.addEventListener('command:palette.open', onCommandPaletteOpen)
   window.addEventListener('command:view.theme.toggle', onThemeToggle)
   window.addEventListener('command:view.drawer.left.toggle', onLeftDrawerToggle)
-  window.addEventListener('command:view.drawer.right.toggle', onRightDrawerToggle)
 
   // Listen for file operation events
   window.addEventListener('file:new', onFileNew)
@@ -556,7 +560,6 @@ onUnmounted(() => {
   window.removeEventListener('command:palette.open', onCommandPaletteOpen)
   window.removeEventListener('command:view.theme.toggle', onThemeToggle)
   window.removeEventListener('command:view.drawer.left.toggle', onLeftDrawerToggle)
-  window.removeEventListener('command:view.drawer.right.toggle', onRightDrawerToggle)
 
   // Remove file operation listeners
   window.removeEventListener('file:new', onFileNew)
@@ -600,20 +603,20 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-// Custom header styling - reduced height
+// Custom header styling - 30px height
 .custom-header {
-  min-height: 40px;
-  height: 40px;
+  min-height: 30px;
+  height: 30px;
 }
 
 .custom-toolbar {
-  min-height: 40px;
-  height: 40px;
+  min-height: 30px;
+  height: 30px;
   padding: 0 12px;
 }
 
 .three-panel-layout {
-  height: calc(100vh - 40px); // Full viewport height minus header (reduced from 50px to 40px)
+  height: calc(100vh - 30px); // Full viewport height minus header
   overflow: hidden;
 }
 
@@ -623,14 +626,146 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-.drawer-content {
+// Mini sidebar - always visible on the left
+.mini-sidebar {
+  position: fixed;
+  left: 0;
+  top: 30px; // Below header
+  bottom: 0;
+  width: 56px;
+  background-color: var(--q-primary);
   display: flex;
   flex-direction: column;
-  height: 100%;
+  align-items: center;
+  padding: 48px 0 12px 0; // More padding at top
+  gap: 8px;
+  z-index: 3000; // Above everything to stay visible
+  border-right: 1px solid rgba(0, 0, 0, 0.12);
 }
 
-.drawer-scroll-area {
-  flex: 1;
-  height: calc(100% - 48px); // Full height minus tabs header
+.mini-btn {
+  width: 40px;
+  height: 40px;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+  }
+
+  &.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+  }
+
+  &.pinned {
+    background-color: rgba(255, 255, 255, 0.3);
+    color: white;
+    border-right: 3px solid rgba(255, 255, 255, 0.712);
+  }
 }
+
+// Expanded drawer - positioned to the right of mini sidebar
+.drawer-expanded {
+  position: fixed;
+  left: 56px; // Right next to mini sidebar
+  top: 30px; // Below header
+  bottom: 0;
+  width: 280px;
+  background-color: var(--q-dark);
+  z-index: 2500; // Below mini sidebar, above content
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  border-top-right-radius: 20px;
+}
+
+.drawer-scroll-area-full {
+  flex: 1;
+  height: 100%;
+  background-color: white;
+  border-top-right-radius: 20px;
+}
+
+// Slide animation for drawer
+.slide-drawer-enter-active,
+.slide-drawer-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.slide-drawer-enter-from {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.slide-drawer-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.menu-text {
+  font-weight: 500;
+  font-size: 1rem;
+  color: white;
+}
+
+.search-input {
+  margin-top: 12px;
+
+  // Style the outer wrapper with :deep to penetrate component
+  :deep(.q-field__control) {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    transition: all 0.3s ease;
+    height: 30px;
+
+    &:before,
+    &:after {
+      display: none !important;
+    }
+  }
+
+  &:hover :deep(.q-field__control) {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.7);
+  }
+
+  &.q-field--focused :deep(.q-field__control) {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+  }
+
+  :deep(.q-field__native) {
+    color: white;
+    font-size: 14px;
+    padding: 0 16px;
+    line-height: 30px;
+  }
+
+  :deep(.q-field__label) {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+  }
+
+  :deep(.q-field__prepend) {
+    color: rgba(255, 255, 255, 0.7);
+    padding-left: 12px;
+    display: flex;
+    align-items: center;
+    height: 100%;
+  }
+
+  :deep(input::placeholder) {
+    color: rgba(255, 255, 255, 0.5);
+  }
+}
+
+// Adjust main content to account for mini sidebar
+.q-page-container {
+  padding-left: 56px; // Offset by mini sidebar width
+}
+
 </style>
