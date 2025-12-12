@@ -12,7 +12,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useQuasar } from 'quasar'
+// import { useQuasar } from 'quasar' // Commented out - unused after removing toast notifications
 import { DockviewVue } from 'dockview-vue'
 import { type DockviewApi } from 'dockview-core'
 import { useDocumentStore } from 'src/core/stores/documentStore'
@@ -21,7 +21,7 @@ import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
 import type { MindscribbleDocument } from 'src/core/types'
 import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
 
-const $q = useQuasar()
+// const $q = useQuasar() // Commented out - unused after removing toast notifications
 const dockviewApi = ref<DockviewApi | null>(null)
 const documentStore = useDocumentStore()
 const driveStore = useGoogleDriveStore()
@@ -95,11 +95,12 @@ function addFile() {
     title: `📄 ${fileName}`
   })
 
-  $q.notify({
+// Toast message commented out - can be re-enabled in settings later
+  /* $q.notify({
     type: 'positive',
     message: `${fileName} created`,
     timeout: 1000
-  })
+  }) */
 }
 
 function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileMetadata) {
@@ -177,8 +178,46 @@ function loadParentLayoutFromStorage(): boolean {
 // Expose functions to parent component (MainLayout)
 defineExpose({
   addFile,
-  openFileFromDrive
+  openFileFromDrive,
+  closeCurrentFile
 })
+
+function closeCurrentFile() {
+  if (!dockviewApi.value) return
+
+// Get the active panel
+  const activePanel = dockviewApi.value.activePanel
+  if (!activePanel) {
+    // Toast message commented out - can be re-enabled in settings later
+    /* $q.notify({
+      type: 'warning',
+      message: 'No active file to close',
+      timeout: 1500
+    }) */
+    return
+  }
+
+// Check if it's a file panel (starts with 'file-')
+  if (!activePanel.id.startsWith('file-')) {
+    // Toast message commented out - can be re-enabled in settings later
+    /* $q.notify({
+      type: 'warning',
+      message: 'Can only close file tabs',
+      timeout: 1500
+    }) */
+    return
+  }
+
+  // Close the panel
+  activePanel.api.close()
+
+  // Toast message commented out - can be re-enabled in settings later
+  /* $q.notify({
+    type: 'positive',
+    message: 'File closed',
+    timeout: 1000
+  }) */
+}
 
 // Clear parent layout and all child layouts on page unload
 function clearParentLayoutOnUnload() {
@@ -202,6 +241,7 @@ function clearParentLayoutOnUnload() {
 onMounted(() => {
   window.addEventListener('store:document-loaded', handleDocumentLoaded)
   window.addEventListener('beforeunload', clearParentLayoutOnUnload)
+  window.addEventListener('file:close', handleFileClose)
 
   // Log initial state
   console.log('DockviewLayout mounted. Current document:', documentStore.documentName)
@@ -214,7 +254,14 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('store:document-loaded', handleDocumentLoaded)
   window.removeEventListener('beforeunload', clearParentLayoutOnUnload)
+  window.removeEventListener('file:close', handleFileClose)
 })
+
+// Handle file close events
+function handleFileClose() {
+  console.log('File close event received in DockviewLayout')
+  closeCurrentFile()
+}
 
 function handleDocumentLoaded() {
   console.log('Document loaded event received in DockviewLayout')
