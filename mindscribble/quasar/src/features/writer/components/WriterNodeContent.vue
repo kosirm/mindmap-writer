@@ -309,15 +309,15 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   cursor: grab;
-  color: rgba(0, 0, 0, 0.25);
+  color: var(--ms-text-secondary);
   border-radius: 3px;
   opacity: 0;
   transition: all 0.15s ease;
   margin-top: 2px;
 
   &:hover {
-    background-color: rgba(0, 0, 0, 0.08);
-    color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--ms-text-primary);
   }
 
   .writer-node.is-hovered &,
@@ -339,13 +339,14 @@ onBeforeUnmount(() => {
   font-weight: 600;
   font-size: 14px;
   line-height: 1.5;
-  color: rgba(0, 0, 0, 0.87);
+  color: var(--ms-text-primary);
   cursor: text;
 
   :deep(.placeholder) {
-    color: rgba(0, 0, 0, 0.35);
+    color: var(--ms-text-secondary);
     font-style: italic;
     font-weight: normal;
+    opacity: 0.7;
   }
 
   :deep(p) {
@@ -356,15 +357,16 @@ onBeforeUnmount(() => {
 .node-body {
   font-size: 13px;
   line-height: 1.6;
-  color: rgba(0, 0, 0, 0.6);
+  color: var(--ms-text-secondary);
   cursor: text;
 
   :deep(p) {
     margin: 0 0 6px 0;
     &:last-child { margin-bottom: 0; }
     &.placeholder {
-      color: rgba(0, 0, 0, 0.3);
+      color: var(--ms-text-secondary);
       font-style: italic;
+      opacity: 0.6;
     }
   }
 }
@@ -375,14 +377,16 @@ onBeforeUnmount(() => {
   padding: 0;
   border: none;
   background-color: transparent;
+  color: var(--ms-text-primary);
 
   p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     float: left;
-    color: rgba(0, 0, 0, 0.35);
+    color: var(--ms-text-secondary);
     pointer-events: none;
     height: 0;
     font-style: italic;
+    opacity: 0.7;
   }
 }
 
@@ -390,13 +394,13 @@ onBeforeUnmount(() => {
   font-weight: 600;
   font-size: 14px;
   line-height: 1.5;
-  color: rgba(0, 0, 0, 0.87);
+  color: var(--ms-text-primary);
 }
 
 .node-body :deep(.ProseMirror) {
   font-size: 13px;
   line-height: 1.6;
-  color: rgba(0, 0, 0, 0.6);
+  color: var(--ms-text-secondary);
 }
 </style>
 
