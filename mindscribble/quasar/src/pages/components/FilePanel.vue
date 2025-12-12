@@ -261,7 +261,8 @@ function addChildPanel(type: string) {
   const titleMap: Record<string, string> = {
     'mindmap-panel': 'Mind Map',
     'writer-panel': 'Writer',
-    'outline-panel': 'Outline'
+    'outline-panel': 'Outline',
+    'concept-map-panel': 'Concept Map'
   }
 
   const title = titleMap[type] || type
