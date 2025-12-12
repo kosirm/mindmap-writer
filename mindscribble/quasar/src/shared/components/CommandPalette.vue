@@ -271,7 +271,7 @@ function onHide() {
 .command-palette {
   width: 600px;
   max-width: 90vw;
-  margin-top: 60px;
+  margin-top: 0px;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 
