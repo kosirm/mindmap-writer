@@ -69,6 +69,88 @@
   --ms-drawer-expanded-text: #e2e8f0; // Light text on dark background
 }
 
+// ============================================================================
+// VueFlow Minimap & Controls Dark Mode Fixes
+// ============================================================================
+// These components don't respect CSS variables by default, so we need to
+// override their default light-mode styling when dark mode is active
+
+// Minimap dark mode styling - use higher specificity and direct element targeting
+.body--dark {
+  // Minimap container background - target the actual minimap element
+  .vue-flow__minimap {
+    background: var(--ms-bg-primary) !important;
+    border-color: var(--ms-border-color) !important;
+  }
+
+  // Minimap node styling - target nodes within minimap
+  .vue-flow__minimap .vue-flow__minimap-node {
+    background: var(--vf-node-bg) !important;
+    border-color: var(--vf-node-color) !important;
+  }
+
+  // Minimap mask (viewport indicator)
+  .vue-flow__minimap .vue-flow__minimap-mask {
+    border-color: var(--vf-node-color) !important;
+    background: rgba(77, 171, 247, 0.1) !important;
+  }
+
+  // Controls container background
+  .vue-flow__controls {
+    background: var(--ms-bg-primary) !important;
+    border-color: var(--ms-border-color) !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  // Controls button styling
+  .vue-flow__controls .vue-flow__controls-button {
+    background: var(--ms-bg-primary) !important;
+    color: var(--ms-text-primary) !important;
+    border-color: var(--ms-border-color) !important;
+  }
+
+  .vue-flow__controls .vue-flow__controls-button:hover {
+    background: var(--ms-bg-secondary) !important;
+  }
+
+  .vue-flow__controls .vue-flow__controls-button:active {
+    background: var(--ms-bg-secondary) !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+  }
+
+  // Controls button icons
+  .vue-flow__controls .vue-flow__controls-button svg {
+    fill: var(--ms-text-primary) !important;
+  }
+
+  // Additional specific overrides for VueFlow minimap and controls
+  // These target the components more directly
+  .vue-flow__minimap {
+    background-color: var(--ms-bg-primary) !important;
+  }
+
+  .vue-flow__controls {
+    background-color: var(--ms-bg-primary) !important;
+  }
+
+  // Target the minimap nodes more specifically
+  .vue-flow__minimap-node {
+    background-color: var(--vf-node-bg) !important;
+    border-color: var(--vf-node-color) !important;
+  }
+
+  // Target controls buttons more specifically
+  .vue-flow__controls-button {
+    background-color: var(--ms-bg-primary) !important;
+    color: var(--ms-text-primary) !important;
+  }
+
+  .vue-flow__controls-button:hover {
+    background-color: var(--ms-bg-secondary) !important;
+  }
+
+}
+
 // Prevent text selection in outline and writer views during canvas selection
 .canvas-selecting {
   // Disable text selection on the entire document during canvas selection
