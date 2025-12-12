@@ -1,4 +1,5 @@
 import { boot } from 'quasar/wrappers'
+import { defineAsyncComponent } from 'vue'
 
 // Import dockview CSS
 import 'dockview-vue/dist/styles/dockview.css'
@@ -7,10 +8,23 @@ import 'dockview-vue/dist/styles/dockview.css'
 import FilePanel from 'src/pages/components/FilePanel.vue'
 import FileControls from 'src/pages/components/FileControls.vue'
 import GroupControls from 'src/pages/components/GroupControls.vue'
-import MindmapPanel from 'src/pages/components/MindmapPanel.vue'
-import WriterPanel from 'src/pages/components/WriterPanel.vue'
-import OutlinePanel from 'src/pages/components/OutlinePanel.vue'
-import ConceptMapPanel from 'src/pages/components/ConceptMapPanel.vue'
+
+// Lazy load view components - they'll only be loaded when actually used
+const MindmapPanel = defineAsyncComponent(() =>
+  import('src/pages/components/MindmapPanel.vue')
+)
+
+const WriterPanel = defineAsyncComponent(() =>
+  import('src/pages/components/WriterPanel.vue')
+)
+
+const OutlinePanel = defineAsyncComponent(() =>
+  import('src/pages/components/OutlinePanel.vue')
+)
+
+const ConceptMapPanel = defineAsyncComponent(() =>
+  import('src/pages/components/ConceptMapPanel.vue')
+)
 
 export default boot(({ app }) => {
   // Register child panel components (views)
@@ -26,5 +40,5 @@ export default boot(({ app }) => {
   app.component('group-controls', GroupControls)
   app.component('file-controls', FileControls)
 
-  console.log('Dockview components registered')
+  console.log('Dockview components registered with lazy loading')
 })
