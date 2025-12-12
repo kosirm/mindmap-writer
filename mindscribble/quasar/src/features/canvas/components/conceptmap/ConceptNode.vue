@@ -251,7 +251,7 @@ watch(isEditing, (newValue) => {
 <style scoped>
 /* Base node style - matching mindmap CustomNode */
 .concept-node {
-  background: white;
+  background: var(--vf-node-bg);
   border: 1px solid rgba(77, 171, 247, 0.5);
   border-radius: 8px;
   padding-left: 18px;
@@ -278,31 +278,33 @@ watch(isEditing, (newValue) => {
 .concept-node.is-parent {
   width: 100%;
   height: 100%;
-  background: #f8f9fa;
+  background: var(--ms-bg-secondary);
   border-color: rgba(77, 171, 247, 0.5);
   border-width: 2px;
   border-style: dashed;
+  transition: background 0.2s;
 }
 
 /* Leaf nodes - auto-size based on content (no width/height: 100%) */
 .concept-node.is-leaf {
-  background: white;
+  background: var(--vf-node-bg);
 }
 
 .node-header {
   font-weight: 500;
   font-size: 14px;
-  color: #212529;
+  color: var(--vf-node-text);
   text-align: center;
   padding-bottom: 2px;
 }
 
 .is-parent .node-header {
-  background: #e9ecef;
-  color: #495057;
+  background: var(--ms-bg-primary);
+  color: var(--ms-text-secondary);
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid var(--ms-border-color);
   position: relative;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
 /* Ellipsis for long titles in parent nodes (when NOT editing) */
@@ -345,7 +347,7 @@ watch(isEditing, (newValue) => {
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
-  color: #212529;
+  color: var(--vf-node-text);
 }
 
 /* Tiptap editor styles - invisible, same as static display */
@@ -380,15 +382,15 @@ watch(isEditing, (newValue) => {
   background: #339af0;
 }
 
-/* Dark mode */
+/* Dark mode - override with CSS variables that are already set by VueFlow theme */
 :global(.body--dark) .concept-node {
-  background: #2d3748;
+  background: var(--vf-node-bg);
   border-color: rgba(77, 171, 247, 0.4);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 :global(.body--dark) .concept-node .node-header {
-  color: #e2e8f0;
+  color: var(--vf-node-text);
 }
 
 :global(.body--dark) .concept-node:hover {
@@ -396,13 +398,13 @@ watch(isEditing, (newValue) => {
 }
 
 :global(.body--dark) .concept-node.is-parent {
-  background: #1e1e1e;
+  background: var(--ms-bg-secondary);
   border-color: rgba(77, 171, 247, 0.4);
 }
 
 :global(.body--dark) .is-parent .node-header {
-  background: #333;
-  color: #e0e0e0;
+  background: var(--ms-bg-primary);
+  color: var(--vf-node-text);
 }
 
 </style>

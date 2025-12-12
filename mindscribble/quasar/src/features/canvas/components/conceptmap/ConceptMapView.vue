@@ -1270,11 +1270,13 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
   position: relative;
   display: flex;
   flex-direction: column;
+  background-color: var(--vf-background-color);
 }
 
 .conceptmap-canvas :deep(.vue-flow) {
   flex: 1;
   min-height: 0;
+  background-color: var(--vf-background-color) !important;
 }
 
 /* Allow leaf nodes (without explicit dimensions) to auto-size based on content */
@@ -1329,6 +1331,7 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
   align-items: center;
   font-size: 14px;
   transition: background-color 0.15s ease;
+  color: var(--ms-text-primary);
 }
 
 .context-menu-item:hover {
@@ -1339,6 +1342,10 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
   color: #dc3545;
 }
 
+.body--dark .context-menu-item-danger {
+  color: #ff6b6b;
+}
+
 .context-menu-item-danger:hover {
   background: #fff5f5;
 }
@@ -1346,16 +1353,16 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
 /* Dark mode */
 .body--dark .zoom-indicator {
   background: rgba(30, 30, 30, 0.9);
-  color: #fff;
+  color: var(--ms-text-primary);
 }
 
 .body--dark .context-menu {
-  background: #1e1e1e;
+  background: var(--ms-bg-primary);
   border-color: #444;
 }
 
 .body--dark .context-menu-item:hover {
-  background: #333;
+  background: var(--ms-bg-secondary);
 }
 
 .body--dark .context-menu-item-danger:hover {
@@ -1401,6 +1408,7 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
 
 .title-edit-content {
   min-height: 24px;
+  color: var(--ms-text-primary);
 }
 
 .title-popup-editor {
@@ -1429,7 +1437,7 @@ defineExpose({ showMinimap, showZoomIndicator, fitView: () => fitView({ padding:
 
 /* Dark mode popup */
 .body--dark .title-edit-popup {
-  background: #2d2d2d;
+  background: var(--ms-bg-primary);
   border-color: #444;
   color: #fff;
 }
