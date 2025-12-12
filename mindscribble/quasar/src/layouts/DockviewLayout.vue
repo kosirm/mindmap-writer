@@ -358,7 +358,7 @@ function handleDocumentLoaded() {
 // Use data attribute to distinguish parent from nested dockviews
 :deep([data-dockview-level="parent"]) {
   .dv-tabs-and-actions-container {
-    background-color: #1976d2 !important; // Match Quasar primary color
+    background-color: var(--ms-drawer-bg) !important; // Use CSS variable for brand color consistency
     height: 32px !important; // Reduced height
     min-height: 32px !important;
   }
@@ -390,7 +390,7 @@ function handleDocumentLoaded() {
 
   // ACTIVE FILE TAB - customize colors here
   .dv-active-tab {
-    background-color: #1976d2 !important;
+    background-color: #186ec5 !important;
     color: white !important;
 
     &:hover {
