@@ -289,6 +289,7 @@ const fileModalMode = ref<'save' | 'open' | 'manage'>('save')
 
 // Dockview layout reference (for file operations)
 const dockviewLayoutRef = ref<{
+  addFile: () => void
   openFileFromDrive: (document: MindscribbleDocument, driveFile: DriveFileMetadata) => void
 } | null>(null)
 
@@ -385,8 +386,10 @@ function onImageError() {
 
 // File operation handlers
 function onFileNew() {
-  documentStore.clearDocument()
-  driveStore.clearCurrentFile()
+  // Create a new file in dockview instead of clearing the current document
+  if (dockviewLayoutRef.value) {
+    dockviewLayoutRef.value.addFile()
+  }
 }
 
 function onFileOpen() {
@@ -711,15 +714,16 @@ onUnmounted(() => {
 }
 
 .search-input {
-  margin-top: 12px;
+  margin-top: 0px;
+  margin-bottom: 1px;
 
   // Style the outer wrapper with :deep to penetrate component
   :deep(.q-field__control) {
     background-color: rgba(255, 255, 255, 0.1);
     border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    // border: 1px solid rgba(255, 255, 255, 0.5);
     transition: all 0.3s ease;
-    height: 30px;
+    height: 24px;
 
     &:before,
     &:after {
