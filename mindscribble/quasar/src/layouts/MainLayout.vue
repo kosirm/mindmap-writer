@@ -604,7 +604,7 @@ onUnmounted(() => {
   top: 0; // Start from top of screen
   bottom: 0;
   width: 56px;
-  background-color: var(--q-primary);
+  background-color: var(--ms-drawer-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -664,7 +664,7 @@ onUnmounted(() => {
   top: 0; // Start from top of screen
   bottom: 0;
   width: 280px;
-  background-color: var(--q-dark);
+  background-color: var(--ms-drawer-expanded-bg);
   z-index: 2500; // Below mini sidebar, above content
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -674,7 +674,7 @@ onUnmounted(() => {
 .drawer-scroll-area-full {
   flex: 1;
   height: 100%;
-  background-color: white;
+  background-color: var(--ms-drawer-expanded-bg);
 }
 
 // Slide animation for drawer

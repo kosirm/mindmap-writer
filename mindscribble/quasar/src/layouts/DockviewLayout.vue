@@ -2,7 +2,7 @@
   <div class="dockview-page">
     <div class="dockview-container">
       <DockviewVue
-        class="dockview-theme-abyss parent-dockview"
+        :class="dockviewThemeClass"
         data-dockview-level="parent"
         @ready="onReady"
       />
@@ -11,13 +11,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 // import { useQuasar } from 'quasar' // Commented out - unused after removing toast notifications
 import { DockviewVue } from 'dockview-vue'
 import { type DockviewApi } from 'dockview-core'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
+import { useAppStore } from 'src/core/stores/appStore'
 import type { MindscribbleDocument } from 'src/core/types'
 import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
 
@@ -26,7 +27,15 @@ const dockviewApi = ref<DockviewApi | null>(null)
 const documentStore = useDocumentStore()
 const driveStore = useGoogleDriveStore()
 const multiDocStore = useMultiDocumentStore()
+const appStore = useAppStore()
 let fileCounter = 0
+
+// Computed property for dockview theme class - ensures reactivity
+const dockviewThemeClass = computed(() => {
+  const themeClass = appStore.isDarkMode ? 'dockview-theme-abyss' : 'dockview-theme-light'
+  console.log('🎨 Dockview theme class:', themeClass, 'isDarkMode:', appStore.isDarkMode)
+  return [themeClass, 'parent-dockview']
+})
 
 function onReady(event: { api: DockviewApi }) {
   dockviewApi.value = event.api

@@ -287,6 +287,11 @@ onStoreEvent('store:select-navigate', ({ nodeId, source }) => {
   height: 100%;
   overflow-y: auto;
   background-color: #ffffff;
+
+  // Dark mode
+  .body--dark & {
+    background-color: #1d1d1d;
+  }
 }
 
 .writer-tree {

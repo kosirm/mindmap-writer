@@ -1,7 +1,7 @@
 <template>
   <div class="file-panel">
     <DockviewVue
-      class="dockview-theme-abyss nested-dockview"
+      :class="nestedDockviewThemeClass"
       data-dockview-level="nested"
       :right-header-actions-component="'group-controls'"
       :left-header-actions-component="'file-controls'"
@@ -11,12 +11,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, provide, watch } from 'vue'
 import { DockviewVue } from 'dockview-vue'
 import { type IDockviewPanelProps, type DockviewApi } from 'dockview-core'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
+import { useAppStore } from 'src/core/stores/appStore'
 
 defineOptions({
   name: 'FilePanelComponent'
@@ -33,6 +34,14 @@ let childPanelCounter = 0
 const documentStore = useDocumentStore()
 const driveStore = useGoogleDriveStore()
 const multiDocStore = useMultiDocumentStore()
+const appStore = useAppStore()
+
+// Computed property for nested dockview theme class - ensures reactivity
+const nestedDockviewThemeClass = computed(() => {
+  const themeClass = appStore.isDarkMode ? 'dockview-theme-abyss' : 'dockview-theme-light'
+  console.log('🎨 Nested dockview theme class:', themeClass, 'isDarkMode:', appStore.isDarkMode)
+  return [themeClass, 'nested-dockview']
+})
 
 // Get file panel ID
 const filePanelId = ref<string>('')

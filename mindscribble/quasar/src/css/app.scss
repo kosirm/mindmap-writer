@@ -6,6 +6,69 @@
 @import '@vue-flow/minimap/dist/style.css';
 @import '@vue-flow/controls/dist/style.css';
 
+// ============================================================================
+// Global Theme Variables
+// ============================================================================
+// This section defines CSS variables for consistent theming across all components.
+// The app uses Quasar's Dark mode plugin which adds .body--dark class to <body>
+// when dark mode is enabled. All components should respect this class.
+
+// VueFlow theme customization - Light mode (default)
+:root {
+  // VueFlow background and canvas colors
+  --vf-node-bg: #ffffff;
+  --vf-node-text: #1d1d1d;
+  --vf-node-color: #4dabf7;
+  --vf-connection-path: #b1b1b7;
+  --vf-handle: #555;
+
+  // VueFlow background pattern
+  --vf-background-color: #ffffff;
+  --vf-background-pattern-color: #e0e0e0;
+
+  // MindScribble custom theme variables
+  --ms-bg-primary: #ffffff;
+  --ms-bg-secondary: #f5f5f5;
+  --ms-text-primary: #1d1d1d;
+  --ms-text-secondary: #666666;
+  --ms-border-color: rgba(0, 0, 0, 0.12);
+  --ms-hover-bg: rgba(0, 0, 0, 0.05);
+
+  // Parent dockview and drawer theme (light mode)
+  --ms-drawer-bg: #1976d2; // Primary color for mini-drawer
+  --ms-drawer-expanded-bg: #f5f5f5; // Light gray for expanded drawer
+  --ms-drawer-text: #ffffff; // White text on primary background
+  --ms-drawer-expanded-text: #1d1d1d; // Dark text on light background
+}
+
+// VueFlow theme customization - Dark mode
+.body--dark {
+  // VueFlow background and canvas colors for dark mode
+  --vf-node-bg: #2d3748;
+  --vf-node-text: #e2e8f0;
+  --vf-node-color: #4dabf7;
+  --vf-connection-path: #718096;
+  --vf-handle: #a0aec0;
+
+  // VueFlow background pattern - dark mode
+  --vf-background-color: #1a202c;
+  --vf-background-pattern-color: #2d3748;
+
+  // MindScribble custom theme variables - dark mode
+  --ms-bg-primary: #1d1d1d;
+  --ms-bg-secondary: #2d3748;
+  --ms-text-primary: #e2e8f0;
+  --ms-text-secondary: #a0aec0;
+  --ms-border-color: rgba(255, 255, 255, 0.12);
+  --ms-hover-bg: rgba(255, 255, 255, 0.05);
+
+  // Parent dockview and drawer theme (dark mode)
+  --ms-drawer-bg: #1976d2; // Keep primary color for mini-drawer (same in both modes)
+  --ms-drawer-expanded-bg: #1d1d1d; // Dark background for expanded drawer
+  --ms-drawer-text: #ffffff; // White text (same in both modes)
+  --ms-drawer-expanded-text: #e2e8f0; // Light text on dark background
+}
+
 // Prevent text selection in outline and writer views during canvas selection
 .canvas-selecting {
   // Disable text selection on the entire document during canvas selection

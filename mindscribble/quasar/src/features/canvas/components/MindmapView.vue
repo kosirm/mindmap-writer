@@ -1210,11 +1210,21 @@ watch(
   position: relative;
   display: flex;
   flex-direction: column;
+  background-color: var(--vf-background-color, #ffffff);
 }
 
 .mindmap-canvas :deep(.vue-flow) {
   flex: 1;
   min-height: 0;
+}
+
+/* VueFlow background pattern styling */
+.mindmap-canvas :deep(.vue-flow__background) {
+  background-color: var(--vf-background-color, #ffffff);
+}
+
+.mindmap-canvas :deep(.vue-flow__background svg) {
+  color: var(--vf-background-pattern-color, #e0e0e0);
 }
 
 .canvas-overlay {
@@ -1235,19 +1245,38 @@ watch(
   box-shadow: 0 2px 10px rgba(0,0,0,0.2);
   z-index: 1000;
   min-width: 150px;
+
+  .body--dark & {
+    background: #2d3748;
+    border-color: #4a5568;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  }
 }
 
 .context-menu-item {
   padding: 8px 16px;
   cursor: pointer;
+  color: #1d1d1d;
+
+  .body--dark & {
+    color: #e2e8f0;
+  }
 }
 
 .context-menu-item:hover {
   background: #f0f0f0;
+
+  .body--dark & {
+    background: #4a5568;
+  }
 }
 
 .context-menu-item-danger {
   color: #dc3545;
+
+  .body--dark & {
+    color: #fc8181;
+  }
 }
 
 .zoom-indicator {
@@ -1260,6 +1289,13 @@ watch(
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   font-size: 14px;
   z-index: 10;
+  color: #1d1d1d;
+
+  .body--dark & {
+    background: rgba(45, 55, 72, 0.9);
+    color: #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
 }
 
 /* Selected node styling - VueFlow adds .selected class to wrapper */
