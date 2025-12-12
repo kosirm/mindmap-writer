@@ -90,17 +90,19 @@
             round
             aria-label="User menu"
           >
-            <q-avatar size="28px">
-              <img v-if="authStore.user?.imageUrl" :src="authStore.user.imageUrl" />
-              <q-icon v-else name="account_circle" />
+            <q-avatar
+              size="28px"
+              :src="authStore.user?.imageUrl"
+              @img-error="onImageError"
+            >
+              <q-icon name="account_circle" />
             </q-avatar>
             <q-menu>
               <q-list style="min-width: 200px">
                 <q-item>
                   <q-item-section avatar>
-                    <q-avatar>
-                      <img v-if="authStore.user?.imageUrl" :src="authStore.user.imageUrl" />
-                      <q-icon v-else name="account_circle" size="40px" />
+                    <q-avatar size="40px" :src="authStore.user?.imageUrl">
+                      <q-icon name="account_circle" />
                     </q-avatar>
                   </q-item-section>
                   <q-item-section>
@@ -368,6 +370,12 @@ function handleSignOut() {
       timeout: 3000
     })
   }
+}
+
+// Handle profile image loading errors
+function onImageError() {
+  console.warn('Profile image failed to load, showing fallback icon')
+  // q-avatar will automatically show the slot content (account_circle icon)
 }
 
 // File operation handlers
