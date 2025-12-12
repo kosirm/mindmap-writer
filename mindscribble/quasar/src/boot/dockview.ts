@@ -8,6 +8,8 @@ import 'dockview-vue/dist/styles/dockview.css'
 import FilePanel from 'src/pages/components/FilePanel.vue'
 import FileControls from 'src/pages/components/FileControls.vue'
 import GroupControls from 'src/pages/components/GroupControls.vue'
+import ViewTab from 'src/pages/components/ViewTab.vue'
+import FileTab from 'src/pages/components/FileTab.vue'
 
 // Lazy load view components - they'll only be loaded when actually used
 const MindmapPanel = defineAsyncComponent(() =>
@@ -39,6 +41,10 @@ export default boot(({ app }) => {
   // Register control components
   app.component('group-controls', GroupControls)
   app.component('file-controls', FileControls)
+
+  // Register custom tab components
+  app.component('view-tab', ViewTab)
+  app.component('file-tab', FileTab)
 
   console.log('Dockview components registered with lazy loading')
 })

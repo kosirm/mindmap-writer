@@ -18,6 +18,7 @@ import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
 import { useAppStore } from 'src/core/stores/appStore'
+import { getViewTitle } from 'src/shared/utils/viewIcons'
 
 defineOptions({
   name: 'FilePanelComponent'
@@ -136,6 +137,9 @@ function onChildReady(event: { api: DockviewApi }) {
   if (!layoutLoaded) {
     console.log('📂 No saved layout found, creating default layout')
     createDefaultChildLayout()
+  } else {
+    // Update panel titles to include icons (for layouts saved before icons were added)
+    updatePanelTitlesWithIcons()
   }
 
   // Shield overlay: Show during panel drag to prevent interference from child components
@@ -205,7 +209,7 @@ function setupDocumentWatchers() {
     return docInstance?.document.metadata.name
   }, (newName) => {
     if (newName && props.params?.api) {
-      props.params.api.setTitle(`📄 ${newName}`)
+      props.params.api.setTitle(newName)
     }
   })
 
@@ -222,6 +226,30 @@ function setupDocumentWatchers() {
 
 
 
+/**
+ * Update all panels to use custom tab component with icons
+ * This is called after loading a layout to ensure all panels have icons
+ */
+function updatePanelTitlesWithIcons() {
+  if (!childDockviewApi.value) return
+
+  childDockviewApi.value.panels.forEach(panel => {
+    const componentName = panel.api.component
+    if (componentName) {
+      // Set title
+      const title = getViewTitle(componentName)
+      panel.api.setTitle(title)
+
+      // Update to use custom tab component
+      panel.api.updateParameters({
+        tabComponent: 'view-tab'
+      })
+    }
+  })
+
+  console.log('✅ Updated all panel tabs to use custom tab component')
+}
+
 function createDefaultChildLayout() {
   if (!childDockviewApi.value) return
 
@@ -231,21 +259,24 @@ function createDefaultChildLayout() {
   const outlinePanel = childDockviewApi.value.addPanel({
     id: `outline-${Date.now()}`,
     component: 'outline-panel',
-    title: 'Outline'
+    title: getViewTitle('outline-panel'),
+    tabComponent: 'view-tab'
   })
 
   const mindmapPanel = childDockviewApi.value.addPanel({
     id: `mindmap-${Date.now()}`,
     component: 'mindmap-panel',
-    title: 'Mind Map',
-    position: { referencePanel: outlinePanel, direction: 'right' }
+    title: getViewTitle('mindmap-panel'),
+    position: { referencePanel: outlinePanel, direction: 'right' },
+    tabComponent: 'view-tab'
   })
 
   childDockviewApi.value.addPanel({
     id: `writer-${Date.now()}`,
     component: 'writer-panel',
-    title: 'Writer',
-    position: { referencePanel: mindmapPanel, direction: 'right' }
+    title: getViewTitle('writer-panel'),
+    position: { referencePanel: mindmapPanel, direction: 'right' },
+    tabComponent: 'view-tab'
   })
 
   console.log('✅ Default child layout created')
@@ -258,19 +289,14 @@ function addChildPanel(type: string) {
   childPanelCounter++
   const panelId = `${type}-${Date.now()}-${childPanelCounter}`
 
-  const titleMap: Record<string, string> = {
-    'mindmap-panel': 'Mind Map',
-    'writer-panel': 'Writer',
-    'outline-panel': 'Outline',
-    'concept-map-panel': 'Concept Map'
-  }
-
-  const title = titleMap[type] || type
+  // Get title from viewIcons utility
+  const title = getViewTitle(type)
 
   childDockviewApi.value.addPanel({
     id: panelId,
     component: type,
-    title: title
+    title: title,
+    tabComponent: 'view-tab'
   })
 }
 
