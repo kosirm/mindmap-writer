@@ -16,7 +16,7 @@ export const fileCommands: Command[] = [
     icon: 'note_add',
     category: 'file',
     group: 'file',
-    keybinding: 'Ctrl+N',
+    keybinding: 'Alt+N',
     description: 'Create a new blank file',
     keywords: ['new', 'create', 'blank', 'mindmap'],
     order: 1,
