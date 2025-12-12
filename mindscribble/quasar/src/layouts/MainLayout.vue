@@ -2,7 +2,9 @@
   <q-layout view="hHh lpR fFf">
 
     <!-- Mini Mode Sidebar - Always visible, not overlayed -->
-    <div class="mini-sidebar">
+    <div class="mini-sidebar"
+         @mouseenter="handleMiniSidebarMouseEnter"
+         @mouseleave="mouseOverMiniDrawer = false">
       <div class="mini-sidebar-main">
         <q-btn
           flat
@@ -262,6 +264,8 @@ const drawerExpanded = ref(false)
 const drawerPinned = ref(false)
 const isDev = import.meta.env.DEV
 const isMobile = Platform.is.mobile
+const mouseOverMiniDrawer = ref(false)
+let closeDrawerTimeout: ReturnType<typeof setTimeout> | null = null
 
 // File operations modal state
 const showFileModal = ref(false)
@@ -277,6 +281,7 @@ const dockviewLayoutRef = ref<{
 function handleMiniHover(tab: string) {
   if (!drawerPinned.value) {
     leftDrawerTab.value = tab
+    // Always set to true to keep drawer open when hovering between buttons
     drawerExpanded.value = true
   }
 }
@@ -295,10 +300,25 @@ function handleMiniClick(tab: string) {
   }
 }
 
-// Handle drawer mouse leave - collapse if not pinned
+// Handle mini sidebar mouse enter - cancel drawer close timeout
+function handleMiniSidebarMouseEnter() {
+  mouseOverMiniDrawer.value = true
+  // Cancel any pending drawer close timeout
+  if (closeDrawerTimeout) {
+    clearTimeout(closeDrawerTimeout)
+    closeDrawerTimeout = null
+  }
+}
+
+// Handle drawer mouse leave - collapse if not pinned (with delay)
 function handleDrawerMouseLeave() {
   if (!drawerPinned.value) {
-    drawerExpanded.value = false
+    // Set a timeout to close the drawer after a brief delay
+    closeDrawerTimeout = setTimeout(() => {
+      if (!mouseOverMiniDrawer.value) {
+        drawerExpanded.value = false
+      }
+    }, 100)
   }
 }
 
