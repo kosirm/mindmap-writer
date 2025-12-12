@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, provide, watch } from 'vue'
 import { DockviewVue } from 'dockview-vue'
 import { type IDockviewPanelProps, type DockviewApi } from 'dockview-core'
 import { useDocumentStore } from 'src/core/stores/documentStore'
@@ -99,8 +99,23 @@ function onChildReady(event: { api: DockviewApi }) {
 
   // CRITICAL: Set theme immediately on initialization
   const initialThemeClass = appStore.getDockviewThemeClass()
+  console.log('🎨 [FilePanel] Setting initial nested dockview theme to:', initialThemeClass)
+
+  // Try multiple approaches to ensure theme is set
+  // 1. Set immediately
   childDockviewApi.value.updateOptions({ className: initialThemeClass })
-  console.log('🎨 [FilePanel] Set initial nested dockview theme to:', initialThemeClass)
+
+  // 2. Set in nextTick to ensure DOM is ready
+  void nextTick(() => {
+    childDockviewApi.value?.updateOptions({ className: initialThemeClass })
+    console.log('🎨 [FilePanel] Theme set in nextTick')
+  })
+
+  // 3. Set with a small delay as fallback
+  setTimeout(() => {
+    childDockviewApi.value?.updateOptions({ className: initialThemeClass })
+    console.log('🎨 [FilePanel] Theme set in setTimeout')
+  }, 0)
 
   // Get the file panel ID from the parent panel's ID
   filePanelId.value = props.params?.api?.id || 'unknown'
