@@ -16,7 +16,7 @@ defineOptions({
   name: 'WriterPanelComponent'
 })
 
-console.log('🔍🔍🔍 WriterPanel.vue script setup running')
+// console.log('🔍🔍🔍 WriterPanel.vue script setup running')
 
 const documentStore = useDocumentStore()
 
@@ -24,7 +24,7 @@ const documentStore = useDocumentStore()
 const isDraggingPanel = inject<Ref<boolean>>('isDraggingPanel')
 
 onMounted(() => {
-  console.log('🔍🔍🔍 WriterPanel.vue mounted!')
+  // console.log('🔍🔍🔍 WriterPanel.vue mounted!')
   // Ensure the document store is set to writer view when this panel is active
   if (documentStore.activeView !== 'writer') {
     documentStore.switchView('writer', 'writer')

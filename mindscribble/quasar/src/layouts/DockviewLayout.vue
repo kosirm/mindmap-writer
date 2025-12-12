@@ -211,9 +211,18 @@ function updateFilePanelTabs() {
 
   dockviewApi.value.panels.forEach(panel => {
     if (panel.id.startsWith('file-')) {
-      // Remove emoji from title if it exists
-      const currentTitle = panel.api.title || 'Untitled'
-      const cleanTitle = currentTitle.replace('📄 ', '')
+      // Get the document name from multiDocStore
+      const docInstance = multiDocStore.getDocument(panel.id)
+      let cleanTitle = 'Untitled'
+
+      if (docInstance) {
+        // Use document name from the document metadata
+        cleanTitle = docInstance.document.metadata.name || 'Untitled'
+      } else {
+        // Fallback: Remove emoji from current title if it exists
+        const currentTitle = panel.api.title || 'Untitled'
+        cleanTitle = currentTitle.replace('📄 ', '')
+      }
 
       panel.api.setTitle(cleanTitle)
       panel.api.updateParameters({

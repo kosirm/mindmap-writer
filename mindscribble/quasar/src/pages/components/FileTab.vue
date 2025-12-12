@@ -11,23 +11,47 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { onMounted, ref } from 'vue'
+
+interface DockviewPanelApi {
+  title?: string
+  getTitle?: () => string
+  _title?: string
+  onDidTitleChange?: (callback: () => void) => void
+  close: () => void
+}
 
 interface Props {
   params: {
-    api: {
-      title: string
-      close: () => void
-    }
+    api: DockviewPanelApi
   }
 }
 
 const props = defineProps<Props>()
+const title = ref('Untitled')
 
-const title = computed(() => {
-  // Remove the 📄 emoji if it exists in the title
-  return props.params.api.title?.replace('📄 ', '') || 'Untitled'
+onMounted(() => {
+  // Get initial title
+  updateTitle()
+
+  // Watch for title changes
+  if (props.params.api.onDidTitleChange) {
+    props.params.api.onDidTitleChange(() => {
+      updateTitle()
+    })
+  }
 })
+
+function updateTitle() {
+  // Try different ways to get the title from dockview API
+  const apiTitle = props.params.api.title ||
+                   props.params.api.getTitle?.() ||
+                   props.params.api._title ||
+                   'Untitled'
+
+  // Remove the 📄 emoji if it exists
+  title.value = apiTitle.replace('📄 ', '')
+}
 
 function handleClose(event: MouseEvent) {
   event.stopPropagation()
