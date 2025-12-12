@@ -131,6 +131,8 @@ function isViewTypeOpen(type: string): boolean {
   padding: 0 4px;
 }
 
+// Dark mode styles (default)
+.dockview-theme-dark .file-control-btn,
 .file-control-btn {
   color: white !important;
   opacity: 0.7;
@@ -143,6 +145,22 @@ function isViewTypeOpen(type: string): boolean {
 
   :deep(.q-icon) {
     color: white;
+  }
+}
+
+// Light mode styles
+.dockview-theme-light .file-control-btn {
+  color: rgba(0, 0, 0, 0.87) !important;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+
+  :deep(.q-icon) {
+    color: rgba(0, 0, 0, 0.87);
   }
 }
 </style>
