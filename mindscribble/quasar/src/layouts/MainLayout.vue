@@ -95,55 +95,128 @@
 
     <!-- Mini Mode Sidebar - Always visible, not overlayed -->
     <div class="mini-sidebar">
-      <q-btn
-        flat
-        dense
-        round
-        icon="folder"
-        class="mini-btn"
-        :class="{ active: leftDrawerTab === 'files', pinned: drawerPinned && leftDrawerTab === 'files' }"
-        @mouseenter="handleMiniHover('files')"
-        @click="handleMiniClick('files')"
-      >
-        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Files</q-tooltip>
-      </q-btn>
-      <q-btn
-        flat
-        dense
-        round
-        icon="build"
-        class="mini-btn"
-        :class="{ active: leftDrawerTab === 'tools', pinned: drawerPinned && leftDrawerTab === 'tools' }"
-        @mouseenter="handleMiniHover('tools')"
-        @click="handleMiniClick('tools')"
-      >
-        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Tools</q-tooltip>
-      </q-btn>
-      <q-btn
-        v-if="isDev"
-        flat
-        dense
-        round
-        icon="code"
-        class="mini-btn"
-        :class="{ active: leftDrawerTab === 'dev', pinned: drawerPinned && leftDrawerTab === 'dev' }"
-        @mouseenter="handleMiniHover('dev')"
-        @click="handleMiniClick('dev')"
-      >
-        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Dev</q-tooltip>
-      </q-btn>
-      <q-btn
-        flat
-        dense
-        round
-        icon="smart_toy"
-        class="mini-btn"
-        :class="{ active: leftDrawerTab === 'ai', pinned: drawerPinned && leftDrawerTab === 'ai' }"
-        @mouseenter="handleMiniHover('ai')"
-        @click="handleMiniClick('ai')"
-      >
-        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">AI</q-tooltip>
-      </q-btn>
+      <div class="mini-sidebar-main">
+        <q-btn
+          flat
+          dense
+          round
+          icon="folder"
+          class="mini-btn"
+          :class="{ active: leftDrawerTab === 'files', pinned: drawerPinned && leftDrawerTab === 'files' }"
+          @mouseenter="handleMiniHover('files')"
+          @click="handleMiniClick('files')"
+        >
+          <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Files</q-tooltip>
+        </q-btn>
+        <q-btn
+          flat
+          dense
+          round
+          icon="build"
+          class="mini-btn"
+          :class="{ active: leftDrawerTab === 'tools', pinned: drawerPinned && leftDrawerTab === 'tools' }"
+          @mouseenter="handleMiniHover('tools')"
+          @click="handleMiniClick('tools')"
+        >
+          <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Tools</q-tooltip>
+        </q-btn>
+        <q-btn
+          v-if="isDev"
+          flat
+          dense
+          round
+          icon="code"
+          class="mini-btn"
+          :class="{ active: leftDrawerTab === 'dev', pinned: drawerPinned && leftDrawerTab === 'dev' }"
+          @mouseenter="handleMiniHover('dev')"
+          @click="handleMiniClick('dev')"
+        >
+          <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Dev</q-tooltip>
+        </q-btn>
+        <q-btn
+          flat
+          dense
+          round
+          icon="smart_toy"
+          class="mini-btn"
+          :class="{ active: leftDrawerTab === 'ai', pinned: drawerPinned && leftDrawerTab === 'ai' }"
+          @mouseenter="handleMiniHover('ai')"
+          @click="handleMiniClick('ai')"
+        >
+          <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">AI</q-tooltip>
+        </q-btn>
+      </div>
+
+      <!-- Bottom section with theme and auth buttons -->
+      <div class="mini-sidebar-bottom">
+        <!-- Dark mode toggle -->
+        <q-btn
+          flat
+          dense
+          round
+          :icon="appStore.isDarkMode ? 'light_mode' : 'dark_mode'"
+          class="mini-btn"
+          :aria-label="appStore.isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+          @click="appStore.toggleDarkMode"
+        >
+          <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">{{ appStore.isDarkMode ? 'Light mode' : 'Dark mode' }}</q-tooltip>
+        </q-btn>
+
+        <!-- User authentication -->
+        <q-btn
+          v-if="!authStore.isSignedIn"
+          flat
+          dense
+          round
+          icon="login"
+          class="mini-btn"
+          aria-label="Sign in with Google"
+          :loading="authStore.isLoading"
+          @click="handleSignIn"
+        >
+          <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">Sign in with Google</q-tooltip>
+        </q-btn>
+
+        <q-btn
+          v-else
+          flat
+          dense
+          round
+          class="mini-btn"
+          aria-label="User menu"
+        >
+          <q-avatar
+            size="28px"
+            :src="authStore.user?.imageUrl"
+            @img-error="onImageError"
+          >
+            <q-icon name="account_circle" />
+          </q-avatar>
+          <q-tooltip anchor="center right" self="center left" :offset="[10, 0]">User menu</q-tooltip>
+          <q-menu>
+            <q-list style="min-width: 200px">
+              <q-item>
+                <q-item-section avatar>
+                  <q-avatar size="40px" :src="authStore.user?.imageUrl">
+                    <q-icon name="account_circle" />
+                  </q-avatar>
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ authStore.user?.name }}</q-item-label>
+                  <q-item-label caption>{{ authStore.user?.email }}</q-item-label>
+                </q-item-section>
+              </q-item>
+              <q-separator />
+              <q-item clickable v-close-popup @click="handleSignOut">
+                <q-item-section avatar>
+                  <q-icon name="logout" />
+                </q-item-section>
+                <q-item-section>Sign out</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
+        </q-btn>
+      </div>
     </div>
 
     <!-- Expanded Drawer Content - Positioned to the right of mini sidebar -->
@@ -640,10 +713,30 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 48px 0 12px 0; // More padding at top
+  padding: 48px 0 0 0; // Padding only at top, bottom handled by flex layout
   gap: 8px;
   z-index: 3000; // Above everything to stay visible
   border-right: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.mini-sidebar-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding-bottom: 12px;
+}
+
+.mini-sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
 }
 
 .mini-btn {
