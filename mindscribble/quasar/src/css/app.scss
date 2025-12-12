@@ -35,7 +35,7 @@
   --ms-hover-bg: rgba(0, 0, 0, 0.05);
 
   // Parent dockview and drawer theme (light mode)
-  --ms-drawer-bg: #1976d2; // Primary color for mini-drawer
+  --ms-drawer-bg: #084077; // Brand color for mini-drawer AND dockview topbar
   --ms-drawer-expanded-bg: #f5f5f5; // Light gray for expanded drawer
   --ms-drawer-text: #ffffff; // White text on primary background
   --ms-drawer-expanded-text: #1d1d1d; // Dark text on light background
@@ -63,7 +63,7 @@
   --ms-hover-bg: rgba(255, 255, 255, 0.05);
 
   // Parent dockview and drawer theme (dark mode)
-  --ms-drawer-bg: #1976d2; // Keep primary color for mini-drawer (same in both modes)
+  --ms-drawer-bg: #084077; // Brand color for mini-drawer AND dockview topbar (same in both modes)
   --ms-drawer-expanded-bg: #1d1d1d; // Dark background for expanded drawer
   --ms-drawer-text: #ffffff; // White text (same in both modes)
   --ms-drawer-expanded-text: #e2e8f0; // Light text on dark background
