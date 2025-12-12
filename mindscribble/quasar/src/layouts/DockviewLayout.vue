@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 // import { useQuasar } from 'quasar' // Commented out - unused after removing toast notifications
 import { DockviewVue } from 'dockview-vue'
 import { type DockviewApi } from 'dockview-core'
@@ -113,7 +113,8 @@ function addFile() {
   dockviewApi.value.addPanel({
     id: fileId,
     component: 'file-panel',
-    title: `📄 ${fileName}`
+    title: fileName,
+    tabComponent: 'file-tab'
   })
 
 // Toast message commented out - can be re-enabled in settings later
@@ -151,7 +152,8 @@ function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileM
   dockviewApi.value.addPanel({
     id: fileId,
     component: 'file-panel',
-    title: `📄 ${fileName}`
+    title: fileName,
+    tabComponent: 'file-tab'
   })
 
   console.log(`✅ Opened file "${fileName}" in new panel ${fileId}`, document.dockviewLayout ? 'with saved layout' : 'without layout')
@@ -189,11 +191,38 @@ function loadParentLayoutFromStorage(): boolean {
     })
     fileCounter = maxFileNum
 
+    // Update all file panel tabs to use custom tab component
+    void nextTick(() => {
+      updateFilePanelTabs()
+    })
+
     return true
   } catch (error) {
     console.error('Failed to load parent layout:', error)
     return false
   }
+}
+
+/**
+ * Update all file panel tabs to use custom tab component
+ */
+function updateFilePanelTabs() {
+  if (!dockviewApi.value) return
+
+  dockviewApi.value.panels.forEach(panel => {
+    if (panel.id.startsWith('file-')) {
+      // Remove emoji from title if it exists
+      const currentTitle = panel.api.title || 'Untitled'
+      const cleanTitle = currentTitle.replace('📄 ', '')
+
+      panel.api.setTitle(cleanTitle)
+      panel.api.updateParameters({
+        tabComponent: 'file-tab'
+      })
+    }
+  })
+
+  console.log('✅ Updated all file panel tabs to use custom tab component')
 }
 
 // Expose functions to parent component (MainLayout)
@@ -297,7 +326,7 @@ function handleDocumentLoaded() {
     // Update panel titles to reflect the loaded document
     dockviewApi.value.panels.forEach(panel => {
       if (panel.id.startsWith('file-')) {
-        panel.api.setTitle(`📄 ${documentStore.documentName}`)
+        panel.api.setTitle(documentStore.documentName)
       }
     })
   }
