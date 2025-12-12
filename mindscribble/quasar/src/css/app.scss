@@ -177,3 +177,42 @@ html, body, #q-app {
     z-index: 1;
   }
 }
+
+// Nested dockview theme overrides for light mode
+// We need to ensure light theme CSS variables are applied correctly
+:global(.dockview-theme-light) {
+  // Background colors
+  --dv-group-view-background-color: #ffffff;
+  --dv-tabs-and-actions-container-background-color: #f3f3f3;
+  --dv-background-color: #ffffff;
+
+  // Tab colors - active group, visible panel
+  --dv-activegroup-visiblepanel-tab-background-color: #ffffff;
+  --dv-activegroup-visiblepanel-tab-color: #1d1d1d;
+
+  // Tab colors - active group, hidden panel
+  --dv-activegroup-hiddenpanel-tab-background-color: #ececec;
+  --dv-activegroup-hiddenpanel-tab-color: #1d1d1d;
+
+  // Tab colors - inactive group, visible panel
+  --dv-inactivegroup-visiblepanel-tab-background-color: #ececec;
+  --dv-inactivegroup-visiblepanel-tab-color: #1d1d1d;
+
+  // Tab colors - inactive group, hidden panel
+  --dv-inactivegroup-hiddenpanel-tab-background-color: #e0e0e0;
+  --dv-inactivegroup-hiddenpanel-tab-color: #1d1d1d;
+
+  // Borders and separators
+  --dv-separator-border: 1px solid #e0e0e0;
+  --dv-tab-divider-color: #e0e0e0;
+  --dv-paneview-header-border-color: #e0e0e0;
+
+  // Drag and drop
+  --dv-drag-over-background-color: rgba(0, 122, 204, 0.1);
+  --dv-drag-over-border-color: #007acc;
+
+  // Other UI elements
+  --dv-icon-hover-background-color: rgba(0, 0, 0, 0.1);
+  --dv-paneview-active-outline-color: #007acc;
+  --dv-active-sash-color: #007acc;
+}

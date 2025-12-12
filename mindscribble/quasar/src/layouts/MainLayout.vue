@@ -611,7 +611,7 @@ onUnmounted(() => {
   padding: 90px 0 0 0; // Reduced padding since no header
   gap: 8px;
   z-index: 3000; // Above everything to stay visible
-  border-right: 1px solid rgba(0, 0, 0, 0.12);
+  // border-right: 1px solid rgba(0, 0, 0, 0.12);
 }
 
 .mini-sidebar-main {

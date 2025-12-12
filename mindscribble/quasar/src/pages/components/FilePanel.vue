@@ -1,7 +1,7 @@
 <template>
   <div class="file-panel">
     <DockviewVue
-      :class="nestedDockviewThemeClass"
+      class="nested-dockview"
       data-dockview-level="nested"
       :right-header-actions-component="'group-controls'"
       :left-header-actions-component="'file-controls'"
@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, provide, watch } from 'vue'
+import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
 import { DockviewVue } from 'dockview-vue'
 import { type IDockviewPanelProps, type DockviewApi } from 'dockview-core'
 import { useDocumentStore } from 'src/core/stores/documentStore'
@@ -36,11 +36,18 @@ const driveStore = useGoogleDriveStore()
 const multiDocStore = useMultiDocumentStore()
 const appStore = useAppStore()
 
-// Computed property for nested dockview theme class - ensures reactivity
-const nestedDockviewThemeClass = computed(() => {
-  const themeClass = appStore.isDarkMode ? 'dockview-theme-abyss' : 'dockview-theme-light'
-  console.log('🎨 Nested dockview theme class:', themeClass, 'isDarkMode:', appStore.isDarkMode)
-  return [themeClass, 'nested-dockview']
+// Watch for dark mode changes and update dockview theme using updateOptions API
+watch(() => appStore.isDarkMode, (isDark) => {
+  console.log('🎨 [FilePanel] Dark mode changed to:', isDark)
+
+  // Use dockview API to update theme
+  if (childDockviewApi.value) {
+    const themeClass = isDark ? 'dockview-theme-abyss' : 'dockview-theme-light'
+    childDockviewApi.value.updateOptions({ className: themeClass })
+    console.log('🎨 [FilePanel] Updated nested dockview theme to:', themeClass)
+  } else {
+    console.error('🎨 [FilePanel] childDockviewApi.value is null')
+  }
 })
 
 // Get file panel ID
@@ -89,6 +96,11 @@ onUnmounted(() => {
 
 function onChildReady(event: { api: DockviewApi }) {
   childDockviewApi.value = event.api
+
+  // CRITICAL: Set theme immediately on initialization
+  const initialThemeClass = appStore.getDockviewThemeClass()
+  childDockviewApi.value.updateOptions({ className: initialThemeClass })
+  console.log('🎨 [FilePanel] Set initial nested dockview theme to:', initialThemeClass)
 
   // Get the file panel ID from the parent panel's ID
   filePanelId.value = props.params?.api?.id || 'unknown'
