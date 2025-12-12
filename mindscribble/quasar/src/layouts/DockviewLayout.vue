@@ -2,7 +2,7 @@
   <div class="dockview-page">
     <div class="dockview-container">
       <DockviewVue
-        :class="dockviewThemeClass"
+        class="parent-dockview"
         data-dockview-level="parent"
         @ready="onReady"
       />
@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 // import { useQuasar } from 'quasar' // Commented out - unused after removing toast notifications
 import { DockviewVue } from 'dockview-vue'
 import { type DockviewApi } from 'dockview-core'
@@ -30,15 +30,27 @@ const multiDocStore = useMultiDocumentStore()
 const appStore = useAppStore()
 let fileCounter = 0
 
-// Computed property for dockview theme class - ensures reactivity
-const dockviewThemeClass = computed(() => {
-  const themeClass = appStore.isDarkMode ? 'dockview-theme-abyss' : 'dockview-theme-light'
-  console.log('🎨 Dockview theme class:', themeClass, 'isDarkMode:', appStore.isDarkMode)
-  return [themeClass, 'parent-dockview']
+// Watch for dark mode changes and update dockview theme using updateOptions API
+watch(() => appStore.isDarkMode, (isDark) => {
+  console.log('🎨 [DockviewLayout] Dark mode changed to:', isDark)
+
+  // Use dockview API to update theme
+  if (dockviewApi.value) {
+    const themeClass = isDark ? 'dockview-theme-abyss' : 'dockview-theme-light'
+    dockviewApi.value.updateOptions({ className: themeClass })
+    console.log('🎨 [DockviewLayout] Updated parent dockview theme to:', themeClass)
+  } else {
+    console.error('🎨 [DockviewLayout] dockviewApi.value is null')
+  }
 })
 
 function onReady(event: { api: DockviewApi }) {
   dockviewApi.value = event.api
+
+  // CRITICAL: Set theme immediately on initialization
+  const initialThemeClass = appStore.getDockviewThemeClass()
+  dockviewApi.value.updateOptions({ className: initialThemeClass })
+  console.log('🎨 [DockviewLayout] Set initial parent dockview theme to:', initialThemeClass)
 
   // Set up auto-save on parent layout changes
   dockviewApi.value.onDidLayoutChange(() => {
@@ -411,30 +423,68 @@ function handleDocumentLoaded() {
   }
 }
 
-// Ensure nested dockview tabs are NOT styled
+// Ensure nested dockview tabs use theme colors, NOT parent styles
 :deep([data-dockview-level="nested"]) {
   .dv-tabs-and-actions-container {
     background-color: var(--dv-tabs-and-actions-container-background-color) !important;
-    color: rgb(255, 255, 255,.7);
     height: auto !important;
     min-height: auto !important;
   }
 
   .dv-tab {
-    background-color: var(--dv-tabs-container-background-color) !important;
-    color: var(--dv-tabs-container-color) !important;
     border: var(--dv-separator-border) !important;
     height: auto !important;
     margin: 0 !important;
     border-radius: 0 !important;
   }
 
-  .dv-inactive-tab,
+  // Reset parent tab styles and use theme variables
+  .dv-inactive-tab {
+    background-color: var(--dv-inactivegroup-visiblepanel-tab-background-color) !important;
+    color: var(--dv-inactivegroup-visiblepanel-tab-color) !important;
+
+    &:hover {
+      background-color: var(--dv-icon-hover-background-color) !important;
+      color: var(--dv-inactivegroup-visiblepanel-tab-color) !important;
+    }
+  }
+
   .dv-active-tab {
-    // Let dockview theme handle these
-    background-color: var(--dv-tabs-container-background-color) !important;
-    color: unset !important;
-    color: rgb(255, 255, 255, 1) !important;
+    background-color: var(--dv-activegroup-visiblepanel-tab-background-color) !important;
+    color: var(--dv-activegroup-visiblepanel-tab-color) !important;
+
+    &:hover {
+      background-color: var(--dv-activegroup-visiblepanel-tab-background-color) !important;
+      color: var(--dv-activegroup-visiblepanel-tab-color) !important;
+    }
+  }
+
+  .dv-default-tab-content {
+    color: inherit !important;
+  }
+
+  .dv-default-tab-action {
+    color: inherit !important;
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  .dv-left-actions-container,
+  .dv-right-actions-container {
+    color: var(--dv-activegroup-visiblepanel-tab-color) !important;
+
+    button {
+      color: var(--dv-activegroup-visiblepanel-tab-color) !important;
+      opacity: 0.7;
+
+      &:hover {
+        opacity: 1;
+        background-color: var(--dv-icon-hover-background-color) !important;
+      }
+    }
   }
 }
 
