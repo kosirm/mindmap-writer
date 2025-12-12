@@ -72,11 +72,9 @@ defineEmits<{
 
 // Format keybinding for display
 function formatKeybinding(kb: string): string {
+  // Keep the keybinding as-is for better readability
+  // e.g., "Ctrl+Shift+S" instead of "⌃⇧S"
   return kb
-    .replace(/Ctrl/g, '⌃')
-    .replace(/Shift/g, '⇧')
-    .replace(/Alt/g, '⌥')
-    .replace(/\+/g, '')
 }
 
 // Highlight matching text

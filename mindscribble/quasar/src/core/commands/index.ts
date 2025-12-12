@@ -439,14 +439,19 @@ export function handleKeyboardEvent(event: KeyboardEvent): boolean {
 
   const command = findCommandByKeybinding(event)
   if (command) {
-    // Always prevent browser default for certain shortcuts (like Ctrl+S)
+    // Always prevent browser default for certain shortcuts (like Ctrl+S, Ctrl+N, Ctrl+O)
     if (ALWAYS_PREVENT_DEFAULT.includes(command.id)) {
       event.preventDefault()
     }
 
     if (isCommandAvailable(command.id)) {
+      // Prevent default again for available commands (redundant for ALWAYS_PREVENT_DEFAULT but safe)
       event.preventDefault()
       void executeCommand(command.id)
+      return true
+    } else if (ALWAYS_PREVENT_DEFAULT.includes(command.id)) {
+      // Even if command is not available, we already prevented default above
+      // This ensures browser shortcuts are blocked even when command can't execute
       return true
     }
   }
