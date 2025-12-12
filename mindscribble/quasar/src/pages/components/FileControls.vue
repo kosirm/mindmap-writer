@@ -12,51 +12,17 @@
       <q-menu>
         <q-list style="min-width: 150px">
           <q-item
+            v-for="viewType in availableViews"
+            :key="viewType"
             clickable
             v-close-popup
-            @click="handleAddView('mindmap-panel')"
-            :disable="isViewTypeOpen('mindmap-panel')"
+            @click="handleAddView(viewType)"
+            :disable="isViewTypeOpen(viewType)"
           >
             <q-item-section avatar>
-              <q-icon name="account_tree" />
+              <q-icon :name="getViewIcon(viewType)" />
             </q-item-section>
-            <q-item-section>Mind Map</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-close-popup
-            @click="handleAddView('writer-panel')"
-            :disable="isViewTypeOpen('writer-panel')"
-          >
-            <q-item-section avatar>
-              <q-icon name="edit" />
-            </q-item-section>
-            <q-item-section>Writer</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-close-popup
-            @click="handleAddView('outline-panel')"
-            :disable="isViewTypeOpen('outline-panel')"
-          >
-            <q-item-section avatar>
-              <q-icon name="list" />
-            </q-item-section>
-            <q-item-section>Outline</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-close-popup
-            @click="handleAddView('concept-map-panel')"
-            :disable="isViewTypeOpen('concept-map-panel')"
-          >
-            <q-item-section avatar>
-              <q-icon name="hub" />
-            </q-item-section>
-            <q-item-section>Concept Map</q-item-section>
+            <q-item-section>{{ getViewTitle(viewType) }}</q-item-section>
           </q-item>
         </q-list>
       </q-menu>
@@ -66,10 +32,19 @@
 
 <script setup lang="ts">
 import { inject } from 'vue'
+import { getViewIcon, getViewTitle } from 'src/shared/utils/viewIcons'
 
 defineOptions({
   name: 'FileControlsComponent'
 })
+
+// Define available view types in the order they should appear in the menu
+const availableViews = [
+  'mindmap-panel',
+  'writer-panel',
+  'outline-panel',
+  'concept-map-panel'
+]
 
 interface DockviewPanelApi {
   id: string

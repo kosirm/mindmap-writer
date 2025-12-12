@@ -5,10 +5,10 @@
 
 export function getViewIcon(viewType: string): string {
   const iconMap: Record<string, string> = {
-    'mindmap-panel': 'account_tree',    // Mind Map view (tree structure icon)
-    'outline-panel': 'list',            // Outline view (list icon)
-    'writer-panel': 'edit_note',        // Writer view (edit note icon)
-    'concept-map-panel': 'hub'          // Concept Map view (network/hub icon)
+    'mindmap-panel': 'sym_o_graph_1',    // Mind Map view (graph icon from Material Symbols)
+    'outline-panel': 'sym_o_account_tree',            // Outline view (list icon)
+    'writer-panel': 'sym_o_flowsheet',        // Writer view (edit note icon)
+    'concept-map-panel': 'sym_o_browse'          // Concept Map view (network/hub icon)
   }
 
   return iconMap[viewType] || 'help_outline' // Default icon if view type not found
