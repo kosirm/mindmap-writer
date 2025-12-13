@@ -131,7 +131,7 @@ function handleMaximize() {
 }
 
 .group-control-btn {
-  color: white !important;
+  color: var(--ms-text-primary) !important;
   opacity: 0.7;
   transition: opacity 0.2s;
 
@@ -141,7 +141,7 @@ function handleMaximize() {
   }
 
   :deep(.q-icon) {
-    color: white;
+    color: var(--ms-text-primary);
   }
 }
 </style>
