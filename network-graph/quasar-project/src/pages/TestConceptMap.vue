@@ -41,9 +41,13 @@
 
         <q-separator vertical />
 
+        <div class="text-caption">Box Padding: {{ boxPadding }}px</div>
+        <q-slider v-model="boxPadding" :min="0" :max="50" :step="5" dense style="width: 100px;" />
+
+        <q-separator vertical />
+
         <div class="text-caption">Selected: {{ selectedNodes.length }}</div>
         <q-btn size="xs" color="info" label="Log Hierarchy" @click="logHierarchy" dense flat />
-        <q-btn size="xs" color="warning" label="Test Boxes" @click="testNestedBoxes" dense flat />
       </div>
     </div>
 
@@ -238,6 +242,7 @@ const isCtrlShiftPressed = ref(false)
 const graphZoomLevel = ref(1) // For v-network-graph binding (0.1-2.0)
 const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
 const scalingObjects = ref(true) // Toggle for scaling objects with zoom (default: true for concept map)
+const boxPadding = ref(20) // Inter-box padding in pixels (0-50px)
 
 // Node counter
 let nodeCounter = 3
@@ -338,9 +343,8 @@ const eventHandlers: vNG.EventHandlers = {
       addNodeAtPosition(event)
     }
   },
-  'view:mode': (mode) => {
+  'view:mode': () => {
     // Observe mode change events - not needed anymore with Ctrl+Shift hold
-    console.log('view:mode', mode)
   },
   'node:click': ({ node, event }) => {
     // Alt+Click - Select node and all descendants
@@ -406,14 +410,8 @@ function getNodeStrokeWidth(nodeId: string): number {
 
 // Parent box calculation function - bottom-up approach
 function calculateParentBoxes() {
-  console.log('╔═══════════════════════════════════════════════════════════════════════════════')
-  console.log('║ CALCULATING PARENT BOXES - START')
-  console.log('╚═══════════════════════════════════════════════════════════════════════════════')
-
   const boxes: ParentBox[] = []
-  const padding = 20  // Same padding as node-to-box spacing
-
-  console.log(`📏 PADDING VALUE: ${padding}`)
+  const padding = boxPadding.value  // Inter-box padding (adjustable via slider)
 
   // Helper function to get the depth of a node
   function getNodeDepth(nodeId: string): number {
@@ -438,15 +436,8 @@ function calculateParentBoxes() {
     .map(([nodeId]) => nodeId)
     .sort((a, b) => getNodeDepth(b) - getNodeDepth(a)) // Deepest first
 
-  console.log(`\n🌳 NODES WITH CHILDREN (sorted deepest first):`, nodesWithChildren.map(id => `${nodes.value[id]?.name}(${id}, depth:${getNodeDepth(id)})`))
-
   // Process nodes from deepest to shallowest
-  nodesWithChildren.forEach((nodeId, index) => {
-    console.log(`\n${'═'.repeat(80)}`)
-    console.log(`🔷 PROCESSING NODE [${index + 1}/${nodesWithChildren.length}]: ${nodes.value[nodeId]?.name} (${nodeId})`)
-    console.log(`   Depth: ${getNodeDepth(nodeId)}`)
-    console.log(`${'═'.repeat(80)}`)
-
+  nodesWithChildren.forEach((nodeId) => {
     const node = nodes.value[nodeId]
     if (!node) return
 
@@ -455,15 +446,11 @@ function calculateParentBoxes() {
       .filter(([, childNode]) => childNode.parentId === nodeId)
       .map(([childId]) => childId)
 
-    console.log(`   👶 Direct children: ${children.map(id => `${nodes.value[id]?.name}(${id})`).join(', ')}`)
-
     if (children.length === 0) return
 
     // Get positions of parent and children
     const parentPos = layouts.value.nodes[nodeId]
     if (!parentPos) return
-
-    console.log(`   📍 Parent position: (${parentPos.x}, ${parentPos.y})`)
 
     const childPositions = children
       .map(childId => layouts.value.nodes[childId])
@@ -471,60 +458,34 @@ function calculateParentBoxes() {
 
     if (childPositions.length === 0) return
 
-    console.log(`   📍 Child positions:`)
-    children.forEach((childId) => {
-      const pos = layouts.value.nodes[childId]
-      console.log(`      - ${nodes.value[childId]?.name}: (${pos?.x}, ${pos?.y})`)
-    })
-
     // Calculate bounding box that contains parent and all children
     // Track node center positions separately from box edge positions
     const nodeCenterPositions = [parentPos, ...childPositions]
     const boxEdgePositions: { x: number, y: number }[] = []
 
-    console.log(`\n   📦 INITIAL NODE CENTER POSITIONS (parent + children):`)
-    console.log(`      Count: ${nodeCenterPositions.length}`)
-
-    // For nested boxes, include child box boundaries but adjust for existing padding
-    // This is the key to the bottom-up approach
+    // For nested boxes, include child box boundaries directly
+    // The child box already has its own padding, so we just use its outer edges
     children.forEach(childId => {
       const childBox = boxes.find(box => box.parentId === childId)
       if (childBox) {
-        console.log(`\n   🎁 FOUND NESTED BOX for child ${nodes.value[childId]?.name}:`)
-        console.log(`      Box: x=${childBox.x}, y=${childBox.y}, w=${childBox.width}, h=${childBox.height}`)
-
-        // Include the child box boundaries but reduce them by padding
-        // to prevent double-counting the padding in nested boxes
-        const adjustedCorners = [
-          { x: childBox.x + padding, y: childBox.y + padding },
-          { x: childBox.x + childBox.width - padding, y: childBox.y + padding },
-          { x: childBox.x + padding, y: childBox.y + childBox.height - padding },
-          { x: childBox.x + childBox.width - padding, y: childBox.y + childBox.height - padding }
+        // Use the child box outer edges directly (no adjustment needed)
+        // This preserves the inter-box spacing
+        const boxCorners = [
+          { x: childBox.x, y: childBox.y },
+          { x: childBox.x + childBox.width, y: childBox.y },
+          { x: childBox.x, y: childBox.y + childBox.height },
+          { x: childBox.x + childBox.width, y: childBox.y + childBox.height }
         ]
 
-        console.log(`      Adjusted corners (reduced by padding=${padding}):`)
-        console.log(`         Top-Left:     (${adjustedCorners[0]?.x}, ${adjustedCorners[0]?.y})`)
-        console.log(`         Top-Right:    (${adjustedCorners[1]?.x}, ${adjustedCorners[1]?.y})`)
-        console.log(`         Bottom-Left:  (${adjustedCorners[2]?.x}, ${adjustedCorners[2]?.y})`)
-        console.log(`         Bottom-Right: (${adjustedCorners[3]?.x}, ${adjustedCorners[3]?.y})`)
-
-        boxEdgePositions.push(...adjustedCorners)
+        boxEdgePositions.push(...boxCorners)
       }
     })
 
-    console.log(`\n   📦 BOX EDGE POSITIONS (from nested boxes):`)
-    console.log(`      Count: ${boxEdgePositions.length}`)
-    console.log(`      Positions:`, boxEdgePositions)
-
-    // Calculate node dimensions (accounting for scale)
+    // Calculate node dimensions
     const nodeWidth = 120  // Default node width from configs
     const nodeHeight = 40  // Default node height from configs
     const halfNodeWidth = nodeWidth / 2
     const halfNodeHeight = nodeHeight / 2
-
-    console.log(`\n   📏 NODE DIMENSIONS:`)
-    console.log(`      nodeWidth: ${nodeWidth}, halfNodeWidth: ${halfNodeWidth}`)
-    console.log(`      nodeHeight: ${nodeHeight}, halfNodeHeight: ${halfNodeHeight}`)
 
     // Convert node center positions to edge positions by adding node dimensions
     const nodeEdgePositions = nodeCenterPositions.flatMap(pos => [
@@ -534,23 +495,13 @@ function calculateParentBoxes() {
       { x: pos.x + halfNodeWidth, y: pos.y + halfNodeHeight }, // bottom-right
     ])
 
-    console.log(`\n   📦 NODE EDGE POSITIONS (converted from centers):`)
-    console.log(`      Count: ${nodeEdgePositions.length}`)
-
     // Combine all edge positions (both from nodes and nested boxes)
     const allEdgePositions = [...nodeEdgePositions, ...boxEdgePositions]
-
-    console.log(`\n   📦 ALL EDGE POSITIONS (nodes + nested boxes):`)
-    console.log(`      Count: ${allEdgePositions.length}`)
 
     const minX = Math.min(...allEdgePositions.map(p => p.x))
     const maxX = Math.max(...allEdgePositions.map(p => p.x))
     const minY = Math.min(...allEdgePositions.map(p => p.y))
     const maxY = Math.max(...allEdgePositions.map(p => p.y))
-
-    console.log(`\n   📐 BOUNDING BOX (from all edge positions):`)
-    console.log(`      minX: ${minX}, maxX: ${maxX} → width: ${maxX - minX}`)
-    console.log(`      minY: ${minY}, maxY: ${maxY} → height: ${maxY - minY}`)
 
     const box: ParentBox = {
       parentId: nodeId,
@@ -560,52 +511,23 @@ function calculateParentBoxes() {
       height: (maxY - minY) + padding * 2,
     }
 
-    console.log(`\n   📦 FINAL BOX (after adding padding):`)
-    console.log(`      x: ${box.x} (minX ${minX} - padding ${padding})`)
-    console.log(`      y: ${box.y} (minY ${minY} - padding ${padding})`)
-    console.log(`      width: ${box.width} (content width ${maxX - minX} + padding*2 ${padding * 2})`)
-    console.log(`      height: ${box.height} (content height ${maxY - minY} + padding*2 ${padding * 2})`)
-
     // Ensure minimum size (should be at least slightly larger than a single node)
     const minWidth = nodeWidth + padding * 2
     const minHeight = nodeHeight + padding * 2
 
-    console.log(`\n   ✅ MINIMUM SIZE CHECK:`)
-    console.log(`      minWidth: ${minWidth}, current: ${box.width}, needs adjustment: ${box.width < minWidth}`)
-    console.log(`      minHeight: ${minHeight}, current: ${box.height}, needs adjustment: ${box.height < minHeight}`)
-
     if (box.width < minWidth) {
       const centerX = box.x + box.width / 2
-      const oldX = box.x
-      const oldWidth = box.width
       box.x = centerX - minWidth / 2
       box.width = minWidth
-      console.log(`      ⚠️  WIDTH ADJUSTED: ${oldWidth} → ${box.width}, x: ${oldX} → ${box.x}`)
     }
 
     if (box.height < minHeight) {
       const centerY = box.y + box.height / 2
-      const oldY = box.y
-      const oldHeight = box.height
       box.y = centerY - minHeight / 2
       box.height = minHeight
-      console.log(`      ⚠️  HEIGHT ADJUSTED: ${oldHeight} → ${box.height}, y: ${oldY} → ${box.y}`)
     }
 
     boxes.push(box)
-    console.log(`\n   ✅ BOX ADDED TO COLLECTION (total boxes: ${boxes.length})`)
-  })
-
-  console.log(`\n╔═══════════════════════════════════════════════════════════════════════════════`)
-  console.log(`║ CALCULATING PARENT BOXES - COMPLETE`)
-  console.log(`║ Total boxes created: ${boxes.length}`)
-  console.log(`╚═══════════════════════════════════════════════════════════════════════════════`)
-
-  console.log(`\n📊 FINAL BOXES SUMMARY:`)
-  boxes.forEach((box, i) => {
-    console.log(`   [${i + 1}] ${nodes.value[box.parentId]?.name}:`)
-    console.log(`       Position: (${box.x}, ${box.y})`)
-    console.log(`       Size: ${box.width} × ${box.height}`)
   })
 
   parentBoxes.value = boxes
@@ -966,93 +888,6 @@ function getDescendants(nodeId: string): string[] {
   return descendants
 }
 
-// Test function to verify nested box calculations
-function testNestedBoxes() {
-  console.log('=== Testing Nested Box Calculations ===')
-
-  // Create a test scenario: Root -> A -> B -> C
-  // This should create nested boxes with consistent padding
-
-  // Clear existing nodes
-  nodes.value = {}
-  edges.value = {}
-  layouts.value = { nodes: {} }
-  parentBoxes.value = []
-  nodeCounter = 0
-
-  // Create root node
-  const rootId = `node-${++nodeCounter}`
-  nodes.value[rootId] = { name: 'Root', parentId: null, order: 0 }
-  layouts.value.nodes[rootId] = { x: 0, y: 0 }
-
-  // Create child A
-  const childAId = `node-${++nodeCounter}`
-  nodes.value[childAId] = { name: 'Child A', parentId: rootId, order: 0 }
-  layouts.value.nodes[childAId] = { x: 150, y: 100 }
-  edges.value[`edge-${rootId}-${childAId}`] = { source: rootId, target: childAId, type: 'hierarchy' }
-
-  // Create child B (child of A)
-  const childBId = `node-${++nodeCounter}`
-  nodes.value[childBId] = { name: 'Child B', parentId: childAId, order: 0 }
-  layouts.value.nodes[childBId] = { x: 300, y: 200 }
-  edges.value[`edge-${childAId}-${childBId}`] = { source: childAId, target: childBId, type: 'hierarchy' }
-
-  // Create child C (child of B)
-  const childCId = `node-${++nodeCounter}`
-  nodes.value[childCId] = { name: 'Child C', parentId: childBId, order: 0 }
-  layouts.value.nodes[childCId] = { x: 450, y: 300 }
-  edges.value[`edge-${childBId}-${childCId}`] = { source: childBId, target: childCId, type: 'hierarchy' }
-
-  // Calculate boxes
-  calculateParentBoxes()
-
-  console.log('Nodes:', nodes.value)
-  console.log('Edges:', edges.value)
-  console.log('Layouts:', layouts.value)
-  console.log('Parent Boxes:', parentBoxes.value)
-
-  // Verify padding consistency
-  const boxes = parentBoxes.value
-  if (boxes.length >= 3) {
-    const boxA = boxes.find(b => b.parentId === childAId)
-    const boxB = boxes.find(b => b.parentId === childBId)
-    const boxC = boxes.find(b => b.parentId === childCId)
-
-    console.log('Box A:', boxA)
-    console.log('Box B:', boxB)
-    console.log('Box C:', boxC)
-
-    // Check if padding is consistent
-    if (boxA && boxB && boxC) {
-      const paddingX = 20
-      const paddingY = 20
-
-      // Check horizontal padding consistency
-      const expectedWidth = 120 + paddingX * 2
-
-      console.log(`Expected width: ${expectedWidth}, Actual A: ${boxA.width}, B: ${boxB.width}, C: ${boxC.width}`)
-
-      // Check vertical padding consistency
-      const expectedHeight = 40 + paddingY * 2
-
-      console.log(`Expected height: ${expectedHeight}, Actual A: ${boxA.height}, B: ${boxB.height}, C: ${boxC.height}`)
-
-      // Check if boxes are properly nested
-      console.log('Box nesting check:')
-      console.log(`Box B should be inside Box A: ${boxB.x >= boxA.x && boxB.x + boxB.width <= boxA.x + boxA.width}`)
-      console.log(`Box C should be inside Box B: ${boxC.x >= boxB.x && boxC.x + boxC.width <= boxB.x + boxB.width}`)
-    }
-  }
-
-  console.log('=== Test Complete ===')
-
-  $q.notify({
-    type: 'info',
-    message: 'Nested box test completed. Check console for details.',
-    timeout: 2000,
-  })
-}
-
 function selectNodeWithDescendants(nodeId: string) {
   // Get all descendants
   const descendants = getDescendants(nodeId)
@@ -1063,10 +898,6 @@ function selectNodeWithDescendants(nodeId: string) {
   // Use setTimeout to ensure this happens after v-network-graph's default handler
   setTimeout(() => {
     selectedNodes.value = allNodes
-
-    // Debug: log what we're selecting
-    console.log('Selecting nodes:', allNodes)
-    console.log('selectedNodes.value after timeout:', selectedNodes.value)
 
     $q.notify({
       type: 'info',
@@ -1306,6 +1137,11 @@ watch(d3ForceEnabled, (enabled) => {
 watch([layouts, nodes], () => {
   calculateParentBoxes()
 }, { deep: true })
+
+// Watch for changes in box padding to update parent boxes
+watch(boxPadding, () => {
+  calculateParentBoxes()
+})
 
 // Keyboard shortcuts
 function handleKeyDown(event: KeyboardEvent) {
