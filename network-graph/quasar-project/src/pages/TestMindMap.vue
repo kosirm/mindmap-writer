@@ -57,6 +57,28 @@
         v-model:zoom-level="graphZoomLevel"
         :event-handlers="eventHandlers"
       >
+        <!-- Custom node rendering to ensure text is properly layered with node shapes -->
+        <template #override-node="{ nodeId, scale }">
+          <rect
+            :width="120 * scale"
+            :height="40 * scale"
+            :x="-60 * scale"
+            :y="-20 * scale"
+            :rx="8 * scale"
+            :fill="getNodeColor(nodeId)"
+            :stroke="getNodeStrokeColor(nodeId)"
+            :stroke-width="getNodeStrokeWidth(nodeId) * scale"
+          />
+          <text
+            text-anchor="middle"
+            dominant-baseline="central"
+            :font-size="14 * scale"
+            fill="#263238"
+            pointer-events="none"
+          >
+            {{ nodes[nodeId]?.name }}
+          </text>
+        </template>
       </v-network-graph>
     </div>
 
@@ -126,6 +148,7 @@ interface MindMapNode {
   name: string
   parentId: string | null  // null for root nodes
   order: number            // Sibling order (0, 1, 2, ...)
+  zIndex?: number          // For z-order management
 }
 
 // Edge interface with type tracking
@@ -197,35 +220,44 @@ const configs = reactive(
         width: 120,
         height: 40,
         borderRadius: 8,
-        color: '#ffffff',
+        color: '#ffffff', // Pure white background - completely opaque
         strokeWidth: 2,
         strokeColor: '#4dabf7',
+        strokeDasharray: '0', // Solid stroke
       },
       hover: {
         type: 'rect',
         width: 120,
         height: 40,
         borderRadius: 8,
-        color: '#e7f5ff',
+        color: '#e1f5fe', // Very light blue background - completely opaque
         strokeWidth: 2,
-        strokeColor: '#4dabf7',
+        strokeColor: '#2196f3',
+        strokeDasharray: '0', // Solid stroke
       },
       selected: {
         type: 'rect',
         width: 120,
         height: 40,
         borderRadius: 8,
-        color: '#d0ebff',
+        color: '#b3e5fc', // Light blue background - completely opaque
         strokeWidth: 3,
-        strokeColor: '#1971c2',
+        strokeColor: '#1976d2',
+        strokeDasharray: '0', // Solid stroke
       },
       label: {
-        visible: true,
-        fontSize: 14,
-        color: '#333',
-        direction: 'center',
+        visible: false, // We'll render labels in the custom template to ensure proper z-order
       },
       draggable: true,
+      zOrder: {
+        enabled: true,
+        zIndex: (node: vNG.Node) => {
+          const mindMapNode = node as unknown as MindMapNode;
+          return mindMapNode.zIndex || 0;
+        },
+        bringToFrontOnHover: true,
+        bringToFrontOnSelected: true,
+      },
     },
     edge: {
       normal: {
@@ -286,6 +318,48 @@ const eventHandlers: vNG.EventHandlers = {
   },
 }
 
+// Helper functions for custom node rendering
+function getNodeColor(nodeId: string): string {
+  const node = nodes.value[nodeId]
+  if (!node) return '#ffffff'
+
+  // Check if this node is selected
+  const isSelected = selectedNodes.value.includes(nodeId)
+  // Note: Hover state is handled by z-order, not by color change
+
+  if (isSelected) {
+    return '#b3e5fc' // Selected color
+  } else {
+    return '#ffffff' // Normal color
+  }
+}
+
+function getNodeStrokeColor(nodeId: string): string {
+  const node = nodes.value[nodeId]
+  if (!node) return '#4dabf7'
+
+  const isSelected = selectedNodes.value.includes(nodeId)
+
+  if (isSelected) {
+    return '#1976d2' // Selected stroke color
+  } else {
+    return '#4dabf7' // Normal stroke color
+  }
+}
+
+function getNodeStrokeWidth(nodeId: string): number {
+  const node = nodes.value[nodeId]
+  if (!node) return 2
+
+  const isSelected = selectedNodes.value.includes(nodeId)
+
+  if (isSelected) {
+    return 3 // Selected stroke width
+  } else {
+    return 2 // Normal stroke width
+  }
+}
+
 // Functions
 function updateZoomSensitivity(value: number) {
   if (svgPanZoomInstance) {
@@ -342,7 +416,8 @@ function addChildNode() {
   nodes.value[newId] = {
     name: `Node ${nodeCounter}`,
     parentId: parentId,
-    order: Object.values(nodes.value).filter(n => n.parentId === parentId).length
+    order: Object.values(nodes.value).filter(n => n.parentId === parentId).length,
+    zIndex: 1000 // Start with higher z-index for new nodes
   }
   layouts.value.nodes[newId] = newNodePosition
 
@@ -372,7 +447,8 @@ function addSiblingNode() {
   nodes.value[newId] = {
     name: `Node ${nodeCounter}`,
     parentId: sibling.parentId,
-    order: Object.values(nodes.value).filter(n => n.parentId === sibling.parentId).length
+    order: Object.values(nodes.value).filter(n => n.parentId === sibling.parentId).length,
+    zIndex: 1000 // Start with higher z-index for new nodes
   }
   layouts.value.nodes[newId] = { x: siblingPos.x + 150, y: siblingPos.y }
 
@@ -404,7 +480,8 @@ function addParentNode() {
   nodes.value[newId] = {
     name: `Node ${nodeCounter}`,
     parentId: child.parentId,  // New parent has same parent as child (becomes sibling)
-    order: Object.values(nodes.value).filter(n => n.parentId === child.parentId).length
+    order: Object.values(nodes.value).filter(n => n.parentId === child.parentId).length,
+    zIndex: 1000 // Start with higher z-index for new nodes
   }
   layouts.value.nodes[newId] = { x: childPos.x, y: childPos.y - 80 }
 
@@ -479,7 +556,8 @@ function addNodeAtPosition(event: MouseEvent) {
   nodes.value[newId] = {
     name: `Node ${nodeCounter}`,
     parentId: null,  // Root node
-    order: Object.values(nodes.value).filter(n => n.parentId === null).length  // Order among root siblings
+    order: Object.values(nodes.value).filter(n => n.parentId === null).length,  // Order among root siblings
+    zIndex: 1000 // Start with higher z-index for new nodes
   }
   layouts.value.nodes[newId] = { x: svgPoint.x, y: svgPoint.y }
 
