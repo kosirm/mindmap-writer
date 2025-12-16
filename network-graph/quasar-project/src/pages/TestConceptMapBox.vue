@@ -2,7 +2,7 @@
   <q-page class="column">
     <div class="q-pa-sm" style="background: #f5f5f5; border-bottom: 1px solid #ddd;">
       <div class="row items-center q-gutter-sm">
-        <div class="text-subtitle2 q-mr-sm">ConceptMap Test</div>
+        <div class="text-subtitle2 q-mr-sm">ConceptMap Box Test</div>
         <q-separator vertical />
 
         <!-- Connection Controls -->
@@ -310,14 +310,14 @@ const configs = reactive(
     },
     edge: {
       normal: {
-        // Style based on edge type
+        // Hide hierarchy edges, only show reference edges
         color: (edge) => {
           const e = edge as MindMapEdge
-          return e.type === 'hierarchy' ? '#4dabf7' : '#aaa'
+          return e.type === 'hierarchy' ? 'transparent' : '#aaa'
         },
         width: (edge) => {
           const e = edge as MindMapEdge
-          return e.type === 'hierarchy' ? 3 : 1
+          return e.type === 'hierarchy' ? 0 : 1
         },
         dasharray: (edge) => {
           const e = edge as MindMapEdge
@@ -367,18 +367,29 @@ const eventHandlers: vNG.EventHandlers = {
 }
 
 // Helper functions for custom node rendering
+function isParentNode(nodeId: string): boolean {
+  const node = nodes.value[nodeId]
+  if (!node) return false
+
+  // Check if this node has any children
+  return Object.values(nodes.value).some(childNode => childNode.parentId === nodeId)
+}
+
 function getNodeColor(nodeId: string): string {
   const node = nodes.value[nodeId]
   if (!node) return '#ffffff'
 
   // Check if this node is selected
   const isSelected = selectedNodes.value.includes(nodeId)
+  const isParent = isParentNode(nodeId)
   // Note: Hover state is handled by z-order, not by color change
 
   if (isSelected) {
     return '#b3e5fc' // Selected color
+  } else if (isParent) {
+    return '#e3f2fd' // Light blue for parent nodes
   } else {
-    return '#ffffff' // Normal color
+    return '#ffffff' // Normal color for child nodes
   }
 }
 

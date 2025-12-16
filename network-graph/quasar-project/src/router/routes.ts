@@ -17,6 +17,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'test9', component: () => import('pages/Test9Stress.vue') },
       { path: 'test-mindmap', component: () => import('pages/TestMindMap.vue') },
       { path: 'test-conceptmap', component: () => import('pages/TestConceptMap.vue') },
+      { path: 'test-conceptmap-box', component: () => import('pages/TestConceptMapBox.vue') },
     ],
   },
 
