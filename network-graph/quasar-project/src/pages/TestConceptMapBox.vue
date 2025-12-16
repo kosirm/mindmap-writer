@@ -324,6 +324,21 @@ const configs = reactive(
           return e.type === 'reference' ? '4' : '0'
         },
       },
+      hover: {
+        // Hide hierarchy edges on hover too
+        color: (edge) => {
+          const e = edge as MindMapEdge
+          return e.type === 'hierarchy' ? 'transparent' : '#666'
+        },
+        width: (edge) => {
+          const e = edge as MindMapEdge
+          return e.type === 'hierarchy' ? 0 : 2
+        },
+        dasharray: (edge) => {
+          const e = edge as MindMapEdge
+          return e.type === 'reference' ? '4' : '0'
+        },
+      },
       marker: {
         target: {
           type: 'arrow',
