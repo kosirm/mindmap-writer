@@ -243,6 +243,7 @@ const graphZoomLevel = ref(1) // For v-network-graph binding (0.1-2.0)
 const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
 const scalingObjects = ref(true) // Toggle for scaling objects with zoom (default: true for concept map)
 const boxPadding = ref(20) // Inter-box padding in pixels (0-50px)
+const isDragging = ref(false) // Track if a node is currently being dragged
 
 // Node counter
 let nodeCounter = 3
@@ -353,10 +354,20 @@ const configs = reactive(
 // Event handlers
 const eventHandlers: vNG.EventHandlers = {
   'view:click': ({ event }) => {
-    // Only add node if Ctrl key is pressed
+    // Only handle Ctrl+Click
     if (event.ctrlKey || event.metaKey) {
-      // Check if click is on a parent box first
-      const clickedBox = findClickedParentBox(event)
+      // Check if this click is inside any parent box
+      if (!graphRef.value) {
+        addNodeAtPosition(event)
+        return
+      }
+      
+      // Get canvas position from mouse event
+      const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
+      
+      // Check if click is within any parent box (from deepest to shallowest to handle nesting)
+      const clickedBox = findClickedParentBoxAtCoordinates(svgPoint)
+      
       if (clickedBox) {
         addNodeToParentBox(clickedBox.parentId, event)
       } else {
@@ -384,6 +395,15 @@ const eventHandlers: vNG.EventHandlers = {
     contextMenuX.value = event.clientX
     contextMenuY.value = event.clientY
     contextMenuVisible.value = true
+  },
+  'node:dragstart': () => {
+    // Set dragging flag to prevent parent box recalculation during drag
+    isDragging.value = true
+  },
+  'node:dragend': () => {
+    // Clear dragging flag and update parent boxes only after drag is complete
+    isDragging.value = false
+    calculateParentBoxes()
   },
 }
 
@@ -858,13 +878,8 @@ function deleteSelectedNodes() {
   })
 }
 
-// Helper: Find if a click event is on a parent box
-function findClickedParentBox(event: MouseEvent): ParentBox | null {
-  if (!graphRef.value) return null
-
-  // Get canvas position from mouse event
-  const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
-
+// Helper: Find if coordinates are inside any parent box
+function findClickedParentBoxAtCoordinates(point: { x: number, y: number }): ParentBox | null {
   // Check if click is within any parent box (from deepest to shallowest to handle nesting)
   const sortedBoxes = [...parentBoxes.value].sort((a, b) => {
     // Sort by box area (smaller boxes first) to handle nesting properly
@@ -875,8 +890,8 @@ function findClickedParentBox(event: MouseEvent): ParentBox | null {
 
   for (const box of sortedBoxes) {
     // Check if click is within this box
-    if (svgPoint.x >= box.x && svgPoint.x <= box.x + box.width &&
-        svgPoint.y >= box.y && svgPoint.y <= box.y + box.height) {
+    if (point.x >= box.x && point.x <= box.x + box.width &&
+        point.y >= box.y && point.y <= box.y + box.height) {
       return box
     }
   }
@@ -1206,9 +1221,11 @@ watch(d3ForceEnabled, (enabled) => {
   }
 })
 
-// Watch for changes in layouts and nodes to update parent boxes
+// Watch for changes in layouts and nodes to update parent boxes (but skip during drag for performance)
 watch([layouts, nodes], () => {
-  calculateParentBoxes()
+  if (!isDragging.value) {
+    calculateParentBoxes()
+  }
 }, { deep: true })
 
 // Watch for changes in box padding to update parent boxes
