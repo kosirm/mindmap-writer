@@ -406,8 +406,14 @@ function getNodeStrokeWidth(nodeId: string): number {
 
 // Parent box calculation function - bottom-up approach
 function calculateParentBoxes() {
+  console.log('╔═══════════════════════════════════════════════════════════════════════════════')
+  console.log('║ CALCULATING PARENT BOXES - START')
+  console.log('╚═══════════════════════════════════════════════════════════════════════════════')
+
   const boxes: ParentBox[] = []
   const padding = 20  // Same padding as node-to-box spacing
+
+  console.log(`📏 PADDING VALUE: ${padding}`)
 
   // Helper function to get the depth of a node
   function getNodeDepth(nodeId: string): number {
@@ -432,8 +438,15 @@ function calculateParentBoxes() {
     .map(([nodeId]) => nodeId)
     .sort((a, b) => getNodeDepth(b) - getNodeDepth(a)) // Deepest first
 
+  console.log(`\n🌳 NODES WITH CHILDREN (sorted deepest first):`, nodesWithChildren.map(id => `${nodes.value[id]?.name}(${id}, depth:${getNodeDepth(id)})`))
+
   // Process nodes from deepest to shallowest
-  nodesWithChildren.forEach((nodeId) => {
+  nodesWithChildren.forEach((nodeId, index) => {
+    console.log(`\n${'═'.repeat(80)}`)
+    console.log(`🔷 PROCESSING NODE [${index + 1}/${nodesWithChildren.length}]: ${nodes.value[nodeId]?.name} (${nodeId})`)
+    console.log(`   Depth: ${getNodeDepth(nodeId)}`)
+    console.log(`${'═'.repeat(80)}`)
+
     const node = nodes.value[nodeId]
     if (!node) return
 
@@ -442,11 +455,15 @@ function calculateParentBoxes() {
       .filter(([, childNode]) => childNode.parentId === nodeId)
       .map(([childId]) => childId)
 
+    console.log(`   👶 Direct children: ${children.map(id => `${nodes.value[id]?.name}(${id})`).join(', ')}`)
+
     if (children.length === 0) return
 
     // Get positions of parent and children
     const parentPos = layouts.value.nodes[nodeId]
     if (!parentPos) return
+
+    console.log(`   📍 Parent position: (${parentPos.x}, ${parentPos.y})`)
 
     const childPositions = children
       .map(childId => layouts.value.nodes[childId])
@@ -454,29 +471,50 @@ function calculateParentBoxes() {
 
     if (childPositions.length === 0) return
 
+    console.log(`   📍 Child positions:`)
+    children.forEach((childId) => {
+      const pos = layouts.value.nodes[childId]
+      console.log(`      - ${nodes.value[childId]?.name}: (${pos?.x}, ${pos?.y})`)
+    })
+
     // Calculate bounding box that contains parent and all children
-    const allPositions = [parentPos, ...childPositions]
+    // Track node center positions separately from box edge positions
+    const nodeCenterPositions = [parentPos, ...childPositions]
+    const boxEdgePositions: { x: number, y: number }[] = []
+
+    console.log(`\n   📦 INITIAL NODE CENTER POSITIONS (parent + children):`)
+    console.log(`      Count: ${nodeCenterPositions.length}`)
 
     // For nested boxes, include child box boundaries but adjust for existing padding
     // This is the key to the bottom-up approach
     children.forEach(childId => {
       const childBox = boxes.find(box => box.parentId === childId)
       if (childBox) {
+        console.log(`\n   🎁 FOUND NESTED BOX for child ${nodes.value[childId]?.name}:`)
+        console.log(`      Box: x=${childBox.x}, y=${childBox.y}, w=${childBox.width}, h=${childBox.height}`)
+
         // Include the child box boundaries but reduce them by padding
         // to prevent double-counting the padding in nested boxes
-        allPositions.push(
+        const adjustedCorners = [
           { x: childBox.x + padding, y: childBox.y + padding },
           { x: childBox.x + childBox.width - padding, y: childBox.y + padding },
           { x: childBox.x + padding, y: childBox.y + childBox.height - padding },
           { x: childBox.x + childBox.width - padding, y: childBox.y + childBox.height - padding }
-        )
+        ]
+
+        console.log(`      Adjusted corners (reduced by padding=${padding}):`)
+        console.log(`         Top-Left:     (${adjustedCorners[0]?.x}, ${adjustedCorners[0]?.y})`)
+        console.log(`         Top-Right:    (${adjustedCorners[1]?.x}, ${adjustedCorners[1]?.y})`)
+        console.log(`         Bottom-Left:  (${adjustedCorners[2]?.x}, ${adjustedCorners[2]?.y})`)
+        console.log(`         Bottom-Right: (${adjustedCorners[3]?.x}, ${adjustedCorners[3]?.y})`)
+
+        boxEdgePositions.push(...adjustedCorners)
       }
     })
 
-    const minX = Math.min(...allPositions.map(p => p.x))
-    const maxX = Math.max(...allPositions.map(p => p.x))
-    const minY = Math.min(...allPositions.map(p => p.y))
-    const maxY = Math.max(...allPositions.map(p => p.y))
+    console.log(`\n   📦 BOX EDGE POSITIONS (from nested boxes):`)
+    console.log(`      Count: ${boxEdgePositions.length}`)
+    console.log(`      Positions:`, boxEdgePositions)
 
     // Calculate node dimensions (accounting for scale)
     const nodeWidth = 120  // Default node width from configs
@@ -484,37 +522,90 @@ function calculateParentBoxes() {
     const halfNodeWidth = nodeWidth / 2
     const halfNodeHeight = nodeHeight / 2
 
-    // Adjust for node dimensions - nodes are centered at their position
-    const adjustedMinX = minX - halfNodeWidth
-    const adjustedMaxX = maxX + halfNodeWidth
-    const adjustedMinY = minY - halfNodeHeight
-    const adjustedMaxY = maxY + halfNodeHeight
+    console.log(`\n   📏 NODE DIMENSIONS:`)
+    console.log(`      nodeWidth: ${nodeWidth}, halfNodeWidth: ${halfNodeWidth}`)
+    console.log(`      nodeHeight: ${nodeHeight}, halfNodeHeight: ${halfNodeHeight}`)
+
+    // Convert node center positions to edge positions by adding node dimensions
+    const nodeEdgePositions = nodeCenterPositions.flatMap(pos => [
+      { x: pos.x - halfNodeWidth, y: pos.y - halfNodeHeight }, // top-left
+      { x: pos.x + halfNodeWidth, y: pos.y - halfNodeHeight }, // top-right
+      { x: pos.x - halfNodeWidth, y: pos.y + halfNodeHeight }, // bottom-left
+      { x: pos.x + halfNodeWidth, y: pos.y + halfNodeHeight }, // bottom-right
+    ])
+
+    console.log(`\n   📦 NODE EDGE POSITIONS (converted from centers):`)
+    console.log(`      Count: ${nodeEdgePositions.length}`)
+
+    // Combine all edge positions (both from nodes and nested boxes)
+    const allEdgePositions = [...nodeEdgePositions, ...boxEdgePositions]
+
+    console.log(`\n   📦 ALL EDGE POSITIONS (nodes + nested boxes):`)
+    console.log(`      Count: ${allEdgePositions.length}`)
+
+    const minX = Math.min(...allEdgePositions.map(p => p.x))
+    const maxX = Math.max(...allEdgePositions.map(p => p.x))
+    const minY = Math.min(...allEdgePositions.map(p => p.y))
+    const maxY = Math.max(...allEdgePositions.map(p => p.y))
+
+    console.log(`\n   📐 BOUNDING BOX (from all edge positions):`)
+    console.log(`      minX: ${minX}, maxX: ${maxX} → width: ${maxX - minX}`)
+    console.log(`      minY: ${minY}, maxY: ${maxY} → height: ${maxY - minY}`)
 
     const box: ParentBox = {
       parentId: nodeId,
-      x: adjustedMinX - padding,
-      y: adjustedMinY - padding,
-      width: (adjustedMaxX - adjustedMinX) + padding * 2,
-      height: (adjustedMaxY - adjustedMinY) + padding * 2,
+      x: minX - padding,
+      y: minY - padding,
+      width: (maxX - minX) + padding * 2,
+      height: (maxY - minY) + padding * 2,
     }
+
+    console.log(`\n   📦 FINAL BOX (after adding padding):`)
+    console.log(`      x: ${box.x} (minX ${minX} - padding ${padding})`)
+    console.log(`      y: ${box.y} (minY ${minY} - padding ${padding})`)
+    console.log(`      width: ${box.width} (content width ${maxX - minX} + padding*2 ${padding * 2})`)
+    console.log(`      height: ${box.height} (content height ${maxY - minY} + padding*2 ${padding * 2})`)
 
     // Ensure minimum size (should be at least slightly larger than a single node)
     const minWidth = nodeWidth + padding * 2
     const minHeight = nodeHeight + padding * 2
 
+    console.log(`\n   ✅ MINIMUM SIZE CHECK:`)
+    console.log(`      minWidth: ${minWidth}, current: ${box.width}, needs adjustment: ${box.width < minWidth}`)
+    console.log(`      minHeight: ${minHeight}, current: ${box.height}, needs adjustment: ${box.height < minHeight}`)
+
     if (box.width < minWidth) {
       const centerX = box.x + box.width / 2
+      const oldX = box.x
+      const oldWidth = box.width
       box.x = centerX - minWidth / 2
       box.width = minWidth
+      console.log(`      ⚠️  WIDTH ADJUSTED: ${oldWidth} → ${box.width}, x: ${oldX} → ${box.x}`)
     }
 
     if (box.height < minHeight) {
       const centerY = box.y + box.height / 2
+      const oldY = box.y
+      const oldHeight = box.height
       box.y = centerY - minHeight / 2
       box.height = minHeight
+      console.log(`      ⚠️  HEIGHT ADJUSTED: ${oldHeight} → ${box.height}, y: ${oldY} → ${box.y}`)
     }
 
     boxes.push(box)
+    console.log(`\n   ✅ BOX ADDED TO COLLECTION (total boxes: ${boxes.length})`)
+  })
+
+  console.log(`\n╔═══════════════════════════════════════════════════════════════════════════════`)
+  console.log(`║ CALCULATING PARENT BOXES - COMPLETE`)
+  console.log(`║ Total boxes created: ${boxes.length}`)
+  console.log(`╚═══════════════════════════════════════════════════════════════════════════════`)
+
+  console.log(`\n📊 FINAL BOXES SUMMARY:`)
+  boxes.forEach((box, i) => {
+    console.log(`   [${i + 1}] ${nodes.value[box.parentId]?.name}:`)
+    console.log(`       Position: (${box.x}, ${box.y})`)
+    console.log(`       Size: ${box.width} × ${box.height}`)
   })
 
   parentBoxes.value = boxes
