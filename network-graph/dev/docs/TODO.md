@@ -1,0 +1,8 @@
+- zoom canvas with/without nodes being zoomed
+- box mode concept mapping (like concept map in mindscribble) - maybe with layers?
+- child nodes expand-collapse
+- editing nodes (tiptap lazy loaded)
+- select, delete edges
+- context menu on edges
+- edge labels
+- edge animations 
