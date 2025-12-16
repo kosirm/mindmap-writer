@@ -43,6 +43,7 @@
 
         <div class="text-caption">Selected: {{ selectedNodes.length }}</div>
         <q-btn size="xs" color="info" label="Log Hierarchy" @click="logHierarchy" dense flat />
+        <q-btn size="xs" color="warning" label="Test Boxes" @click="testNestedBoxes" dense flat />
       </div>
     </div>
 
@@ -408,9 +409,6 @@ function calculateParentBoxes() {
   const boxes: ParentBox[] = []
   const padding = 20  // Same padding as node-to-box spacing
 
-  // First, get all existing parent boxes to handle nested boxes properly
-  const existingBoxes = parentBoxes.value
-
   // Helper function to get the depth of a node
   function getNodeDepth(nodeId: string): number {
     let depth = 0
@@ -462,7 +460,7 @@ function calculateParentBoxes() {
     // For nested boxes, include child box boundaries but adjust for existing padding
     // This is the key to the bottom-up approach
     children.forEach(childId => {
-      const childBox = existingBoxes.find(box => box.parentId === childId)
+      const childBox = boxes.find(box => box.parentId === childId)
       if (childBox) {
         // Include the child box boundaries but reduce them by padding
         // to prevent double-counting the padding in nested boxes
@@ -821,6 +819,9 @@ function deleteSelectedNodes() {
   // Clear selection
   selectedNodes.value = []
 
+  // Update parent boxes after deletion
+  calculateParentBoxes()
+
   $q.notify({
     type: 'positive',
     message: `Deleted ${count} node(s)`,
@@ -872,6 +873,93 @@ function getDescendants(nodeId: string): string[] {
   }
 
   return descendants
+}
+
+// Test function to verify nested box calculations
+function testNestedBoxes() {
+  console.log('=== Testing Nested Box Calculations ===')
+
+  // Create a test scenario: Root -> A -> B -> C
+  // This should create nested boxes with consistent padding
+
+  // Clear existing nodes
+  nodes.value = {}
+  edges.value = {}
+  layouts.value = { nodes: {} }
+  parentBoxes.value = []
+  nodeCounter = 0
+
+  // Create root node
+  const rootId = `node-${++nodeCounter}`
+  nodes.value[rootId] = { name: 'Root', parentId: null, order: 0 }
+  layouts.value.nodes[rootId] = { x: 0, y: 0 }
+
+  // Create child A
+  const childAId = `node-${++nodeCounter}`
+  nodes.value[childAId] = { name: 'Child A', parentId: rootId, order: 0 }
+  layouts.value.nodes[childAId] = { x: 150, y: 100 }
+  edges.value[`edge-${rootId}-${childAId}`] = { source: rootId, target: childAId, type: 'hierarchy' }
+
+  // Create child B (child of A)
+  const childBId = `node-${++nodeCounter}`
+  nodes.value[childBId] = { name: 'Child B', parentId: childAId, order: 0 }
+  layouts.value.nodes[childBId] = { x: 300, y: 200 }
+  edges.value[`edge-${childAId}-${childBId}`] = { source: childAId, target: childBId, type: 'hierarchy' }
+
+  // Create child C (child of B)
+  const childCId = `node-${++nodeCounter}`
+  nodes.value[childCId] = { name: 'Child C', parentId: childBId, order: 0 }
+  layouts.value.nodes[childCId] = { x: 450, y: 300 }
+  edges.value[`edge-${childBId}-${childCId}`] = { source: childBId, target: childCId, type: 'hierarchy' }
+
+  // Calculate boxes
+  calculateParentBoxes()
+
+  console.log('Nodes:', nodes.value)
+  console.log('Edges:', edges.value)
+  console.log('Layouts:', layouts.value)
+  console.log('Parent Boxes:', parentBoxes.value)
+
+  // Verify padding consistency
+  const boxes = parentBoxes.value
+  if (boxes.length >= 3) {
+    const boxA = boxes.find(b => b.parentId === childAId)
+    const boxB = boxes.find(b => b.parentId === childBId)
+    const boxC = boxes.find(b => b.parentId === childCId)
+
+    console.log('Box A:', boxA)
+    console.log('Box B:', boxB)
+    console.log('Box C:', boxC)
+
+    // Check if padding is consistent
+    if (boxA && boxB && boxC) {
+      const paddingX = 20
+      const paddingY = 20
+
+      // Check horizontal padding consistency
+      const expectedWidth = 120 + paddingX * 2
+
+      console.log(`Expected width: ${expectedWidth}, Actual A: ${boxA.width}, B: ${boxB.width}, C: ${boxC.width}`)
+
+      // Check vertical padding consistency
+      const expectedHeight = 40 + paddingY * 2
+
+      console.log(`Expected height: ${expectedHeight}, Actual A: ${boxA.height}, B: ${boxB.height}, C: ${boxC.height}`)
+
+      // Check if boxes are properly nested
+      console.log('Box nesting check:')
+      console.log(`Box B should be inside Box A: ${boxB.x >= boxA.x && boxB.x + boxB.width <= boxA.x + boxA.width}`)
+      console.log(`Box C should be inside Box B: ${boxC.x >= boxB.x && boxC.x + boxC.width <= boxB.x + boxB.width}`)
+    }
+  }
+
+  console.log('=== Test Complete ===')
+
+  $q.notify({
+    type: 'info',
+    message: 'Nested box test completed. Check console for details.',
+    timeout: 2000,
+  })
 }
 
 function selectNodeWithDescendants(nodeId: string) {
