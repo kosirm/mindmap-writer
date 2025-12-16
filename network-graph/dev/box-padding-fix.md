@@ -62,10 +62,31 @@ const maxX = Math.max(...allEdgePositions.map(p => p.x))
 ```
 
 ## Result
-Now both horizontal and vertical inter-box padding are consistent at 20px, matching the node-to-box padding.
+Now both horizontal and vertical inter-box padding are consistent and adjustable via a slider in the toolbar.
+
+## New Feature: Adjustable Box Padding
+Added a slider control in the toolbar to adjust inter-box padding from 0px to 50px in 5px increments:
+- Default value: 20px
+- Range: 0-50px
+- Step: 5px
+- Updates in real-time as you drag the slider
+
+The padding value is stored in the reactive variable `boxPadding` and automatically triggers box recalculation when changed.
+
+## Code Cleanup
+All debugging code has been removed to keep the codebase clean:
+- ✅ Removed all console.log statements from `calculateParentBoxes()`
+- ✅ Removed `testNestedBoxes()` function
+- ✅ Removed "Test Boxes" button from toolbar
+- ✅ Removed debug logging from `selectNodeWithDescendants()`
+- ✅ Removed unused `view:mode` event handler logging
+- ℹ️ Kept `logHierarchy()` function and button (intentional debugging tool for users)
 
 ## Files Changed
 - `network-graph/quasar-project/src/pages/TestConceptMap.vue`
-  - Function: `calculateParentBoxes()`
-  - Lines: ~480-570
-
+  - Added `boxPadding` reactive variable (default: 20px)
+  - Added slider control in toolbar
+  - Updated `calculateParentBoxes()` to use `boxPadding.value` instead of hardcoded 20
+  - Added watcher for `boxPadding` to trigger recalculation
+  - Removed all debugging code except `logHierarchy()`
+  - Lines: ~44-45 (toolbar), ~246 (variable), ~420 (function), ~1316-1319 (watcher)
