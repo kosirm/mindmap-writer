@@ -111,6 +111,14 @@
                 <q-item-label class="text-secondary text-weight-medium">ConceptMap Test</q-item-label>
               </q-item-section>
             </q-item>
+            <q-item clickable v-ripple to="/test-conceptmap-box">
+              <q-item-section avatar>
+                <q-icon name="view_quilt" color="info" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-info text-weight-medium">ConceptMap Box Test</q-item-label>
+              </q-item-section>
+            </q-item>
           </q-list>
         </q-tab-panel>
 
