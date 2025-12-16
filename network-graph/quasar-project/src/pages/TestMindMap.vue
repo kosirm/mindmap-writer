@@ -315,14 +315,36 @@ function addChildNode() {
   const parentPos = layouts.value.nodes[parentId]
   if (!parentPos) return
 
-  // Create new node below parent
+  // Check if the current node has a parent (grandparent of the new child)
+  const currentNode = nodes.value[parentId]
+  let newNodePosition = { x: parentPos.x, y: parentPos.y + 80 }
+
+  if (currentNode && currentNode.parentId) {
+    // Node has a parent - calculate relative position (degree) from parent
+    const grandparentId = currentNode.parentId
+    const grandparentPos = layouts.value.nodes[grandparentId]
+
+    if (grandparentPos) {
+      // Calculate the relative position (degree) between grandparent and parent
+      const relativeX = parentPos.x - grandparentPos.x
+      const relativeY = parentPos.y - grandparentPos.y
+
+      // Position new child at same relative position from parent
+      newNodePosition = {
+        x: parentPos.x + relativeX,
+        y: parentPos.y + relativeY
+      }
+    }
+  }
+
+  // Create new node at calculated position
   const newId = `node-${++nodeCounter}`
   nodes.value[newId] = {
     name: `Node ${nodeCounter}`,
     parentId: parentId,
     order: Object.values(nodes.value).filter(n => n.parentId === parentId).length
   }
-  layouts.value.nodes[newId] = { x: parentPos.x, y: parentPos.y + 80 }
+  layouts.value.nodes[newId] = newNodePosition
 
   // Create hierarchy edge
   const edgeId = `edge-${parentId}-${newId}`
