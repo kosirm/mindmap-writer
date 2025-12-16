@@ -37,6 +37,7 @@
 
         <div class="text-caption">Wheel Zoom: {{ wheelZoomSensitivity }}%</div>
         <q-slider v-model="wheelZoomSensitivity" :min="5" :max="80" :step="5" dense style="width: 100px;" @update:model-value="(val) => val !== null && updateZoomSensitivity(val)" />
+        <q-toggle v-model="scalingObjects" label="Scale Objects" dense size="xs" @update:model-value="updateScalingObjects" />
 
         <q-separator vertical />
 
@@ -169,6 +170,7 @@ const contextMenuNodeId = ref<string | null>(null)
 const isCtrlShiftPressed = ref(false)
 const graphZoomLevel = ref(1) // For v-network-graph binding (0.1-2.0)
 const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
+const scalingObjects = ref(false) // Toggle for scaling objects with zoom (default: false)
 
 // Node counter
 let nodeCounter = 3
@@ -180,7 +182,7 @@ let forceLayout: ForceLayout | null = null
 const configs = reactive(
   vNG.defineConfigs({
     view: {
-      scalingObjects: true, // Nodes scale with zoom
+      scalingObjects: scalingObjects.value, // Nodes scale with zoom (controlled by toggle)
       boxSelectionEnabled: false, // Disable box selection to avoid rect rendering issues
       onSvgPanZoomInitialized: (instance: SvgPanZoomInstance) => {
         svgPanZoomInstance = instance
@@ -291,6 +293,18 @@ function updateZoomSensitivity(value: number) {
     const sensitivity = value / 100
     svgPanZoomInstance.setZoomScaleSensitivity(sensitivity)
   }
+}
+
+function updateScalingObjects(value: boolean) {
+  // Update the configs to enable/disable scaling objects
+  configs.view = configs.view || {}
+  configs.view.scalingObjects = value
+
+  $q.notify({
+    type: 'info',
+    message: `Scaling objects: ${value ? 'Enabled' : 'Disabled'}`,
+    timeout: 1000,
+  })
 }
 
 // Context menu functions
