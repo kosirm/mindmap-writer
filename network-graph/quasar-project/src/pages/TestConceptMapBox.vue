@@ -41,9 +41,13 @@
 
         <q-separator vertical />
 
+        <div class="text-caption">Box Padding: {{ boxPadding }}px</div>
+        <q-slider v-model="boxPadding" :min="0" :max="50" :step="5" dense style="width: 100px;" />
+
+        <q-separator vertical />
+
         <div class="text-caption">Selected: {{ selectedNodes.length }}</div>
         <q-btn size="xs" color="info" label="Log Hierarchy" @click="logHierarchy" dense flat />
-        <q-btn size="xs" color="info" label="Toggle Parent Borders" @click="toggleParentBorders" dense flat />
       </div>
     </div>
 
@@ -57,50 +61,48 @@
         v-model:selected-nodes="selectedNodes"
         v-model:zoom-level="graphZoomLevel"
         :event-handlers="eventHandlers"
+        :layers="layers"
       >
-        <!-- Custom node rendering for conceptmap -->
+        <!-- Custom node rendering to ensure text is properly layered with node shapes -->
         <template #override-node="{ nodeId, scale }">
-          <g>
-            <!-- Draw parent container if this node has children -->
-            <rect
-              v-if="hasChildren(nodeId)"
-              :x="getParentContainerX(nodeId, scale)"
-              :y="getParentContainerY(nodeId, scale)"
-              :width="getParentContainerWidth(nodeId, scale)"
-              :height="getParentContainerHeight(nodeId, scale)"
-              :rx="12 * scale"
-              :fill="showParentBorders ? 'rgba(255, 255, 255, 0.1)' : 'transparent'"
-              :stroke="showParentBorders ? '#4dabf7' : 'transparent'"
-              :stroke-width="showParentBorders ? 2 * scale : 0"
-              stroke-dasharray="8, 4"
-              class="parent-container"
-            />
+          <rect
+            :width="120 * scale"
+            :height="40 * scale"
+            :x="-60 * scale"
+            :y="-20 * scale"
+            :rx="8 * scale"
+            :fill="getNodeColor(nodeId)"
+            :stroke="getNodeStrokeColor(nodeId)"
+            :stroke-width="getNodeStrokeWidth(nodeId) * scale"
+          />
+          <text
+            text-anchor="middle"
+            dominant-baseline="central"
+            :font-size="14 * scale"
+            fill="#263238"
+            pointer-events="none"
+          >
+            {{ nodes[nodeId]?.name }}
+          </text>
+        </template>
 
-            <!-- Draw the actual node -->
-            <rect
-              :width="getNodeWidth(nodeId, scale)"
-              :height="getNodeHeight(nodeId, scale)"
-              :x="getNodeX(nodeId, scale)"
-              :y="getNodeY(nodeId, scale)"
-              :rx="8 * scale"
-              :fill="getNodeColor(nodeId)"
-              :stroke="getNodeStrokeColor(nodeId)"
-              :stroke-width="getNodeStrokeWidth(nodeId) * scale"
-              class="concept-node"
-            />
-
-            <text
-              text-anchor="middle"
-              dominant-baseline="central"
-              :x="getNodeX(nodeId, scale)"
-              :y="getNodeY(nodeId, scale)"
-              :font-size="14 * scale"
-              fill="#263238"
-              pointer-events="none"
-            >
-              {{ nodes[nodeId]?.name }}
-            </text>
-          </g>
+        <!-- Parent node boxes layer -->
+        <template #parent-boxes="{ scale }">
+          <rect
+            v-for="(box, index) in parentBoxes"
+            :key="index"
+            :x="box.x"
+            :y="box.y"
+            :width="box.width"
+            :height="box.height"
+            :rx="12"
+            fill="none"
+            stroke="#4dabf7"
+            :stroke-width="2"
+            stroke-dasharray="5, 5"
+            style="pointer-events: none"
+            :transform="`scale(${scale})`"
+          />
         </template>
       </v-network-graph>
     </div>
@@ -134,6 +136,13 @@
           <q-item-section>Add Parent</q-item-section>
         </q-item>
 
+        <q-item clickable @click="addParentNodeWithBox">
+          <q-item-section avatar>
+            <q-icon name="dashboard" size="xs" />
+          </q-item-section>
+          <q-item-section>Add Parent with Box</q-item-section>
+        </q-item>
+
         <q-separator />
 
         <q-item clickable @click="deleteContextNode">
@@ -160,37 +169,38 @@ const $q = useQuasar()
 // Graph ref
 const graphRef = ref<vNG.VNetworkGraphInstance>()
 
+// Layers configuration for parent node boxes
+const layers = {
+  'parent-boxes': 'base',
+}
+
 // svg-pan-zoom instance (for zoom sensitivity control)
 interface SvgPanZoomInstance {
   setZoomScaleSensitivity: (sensitivity: number) => void
 }
 let svgPanZoomInstance: SvgPanZoomInstance | null = null
 
-// Node interface with parent-child tracking and conceptmap-specific properties
-interface ConceptMapNode {
-  id: string
+// Node interface with parent-child tracking
+interface MindMapNode {
   name: string
   parentId: string | null  // null for root nodes
   order: number            // Sibling order (0, 1, 2, ...)
   zIndex?: number          // For z-order management
-  width?: number           // Node width
-  height?: number          // Node height
-  isParent?: boolean      // Whether this node has children
 }
 
 // Edge interface with type tracking
-interface ConceptMapEdge extends vNG.Edge {
+interface MindMapEdge extends vNG.Edge {
   type: 'hierarchy' | 'reference'  // hierarchy = parent-child, reference = just a link
 }
 
 // Data
-const nodes = ref<Record<string, ConceptMapNode>>({
-  'node-1': { id: 'node-1', name: 'Root', parentId: null, order: 0, width: 120, height: 40, isParent: true },
-  'node-2': { id: 'node-2', name: 'Child 1', parentId: 'node-1', order: 0, width: 120, height: 40 },
-  'node-3': { id: 'node-3', name: 'Child 2', parentId: 'node-1', order: 1, width: 120, height: 40 },
+const nodes = ref<Record<string, MindMapNode>>({
+  'node-1': { name: 'Root', parentId: null, order: 0 },
+  'node-2': { name: 'Child 1', parentId: 'node-1', order: 0 },
+  'node-3': { name: 'Child 2', parentId: 'node-1', order: 1 },
 })
 
-const edges = ref<Record<string, ConceptMapEdge>>({
+const edges = ref<Record<string, MindMapEdge>>({
   'edge-1': { source: 'node-1', target: 'node-2', type: 'hierarchy' },
   'edge-2': { source: 'node-1', target: 'node-3', type: 'hierarchy' },
 })
@@ -198,18 +208,28 @@ const edges = ref<Record<string, ConceptMapEdge>>({
 const layouts = ref<vNG.Layouts>({
   nodes: {
     'node-1': { x: 0, y: 0 },
-    'node-2': { x: 50, y: 100 },
-    'node-3': { x: 50, y: -100 },
+    'node-2': { x: 150, y: 100 },
+    'node-3': { x: 150, y: -100 },
   },
 })
+
+// Parent boxes for concept map (calculated based on children positions)
+interface ParentBox {
+  parentId: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+const parentBoxes = ref<ParentBox[]>([])
 
 // Selection
 const selectedNodes = ref<string[]>([])
 
 // UI State
 const d3ForceEnabled = ref(false)
-const connectionType = ref<'hierarchy' | 'reference'>('hierarchy')
-const showParentBorders = ref(true)  // Toggle parent container visibility
+const connectionType = ref<'hierarchy' | 'reference'>('hierarchy')  // Current connection type for C key
 
 // Context menu state
 const contextMenuVisible = ref(false)
@@ -221,7 +241,8 @@ const contextMenuNodeId = ref<string | null>(null)
 const isCtrlShiftPressed = ref(false)
 const graphZoomLevel = ref(1) // For v-network-graph binding (0.1-2.0)
 const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
-const scalingObjects = ref(false) // Toggle for scaling objects with zoom (default: false)
+const scalingObjects = ref(true) // Toggle for scaling objects with zoom (default: true for concept map)
+const boxPadding = ref(20) // Inter-box padding in pixels (0-50px)
 
 // Node counter
 let nodeCounter = 3
@@ -280,8 +301,8 @@ const configs = reactive(
       zOrder: {
         enabled: true,
         zIndex: (node: vNG.Node) => {
-          const conceptNode = node as unknown as ConceptMapNode
-          return conceptNode.zIndex || 0
+          const mindMapNode = node as unknown as MindMapNode;
+          return mindMapNode.zIndex || 0;
         },
         bringToFrontOnHover: true,
         bringToFrontOnSelected: true,
@@ -291,15 +312,15 @@ const configs = reactive(
       normal: {
         // Style based on edge type
         color: (edge) => {
-          const e = edge as ConceptMapEdge
+          const e = edge as MindMapEdge
           return e.type === 'hierarchy' ? '#4dabf7' : '#aaa'
         },
         width: (edge) => {
-          const e = edge as ConceptMapEdge
+          const e = edge as MindMapEdge
           return e.type === 'hierarchy' ? 3 : 1
         },
         dasharray: (edge) => {
-          const e = edge as ConceptMapEdge
+          const e = edge as MindMapEdge
           return e.type === 'reference' ? '4' : '0'
         },
       },
@@ -322,9 +343,8 @@ const eventHandlers: vNG.EventHandlers = {
       addNodeAtPosition(event)
     }
   },
-  'view:mode': (mode) => {
+  'view:mode': () => {
     // Observe mode change events - not needed anymore with Ctrl+Shift hold
-    console.log('view:mode', mode)
   },
   'node:click': ({ node, event }) => {
     // Alt+Click - Select node and all descendants
@@ -346,22 +366,14 @@ const eventHandlers: vNG.EventHandlers = {
   },
 }
 
-// Helper functions for conceptmap
-function hasChildren(nodeId: string): boolean {
-  return Object.values(nodes.value).some(n => n.parentId === nodeId)
-}
-
-function getDirectChildren(nodeId: string): ConceptMapNode[] {
-  return Object.values(nodes.value)
-    .filter(n => n.parentId === nodeId)
-    .sort((a, b) => a.order - b.order)
-}
-
+// Helper functions for custom node rendering
 function getNodeColor(nodeId: string): string {
   const node = nodes.value[nodeId]
   if (!node) return '#ffffff'
 
+  // Check if this node is selected
   const isSelected = selectedNodes.value.includes(nodeId)
+  // Note: Hover state is handled by z-order, not by color change
 
   if (isSelected) {
     return '#b3e5fc' // Selected color
@@ -396,121 +408,129 @@ function getNodeStrokeWidth(nodeId: string): number {
   }
 }
 
-function getNodeWidth(nodeId: string, scale: number): number {
-  const node = nodes.value[nodeId]
-  return (node?.width || 120) * scale
-}
+// Parent box calculation function - bottom-up approach
+function calculateParentBoxes() {
+  const boxes: ParentBox[] = []
+  const padding = boxPadding.value  // Inter-box padding (adjustable via slider)
 
-function getNodeHeight(nodeId: string, scale: number): number {
-  const node = nodes.value[nodeId]
-  return (node?.height || 40) * scale
-}
+  // Helper function to get the depth of a node
+  function getNodeDepth(nodeId: string): number {
+    let depth = 0
+    let currentId = nodeId
+    while (true) {
+      const node = nodes.value[currentId]
+      if (!node || !node.parentId) break
+      depth++
+      currentId = node.parentId
+    }
+    return depth
+  }
 
-function getNodeX(nodeId: string, scale: number): number {
-  const layout = layouts.value.nodes[nodeId]
-  return (layout?.x || 0)
-}
+  // Get all nodes with children and sort by depth (deepest first)
+  const nodesWithChildren = Object.entries(nodes.value)
+    .filter(([nodeId, node]) => {
+      if (!node) return false
+      // Check if this node has any children
+      return Object.values(nodes.value).some(childNode => childNode.parentId === nodeId)
+    })
+    .map(([nodeId]) => nodeId)
+    .sort((a, b) => getNodeDepth(b) - getNodeDepth(a)) // Deepest first
 
-function getNodeY(nodeId: string, scale: number): number {
-  const layout = layouts.value.nodes[nodeId]
-  return (layout?.y || 0)
-}
+  // Process nodes from deepest to shallowest
+  nodesWithChildren.forEach((nodeId) => {
+    const node = nodes.value[nodeId]
+    if (!node) return
 
-// Parent container calculations
-function getParentContainerX(nodeId: string, scale: number): number {
-  const node = nodes.value[nodeId]
-  if (!node) return 0
+    // Get all direct children of this node
+    const children = Object.entries(nodes.value)
+      .filter(([, childNode]) => childNode.parentId === nodeId)
+      .map(([childId]) => childId)
 
-  const layout = layouts.value.nodes[nodeId]
-  const children = getDirectChildren(nodeId)
+    if (children.length === 0) return
 
-  if (children.length === 0) return getNodeX(nodeId, scale) - getNodeWidth(nodeId, scale) / 2
+    // Get positions of parent and children
+    const parentPos = layouts.value.nodes[nodeId]
+    if (!parentPos) return
 
-  // Find min X of children
-  let minX = layout?.x || 0
-  children.forEach(child => {
-    const childLayout = layouts.value.nodes[child.id]
-    const childX = childLayout?.x || 0
-    const childWidth = (child.width || 120) * scale
-    minX = Math.min(minX, childX - childWidth / 2)
+    const childPositions = children
+      .map(childId => layouts.value.nodes[childId])
+      .filter(pos => pos !== undefined) as { x: number, y: number }[]
+
+    if (childPositions.length === 0) return
+
+    // Calculate bounding box that contains parent and all children
+    // Track node center positions separately from box edge positions
+    const nodeCenterPositions = [parentPos, ...childPositions]
+    const boxEdgePositions: { x: number, y: number }[] = []
+
+    // For nested boxes, include child box boundaries directly
+    // The child box already has its own padding, so we just use its outer edges
+    children.forEach(childId => {
+      const childBox = boxes.find(box => box.parentId === childId)
+      if (childBox) {
+        // Use the child box outer edges directly (no adjustment needed)
+        // This preserves the inter-box spacing
+        const boxCorners = [
+          { x: childBox.x, y: childBox.y },
+          { x: childBox.x + childBox.width, y: childBox.y },
+          { x: childBox.x, y: childBox.y + childBox.height },
+          { x: childBox.x + childBox.width, y: childBox.y + childBox.height }
+        ]
+
+        boxEdgePositions.push(...boxCorners)
+      }
+    })
+
+    // Calculate node dimensions
+    const nodeWidth = 120  // Default node width from configs
+    const nodeHeight = 40  // Default node height from configs
+    const halfNodeWidth = nodeWidth / 2
+    const halfNodeHeight = nodeHeight / 2
+
+    // Convert node center positions to edge positions by adding node dimensions
+    const nodeEdgePositions = nodeCenterPositions.flatMap(pos => [
+      { x: pos.x - halfNodeWidth, y: pos.y - halfNodeHeight }, // top-left
+      { x: pos.x + halfNodeWidth, y: pos.y - halfNodeHeight }, // top-right
+      { x: pos.x - halfNodeWidth, y: pos.y + halfNodeHeight }, // bottom-left
+      { x: pos.x + halfNodeWidth, y: pos.y + halfNodeHeight }, // bottom-right
+    ])
+
+    // Combine all edge positions (both from nodes and nested boxes)
+    const allEdgePositions = [...nodeEdgePositions, ...boxEdgePositions]
+
+    const minX = Math.min(...allEdgePositions.map(p => p.x))
+    const maxX = Math.max(...allEdgePositions.map(p => p.x))
+    const minY = Math.min(...allEdgePositions.map(p => p.y))
+    const maxY = Math.max(...allEdgePositions.map(p => p.y))
+
+    const box: ParentBox = {
+      parentId: nodeId,
+      x: minX - padding,
+      y: minY - padding,
+      width: (maxX - minX) + padding * 2,
+      height: (maxY - minY) + padding * 2,
+    }
+
+    // Ensure minimum size (should be at least slightly larger than a single node)
+    const minWidth = nodeWidth + padding * 2
+    const minHeight = nodeHeight + padding * 2
+
+    if (box.width < minWidth) {
+      const centerX = box.x + box.width / 2
+      box.x = centerX - minWidth / 2
+      box.width = minWidth
+    }
+
+    if (box.height < minHeight) {
+      const centerY = box.y + box.height / 2
+      box.y = centerY - minHeight / 2
+      box.height = minHeight
+    }
+
+    boxes.push(box)
   })
 
-  return minX - 30 * scale // Add more padding
-}
-
-function getParentContainerY(nodeId: string, scale: number): number {
-  const node = nodes.value[nodeId]
-  if (!node) return 0
-
-  const layout = layouts.value.nodes[nodeId]
-  const children = getDirectChildren(nodeId)
-
-  if (children.length === 0) return getNodeY(nodeId, scale) - getNodeHeight(nodeId, scale) / 2
-
-  // Find min Y of children
-  let minY = layout?.y || 0
-  children.forEach(child => {
-    const childLayout = layouts.value.nodes[child.id]
-    const childY = childLayout?.y || 0
-    const childHeight = (child.height || 40) * scale
-    minY = Math.min(minY, childY - childHeight / 2)
-  })
-
-  return minY - 50 * scale // Add more padding for header
-}
-
-function getParentContainerWidth(nodeId: string, scale: number): number {
-  const node = nodes.value[nodeId]
-  if (!node) return 120 * scale
-
-  const children = getDirectChildren(nodeId)
-
-  if (children.length === 0) return getNodeWidth(nodeId, scale)
-
-  // Find max width based on children positions
-  let minX = Infinity
-  let maxX = -Infinity
-
-  children.forEach(child => {
-    const childLayout = layouts.value.nodes[child.id]
-    const childX = childLayout?.x || 0
-    const childWidth = (child.width || 120) * scale
-    minX = Math.min(minX, childX - childWidth / 2)
-    maxX = Math.max(maxX, childX + childWidth / 2)
-  })
-
-  return maxX - minX + 60 * scale // Add more padding
-}
-
-function getParentContainerHeight(nodeId: string, scale: number): number {
-  const node = nodes.value[nodeId]
-  if (!node) return 40 * scale
-
-  const children = getDirectChildren(nodeId)
-
-  if (children.length === 0) return getNodeHeight(nodeId, scale)
-
-  // Find max height based on children positions
-  let minY = Infinity
-  let maxY = -Infinity
-
-  children.forEach(child => {
-    const childLayout = layouts.value.nodes[child.id]
-    const childY = childLayout?.y || 0
-    const childHeight = (child.height || 40) * scale
-    minY = Math.min(minY, childY - childHeight / 2)
-    maxY = Math.max(maxY, childY + childHeight / 2)
-  })
-
-  return maxY - minY + 80 * scale // Add more padding for header
-}
-
-// Update parent containers when children move
-function updateParentContainers() {
-  // Find all parent nodes and update their isParent flag
-  Object.values(nodes.value).forEach(node => {
-    node.isParent = hasChildren(node.id)
-  })
+  parentBoxes.value = boxes
 }
 
 // Functions
@@ -530,15 +550,6 @@ function updateScalingObjects(value: boolean) {
   $q.notify({
     type: 'info',
     message: `Scaling objects: ${value ? 'Enabled' : 'Disabled'}`,
-    timeout: 1000,
-  })
-}
-
-function toggleParentBorders() {
-  showParentBorders.value = !showParentBorders.value
-  $q.notify({
-    type: 'info',
-    message: `Parent borders: ${showParentBorders.value ? 'Visible' : 'Hidden'}`,
     timeout: 1000,
   })
 }
@@ -576,13 +587,10 @@ function addChildNode() {
   // Create new node at calculated position
   const newId = `node-${++nodeCounter}`
   nodes.value[newId] = {
-    id: newId,
     name: `Node ${nodeCounter}`,
     parentId: parentId,
     order: Object.values(nodes.value).filter(n => n.parentId === parentId).length,
-    zIndex: 1000, // Start with higher z-index for new nodes
-    width: 120,
-    height: 40
+    zIndex: 1000 // Start with higher z-index for new nodes
   }
   layouts.value.nodes[newId] = newNodePosition
 
@@ -590,10 +598,8 @@ function addChildNode() {
   const edgeId = `edge-${parentId}-${newId}`
   edges.value[edgeId] = { source: parentId, target: newId, type: 'hierarchy' }
 
-  // Update parent's isParent flag
-  if (nodes.value[parentId]) {
-    nodes.value[parentId].isParent = true
-  }
+  // Update parent boxes immediately
+  calculateParentBoxes()
 
   contextMenuVisible.value = false
 
@@ -615,13 +621,10 @@ function addSiblingNode() {
   // Create new node next to sibling
   const newId = `node-${++nodeCounter}`
   nodes.value[newId] = {
-    id: newId,
     name: `Node ${nodeCounter}`,
     parentId: sibling.parentId,
     order: Object.values(nodes.value).filter(n => n.parentId === sibling.parentId).length,
-    zIndex: 1000, // Start with higher z-index for new nodes
-    width: 120,
-    height: 40
+    zIndex: 1000 // Start with higher z-index for new nodes
   }
   layouts.value.nodes[newId] = { x: siblingPos.x + 150, y: siblingPos.y }
 
@@ -630,6 +633,9 @@ function addSiblingNode() {
     const edgeId = `edge-${sibling.parentId}-${newId}`
     edges.value[edgeId] = { source: sibling.parentId, target: newId, type: 'hierarchy' }
   }
+
+  // Update parent boxes immediately
+  calculateParentBoxes()
 
   contextMenuVisible.value = false
 
@@ -651,14 +657,10 @@ function addParentNode() {
   // Create new parent node above child
   const newId = `node-${++nodeCounter}`
   nodes.value[newId] = {
-    id: newId,
     name: `Node ${nodeCounter}`,
     parentId: child.parentId,  // New parent has same parent as child (becomes sibling)
     order: Object.values(nodes.value).filter(n => n.parentId === child.parentId).length,
-    zIndex: 1000, // Start with higher z-index for new nodes
-    width: 120,
-    height: 40,
-    isParent: true
+    zIndex: 1000 // Start with higher z-index for new nodes
   }
   layouts.value.nodes[newId] = { x: childPos.x, y: childPos.y - 80 }
 
@@ -694,6 +696,59 @@ function addParentNode() {
   })
 }
 
+function addParentNodeWithBox() {
+  if (!contextMenuNodeId.value || !graphRef.value) return
+
+  const childId = contextMenuNodeId.value
+  const child = nodes.value[childId]
+  const childPos = layouts.value.nodes[childId]
+  if (!child || !childPos) return
+
+  // Create new parent node above child
+  const newId = `node-${++nodeCounter}`
+  nodes.value[newId] = {
+    name: `Group ${nodeCounter}`,
+    parentId: child.parentId,  // New parent has same parent as child (becomes sibling)
+    order: Object.values(nodes.value).filter(n => n.parentId === child.parentId).length,
+    zIndex: 1000 // Start with higher z-index for new nodes
+  }
+  layouts.value.nodes[newId] = { x: childPos.x, y: childPos.y - 120 }
+
+  // Remove old parent edge if exists
+  if (child.parentId) {
+    const oldEdgeId = Object.keys(edges.value).find(id => {
+      const edge = edges.value[id]
+      return edge && edge.type === 'hierarchy' && edge.source === child.parentId && edge.target === childId
+    })
+    if (oldEdgeId) {
+      delete edges.value[oldEdgeId]
+    }
+
+    // Create edge from old parent to new parent
+    const edgeId1 = `edge-${child.parentId}-${newId}`
+    edges.value[edgeId1] = { source: child.parentId, target: newId, type: 'hierarchy' }
+  }
+
+  // Update child's parent
+  child.parentId = newId
+  child.order = 0
+
+  // Create edge from new parent to child
+  const edgeId2 = `edge-${newId}-${childId}`
+  edges.value[edgeId2] = { source: newId, target: childId, type: 'hierarchy' }
+
+  // Update parent boxes immediately
+  calculateParentBoxes()
+
+  contextMenuVisible.value = false
+
+  $q.notify({
+    type: 'positive',
+    message: 'Parent node with box added',
+    timeout: 1000,
+  })
+}
+
 function deleteContextNode() {
   if (!contextMenuNodeId.value) return
 
@@ -710,6 +765,9 @@ function deleteContextNode() {
       delete edges.value[edgeId]
     }
   })
+
+  // Update parent boxes immediately after deletion
+  calculateParentBoxes()
 
   contextMenuVisible.value = false
 
@@ -731,19 +789,16 @@ function addNodeAtPosition(event: MouseEvent) {
   // New nodes are created as root nodes (no parent)
   // You can modify this to set a parent based on your logic
   nodes.value[newId] = {
-    id: newId,
     name: `Node ${nodeCounter}`,
     parentId: null,  // Root node
     order: Object.values(nodes.value).filter(n => n.parentId === null).length,  // Order among root siblings
-    zIndex: 1000, // Start with higher z-index for new nodes
-    width: 120,
-    height: 40
+    zIndex: 1000 // Start with higher z-index for new nodes
   }
   layouts.value.nodes[newId] = { x: svgPoint.x, y: svgPoint.y }
 
   $q.notify({
     type: 'positive',
-    message: `Added ${nodes.value[newId]?.name || 'Node'}`,
+    message: `Added ${nodes.value[newId].name}`,
     timeout: 1000,
   })
 }
@@ -776,6 +831,9 @@ function deleteSelectedNodes() {
 
   // Clear selection
   selectedNodes.value = []
+
+  // Update parent boxes after deletion
+  calculateParentBoxes()
 
   $q.notify({
     type: 'positive',
@@ -840,10 +898,6 @@ function selectNodeWithDescendants(nodeId: string) {
   // Use setTimeout to ensure this happens after v-network-graph's default handler
   setTimeout(() => {
     selectedNodes.value = allNodes
-
-    // Debug: log what we're selecting
-    console.log('Selecting nodes:', allNodes)
-    console.log('selectedNodes.value after timeout:', selectedNodes.value)
 
     $q.notify({
       type: 'info',
@@ -920,6 +974,9 @@ function connectSelectedNodes() {
       targetNode.order = siblings.length  // Add as last child
     }
   }
+
+  // Update parent boxes immediately when hierarchy changes
+  calculateParentBoxes()
 
   $q.notify({
     type: 'positive',
@@ -1076,6 +1133,16 @@ watch(d3ForceEnabled, (enabled) => {
   }
 })
 
+// Watch for changes in layouts and nodes to update parent boxes
+watch([layouts, nodes], () => {
+  calculateParentBoxes()
+}, { deep: true })
+
+// Watch for changes in box padding to update parent boxes
+watch(boxPadding, () => {
+  calculateParentBoxes()
+})
+
 // Keyboard shortcuts
 function handleKeyDown(event: KeyboardEvent) {
   // Ctrl+Shift - Enter box selection mode
@@ -1148,6 +1215,7 @@ function handleClickOutside() {
 }
 
 onMounted(() => {
+  calculateParentBoxes()
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
   window.addEventListener('click', handleClickOutside)
@@ -1178,22 +1246,5 @@ onUnmounted(() => {
   position: fixed;
   z-index: 9999;
 }
-
-/* Parent container styling */
-.parent-container {
-  fill: rgba(255, 255, 255, 0.1);
-  stroke: #4dabf7;
-  stroke-dasharray: 8, 4;
-  pointer-events: none;
-}
-
-/* Node styling */
-.concept-node {
-  transition: all 0.2s;
-  cursor: move;
-}
-
-.concept-node:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
 </style>
+
