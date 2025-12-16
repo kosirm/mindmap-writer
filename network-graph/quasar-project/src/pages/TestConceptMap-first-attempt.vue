@@ -1,0 +1,1199 @@
+<template>
+  <q-page class="column">
+    <div class="q-pa-sm" style="background: #f5f5f5; border-bottom: 1px solid #ddd;">
+      <div class="row items-center q-gutter-sm">
+        <div class="text-subtitle2 q-mr-sm">ConceptMap Test</div>
+        <q-separator vertical />
+
+        <!-- Connection Controls -->
+        <q-btn-toggle
+          v-model="connectionType"
+          :options="[
+            { label: 'Hierarchy', value: 'hierarchy' },
+            { label: 'Reference', value: 'reference' }
+          ]"
+          size="xs"
+          dense
+          no-caps
+        />
+        <q-btn size="xs" color="secondary" label="Connect (C)" @click="connectSelectedNodes" :disable="selectedNodes.length !== 2" dense flat />
+
+        <q-separator vertical />
+
+        <!-- Layout Controls -->
+        <div class="text-caption">Box: Ctrl+Shift</div>
+        <q-toggle v-model="d3ForceEnabled" label="D3 Force" size="xs" dense />
+
+        <q-separator vertical />
+
+        <!-- Dagre for Selected Node -->
+        <div class="text-caption">Dagre Selected:</div>
+        <q-btn size="xs" icon="arrow_upward" @click="applyDagreToSelected('TB')" :disable="selectedNodes.length !== 1" dense flat title="Top to Bottom" />
+        <q-btn size="xs" icon="arrow_downward" @click="applyDagreToSelected('BT')" :disable="selectedNodes.length !== 1" dense flat title="Bottom to Top" />
+        <q-btn size="xs" icon="arrow_forward" @click="applyDagreToSelected('LR')" :disable="selectedNodes.length !== 1" dense flat title="Left to Right" />
+        <q-btn size="xs" icon="arrow_back" @click="applyDagreToSelected('RL')" :disable="selectedNodes.length !== 1" dense flat title="Right to Left" />
+
+        <q-separator vertical />
+
+        <div class="text-caption">Wheel Zoom: {{ wheelZoomSensitivity }}%</div>
+        <q-slider v-model="wheelZoomSensitivity" :min="5" :max="80" :step="5" dense style="width: 100px;" @update:model-value="(val) => val !== null && updateZoomSensitivity(val)" />
+        <q-toggle v-model="scalingObjects" label="Scale Objects" dense size="xs" @update:model-value="updateScalingObjects" />
+
+        <q-separator vertical />
+
+        <div class="text-caption">Selected: {{ selectedNodes.length }}</div>
+        <q-btn size="xs" color="info" label="Log Hierarchy" @click="logHierarchy" dense flat />
+        <q-btn size="xs" color="info" label="Toggle Parent Borders" @click="toggleParentBorders" dense flat />
+      </div>
+    </div>
+
+    <div class="graph-container">
+      <v-network-graph
+        ref="graphRef"
+        :nodes="nodes"
+        :edges="edges"
+        :configs="configs"
+        v-model:layouts="layouts"
+        v-model:selected-nodes="selectedNodes"
+        v-model:zoom-level="graphZoomLevel"
+        :event-handlers="eventHandlers"
+      >
+        <!-- Custom node rendering for conceptmap -->
+        <template #override-node="{ nodeId, scale }">
+          <g>
+            <!-- Draw parent container if this node has children -->
+            <rect
+              v-if="hasChildren(nodeId)"
+              :x="getParentContainerX(nodeId, scale)"
+              :y="getParentContainerY(nodeId, scale)"
+              :width="getParentContainerWidth(nodeId, scale)"
+              :height="getParentContainerHeight(nodeId, scale)"
+              :rx="12 * scale"
+              :fill="showParentBorders ? 'rgba(255, 255, 255, 0.1)' : 'transparent'"
+              :stroke="showParentBorders ? '#4dabf7' : 'transparent'"
+              :stroke-width="showParentBorders ? 2 * scale : 0"
+              stroke-dasharray="8, 4"
+              class="parent-container"
+            />
+
+            <!-- Draw the actual node -->
+            <rect
+              :width="getNodeWidth(nodeId, scale)"
+              :height="getNodeHeight(nodeId, scale)"
+              :x="getNodeX(nodeId, scale)"
+              :y="getNodeY(nodeId, scale)"
+              :rx="8 * scale"
+              :fill="getNodeColor(nodeId)"
+              :stroke="getNodeStrokeColor(nodeId)"
+              :stroke-width="getNodeStrokeWidth(nodeId) * scale"
+              class="concept-node"
+            />
+
+            <text
+              text-anchor="middle"
+              dominant-baseline="central"
+              :x="getNodeX(nodeId, scale)"
+              :y="getNodeY(nodeId, scale)"
+              :font-size="14 * scale"
+              fill="#263238"
+              pointer-events="none"
+            >
+              {{ nodes[nodeId]?.name }}
+            </text>
+          </g>
+        </template>
+      </v-network-graph>
+    </div>
+
+    <!-- Context Menu -->
+    <div
+      v-if="contextMenuVisible"
+      class="context-menu"
+      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+      @click.stop
+    >
+      <q-list dense style="min-width: 180px; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+        <q-item clickable @click="addChildNode">
+          <q-item-section avatar>
+            <q-icon name="subdirectory_arrow_right" size="xs" />
+          </q-item-section>
+          <q-item-section>Add Child</q-item-section>
+        </q-item>
+
+        <q-item clickable @click="addSiblingNode">
+          <q-item-section avatar>
+            <q-icon name="more_horiz" size="xs" />
+          </q-item-section>
+          <q-item-section>Add Sibling</q-item-section>
+        </q-item>
+
+        <q-item clickable @click="addParentNode">
+          <q-item-section avatar>
+            <q-icon name="north" size="xs" />
+          </q-item-section>
+          <q-item-section>Add Parent</q-item-section>
+        </q-item>
+
+        <q-separator />
+
+        <q-item clickable @click="deleteContextNode">
+          <q-item-section avatar>
+            <q-icon name="delete" size="xs" color="negative" />
+          </q-item-section>
+          <q-item-section>Delete</q-item-section>
+        </q-item>
+      </q-list>
+    </div>
+  </q-page>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
+import { useQuasar } from 'quasar'
+import * as vNG from 'v-network-graph'
+import { ForceLayout } from 'v-network-graph/lib/force-layout'
+// @ts-expect-error - dagre doesn't have proper TypeScript types
+import dagre from 'dagre/dist/dagre.min.js'
+
+const $q = useQuasar()
+
+// Graph ref
+const graphRef = ref<vNG.VNetworkGraphInstance>()
+
+// svg-pan-zoom instance (for zoom sensitivity control)
+interface SvgPanZoomInstance {
+  setZoomScaleSensitivity: (sensitivity: number) => void
+}
+let svgPanZoomInstance: SvgPanZoomInstance | null = null
+
+// Node interface with parent-child tracking and conceptmap-specific properties
+interface ConceptMapNode {
+  id: string
+  name: string
+  parentId: string | null  // null for root nodes
+  order: number            // Sibling order (0, 1, 2, ...)
+  zIndex?: number          // For z-order management
+  width?: number           // Node width
+  height?: number          // Node height
+  isParent?: boolean      // Whether this node has children
+}
+
+// Edge interface with type tracking
+interface ConceptMapEdge extends vNG.Edge {
+  type: 'hierarchy' | 'reference'  // hierarchy = parent-child, reference = just a link
+}
+
+// Data
+const nodes = ref<Record<string, ConceptMapNode>>({
+  'node-1': { id: 'node-1', name: 'Root', parentId: null, order: 0, width: 120, height: 40, isParent: true },
+  'node-2': { id: 'node-2', name: 'Child 1', parentId: 'node-1', order: 0, width: 120, height: 40 },
+  'node-3': { id: 'node-3', name: 'Child 2', parentId: 'node-1', order: 1, width: 120, height: 40 },
+})
+
+const edges = ref<Record<string, ConceptMapEdge>>({
+  'edge-1': { source: 'node-1', target: 'node-2', type: 'hierarchy' },
+  'edge-2': { source: 'node-1', target: 'node-3', type: 'hierarchy' },
+})
+
+const layouts = ref<vNG.Layouts>({
+  nodes: {
+    'node-1': { x: 0, y: 0 },
+    'node-2': { x: 50, y: 100 },
+    'node-3': { x: 50, y: -100 },
+  },
+})
+
+// Selection
+const selectedNodes = ref<string[]>([])
+
+// UI State
+const d3ForceEnabled = ref(false)
+const connectionType = ref<'hierarchy' | 'reference'>('hierarchy')
+const showParentBorders = ref(true)  // Toggle parent container visibility
+
+// Context menu state
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuNodeId = ref<string | null>(null)
+
+// Box selection state (Ctrl+Shift hold)
+const isCtrlShiftPressed = ref(false)
+const graphZoomLevel = ref(1) // For v-network-graph binding (0.1-2.0)
+const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
+const scalingObjects = ref(false) // Toggle for scaling objects with zoom (default: false)
+
+// Node counter
+let nodeCounter = 3
+
+// Force layout instance
+let forceLayout: ForceLayout | null = null
+
+// Configs
+const configs = reactive(
+  vNG.defineConfigs({
+    view: {
+      scalingObjects: scalingObjects.value, // Nodes scale with zoom (controlled by toggle)
+      boxSelectionEnabled: false, // Disable box selection to avoid rect rendering issues
+      onSvgPanZoomInitialized: (instance: SvgPanZoomInstance) => {
+        svgPanZoomInstance = instance
+        // Set initial zoom sensitivity (default is 0.2 which is 20%)
+        updateZoomSensitivity(wheelZoomSensitivity.value)
+      },
+    },
+    node: {
+      selectable: true,
+      normal: {
+        type: 'rect',
+        width: 120,
+        height: 40,
+        borderRadius: 8,
+        color: '#ffffff', // Pure white background - completely opaque
+        strokeWidth: 2,
+        strokeColor: '#4dabf7',
+        strokeDasharray: '0', // Solid stroke
+      },
+      hover: {
+        type: 'rect',
+        width: 120,
+        height: 40,
+        borderRadius: 8,
+        color: '#e1f5fe', // Very light blue background - completely opaque
+        strokeWidth: 2,
+        strokeColor: '#2196f3',
+        strokeDasharray: '0', // Solid stroke
+      },
+      selected: {
+        type: 'rect',
+        width: 120,
+        height: 40,
+        borderRadius: 8,
+        color: '#b3e5fc', // Light blue background - completely opaque
+        strokeWidth: 3,
+        strokeColor: '#1976d2',
+        strokeDasharray: '0', // Solid stroke
+      },
+      label: {
+        visible: false, // We'll render labels in the custom template to ensure proper z-order
+      },
+      draggable: true,
+      zOrder: {
+        enabled: true,
+        zIndex: (node: vNG.Node) => {
+          const conceptNode = node as unknown as ConceptMapNode
+          return conceptNode.zIndex || 0
+        },
+        bringToFrontOnHover: true,
+        bringToFrontOnSelected: true,
+      },
+    },
+    edge: {
+      normal: {
+        // Style based on edge type
+        color: (edge) => {
+          const e = edge as ConceptMapEdge
+          return e.type === 'hierarchy' ? '#4dabf7' : '#aaa'
+        },
+        width: (edge) => {
+          const e = edge as ConceptMapEdge
+          return e.type === 'hierarchy' ? 3 : 1
+        },
+        dasharray: (edge) => {
+          const e = edge as ConceptMapEdge
+          return e.type === 'reference' ? '4' : '0'
+        },
+      },
+      marker: {
+        target: {
+          type: 'arrow',
+          width: 4,
+          height: 4,
+        },
+      },
+    },
+  })
+)
+
+// Event handlers
+const eventHandlers: vNG.EventHandlers = {
+  'view:click': ({ event }) => {
+    // Only add node if Ctrl key is pressed
+    if (event.ctrlKey || event.metaKey) {
+      addNodeAtPosition(event)
+    }
+  },
+  'view:mode': (mode) => {
+    // Observe mode change events - not needed anymore with Ctrl+Shift hold
+    console.log('view:mode', mode)
+  },
+  'node:click': ({ node, event }) => {
+    // Alt+Click - Select node and all descendants
+    if (event.altKey) {
+      event.preventDefault()
+      event.stopPropagation()
+      selectNodeWithDescendants(node)
+      return false
+    }
+  },
+  'node:contextmenu': ({ node, event }) => {
+    // Show context menu on right-click
+    event.preventDefault()
+    event.stopPropagation()
+    contextMenuNodeId.value = node
+    contextMenuX.value = event.clientX
+    contextMenuY.value = event.clientY
+    contextMenuVisible.value = true
+  },
+}
+
+// Helper functions for conceptmap
+function hasChildren(nodeId: string): boolean {
+  return Object.values(nodes.value).some(n => n.parentId === nodeId)
+}
+
+function getDirectChildren(nodeId: string): ConceptMapNode[] {
+  return Object.values(nodes.value)
+    .filter(n => n.parentId === nodeId)
+    .sort((a, b) => a.order - b.order)
+}
+
+function getNodeColor(nodeId: string): string {
+  const node = nodes.value[nodeId]
+  if (!node) return '#ffffff'
+
+  const isSelected = selectedNodes.value.includes(nodeId)
+
+  if (isSelected) {
+    return '#b3e5fc' // Selected color
+  } else {
+    return '#ffffff' // Normal color
+  }
+}
+
+function getNodeStrokeColor(nodeId: string): string {
+  const node = nodes.value[nodeId]
+  if (!node) return '#4dabf7'
+
+  const isSelected = selectedNodes.value.includes(nodeId)
+
+  if (isSelected) {
+    return '#1976d2' // Selected stroke color
+  } else {
+    return '#4dabf7' // Normal stroke color
+  }
+}
+
+function getNodeStrokeWidth(nodeId: string): number {
+  const node = nodes.value[nodeId]
+  if (!node) return 2
+
+  const isSelected = selectedNodes.value.includes(nodeId)
+
+  if (isSelected) {
+    return 3 // Selected stroke width
+  } else {
+    return 2 // Normal stroke width
+  }
+}
+
+function getNodeWidth(nodeId: string, scale: number): number {
+  const node = nodes.value[nodeId]
+  return (node?.width || 120) * scale
+}
+
+function getNodeHeight(nodeId: string, scale: number): number {
+  const node = nodes.value[nodeId]
+  return (node?.height || 40) * scale
+}
+
+function getNodeX(nodeId: string, scale: number): number {
+  const layout = layouts.value.nodes[nodeId]
+  return (layout?.x || 0)
+}
+
+function getNodeY(nodeId: string, scale: number): number {
+  const layout = layouts.value.nodes[nodeId]
+  return (layout?.y || 0)
+}
+
+// Parent container calculations
+function getParentContainerX(nodeId: string, scale: number): number {
+  const node = nodes.value[nodeId]
+  if (!node) return 0
+
+  const layout = layouts.value.nodes[nodeId]
+  const children = getDirectChildren(nodeId)
+
+  if (children.length === 0) return getNodeX(nodeId, scale) - getNodeWidth(nodeId, scale) / 2
+
+  // Find min X of children
+  let minX = layout?.x || 0
+  children.forEach(child => {
+    const childLayout = layouts.value.nodes[child.id]
+    const childX = childLayout?.x || 0
+    const childWidth = (child.width || 120) * scale
+    minX = Math.min(minX, childX - childWidth / 2)
+  })
+
+  return minX - 30 * scale // Add more padding
+}
+
+function getParentContainerY(nodeId: string, scale: number): number {
+  const node = nodes.value[nodeId]
+  if (!node) return 0
+
+  const layout = layouts.value.nodes[nodeId]
+  const children = getDirectChildren(nodeId)
+
+  if (children.length === 0) return getNodeY(nodeId, scale) - getNodeHeight(nodeId, scale) / 2
+
+  // Find min Y of children
+  let minY = layout?.y || 0
+  children.forEach(child => {
+    const childLayout = layouts.value.nodes[child.id]
+    const childY = childLayout?.y || 0
+    const childHeight = (child.height || 40) * scale
+    minY = Math.min(minY, childY - childHeight / 2)
+  })
+
+  return minY - 50 * scale // Add more padding for header
+}
+
+function getParentContainerWidth(nodeId: string, scale: number): number {
+  const node = nodes.value[nodeId]
+  if (!node) return 120 * scale
+
+  const children = getDirectChildren(nodeId)
+
+  if (children.length === 0) return getNodeWidth(nodeId, scale)
+
+  // Find max width based on children positions
+  let minX = Infinity
+  let maxX = -Infinity
+
+  children.forEach(child => {
+    const childLayout = layouts.value.nodes[child.id]
+    const childX = childLayout?.x || 0
+    const childWidth = (child.width || 120) * scale
+    minX = Math.min(minX, childX - childWidth / 2)
+    maxX = Math.max(maxX, childX + childWidth / 2)
+  })
+
+  return maxX - minX + 60 * scale // Add more padding
+}
+
+function getParentContainerHeight(nodeId: string, scale: number): number {
+  const node = nodes.value[nodeId]
+  if (!node) return 40 * scale
+
+  const children = getDirectChildren(nodeId)
+
+  if (children.length === 0) return getNodeHeight(nodeId, scale)
+
+  // Find max height based on children positions
+  let minY = Infinity
+  let maxY = -Infinity
+
+  children.forEach(child => {
+    const childLayout = layouts.value.nodes[child.id]
+    const childY = childLayout?.y || 0
+    const childHeight = (child.height || 40) * scale
+    minY = Math.min(minY, childY - childHeight / 2)
+    maxY = Math.max(maxY, childY + childHeight / 2)
+  })
+
+  return maxY - minY + 80 * scale // Add more padding for header
+}
+
+// Update parent containers when children move
+function updateParentContainers() {
+  // Find all parent nodes and update their isParent flag
+  Object.values(nodes.value).forEach(node => {
+    node.isParent = hasChildren(node.id)
+  })
+}
+
+// Functions
+function updateZoomSensitivity(value: number) {
+  if (svgPanZoomInstance) {
+    // Convert percentage to decimal (20% -> 0.2)
+    const sensitivity = value / 100
+    svgPanZoomInstance.setZoomScaleSensitivity(sensitivity)
+  }
+}
+
+function updateScalingObjects(value: boolean) {
+  // Update the configs to enable/disable scaling objects
+  configs.view = configs.view || {}
+  configs.view.scalingObjects = value
+
+  $q.notify({
+    type: 'info',
+    message: `Scaling objects: ${value ? 'Enabled' : 'Disabled'}`,
+    timeout: 1000,
+  })
+}
+
+function toggleParentBorders() {
+  showParentBorders.value = !showParentBorders.value
+  $q.notify({
+    type: 'info',
+    message: `Parent borders: ${showParentBorders.value ? 'Visible' : 'Hidden'}`,
+    timeout: 1000,
+  })
+}
+
+// Context menu functions
+function addChildNode() {
+  if (!contextMenuNodeId.value || !graphRef.value) return
+
+  const parentId = contextMenuNodeId.value
+  const parentPos = layouts.value.nodes[parentId]
+  if (!parentPos) return
+
+  // Check if the current node has a parent (grandparent of the new child)
+  const currentNode = nodes.value[parentId]
+  let newNodePosition = { x: parentPos.x, y: parentPos.y + 80 }
+
+  if (currentNode && currentNode.parentId) {
+    // Node has a parent - calculate relative position (degree) from parent
+    const grandparentId = currentNode.parentId
+    const grandparentPos = layouts.value.nodes[grandparentId]
+
+    if (grandparentPos) {
+      // Calculate the relative position (degree) between grandparent and parent
+      const relativeX = parentPos.x - grandparentPos.x
+      const relativeY = parentPos.y - grandparentPos.y
+
+      // Position new child at same relative position from parent
+      newNodePosition = {
+        x: parentPos.x + relativeX,
+        y: parentPos.y + relativeY
+      }
+    }
+  }
+
+  // Create new node at calculated position
+  const newId = `node-${++nodeCounter}`
+  nodes.value[newId] = {
+    id: newId,
+    name: `Node ${nodeCounter}`,
+    parentId: parentId,
+    order: Object.values(nodes.value).filter(n => n.parentId === parentId).length,
+    zIndex: 1000, // Start with higher z-index for new nodes
+    width: 120,
+    height: 40
+  }
+  layouts.value.nodes[newId] = newNodePosition
+
+  // Create hierarchy edge
+  const edgeId = `edge-${parentId}-${newId}`
+  edges.value[edgeId] = { source: parentId, target: newId, type: 'hierarchy' }
+
+  // Update parent's isParent flag
+  if (nodes.value[parentId]) {
+    nodes.value[parentId].isParent = true
+  }
+
+  contextMenuVisible.value = false
+
+  $q.notify({
+    type: 'positive',
+    message: 'Child node added',
+    timeout: 1000,
+  })
+}
+
+function addSiblingNode() {
+  if (!contextMenuNodeId.value || !graphRef.value) return
+
+  const siblingId = contextMenuNodeId.value
+  const sibling = nodes.value[siblingId]
+  const siblingPos = layouts.value.nodes[siblingId]
+  if (!sibling || !siblingPos) return
+
+  // Create new node next to sibling
+  const newId = `node-${++nodeCounter}`
+  nodes.value[newId] = {
+    id: newId,
+    name: `Node ${nodeCounter}`,
+    parentId: sibling.parentId,
+    order: Object.values(nodes.value).filter(n => n.parentId === sibling.parentId).length,
+    zIndex: 1000, // Start with higher z-index for new nodes
+    width: 120,
+    height: 40
+  }
+  layouts.value.nodes[newId] = { x: siblingPos.x + 150, y: siblingPos.y }
+
+  // Create hierarchy edge if there's a parent
+  if (sibling.parentId) {
+    const edgeId = `edge-${sibling.parentId}-${newId}`
+    edges.value[edgeId] = { source: sibling.parentId, target: newId, type: 'hierarchy' }
+  }
+
+  contextMenuVisible.value = false
+
+  $q.notify({
+    type: 'positive',
+    message: 'Sibling node added',
+    timeout: 1000,
+  })
+}
+
+function addParentNode() {
+  if (!contextMenuNodeId.value || !graphRef.value) return
+
+  const childId = contextMenuNodeId.value
+  const child = nodes.value[childId]
+  const childPos = layouts.value.nodes[childId]
+  if (!child || !childPos) return
+
+  // Create new parent node above child
+  const newId = `node-${++nodeCounter}`
+  nodes.value[newId] = {
+    id: newId,
+    name: `Node ${nodeCounter}`,
+    parentId: child.parentId,  // New parent has same parent as child (becomes sibling)
+    order: Object.values(nodes.value).filter(n => n.parentId === child.parentId).length,
+    zIndex: 1000, // Start with higher z-index for new nodes
+    width: 120,
+    height: 40,
+    isParent: true
+  }
+  layouts.value.nodes[newId] = { x: childPos.x, y: childPos.y - 80 }
+
+  // Remove old parent edge if exists
+  if (child.parentId) {
+    const oldEdgeId = Object.keys(edges.value).find(id => {
+      const edge = edges.value[id]
+      return edge && edge.type === 'hierarchy' && edge.source === child.parentId && edge.target === childId
+    })
+    if (oldEdgeId) {
+      delete edges.value[oldEdgeId]
+    }
+
+    // Create edge from old parent to new parent
+    const edgeId1 = `edge-${child.parentId}-${newId}`
+    edges.value[edgeId1] = { source: child.parentId, target: newId, type: 'hierarchy' }
+  }
+
+  // Update child's parent
+  child.parentId = newId
+  child.order = 0
+
+  // Create edge from new parent to child
+  const edgeId2 = `edge-${newId}-${childId}`
+  edges.value[edgeId2] = { source: newId, target: childId, type: 'hierarchy' }
+
+  contextMenuVisible.value = false
+
+  $q.notify({
+    type: 'positive',
+    message: 'Parent node added',
+    timeout: 1000,
+  })
+}
+
+function deleteContextNode() {
+  if (!contextMenuNodeId.value) return
+
+  const nodeId = contextMenuNodeId.value
+
+  // Delete node
+  delete nodes.value[nodeId]
+  delete layouts.value.nodes[nodeId]
+
+  // Delete all connected edges
+  Object.keys(edges.value).forEach((edgeId) => {
+    const edge = edges.value[edgeId]
+    if (edge && (edge.source === nodeId || edge.target === nodeId)) {
+      delete edges.value[edgeId]
+    }
+  })
+
+  contextMenuVisible.value = false
+
+  $q.notify({
+    type: 'negative',
+    message: 'Node deleted',
+    timeout: 1000,
+  })
+}
+
+function addNodeAtPosition(event: MouseEvent) {
+  if (!graphRef.value) return
+
+  // Get canvas position from mouse event
+  const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
+
+  const newId = `node-${++nodeCounter}`
+
+  // New nodes are created as root nodes (no parent)
+  // You can modify this to set a parent based on your logic
+  nodes.value[newId] = {
+    id: newId,
+    name: `Node ${nodeCounter}`,
+    parentId: null,  // Root node
+    order: Object.values(nodes.value).filter(n => n.parentId === null).length,  // Order among root siblings
+    zIndex: 1000, // Start with higher z-index for new nodes
+    width: 120,
+    height: 40
+  }
+  layouts.value.nodes[newId] = { x: svgPoint.x, y: svgPoint.y }
+
+  $q.notify({
+    type: 'positive',
+    message: `Added ${nodes.value[newId]?.name || 'Node'}`,
+    timeout: 1000,
+  })
+}
+
+function deleteSelectedNodes() {
+  if (selectedNodes.value.length === 0) {
+    $q.notify({
+      type: 'warning',
+      message: 'No nodes selected',
+      timeout: 1000,
+    })
+    return
+  }
+
+  const count = selectedNodes.value.length
+
+  // Delete nodes
+  selectedNodes.value.forEach((nodeId) => {
+    delete nodes.value[nodeId]
+    delete layouts.value.nodes[nodeId]
+  })
+
+  // Delete edges connected to deleted nodes
+  Object.keys(edges.value).forEach((edgeId) => {
+    const edge = edges.value[edgeId]
+    if (edge && (selectedNodes.value.includes(edge.source) || selectedNodes.value.includes(edge.target))) {
+      delete edges.value[edgeId]
+    }
+  })
+
+  // Clear selection
+  selectedNodes.value = []
+
+  $q.notify({
+    type: 'positive',
+    message: `Deleted ${count} node(s)`,
+    timeout: 1000,
+  })
+}
+
+// Helper: Check if adding edge would create circular reference
+function wouldCreateCircularReference(sourceId: string, targetId: string): boolean {
+  // BFS to check if there's a path from target to source
+  const visited = new Set<string>()
+  const queue = [targetId]
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!
+    if (currentId === sourceId) return true
+    if (visited.has(currentId)) continue
+    visited.add(currentId)
+
+    // Find all hierarchy edges where current node is the source
+    Object.values(edges.value).forEach(edge => {
+      if (edge.type === 'hierarchy' && edge.source === currentId) {
+        queue.push(edge.target)
+      }
+    })
+  }
+
+  return false
+}
+
+// Helper: Get all descendants of a node (recursive)
+function getDescendants(nodeId: string): string[] {
+  const descendants: string[] = []
+  const queue = [nodeId]
+  const visited = new Set<string>()
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!
+    if (visited.has(currentId)) continue
+    visited.add(currentId)
+
+    // Find all hierarchy edges where current node is the source
+    Object.values(edges.value).forEach(edge => {
+      if (edge.type === 'hierarchy' && edge.source === currentId) {
+        descendants.push(edge.target)
+        queue.push(edge.target)
+      }
+    })
+  }
+
+  return descendants
+}
+
+function selectNodeWithDescendants(nodeId: string) {
+  // Get all descendants
+  const descendants = getDescendants(nodeId)
+
+  // Select the node and all its descendants
+  const allNodes = [nodeId, ...descendants]
+
+  // Use setTimeout to ensure this happens after v-network-graph's default handler
+  setTimeout(() => {
+    selectedNodes.value = allNodes
+
+    // Debug: log what we're selecting
+    console.log('Selecting nodes:', allNodes)
+    console.log('selectedNodes.value after timeout:', selectedNodes.value)
+
+    $q.notify({
+      type: 'info',
+      message: `Selected ${allNodes.length} node${allNodes.length > 1 ? 's' : ''}`,
+      timeout: 1000,
+    })
+  }, 0)
+}
+
+function connectSelectedNodes() {
+  if (selectedNodes.value.length !== 2) return
+
+  const sourceId = selectedNodes.value[0]
+  const targetId = selectedNodes.value[1]
+
+  if (!sourceId || !targetId) return
+
+  const edgeId = `edge-${sourceId}-${targetId}`
+
+  if (edges.value[edgeId]) {
+    $q.notify({
+      type: 'warning',
+      message: 'Connection already exists',
+      timeout: 1000,
+    })
+    return
+  }
+
+  const isHierarchy = connectionType.value === 'hierarchy'
+
+  // For hierarchy connections, check for circular references
+  if (isHierarchy && wouldCreateCircularReference(sourceId, targetId)) {
+    $q.notify({
+      type: 'negative',
+      message: 'Cannot create circular hierarchy!',
+      timeout: 2000,
+    })
+    return
+  }
+
+  // Create edge
+  edges.value[edgeId] = {
+    source: sourceId,
+    target: targetId,
+    type: connectionType.value
+  }
+
+  // Update parent-child relationship only for hierarchy connections
+  if (isHierarchy) {
+    const targetNode = nodes.value[targetId]
+    if (targetNode) {
+      // Check if target already has a parent (reparenting)
+      if (targetNode.parentId !== null && targetNode.parentId !== sourceId) {
+        // Remove old hierarchy edge
+        const oldEdgeId = Object.keys(edges.value).find(id => {
+          const edge = edges.value[id]
+          return edge && edge.type === 'hierarchy' && edge.source === targetNode.parentId && edge.target === targetId
+        })
+        if (oldEdgeId) {
+          delete edges.value[oldEdgeId]
+        }
+
+        $q.notify({
+          type: 'info',
+          message: `Reparented from ${nodes.value[targetNode.parentId]?.name || 'unknown'}`,
+          timeout: 1500,
+        })
+      }
+
+      // Get current siblings of the new parent
+      const siblings = Object.values(nodes.value).filter(n => n.parentId === sourceId)
+
+      targetNode.parentId = sourceId
+      targetNode.order = siblings.length  // Add as last child
+    }
+  }
+
+  $q.notify({
+    type: 'positive',
+    message: `Connected (${connectionType.value})`,
+    timeout: 1000,
+  })
+}
+
+function applyDagreToSelected(direction: 'TB' | 'BT' | 'LR' | 'RL') {
+  if (selectedNodes.value.length !== 1) return
+
+  const rootId = selectedNodes.value[0]
+  if (!rootId) return
+
+  const descendants = getDescendants(rootId)
+  const subgraphNodes = [rootId, ...descendants]
+
+  if (subgraphNodes.length === 1) {
+    $q.notify({
+      type: 'warning',
+      message: 'Selected node has no children',
+      timeout: 1000,
+    })
+    return
+  }
+
+  // Create dagre graph for subgraph
+  const g = new dagre.graphlib.Graph()
+  g.setGraph({
+    rankdir: direction,
+    nodesep: 50,
+    edgesep: 10,
+    ranksep: 100,
+  })
+  g.setDefaultEdgeLabel(() => ({}))
+
+  // Add nodes to dagre
+  subgraphNodes.forEach(nodeId => {
+    g.setNode(nodeId, { width: 120, height: 40 })
+  })
+
+  // Add only hierarchy edges within the subgraph
+  Object.entries(edges.value).forEach(([, edge]) => {
+    if (edge.type === 'hierarchy' &&
+        subgraphNodes.includes(edge.source) &&
+        subgraphNodes.includes(edge.target)) {
+      g.setEdge(edge.source, edge.target)
+    }
+  })
+
+  // Run dagre layout
+  dagre.layout(g)
+
+  // Get the root node's current position to use as anchor
+  const rootPos = layouts.value.nodes[rootId]
+  if (!rootPos) return
+
+  const rootDagrePos = g.node(rootId)
+  const offsetX = rootPos.x - rootDagrePos.x
+  const offsetY = rootPos.y - rootDagrePos.y
+
+  // Update positions for subgraph nodes (offset to keep root in place)
+  subgraphNodes.forEach(nodeId => {
+    const dagreNode = g.node(nodeId)
+    layouts.value.nodes[nodeId] = {
+      x: dagreNode.x + offsetX,
+      y: dagreNode.y + offsetY,
+    }
+  })
+
+  $q.notify({
+    type: 'positive',
+    message: `Applied ${direction} layout to ${subgraphNodes.length} nodes`,
+    timeout: 1000,
+  })
+}
+
+function logHierarchy() {
+  console.log('=== Node Hierarchy ===')
+
+  // Get root nodes
+  const rootNodes = Object.entries(nodes.value)
+    .filter(([, node]) => node.parentId === null)
+    .sort((a, b) => a[1].order - b[1].order)
+
+  // Recursive function to print tree
+  function printNode(nodeId: string, indent: string = '') {
+    const node = nodes.value[nodeId]
+    if (!node) return
+
+    console.log(`${indent}${node.name} (id: ${nodeId}, order: ${node.order})`)
+
+    // Get children
+    const children = Object.entries(nodes.value)
+      .filter(([, n]) => n.parentId === nodeId)
+      .sort((a, b) => a[1].order - b[1].order)
+
+    children.forEach(([childId]) => {
+      printNode(childId, indent + '  ')
+    })
+  }
+
+  // Print all root nodes and their descendants
+  rootNodes.forEach(([nodeId]) => {
+    printNode(nodeId)
+  })
+
+  console.log('=== End Hierarchy ===')
+
+  $q.notify({
+    type: 'info',
+    message: 'Hierarchy logged to console',
+    timeout: 1000,
+  })
+}
+
+// Watch D3 Force
+watch(d3ForceEnabled, (enabled) => {
+  if (!graphRef.value) return
+
+  if (enabled) {
+    // Always create a fresh force layout instance to avoid stale state
+    forceLayout = new ForceLayout({
+      positionFixedByDrag: true,
+      positionFixedByClickWithAltKey: true,
+    })
+
+    configs.view = configs.view || {}
+    configs.view.layoutHandler = forceLayout
+
+    $q.notify({
+      type: 'positive',
+      message: 'D3 Force enabled',
+      timeout: 1000,
+    })
+  } else {
+    // Stop force layout
+    if (forceLayout && 'stop' in forceLayout && typeof forceLayout.stop === 'function') {
+      forceLayout.stop()
+    }
+
+    // Replace with SimpleLayout to prevent any residual force interference
+    configs.view = configs.view || {}
+    configs.view.layoutHandler = new vNG.SimpleLayout()
+
+    // Destroy the force layout instance to clear all internal state
+    forceLayout = null
+
+    $q.notify({
+      type: 'info',
+      message: 'D3 Force disabled',
+      timeout: 1000,
+    })
+  }
+})
+
+// Keyboard shortcuts
+function handleKeyDown(event: KeyboardEvent) {
+  // Ctrl+Shift - Enter box selection mode
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
+    if (!isCtrlShiftPressed.value && graphRef.value) {
+      isCtrlShiftPressed.value = true
+      graphRef.value.startBoxSelection({
+        stop: 'click',
+        type: 'append',
+      })
+    }
+  }
+
+  // H key - Set connection type to Hierarchy
+  if (event.key === 'h' || event.key === 'H') {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault()
+      connectionType.value = 'hierarchy'
+      $q.notify({
+        type: 'info',
+        message: 'Connection type: Hierarchy',
+        timeout: 800,
+      })
+    }
+  }
+
+  // R key - Set connection type to Reference
+  if (event.key === 'r' || event.key === 'R') {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault()
+      connectionType.value = 'reference'
+      $q.notify({
+        type: 'info',
+        message: 'Connection type: Reference',
+        timeout: 800,
+      })
+    }
+  }
+
+  // Delete key - Delete selected nodes
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (selectedNodes.value.length > 0) {
+      event.preventDefault()
+      deleteSelectedNodes()
+    }
+  }
+
+  // C key - Connect selected nodes
+  if (event.key === 'c' || event.key === 'C') {
+    if (!event.ctrlKey && !event.metaKey && selectedNodes.value.length === 2) {
+      event.preventDefault()
+      connectSelectedNodes()
+    }
+  }
+}
+
+function handleKeyUp(event: KeyboardEvent) {
+  // Exit box selection mode when Ctrl or Shift is released
+  if (isCtrlShiftPressed.value && (!event.ctrlKey && !event.metaKey || !event.shiftKey)) {
+    isCtrlShiftPressed.value = false
+    if (graphRef.value) {
+      graphRef.value.stopBoxSelection()
+    }
+  }
+}
+
+// Close context menu on click outside
+function handleClickOutside() {
+  contextMenuVisible.value = false
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+  window.addEventListener('keyup', handleKeyUp)
+  window.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+  window.removeEventListener('keyup', handleKeyUp)
+  window.removeEventListener('click', handleClickOutside)
+})
+</script>
+
+<style scoped>
+.q-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.graph-container {
+  flex: 1;
+  width: 100%;
+  border: 1px solid #e0e0e0;
+  min-height: 0;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+}
+
+/* Parent container styling */
+.parent-container {
+  fill: rgba(255, 255, 255, 0.1);
+  stroke: #4dabf7;
+  stroke-dasharray: 8, 4;
+  pointer-events: none;
+}
+
+/* Node styling */
+.concept-node {
+  transition: all 0.2s;
+  cursor: move;
+}
+
+.concept-node:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+</style>

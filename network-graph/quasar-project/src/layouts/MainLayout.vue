@@ -103,6 +103,14 @@
                 <q-item-label class="text-primary text-weight-bold">MindMap Features</q-item-label>
               </q-item-section>
             </q-item>
+            <q-item clickable v-ripple to="/test-conceptmap">
+              <q-item-section avatar>
+                <q-icon name="schema" color="secondary" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-secondary text-weight-medium">ConceptMap Test</q-item-label>
+              </q-item-section>
+            </q-item>
           </q-list>
         </q-tab-panel>
 
