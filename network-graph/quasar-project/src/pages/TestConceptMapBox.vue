@@ -355,7 +355,13 @@ const eventHandlers: vNG.EventHandlers = {
   'view:click': ({ event }) => {
     // Only add node if Ctrl key is pressed
     if (event.ctrlKey || event.metaKey) {
-      addNodeAtPosition(event)
+      // Check if click is on a parent box first
+      const clickedBox = findClickedParentBox(event)
+      if (clickedBox) {
+        addNodeToParentBox(clickedBox.parentId, event)
+      } else {
+        addNodeAtPosition(event)
+      }
     }
   },
   'view:mode': () => {
@@ -588,26 +594,10 @@ function addChildNode() {
   const parentPos = layouts.value.nodes[parentId]
   if (!parentPos) return
 
-  // Check if the current node has a parent (grandparent of the new child)
-  const currentNode = nodes.value[parentId]
-  let newNodePosition = { x: parentPos.x, y: parentPos.y + 80 }
-
-  if (currentNode && currentNode.parentId) {
-    // Node has a parent - calculate relative position (degree) from parent
-    const grandparentId = currentNode.parentId
-    const grandparentPos = layouts.value.nodes[grandparentId]
-
-    if (grandparentPos) {
-      // Calculate the relative position (degree) between grandparent and parent
-      const relativeX = parentPos.x - grandparentPos.x
-      const relativeY = parentPos.y - grandparentPos.y
-
-      // Position new child at same relative position from parent
-      newNodePosition = {
-        x: parentPos.x + relativeX,
-        y: parentPos.y + relativeY
-      }
-    }
+  // For concept map, position child node UNDER the parent (not based on mindmap logic)
+  const newNodePosition = {
+    x: parentPos.x,
+    y: parentPos.y + 80
   }
 
   // Create new node at calculated position
@@ -864,6 +854,63 @@ function deleteSelectedNodes() {
   $q.notify({
     type: 'positive',
     message: `Deleted ${count} node(s)`,
+    timeout: 1000,
+  })
+}
+
+// Helper: Find if a click event is on a parent box
+function findClickedParentBox(event: MouseEvent): ParentBox | null {
+  if (!graphRef.value) return null
+
+  // Get canvas position from mouse event
+  const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
+
+  // Check if click is within any parent box (from deepest to shallowest to handle nesting)
+  const sortedBoxes = [...parentBoxes.value].sort((a, b) => {
+    // Sort by box area (smaller boxes first) to handle nesting properly
+    const areaA = a.width * a.height
+    const areaB = b.width * b.height
+    return areaA - areaB
+  })
+
+  for (const box of sortedBoxes) {
+    // Check if click is within this box
+    if (svgPoint.x >= box.x && svgPoint.x <= box.x + box.width &&
+        svgPoint.y >= box.y && svgPoint.y <= box.y + box.height) {
+      return box
+    }
+  }
+
+  return null
+}
+
+// Helper: Add node to a parent box (as child of the parent node)
+function addNodeToParentBox(parentId: string, event: MouseEvent) {
+  if (!graphRef.value) return
+
+  // Get canvas position from mouse event
+  const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
+
+  // Create new node as child of the parent box's node
+  const newId = `node-${++nodeCounter}`
+  nodes.value[newId] = {
+    name: `Node ${nodeCounter}`,
+    parentId: parentId,
+    order: Object.values(nodes.value).filter(n => n.parentId === parentId).length,
+    zIndex: 1000 // Start with higher z-index for new nodes
+  }
+  layouts.value.nodes[newId] = { x: svgPoint.x, y: svgPoint.y }
+
+  // Create hierarchy edge
+  const edgeId = `edge-${parentId}-${newId}`
+  edges.value[edgeId] = { source: parentId, target: newId, type: 'hierarchy' }
+
+  // Update parent boxes immediately
+  calculateParentBoxes()
+
+  $q.notify({
+    type: 'positive',
+    message: `Added child to ${nodes.value[parentId]?.name || 'parent'}`,
     timeout: 1000,
   })
 }
