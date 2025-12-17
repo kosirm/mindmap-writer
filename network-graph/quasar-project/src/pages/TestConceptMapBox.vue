@@ -559,8 +559,8 @@ const eventHandlers: vNG.EventHandlers = {
     calculateParentBoxes()
   },
   'node:pointerover': ({ node, event }: { node: string, event: PointerEvent }) => {
-    // Handle hover on nodes during dragging
-    if (isDragging.value && event && node) {
+    // Handle hover on nodes during ctrl+drag (reparenting operations) only
+    if (isDragging.value && ctrlDraggedNodes.value.size > 0 && event && node) {
       event.preventDefault()
       event.stopPropagation()
       hoveredElement.value = { type: 'node', id: node }
@@ -568,8 +568,8 @@ const eventHandlers: vNG.EventHandlers = {
     }
   },
   'node:pointerout': ({ node, event }: { node: string, event: PointerEvent }) => {
-    // Handle when mouse leaves a node during dragging
-    if (isDragging.value && event && node && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === node) {
+    // Handle when mouse leaves a node during ctrl+drag
+    if (isDragging.value && ctrlDraggedNodes.value.size > 0 && event && node && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === node) {
       event.preventDefault()
       event.stopPropagation()
       hoveredElement.value = null
@@ -577,9 +577,9 @@ const eventHandlers: vNG.EventHandlers = {
     }
   },
   'node:pointermove': (eventData) => {
-    // Handle continuous pointer movement over nodes during dragging
+    // Handle continuous pointer movement over nodes during ctrl+drag only
     // Note: node:pointermove has different event structure than pointerover/pointerout
-    if (isDragging.value && eventData && typeof eventData === 'object') {
+    if (isDragging.value && ctrlDraggedNodes.value.size > 0 && eventData && typeof eventData === 'object') {
       // Try to extract node and event from the different possible structures
       const node = (eventData as { node?: string; [key: string]: unknown }).node || Object.keys(eventData)[0]
       const pointerEvent = (eventData as { event?: PointerEvent; [key: string]: unknown }).event
@@ -596,7 +596,8 @@ const eventHandlers: vNG.EventHandlers = {
 
 // Handle canvas mouse movement for box and canvas hover detection
 function handleCanvasMouseMove(event: MouseEvent) {
-  if (!isDragging.value || !graphRef.value) return
+  // Only handle hover detection during ctrl+drag (reparenting operations)
+  if (!isDragging.value || ctrlDraggedNodes.value.size === 0 || !graphRef.value) return
 
   // Get canvas position from mouse event
   const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
@@ -605,6 +606,7 @@ function handleCanvasMouseMove(event: MouseEvent) {
   const hoveredBox = findClickedParentBoxAtCoordinates(svgPoint)
 
   if (hoveredBox) {
+    // All boxes are valid targets during ctrl+drag, including parent boxes
     // Only update if we're not already hovering this box or if we're hovering a different box
     if (!hoveredElement.value ||
         hoveredElement.value.type !== 'box' ||
@@ -636,9 +638,9 @@ function getNodeColor(nodeId: string): string {
   const isSelected = selectedNodes.value.includes(nodeId)
   const isParent = isParentNode(nodeId)
   const isCtrlDragged = ctrlDraggedNodes.value.has(nodeId)
-  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
+  const isHoveredDuringDrag = isDragging.value && ctrlDraggedNodes.value.size > 0 && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
 
-  // Hover during drag has highest priority (bright yellow)
+  // Hover during drag has highest priority (bright yellow) - only during ctrl+drag
   if (isHoveredDuringDrag) {
     return '#ffeb3b' // Bright yellow for hover during drag
   }
@@ -659,7 +661,7 @@ function getNodeStrokeColor(nodeId: string): string {
   if (!node) return '#4dabf7'
 
   const isSelected = selectedNodes.value.includes(nodeId)
-  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
+  const isHoveredDuringDrag = isDragging.value && ctrlDraggedNodes.value.size > 0 && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
 
   if (isHoveredDuringDrag) {
     return '#ff9800' // Orange stroke for hover during drag
@@ -675,7 +677,7 @@ function getNodeStrokeWidth(nodeId: string): number {
   if (!node) return 2
 
   const isSelected = selectedNodes.value.includes(nodeId)
-  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
+  const isHoveredDuringDrag = isDragging.value && ctrlDraggedNodes.value.size > 0 && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
 
   if (isHoveredDuringDrag) {
     return 4 // Thicker stroke for hover during drag
@@ -688,7 +690,7 @@ function getNodeStrokeWidth(nodeId: string): number {
 
 // Helper functions for parent box rendering
 function getBoxStrokeColor(parentId: string): string {
-  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'box' && hoveredElement.value?.id === parentId
+  const isHoveredDuringDrag = isDragging.value && ctrlDraggedNodes.value.size > 0 && hoveredElement.value?.type === 'box' && hoveredElement.value?.id === parentId
 
   if (isHoveredDuringDrag) {
     return '#ff9800' // Orange stroke for hover during drag
@@ -698,7 +700,7 @@ function getBoxStrokeColor(parentId: string): string {
 }
 
 function getBoxStrokeWidth(parentId: string): number {
-  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'box' && hoveredElement.value?.id === parentId
+  const isHoveredDuringDrag = isDragging.value && ctrlDraggedNodes.value.size > 0 && hoveredElement.value?.type === 'box' && hoveredElement.value?.id === parentId
 
   if (isHoveredDuringDrag) {
     return 4 // Thicker stroke for hover during drag
@@ -852,7 +854,13 @@ function reparentNodes(nodeIds: string[], newParentId: string | null) {
       return
     }
 
-    // Check if new parent is a descendant of the node being moved (circular reference)
+    // Check if we're dropping back on the original parent (no-op, just keep node where it is)
+    if (newParentId === node.parentId) {
+      // No reparenting needed, node stays in its current position
+      return
+    }
+
+    // Check for circular references (only when actually changing parent)
     if (newParentId && isDescendant(newParentId, nodeId)) {
       $q.notify({
         type: 'warning',
