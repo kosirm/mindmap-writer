@@ -91,7 +91,7 @@
       </v-network-graph>
     </div>
 
-    <!-- Context Menu -->
+    <!-- Node Context Menu -->
     <div
       v-if="contextMenuVisible"
       class="context-menu"
@@ -134,6 +134,39 @@
             <q-icon name="delete" size="xs" color="negative" />
           </q-item-section>
           <q-item-section>Delete</q-item-section>
+        </q-item>
+      </q-list>
+    </div>
+
+    <!-- Canvas Context Menu -->
+    <div
+      v-if="canvasContextMenuVisible"
+      class="context-menu"
+      :style="{ left: canvasContextMenuX + 'px', top: canvasContextMenuY + 'px' }"
+      @click.stop
+    >
+      <q-list dense style="min-width: 150px; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+        <q-item clickable @click="addChildNodeAtCanvas">
+          <q-item-section avatar>
+            <q-icon name="subdirectory_arrow_right" size="xs" />
+          </q-item-section>
+          <q-item-section>Add Child</q-item-section>
+        </q-item>
+
+        <q-separator />
+
+        <q-item clickable @click="zoomIn">
+          <q-item-section avatar>
+            <q-icon name="zoom_in" size="xs" />
+          </q-item-section>
+          <q-item-section>Zoom In</q-item-section>
+        </q-item>
+
+        <q-item clickable @click="zoomOut">
+          <q-item-section avatar>
+            <q-icon name="zoom_out" size="xs" />
+          </q-item-section>
+          <q-item-section>Zoom Out</q-item-section>
         </q-item>
       </q-list>
     </div>
@@ -229,6 +262,12 @@ const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const contextMenuNodeId = ref<string | null>(null)
+
+// Canvas context menu state
+const canvasContextMenuVisible = ref(false)
+const canvasContextMenuX = ref(0)
+const canvasContextMenuY = ref(0)
+const canvasContextMenuPosition = ref<{ x: number, y: number } | null>(null) // Store mouse position for Add Child
 
 // Box selection state (Shift hold)
 const isShiftPressed = ref(false)
@@ -365,6 +404,21 @@ const eventHandlers: vNG.EventHandlers = {
         addNodeAtPosition(event)
       }
     }
+  },
+  'view:contextmenu': ({ event }) => {
+    // Show canvas context menu on right-click (when not clicking on a node)
+    event.preventDefault()
+    event.stopPropagation()
+    canvasContextMenuX.value = event.clientX
+    canvasContextMenuY.value = event.clientY
+    
+    // Store mouse position in SVG coordinates for Add Child functionality
+    if (graphRef.value) {
+      const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
+      canvasContextMenuPosition.value = { x: svgPoint.x, y: svgPoint.y }
+    }
+    
+    canvasContextMenuVisible.value = true
   },
   'node:select': (nodeIds: string[]) => {
     // Handle node selection (including box selection)
@@ -1086,6 +1140,59 @@ function addNodeToParentBox(parentId: string, event: MouseEvent) {
   })
 }
 
+// Canvas context menu functions
+function addChildNodeAtCanvas() {
+  // Add a root node at the position where context menu was opened
+  const newId = `node-${++nodeCounter}`
+  nodes.value[newId] = {
+    name: `Node ${nodeCounter}`,
+    parentId: null, // Root node
+    order: Object.values(nodes.value).filter(n => n.parentId === null).length,
+    zIndex: 1000
+  }
+  
+  // Use stored mouse position, fallback to center if not available
+  const position = canvasContextMenuPosition.value || { x: 0, y: 0 }
+  layouts.value.nodes[newId] = { x: position.x, y: position.y }
+
+  canvasContextMenuVisible.value = false
+  canvasContextMenuPosition.value = null // Clear stored position
+
+  $q.notify({
+    type: 'positive',
+    message: 'Child node added at cursor position',
+    timeout: 1000,
+  })
+}
+
+function zoomIn() {
+  if (!graphRef.value) return
+  const newZoom = Math.min(graphZoomLevel.value * 1.2, 2.0)
+  graphZoomLevel.value = newZoom
+  canvasContextMenuVisible.value = false
+  canvasContextMenuPosition.value = null // Clear stored position
+
+  $q.notify({
+    type: 'info',
+    message: `Zoomed in to ${Math.round(newZoom * 100)}%`,
+    timeout: 800,
+  })
+}
+
+function zoomOut() {
+  if (!graphRef.value) return
+  const newZoom = Math.max(graphZoomLevel.value / 1.2, 0.1)
+  graphZoomLevel.value = newZoom
+  canvasContextMenuVisible.value = false
+  canvasContextMenuPosition.value = null // Clear stored position
+
+  $q.notify({
+    type: 'info',
+    message: `Zoomed out to ${Math.round(newZoom * 100)}%`,
+    timeout: 800,
+  })
+}
+
 // Helper: Get all descendants of a node (recursive)
 function getDescendants(nodeId: string): string[] {
   const descendants: string[] = []
@@ -1335,6 +1442,8 @@ function handleKeyUp(event: KeyboardEvent) {
 // Close context menu on click outside
 function handleClickOutside() {
   contextMenuVisible.value = false
+  canvasContextMenuVisible.value = false
+  canvasContextMenuPosition.value = null // Clear stored position
 }
 
 onMounted(() => {
