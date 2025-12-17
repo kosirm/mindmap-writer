@@ -30,7 +30,7 @@
         <q-separator vertical />
 
         <div class="text-caption">Selected: {{ selectedNodes.length }}</div>
-        <div class="text-caption">Hovered: {{ hoveredElement?.type || 'none' }}</div>
+        <div class="text-caption">Hovered: {{ hoveredElement ? (hoveredElement.id ? `${hoveredElement.type} (${hoveredElement.id})` : hoveredElement.type) : 'none' }}</div>
         <q-btn size="xs" color="info" label="Log Hierarchy" @click="logHierarchy" dense flat />
       </div>
     </div>
