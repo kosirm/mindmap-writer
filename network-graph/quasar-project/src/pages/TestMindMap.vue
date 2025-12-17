@@ -28,8 +28,8 @@
 
         <!-- Dagre for Selected Node -->
         <div class="text-caption">Dagre Selected:</div>
-        <q-btn size="xs" icon="arrow_upward" @click="applyDagreToSelected('TB')" :disable="selectedNodes.length !== 1" dense flat title="Top to Bottom" />
-        <q-btn size="xs" icon="arrow_downward" @click="applyDagreToSelected('BT')" :disable="selectedNodes.length !== 1" dense flat title="Bottom to Top" />
+        <q-btn size="xs" icon="arrow_downward" @click="applyDagreToSelected('TB')" :disable="selectedNodes.length !== 1" dense flat title="Top to Bottom" />
+        <q-btn size="xs" icon="arrow_upward" @click="applyDagreToSelected('BT')" :disable="selectedNodes.length !== 1" dense flat title="Bottom to Top" />
         <q-btn size="xs" icon="arrow_forward" @click="applyDagreToSelected('LR')" :disable="selectedNodes.length !== 1" dense flat title="Left to Right" />
         <q-btn size="xs" icon="arrow_back" @click="applyDagreToSelected('RL')" :disable="selectedNodes.length !== 1" dense flat title="Right to Left" />
 
