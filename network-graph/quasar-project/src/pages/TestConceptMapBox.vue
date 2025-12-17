@@ -6,24 +6,7 @@
         <q-separator vertical />
 
         <!-- Connection Controls -->
-        <q-btn-toggle
-          v-model="connectionType"
-          :options="[
-            { label: 'Hierarchy', value: 'hierarchy' },
-            { label: 'Reference', value: 'reference' }
-          ]"
-          size="xs"
-          dense
-          no-caps
-        />
         <q-btn size="xs" color="secondary" label="Connect (C)" @click="connectSelectedNodes" :disable="selectedNodes.length !== 2" dense flat />
-
-        <q-separator vertical />
-
-        <!-- Layout Controls -->
-        <div class="text-caption">Box: Shift</div>
-        <div class="text-caption">Select: Ctrl</div>
-        <q-toggle v-model="d3ForceEnabled" label="D3 Force" size="xs" dense />
 
         <q-separator vertical />
 
@@ -38,7 +21,6 @@
 
         <div class="text-caption">Wheel Zoom: {{ wheelZoomSensitivity }}%</div>
         <q-slider v-model="wheelZoomSensitivity" :min="5" :max="80" :step="5" dense style="width: 100px;" @update:model-value="(val) => val !== null && updateZoomSensitivity(val)" />
-        <q-toggle v-model="scalingObjects" label="Scale Objects" dense size="xs" @update:model-value="updateScalingObjects" />
 
         <q-separator vertical />
 
@@ -162,7 +144,6 @@
 import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useQuasar } from 'quasar'
 import * as vNG from 'v-network-graph'
-import { ForceLayout } from 'v-network-graph/lib/force-layout'
 // @ts-expect-error - dagre doesn't have proper TypeScript types
 import dagre from 'dagre/dist/dagre.min.js'
 
@@ -193,7 +174,7 @@ interface MindMapNode {
 
 // Edge interface with type tracking
 interface MindMapEdge extends vNG.Edge {
-  type: 'hierarchy' | 'reference'  // hierarchy = parent-child, reference = just a link
+  type: 'hierarchy' | 'reference'  // hierarchy = parent-child (hidden), reference = visible links
 }
 
 // v-network-graph drag event interface
@@ -242,8 +223,6 @@ const parentBoxes = ref<ParentBox[]>([])
 const selectedNodes = ref<string[]>([])
 
 // UI State
-const d3ForceEnabled = ref(false)
-const connectionType = ref<'hierarchy' | 'reference'>('hierarchy')  // Current connection type for C key
 
 // Context menu state
 const contextMenuVisible = ref(false)
@@ -256,7 +235,6 @@ const isShiftPressed = ref(false)
 const isBoxSelecting = ref(false)
 const graphZoomLevel = ref(1) // For v-network-graph binding (0.1-2.0)
 const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
-const scalingObjects = ref(true) // Toggle for scaling objects with zoom (default: true for concept map)
 const boxPadding = ref(20) // Inter-box padding in pixels (0-50px)
 const isDragging = ref(false) // Track if a node is currently being dragged
 const ctrlDraggedNodes = ref<Set<string>>(new Set()) // Track nodes being dragged with Ctrl key
@@ -265,14 +243,10 @@ const hoveredElement = ref<{ type: 'node' | 'box' | 'canvas', id?: string } | nu
 // Node counter
 let nodeCounter = 3
 
-// Force layout instance
-let forceLayout: ForceLayout | null = null
-
-// Configs
 const configs = reactive(
   vNG.defineConfigs({
     view: {
-      scalingObjects: scalingObjects.value, // Nodes scale with zoom (controlled by toggle)
+      scalingObjects: true, // Nodes always scale with zoom in concept map
       boxSelectionEnabled: false, // Disable box selection to avoid rect rendering issues
       onSvgPanZoomInitialized: (instance: SvgPanZoomInstance) => {
         svgPanZoomInstance = instance
@@ -788,18 +762,6 @@ function updateZoomSensitivity(value: number) {
   }
 }
 
-function updateScalingObjects(value: boolean) {
-  // Update the configs to enable/disable scaling objects
-  configs.view = configs.view || {}
-  configs.view.scalingObjects = value
-
-  $q.notify({
-    type: 'info',
-    message: `Scaling objects: ${value ? 'Enabled' : 'Disabled'}`,
-    timeout: 1000,
-  })
-}
-
 // Context menu functions
 function addChildNode() {
   if (!contextMenuNodeId.value || !graphRef.value) return
@@ -1124,29 +1086,6 @@ function addNodeToParentBox(parentId: string, event: MouseEvent) {
   })
 }
 
-// Helper: Check if adding edge would create circular reference
-function wouldCreateCircularReference(sourceId: string, targetId: string): boolean {
-  // BFS to check if there's a path from target to source
-  const visited = new Set<string>()
-  const queue = [targetId]
-
-  while (queue.length > 0) {
-    const currentId = queue.shift()!
-    if (currentId === sourceId) return true
-    if (visited.has(currentId)) continue
-    visited.add(currentId)
-
-    // Find all hierarchy edges where current node is the source
-    Object.values(edges.value).forEach(edge => {
-      if (edge.type === 'hierarchy' && edge.source === currentId) {
-        queue.push(edge.target)
-      }
-    })
-  }
-
-  return false
-}
-
 // Helper: Get all descendants of a node (recursive)
 function getDescendants(nodeId: string): string[] {
   const descendants: string[] = []
@@ -1208,63 +1147,27 @@ function connectSelectedNodes() {
     return
   }
 
-  const isHierarchy = connectionType.value === 'hierarchy'
+  // Only reference edges are supported in concept maps
+  const isReference = true
 
-  // For hierarchy connections, check for circular references
-  if (isHierarchy && wouldCreateCircularReference(sourceId, targetId)) {
-    $q.notify({
-      type: 'negative',
-      message: 'Cannot create circular hierarchy!',
-      timeout: 2000,
-    })
-    return
-  }
-
-  // Create edge
-  edges.value[edgeId] = {
-    source: sourceId,
-    target: targetId,
-    type: connectionType.value
-  }
-
-  // Update parent-child relationship only for hierarchy connections
-  if (isHierarchy) {
-    const targetNode = nodes.value[targetId]
-    if (targetNode) {
-      // Check if target already has a parent (reparenting)
-      if (targetNode.parentId !== null && targetNode.parentId !== sourceId) {
-        // Remove old hierarchy edge
-        const oldEdgeId = Object.keys(edges.value).find(id => {
-          const edge = edges.value[id]
-          return edge && edge.type === 'hierarchy' && edge.source === targetNode.parentId && edge.target === targetId
-        })
-        if (oldEdgeId) {
-          delete edges.value[oldEdgeId]
-        }
-
-        $q.notify({
-          type: 'info',
-          message: `Reparented from ${nodes.value[targetNode.parentId]?.name || 'unknown'}`,
-          timeout: 1500,
-        })
-      }
-
-      // Get current siblings of the new parent
-      const siblings = Object.values(nodes.value).filter(n => n.parentId === sourceId)
-
-      targetNode.parentId = sourceId
-      targetNode.order = siblings.length  // Add as last child
+  // For reference edges, no circular reference check needed
+  if (isReference) {
+    // Create reference edge
+    edges.value[edgeId] = {
+      source: sourceId,
+      target: targetId,
+      type: 'reference'
     }
+
+    $q.notify({
+      type: 'positive',
+      message: 'Reference connection created',
+      timeout: 1000,
+    })
   }
 
-  // Update parent boxes immediately when hierarchy changes
+  // Update parent boxes immediately when edges change
   calculateParentBoxes()
-
-  $q.notify({
-    type: 'positive',
-    message: `Connected (${connectionType.value})`,
-    timeout: 1000,
-  })
 }
 
 function applyDagreToSelected(direction: 'TB' | 'BT' | 'LR' | 'RL') {
@@ -1375,46 +1278,6 @@ function logHierarchy() {
   })
 }
 
-// Watch D3 Force
-watch(d3ForceEnabled, (enabled) => {
-  if (!graphRef.value) return
-
-  if (enabled) {
-    // Always create a fresh force layout instance to avoid stale state
-    forceLayout = new ForceLayout({
-      positionFixedByDrag: true,
-      positionFixedByClickWithAltKey: true,
-    })
-
-    configs.view = configs.view || {}
-    configs.view.layoutHandler = forceLayout
-
-    $q.notify({
-      type: 'positive',
-      message: 'D3 Force enabled',
-      timeout: 1000,
-    })
-  } else {
-    // Stop force layout
-    if (forceLayout && 'stop' in forceLayout && typeof forceLayout.stop === 'function') {
-      forceLayout.stop()
-    }
-
-    // Replace with SimpleLayout to prevent any residual force interference
-    configs.view = configs.view || {}
-    configs.view.layoutHandler = new vNG.SimpleLayout()
-
-    // Destroy the force layout instance to clear all internal state
-    forceLayout = null
-
-    $q.notify({
-      type: 'info',
-      message: 'D3 Force disabled',
-      timeout: 1000,
-    })
-  }
-})
-
 // Watch for changes in layouts and nodes to update parent boxes (but skip during drag for performance)
 watch([layouts, nodes], () => {
   if (!isDragging.value) {
@@ -1437,32 +1300,6 @@ function handleKeyDown(event: KeyboardEvent) {
       graphRef.value.startBoxSelection({
         stop: 'click',
         type: 'append',
-      })
-    }
-  }
-
-  // H key - Set connection type to Hierarchy
-  if (event.key === 'h' || event.key === 'H') {
-    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-      event.preventDefault()
-      connectionType.value = 'hierarchy'
-      $q.notify({
-        type: 'info',
-        message: 'Connection type: Hierarchy',
-        timeout: 800,
-      })
-    }
-  }
-
-  // R key - Set connection type to Reference
-  if (event.key === 'r' || event.key === 'R') {
-    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-      event.preventDefault()
-      connectionType.value = 'reference'
-      $q.notify({
-        type: 'info',
-        message: 'Connection type: Reference',
-        timeout: 800,
       })
     }
   }
