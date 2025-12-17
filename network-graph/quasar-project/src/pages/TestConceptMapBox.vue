@@ -48,11 +48,12 @@
         <q-separator vertical />
 
         <div class="text-caption">Selected: {{ selectedNodes.length }}</div>
+        <div class="text-caption">Hovered: {{ hoveredElement?.type || 'none' }}</div>
         <q-btn size="xs" color="info" label="Log Hierarchy" @click="logHierarchy" dense flat />
       </div>
     </div>
 
-    <div class="graph-container">
+    <div class="graph-container" ref="graphContainer" @mousemove="handleCanvasMouseMove">
       <v-network-graph
         ref="graphRef"
         :nodes="nodes"
@@ -98,8 +99,8 @@
             :height="box.height"
             :rx="12"
             fill="none"
-            stroke="#4dabf7"
-            :stroke-width="2"
+            :stroke="getBoxStrokeColor(box.parentId)"
+            :stroke-width="getBoxStrokeWidth(box.parentId)"
             stroke-dasharray="5, 5"
             style="pointer-events: none"
             :transform="`scale(${scale})`"
@@ -169,6 +170,7 @@ const $q = useQuasar()
 
 // Graph ref
 const graphRef = ref<vNG.VNetworkGraphInstance>()
+const graphContainer = ref<HTMLElement>()
 
 // Layers configuration for parent node boxes
 const layers = {
@@ -258,6 +260,7 @@ const scalingObjects = ref(true) // Toggle for scaling objects with zoom (defaul
 const boxPadding = ref(20) // Inter-box padding in pixels (0-50px)
 const isDragging = ref(false) // Track if a node is currently being dragged
 const ctrlDraggedNodes = ref<Set<string>>(new Set()) // Track nodes being dragged with Ctrl key
+const hoveredElement = ref<{ type: 'node' | 'box' | 'canvas', id?: string } | null>(null) // Track hovered element during drag
 
 // Node counter
 let nodeCounter = 3
@@ -495,12 +498,72 @@ const eventHandlers: vNG.EventHandlers = {
   'node:dragend': /* eslint-disable-line @typescript-eslint/no-unused-vars */ (event: NodeDragEvent) => {
     // Clear dragging flag and update parent boxes only after drag is complete
     isDragging.value = false
+    hoveredElement.value = null // Clear hover state when drag ends
 
     // Clear Ctrl+dragged nodes when drag ends
     ctrlDraggedNodes.value.clear()
 
     calculateParentBoxes()
   },
+  'node:pointerover': ({ node, event }: { node: string, event: PointerEvent }) => {
+    // Handle hover on nodes during dragging
+    if (isDragging.value && event && node) {
+      event.preventDefault()
+      event.stopPropagation()
+      hoveredElement.value = { type: 'node', id: node }
+      return false
+    }
+  },
+  'node:pointerout': ({ node, event }: { node: string, event: PointerEvent }) => {
+    // Handle when mouse leaves a node during dragging
+    if (isDragging.value && event && node && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === node) {
+      event.preventDefault()
+      event.stopPropagation()
+      hoveredElement.value = null
+      return false
+    }
+  },
+  'node:pointermove': (eventData) => {
+    // Handle continuous pointer movement over nodes during dragging
+    // Note: node:pointermove has different event structure than pointerover/pointerout
+    if (isDragging.value && eventData && typeof eventData === 'object') {
+      // Try to extract node and event from the different possible structures
+      const node = (eventData as { node?: string; [key: string]: unknown }).node || Object.keys(eventData)[0]
+      const pointerEvent = (eventData as { event?: PointerEvent; [key: string]: unknown }).event
+
+      if (node && pointerEvent) {
+        pointerEvent.preventDefault()
+        pointerEvent.stopPropagation()
+        hoveredElement.value = { type: 'node', id: node }
+        return false
+      }
+    }
+  },
+}
+
+// Handle canvas mouse movement for box and canvas hover detection
+function handleCanvasMouseMove(event: MouseEvent) {
+  if (!isDragging.value || !graphRef.value) return
+
+  // Get canvas position from mouse event
+  const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
+
+  // Check if mouse is over any parent box
+  const hoveredBox = findClickedParentBoxAtCoordinates(svgPoint)
+
+  if (hoveredBox) {
+    // Only update if we're not already hovering this box or if we're hovering a different box
+    if (!hoveredElement.value ||
+        hoveredElement.value.type !== 'box' ||
+        hoveredElement.value.id !== hoveredBox.parentId) {
+      hoveredElement.value = { type: 'box', id: hoveredBox.parentId }
+    }
+  } else {
+    // Not over any box, we're over the canvas (empty space)
+    if (!hoveredElement.value || hoveredElement.value.type !== 'canvas') {
+      hoveredElement.value = { type: 'canvas' }
+    }
+  }
 }
 
 // Helper functions for custom node rendering
@@ -520,10 +583,14 @@ function getNodeColor(nodeId: string): string {
   const isSelected = selectedNodes.value.includes(nodeId)
   const isParent = isParentNode(nodeId)
   const isCtrlDragged = ctrlDraggedNodes.value.has(nodeId)
-  // Note: Hover state is handled by z-order, not by color change
+  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
 
-  // Ctrl+dragged nodes have highest priority (green background)
-  if (isCtrlDragged) {
+  // Hover during drag has highest priority (bright yellow)
+  if (isHoveredDuringDrag) {
+    return '#ffeb3b' // Bright yellow for hover during drag
+  }
+  // Ctrl+dragged nodes have high priority (green background)
+  else if (isCtrlDragged) {
     return '#c8e6c9' // Light green for Ctrl+dragged nodes
   } else if (isSelected) {
     return '#b3e5fc' // Selected color
@@ -539,8 +606,11 @@ function getNodeStrokeColor(nodeId: string): string {
   if (!node) return '#4dabf7'
 
   const isSelected = selectedNodes.value.includes(nodeId)
+  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
 
-  if (isSelected) {
+  if (isHoveredDuringDrag) {
+    return '#ff9800' // Orange stroke for hover during drag
+  } else if (isSelected) {
     return '#1976d2' // Selected stroke color
   } else {
     return '#4dabf7' // Normal stroke color
@@ -552,9 +622,33 @@ function getNodeStrokeWidth(nodeId: string): number {
   if (!node) return 2
 
   const isSelected = selectedNodes.value.includes(nodeId)
+  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'node' && hoveredElement.value?.id === nodeId
 
-  if (isSelected) {
+  if (isHoveredDuringDrag) {
+    return 4 // Thicker stroke for hover during drag
+  } else if (isSelected) {
     return 3 // Selected stroke width
+  } else {
+    return 2 // Normal stroke width
+  }
+}
+
+// Helper functions for parent box rendering
+function getBoxStrokeColor(parentId: string): string {
+  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'box' && hoveredElement.value?.id === parentId
+
+  if (isHoveredDuringDrag) {
+    return '#ff9800' // Orange stroke for hover during drag
+  } else {
+    return '#4dabf7' // Normal stroke color
+  }
+}
+
+function getBoxStrokeWidth(parentId: string): number {
+  const isHoveredDuringDrag = isDragging.value && hoveredElement.value?.type === 'box' && hoveredElement.value?.id === parentId
+
+  if (isHoveredDuringDrag) {
+    return 4 // Thicker stroke for hover during drag
   } else {
     return 2 // Normal stroke width
   }
