@@ -22,6 +22,7 @@
 
         <!-- Layout Controls -->
         <div class="text-caption">Box: Shift</div>
+        <div class="text-caption">Select: Ctrl</div>
         <q-toggle v-model="d3ForceEnabled" label="D3 Force" size="xs" dense />
 
         <q-separator vertical />
@@ -239,6 +240,7 @@ const contextMenuNodeId = ref<string | null>(null)
 
 // Box selection state (Shift hold)
 const isShiftPressed = ref(false)
+const isBoxSelecting = ref(false)
 const graphZoomLevel = ref(1) // For v-network-graph binding (0.1-2.0)
 const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
 const scalingObjects = ref(true) // Toggle for scaling objects with zoom (default: true for concept map)
@@ -375,15 +377,55 @@ const eventHandlers: vNG.EventHandlers = {
       }
     }
   },
+  'node:select': (nodeIds: string[]) => {
+    // Handle node selection (including box selection)
+    if (nodeIds && nodeIds.length > 0 && isShiftPressed.value) {
+      // During Shift+box selection, add nodes to current selection (append mode)
+      const currentSelection = new Set(selectedNodes.value)
+      nodeIds.forEach((nodeId: string) => currentSelection.add(nodeId))
+      selectedNodes.value = Array.from(currentSelection)
+    } else if (nodeIds && nodeIds.length > 0) {
+      // Regular selection (replace current selection)
+      selectedNodes.value = nodeIds
+    }
+  },
   'view:mode': () => {
     // Observe mode change events - not needed anymore with Ctrl+Shift hold
   },
   'node:click': ({ node, event }) => {
+    // Ctrl+Click - Add/remove node to/from selection (replacing default Shift+Click behavior)
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey) {
+      event.preventDefault()
+      event.stopPropagation()
+
+      // Get current selection
+      const currentSelection = [...selectedNodes.value]
+
+      // If node is already selected, remove it (toggle behavior)
+      if (currentSelection.includes(node)) {
+        const newSelection = currentSelection.filter(id => id !== node)
+        selectedNodes.value = newSelection
+      } else {
+        // Add node to selection
+        selectedNodes.value = [...currentSelection, node]
+      }
+      return false
+    }
+
     // Alt+Click - Select node and all descendants
     if (event.altKey) {
       event.preventDefault()
       event.stopPropagation()
       selectNodeWithDescendants(node)
+      return false
+    }
+
+    // Shift+Click - Prevent default Shift+click behavior to avoid interference
+    // with our Shift+drag box selection
+    if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault()
+      event.stopPropagation()
+      // Don't change selection on Shift+click, let Shift+drag handle box selection
       return false
     }
   },
@@ -1236,9 +1278,10 @@ watch(boxPadding, () => {
 // Keyboard shortcuts
 function handleKeyDown(event: KeyboardEvent) {
   // Shift - Enter box selection mode
-  if (event.shiftKey) {
+  if (event.shiftKey && !isBoxSelecting.value) {
     if (!isShiftPressed.value && graphRef.value) {
       isShiftPressed.value = true
+      isBoxSelecting.value = true
       graphRef.value.startBoxSelection({
         stop: 'click',
         type: 'append',
@@ -1293,6 +1336,7 @@ function handleKeyUp(event: KeyboardEvent) {
   // Exit box selection mode when Shift is released
   if (isShiftPressed.value && !event.shiftKey) {
     isShiftPressed.value = false
+    isBoxSelecting.value = false
     if (graphRef.value) {
       graphRef.value.stopBoxSelection()
     }
