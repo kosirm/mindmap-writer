@@ -194,6 +194,17 @@ interface MindMapEdge extends vNG.Edge {
   type: 'hierarchy' | 'reference'  // hierarchy = parent-child, reference = just a link
 }
 
+// v-network-graph drag event interface
+interface NodeDragEvent {
+  [nodeId: string]: {
+    x: number
+    y: number
+  } | string | boolean | undefined
+  node?: string
+  ctrlKey?: boolean
+  metaKey?: boolean
+}
+
 // Data
 const nodes = ref<Record<string, MindMapNode>>({
   'node-1': { name: 'Root', parentId: null, order: 0 },
@@ -246,6 +257,7 @@ const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
 const scalingObjects = ref(true) // Toggle for scaling objects with zoom (default: true for concept map)
 const boxPadding = ref(20) // Inter-box padding in pixels (0-50px)
 const isDragging = ref(false) // Track if a node is currently being dragged
+const ctrlDraggedNodes = ref<Set<string>>(new Set()) // Track nodes being dragged with Ctrl key
 
 // Node counter
 let nodeCounter = 3
@@ -438,13 +450,55 @@ const eventHandlers: vNG.EventHandlers = {
     contextMenuY.value = event.clientY
     contextMenuVisible.value = true
   },
-  'node:dragstart': () => {
+  'node:pointerdown': ({ node, event }) => {
+    // Store the node and Ctrl key state for potential drag detection
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(window as any).lastPointerDownNode = node
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(window as any).lastPointerDownCtrl = event.ctrlKey || event.metaKey
+  },
+  'node:dragstart': (event: NodeDragEvent) => {
     // Set dragging flag to prevent parent box recalculation during drag
     isDragging.value = true
+
+    // Check if this drag was initiated with Ctrl key pressed
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lastPointerDownNode = (window as any).lastPointerDownNode
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lastPointerDownCtrl = (window as any).lastPointerDownCtrl
+
+    if (lastPointerDownCtrl && lastPointerDownNode) {
+      // Get the dragged node ID from the event keys
+      const draggedNodeId = Object.keys(event)[0] // First key is the node ID
+      if (draggedNodeId && draggedNodeId === lastPointerDownNode) {
+        // Check if the dragged node is part of current selection
+        const isDraggedNodeSelected = selectedNodes.value.includes(draggedNodeId)
+
+        if (isDraggedNodeSelected && selectedNodes.value.length > 1) {
+          // If multiple nodes are selected and one is dragged, highlight ALL selected nodes
+          selectedNodes.value.forEach(nodeId => {
+            ctrlDraggedNodes.value.add(nodeId)
+          })
+        } else {
+          // Single node drag or unselected node drag
+          ctrlDraggedNodes.value.add(draggedNodeId)
+        }
+      }
+    }
+
+    // Clear the stored pointer down state
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(window as any).lastPointerDownNode = null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(window as any).lastPointerDownCtrl = false
   },
-  'node:dragend': () => {
+  'node:dragend': /* eslint-disable-line @typescript-eslint/no-unused-vars */ (event: NodeDragEvent) => {
     // Clear dragging flag and update parent boxes only after drag is complete
     isDragging.value = false
+
+    // Clear Ctrl+dragged nodes when drag ends
+    ctrlDraggedNodes.value.clear()
+
     calculateParentBoxes()
   },
 }
@@ -465,9 +519,13 @@ function getNodeColor(nodeId: string): string {
   // Check if this node is selected
   const isSelected = selectedNodes.value.includes(nodeId)
   const isParent = isParentNode(nodeId)
+  const isCtrlDragged = ctrlDraggedNodes.value.has(nodeId)
   // Note: Hover state is handled by z-order, not by color change
 
-  if (isSelected) {
+  // Ctrl+dragged nodes have highest priority (green background)
+  if (isCtrlDragged) {
+    return '#c8e6c9' // Light green for Ctrl+dragged nodes
+  } else if (isSelected) {
     return '#b3e5fc' // Selected color
   } else if (isParent) {
     return '#e3f2fd' // Light blue for parent nodes
@@ -1381,4 +1439,3 @@ onUnmounted(() => {
   z-index: 9999;
 }
 </style>
-
