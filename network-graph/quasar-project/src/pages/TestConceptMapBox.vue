@@ -21,7 +21,7 @@
         <q-separator vertical />
 
         <!-- Layout Controls -->
-        <div class="text-caption">Box: Ctrl+Shift</div>
+        <div class="text-caption">Box: Shift</div>
         <q-toggle v-model="d3ForceEnabled" label="D3 Force" size="xs" dense />
 
         <q-separator vertical />
@@ -237,8 +237,8 @@ const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const contextMenuNodeId = ref<string | null>(null)
 
-// Box selection state (Ctrl+Shift hold)
-const isCtrlShiftPressed = ref(false)
+// Box selection state (Shift hold)
+const isShiftPressed = ref(false)
 const graphZoomLevel = ref(1) // For v-network-graph binding (0.1-2.0)
 const wheelZoomSensitivity = ref(20) // Mouse wheel zoom step percentage (5-80%)
 const scalingObjects = ref(true) // Toggle for scaling objects with zoom (default: true for concept map)
@@ -361,13 +361,13 @@ const eventHandlers: vNG.EventHandlers = {
         addNodeAtPosition(event)
         return
       }
-      
+
       // Get canvas position from mouse event
       const svgPoint = graphRef.value.translateFromDomToSvgCoordinates({ x: event.offsetX, y: event.offsetY })
-      
+
       // Check if click is within any parent box (from deepest to shallowest to handle nesting)
       const clickedBox = findClickedParentBoxAtCoordinates(svgPoint)
-      
+
       if (clickedBox) {
         addNodeToParentBox(clickedBox.parentId, event)
       } else {
@@ -1235,10 +1235,10 @@ watch(boxPadding, () => {
 
 // Keyboard shortcuts
 function handleKeyDown(event: KeyboardEvent) {
-  // Ctrl+Shift - Enter box selection mode
-  if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
-    if (!isCtrlShiftPressed.value && graphRef.value) {
-      isCtrlShiftPressed.value = true
+  // Shift - Enter box selection mode
+  if (event.shiftKey) {
+    if (!isShiftPressed.value && graphRef.value) {
+      isShiftPressed.value = true
       graphRef.value.startBoxSelection({
         stop: 'click',
         type: 'append',
@@ -1290,9 +1290,9 @@ function handleKeyDown(event: KeyboardEvent) {
 }
 
 function handleKeyUp(event: KeyboardEvent) {
-  // Exit box selection mode when Ctrl or Shift is released
-  if (isCtrlShiftPressed.value && (!event.ctrlKey && !event.metaKey || !event.shiftKey)) {
-    isCtrlShiftPressed.value = false
+  // Exit box selection mode when Shift is released
+  if (isShiftPressed.value && !event.shiftKey) {
+    isShiftPressed.value = false
     if (graphRef.value) {
       graphRef.value.stopBoxSelection()
     }
