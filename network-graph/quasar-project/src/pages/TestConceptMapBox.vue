@@ -31,6 +31,9 @@
 
         <div class="text-caption">Selected: {{ selectedNodes.length }}</div>
         <div class="text-caption">Hovered: {{ hoveredElement ? (hoveredElement.id ? `${hoveredElement.type} (${hoveredElement.id})` : hoveredElement.type) : 'none' }}</div>
+        <div class="text-caption" v-if="ctrlDraggedNodes.size > 0 && hoveredElement">
+          Reparent target: {{ getReparentTargetText() }}
+        </div>
         <q-btn size="xs" color="info" label="Log Hierarchy" @click="logHierarchy" dense flat />
       </div>
     </div>
@@ -524,6 +527,28 @@ const eventHandlers: vNG.EventHandlers = {
     ;(window as any).lastPointerDownCtrl = false
   },
   'node:dragend': /* eslint-disable-line @typescript-eslint/no-unused-vars */ (event: NodeDragEvent) => {
+    // Handle Ctrl+drag reparenting before clearing state
+    if (ctrlDraggedNodes.value.size > 0 && hoveredElement.value) {
+      const nodesToReparent = Array.from(ctrlDraggedNodes.value)
+      
+      // Determine new parent based on hovered element
+      let newParentId: string | null = null
+      
+      if (hoveredElement.value.type === 'box' && hoveredElement.value.id) {
+        // Reparent to the box's parent node
+        newParentId = hoveredElement.value.id
+      } else if (hoveredElement.value.type === 'canvas') {
+        // Reparent to canvas = make it a root node
+        newParentId = null
+      }
+      // Note: hoveredElement.type === 'node' is not handled for simple reparenting
+      
+      // Only reparent if we're over a box or canvas (not a node)
+      if (hoveredElement.value.type === 'box' || hoveredElement.value.type === 'canvas') {
+        reparentNodes(nodesToReparent, newParentId)
+      }
+    }
+
     // Clear dragging flag and update parent boxes only after drag is complete
     isDragging.value = false
     hoveredElement.value = null // Clear hover state when drag ends
@@ -805,6 +830,120 @@ function calculateParentBoxes() {
   })
 
   parentBoxes.value = boxes
+}
+
+// Reparent nodes function
+function reparentNodes(nodeIds: string[], newParentId: string | null) {
+  if (!newParentId && newParentId !== null) return
+
+  const oldParentIds: string[] = []
+  
+  nodeIds.forEach(nodeId => {
+    const node = nodes.value[nodeId]
+    if (!node) return
+
+    // Prevent circular references
+    if (newParentId === nodeId) {
+      $q.notify({
+        type: 'warning',
+        message: `Cannot reparent node to itself`,
+        timeout: 1500,
+      })
+      return
+    }
+
+    // Check if new parent is a descendant of the node being moved (circular reference)
+    if (newParentId && isDescendant(newParentId, nodeId)) {
+      $q.notify({
+        type: 'warning',
+        message: `Cannot reparent ${node.name} to its own descendant`,
+        timeout: 1500,
+      })
+      return
+    }
+
+    oldParentIds.push(node.parentId || 'root')
+    
+    // Remove old hierarchy edge
+    if (node.parentId) {
+      const oldEdgeId = Object.keys(edges.value).find(id => {
+        const edge = edges.value[id]
+        return edge && edge.type === 'hierarchy' && edge.source === node.parentId && edge.target === nodeId
+      })
+      if (oldEdgeId) {
+        delete edges.value[oldEdgeId]
+      }
+    }
+
+    // Update node's parent and order
+    node.parentId = newParentId
+    if (newParentId === null) {
+      // Root node - order among other root siblings
+      node.order = Object.values(nodes.value).filter(n => n.parentId === null).length
+    } else {
+      // Child node - order among other siblings
+      node.order = Object.values(nodes.value).filter(n => n.parentId === newParentId).length
+    }
+
+    // Create new hierarchy edge
+    if (newParentId) {
+      const newEdgeId = `edge-${newParentId}-${nodeId}`
+      edges.value[newEdgeId] = { source: newParentId, target: nodeId, type: 'hierarchy' }
+    }
+  })
+
+  // Show notification
+  const newParentName = newParentId ? nodes.value[newParentId]?.name || 'Unknown' : 'Root'
+  
+  $q.notify({
+    type: 'positive',
+    message: `Reparented ${nodeIds.length} node(s) to ${newParentName}`,
+    timeout: 2000,
+  })
+}
+
+// Check if a node is a descendant of another node (for circular reference prevention)
+function isDescendant(potentialDescendantId: string, ancestorId: string): boolean {
+  // If we're checking against the same node, it's not a descendant
+  if (potentialDescendantId === ancestorId) return false
+
+  const visited = new Set<string>()
+  const queue = [potentialDescendantId]
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!
+    if (visited.has(currentId)) continue
+    visited.add(currentId)
+
+    // Check if current node is the ancestor we're looking for
+    if (currentId === ancestorId) return true
+
+    // Get all children of current node and add them to queue
+    Object.entries(nodes.value).forEach(([nodeId, node]) => {
+      if (node.parentId === currentId && !visited.has(nodeId)) {
+        queue.push(nodeId)
+      }
+    })
+  }
+
+  return false
+}
+
+// Get display text for potential reparent target
+function getReparentTargetText(): string {
+  if (!hoveredElement.value) return 'none'
+  
+  if (hoveredElement.value.type === 'box' && hoveredElement.value.id) {
+    const targetNode = nodes.value[hoveredElement.value.id]
+    return `box: ${targetNode?.name || hoveredElement.value.id}`
+  } else if (hoveredElement.value.type === 'canvas') {
+    return 'canvas: Root level'
+  } else if (hoveredElement.value.type === 'node' && hoveredElement.value.id) {
+    const targetNode = nodes.value[hoveredElement.value.id]
+    return `node: ${targetNode?.name || hoveredElement.value.id} (no reparenting)`
+  }
+  
+  return 'none'
 }
 
 // Functions
