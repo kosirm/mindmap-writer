@@ -126,6 +126,73 @@ export const useDagreService = () => {
       }
     }
 
+  // Helper: Get all descendants of a node (recursive)
+  const getDescendants = (nodeId: string, edges: Record<string, MindMapEdge>): string[] => {
+    const descendants: string[] = []
+    const queue = [nodeId]
+    const visited = new Set<string>()
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!
+      if (visited.has(currentId)) continue
+      visited.add(currentId)
+
+      // Find all hierarchy edges where current node is the source
+      Object.values(edges).forEach(edge => {
+        if (edge.type === 'hierarchy' && edge.source === currentId) {
+          descendants.push(edge.target)
+          queue.push(edge.target)
+        }
+      })
+    }
+
+    return descendants
+  }
+
+  // Helper: Recursively position nodes for DL/DR alignment
+  const positionDLDRNodes = (
+    nodeId: string,
+    parentPos: { x: number; y: number } | null,
+    edges: Record<string, MindMapEdge>,
+    layouts: vNG.Layouts,
+    layoutParams: DagreParams,
+    subgraphNodes: string[]
+  ): void => {
+    if (!subgraphNodes.includes(nodeId)) return
+
+    // Find direct children of this node
+    const directChildren = Object.entries(edges)
+      .filter(([, edge]) => 
+        edge.type === 'hierarchy' && 
+        edge.source === nodeId &&
+        subgraphNodes.includes(edge.target)
+      )
+      .map(([, edge]) => edge.target)
+
+    if (directChildren.length === 0) return
+
+    if (parentPos) {
+      // Position direct children centered below the parent
+      const totalWidth = directChildren.length * layoutParams.nodesep
+      const startX = parentPos.x - totalWidth / 2 + layoutParams.nodesep / 2
+      
+      directChildren.forEach((childId, index) => {
+        layouts.nodes[childId] = {
+          x: startX + index * layoutParams.nodesep,
+          y: parentPos.y + layoutParams.ranksep
+        }
+      })
+    }
+
+    // Recursively position grandchildren and deeper levels
+    directChildren.forEach(childId => {
+      const childPos = layouts.nodes[childId]
+      if (childPos) {
+        positionDLDRNodes(childId, childPos, edges, layouts, layoutParams, subgraphNodes)
+      }
+    })
+  }
+
   // Apply dagre layout to selected node and its descendants
   const applyDagreToSelected = (
     nodes: Record<string, MindMapNode>,
@@ -158,55 +225,13 @@ export const useDagreService = () => {
       return false
     }
 
-    // For DL and DR alignment, use custom positioning
+    // For DL and DR alignment, use custom positioning for all levels
     if (layoutParams.align === 'DL' || layoutParams.align === 'DR') {
-      // Get direct children of the root node
-      const directChildren = Object.entries(edges)
-        .filter(([, edge]) => 
-          edge.type === 'hierarchy' && 
-          edge.source === selectedNodeId &&
-          subgraphNodes.includes(edge.target)
-        )
-        .map(([, edge]) => edge.target)
-      
-      if (directChildren.length > 0) {
-        // Position direct children centered below the parent
-        const totalWidth = directChildren.length * layoutParams.nodesep
-        const startX = rootPos.x - totalWidth / 2 + layoutParams.nodesep / 2
-        
-        directChildren.forEach((childId, index) => {
-          layouts.nodes[childId] = {
-            x: startX + index * layoutParams.nodesep,
-            y: rootPos.y + layoutParams.ranksep
-          }
-        })
-        
-        // Handle grandchildren if any
-        const grandchildren = descendants.filter(descendantId => 
-          !directChildren.includes(descendantId)
-        )
-        
-        grandchildren.forEach(grandchildId => {
-          // Find the parent of this grandchild
-          const parentId = Object.entries(edges)
-            .find(([, edge]) => 
-              edge.type === 'hierarchy' && 
-              edge.target === grandchildId &&
-              directChildren.includes(edge.source)
-            )?.[1]?.source
-          
-          if (parentId && layouts.nodes[parentId]) {
-            const parentPos = layouts.nodes[parentId]
-            layouts.nodes[grandchildId] = {
-              x: parentPos.x,
-              y: parentPos.y + layoutParams.ranksep
-            }
-          }
-        })
-      }
-      
       // Keep root node in its original position
       layouts.nodes[selectedNodeId] = { ...rootPos }
+      
+      // Position all descendants recursively
+      positionDLDRNodes(selectedNodeId, rootPos, edges, layouts, layoutParams, subgraphNodes)
       
     } else {
       // For UL and UR alignment, use the standard dagre layout
@@ -255,29 +280,6 @@ export const useDagreService = () => {
     }
 
     return true
-  }
-
-  // Helper: Get all descendants of a node (recursive)
-  const getDescendants = (nodeId: string, edges: Record<string, MindMapEdge>): string[] => {
-    const descendants: string[] = []
-    const queue = [nodeId]
-    const visited = new Set<string>()
-
-    while (queue.length > 0) {
-      const currentId = queue.shift()!
-      if (visited.has(currentId)) continue
-      visited.add(currentId)
-
-      // Find all hierarchy edges where current node is the source
-      Object.values(edges).forEach(edge => {
-        if (edge.type === 'hierarchy' && edge.source === currentId) {
-          descendants.push(edge.target)
-          queue.push(edge.target)
-        }
-      })
-    }
-
-    return descendants
   }
 
 
