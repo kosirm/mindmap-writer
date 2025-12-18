@@ -149,7 +149,47 @@ export const useDagreService = () => {
     return descendants
   }
 
-  // Helper: Recursively position nodes for DL/DR alignment
+  // Helper: Calculate subtree width (total width needed for positioning)
+  const calculateSubtreeWidth = (
+    nodeId: string,
+    edges: Record<string, MindMapEdge>,
+    layouts: vNG.Layouts,
+    layoutParams: DagreParams,
+    subgraphNodes: string[]
+  ): number => {
+    // Find direct children of this node
+    const directChildren = Object.entries(edges)
+      .filter(([, edge]) => 
+        edge.type === 'hierarchy' && 
+        edge.source === nodeId &&
+        subgraphNodes.includes(edge.target)
+      )
+      .map(([, edge]) => edge.target)
+
+    if (directChildren.length === 0) {
+      // Leaf node - just the node width
+      return 120 // node width
+    }
+
+    let totalWidth = 0
+    const childWidths = directChildren.map(childId => {
+      const childWidth = calculateSubtreeWidth(childId, edges, layouts, layoutParams, subgraphNodes)
+      return childWidth
+    })
+
+    // Sum child widths with spacing between them
+    for (let i = 0; i < childWidths.length; i++) {
+      totalWidth += childWidths[i] || 0
+      if (i < childWidths.length - 1) {
+        totalWidth += layoutParams.nodesep
+      }
+    }
+
+    // Ensure minimum width (at least the node width)
+    return Math.max(totalWidth, 120)
+  }
+
+  // Helper: Position nodes with DL/DR alignment considering subtree sizes
   const positionDLDRNodes = (
     nodeId: string,
     parentPos: { x: number; y: number } | null,
@@ -172,25 +212,32 @@ export const useDagreService = () => {
     if (directChildren.length === 0) return
 
     if (parentPos) {
-      // Position direct children centered below the parent
-      const totalWidth = directChildren.length * layoutParams.nodesep
-      const startX = parentPos.x - totalWidth / 2 + layoutParams.nodesep / 2
-      
+      // Calculate the total width this level will occupy
+      const childWidths = directChildren.map(childId => 
+        calculateSubtreeWidth(childId, edges, layouts, layoutParams, subgraphNodes)
+      )
+      const totalWidth = childWidths.reduce((sum, width) => sum + (width || 0), 0) + 
+                        (directChildren.length - 1) * layoutParams.nodesep
+
+      // Start positioning from left to right
+      let currentX = parentPos.x - totalWidth / 2
+
       directChildren.forEach((childId, index) => {
+        const childWidth = childWidths[index] || 120 // fallback to node width
+        
+        // Position this child at the center of its allocated space
         layouts.nodes[childId] = {
-          x: startX + index * layoutParams.nodesep,
+          x: currentX + childWidth / 2,
           y: parentPos.y + layoutParams.ranksep
         }
+
+        // Move to next position
+        currentX += childWidth + layoutParams.nodesep
+
+        // Recursively position this child's children
+        positionDLDRNodes(childId, layouts.nodes[childId], edges, layouts, layoutParams, subgraphNodes)
       })
     }
-
-    // Recursively position grandchildren and deeper levels
-    directChildren.forEach(childId => {
-      const childPos = layouts.nodes[childId]
-      if (childPos) {
-        positionDLDRNodes(childId, childPos, edges, layouts, layoutParams, subgraphNodes)
-      }
-    })
   }
 
   // Apply dagre layout to selected node and its descendants
@@ -230,7 +277,7 @@ export const useDagreService = () => {
       // Keep root node in its original position
       layouts.nodes[selectedNodeId] = { ...rootPos }
       
-      // Position all descendants recursively
+      // Position all descendants recursively with subtree-aware positioning
       positionDLDRNodes(selectedNodeId, rootPos, edges, layouts, layoutParams, subgraphNodes)
       
     } else {
