@@ -2,8 +2,6 @@
   <q-page class="column">
     <div class="q-pa-sm" style="background: #f5f5f5; border-bottom: 1px solid #ddd;">
       <div class="row items-center q-gutter-sm">
-        <div class="text-subtitle2 q-mr-sm">ConceptMap Box Test</div>
-        <q-separator vertical />
 
         <!-- Connection Controls -->
         <q-btn size="xs" color="secondary" label="Connect (C)" @click="connectSelectedNodes" :disable="selectedNodes.length !== 2" dense flat />

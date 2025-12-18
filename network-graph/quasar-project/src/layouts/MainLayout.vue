@@ -13,7 +13,7 @@
     <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
       <q-tabs v-model="drawerTab" dense class="text-grey" active-color="primary" indicator-color="primary" align="justify">
         <q-tab name="navigation" label="Navigation" />
-        <q-tab name="tests" label="Tests" />
+        <q-tab name="tests" label="Dagre" />
       </q-tabs>
 
       <q-separator />
@@ -124,10 +124,10 @@
 
         <q-tab-panel name="tests">
           <q-list>
-            <q-item-label header>Test Controls</q-item-label>
+            <q-item-label header>Dagre Layout Testing</q-item-label>
             <q-item>
               <q-item-section>
-                <q-item-label caption>Future test controls will go here</q-item-label>
+                <DagreTestControls />
               </q-item-section>
             </q-item>
           </q-list>
@@ -143,6 +143,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import DagreTestControls from 'src/components/DagreTestControls.vue';
 
 const leftDrawerOpen = ref(false);
 const drawerTab = ref('navigation');

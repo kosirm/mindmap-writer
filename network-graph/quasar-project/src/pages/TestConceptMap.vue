@@ -26,15 +26,6 @@
 
         <q-separator vertical />
 
-        <!-- Dagre for Selected Node -->
-        <div class="text-caption">Dagre:</div>
-        <q-btn size="xs" icon="arrow_downward" @click="applyDagreToSelected('TB')" :disable="selectedNodes.length !== 1" dense flat title="Top to Bottom" />
-        <q-btn size="xs" icon="arrow_upward" @click="applyDagreToSelected('BT')" :disable="selectedNodes.length !== 1" dense flat title="Bottom to Top" />
-        <q-btn size="xs" icon="arrow_forward" @click="applyDagreToSelected('LR')" :disable="selectedNodes.length !== 1" dense flat title="Left to Right" />
-        <q-btn size="xs" icon="arrow_back" @click="applyDagreToSelected('RL')" :disable="selectedNodes.length !== 1" dense flat title="Right to Left" />
-
-        <q-separator vertical />
-
         <div class="text-caption">Wheel Zoom: {{ wheelZoomSensitivity }}%</div>
         <q-slider v-model="wheelZoomSensitivity" :min="5" :max="80" :step="5" dense style="width: 100px;" @update:model-value="(val) => val !== null && updateZoomSensitivity(val)" />
         <q-toggle v-model="scalingObjects" label="Scale Objects" dense size="xs" @update:model-value="updateScalingObjects" />
@@ -161,10 +152,10 @@ import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useQuasar } from 'quasar'
 import * as vNG from 'v-network-graph'
 import { ForceLayout } from 'v-network-graph/lib/force-layout'
-// @ts-expect-error - dagre doesn't have proper TypeScript types
-import dagre from 'dagre/dist/dagre.min.js'
+import { useDagreService } from 'src/services/dagreService'
 
 const $q = useQuasar()
+const dagreService = useDagreService()
 
 // Graph ref
 const graphRef = ref<vNG.VNetworkGraphInstance>()
@@ -985,74 +976,6 @@ function connectSelectedNodes() {
   })
 }
 
-function applyDagreToSelected(direction: 'TB' | 'BT' | 'LR' | 'RL') {
-  if (selectedNodes.value.length !== 1) return
-
-  const rootId = selectedNodes.value[0]
-  if (!rootId) return
-
-  const descendants = getDescendants(rootId)
-  const subgraphNodes = [rootId, ...descendants]
-
-  if (subgraphNodes.length === 1) {
-    $q.notify({
-      type: 'warning',
-      message: 'Selected node has no children',
-      timeout: 1000,
-    })
-    return
-  }
-
-  // Create dagre graph for subgraph
-  const g = new dagre.graphlib.Graph()
-  g.setGraph({
-    rankdir: direction,
-    nodesep: 50,
-    edgesep: 10,
-    ranksep: 100,
-  })
-  g.setDefaultEdgeLabel(() => ({}))
-
-  // Add nodes to dagre
-  subgraphNodes.forEach(nodeId => {
-    g.setNode(nodeId, { width: 120, height: 40 })
-  })
-
-  // Add only hierarchy edges within the subgraph
-  Object.entries(edges.value).forEach(([, edge]) => {
-    if (edge.type === 'hierarchy' &&
-        subgraphNodes.includes(edge.source) &&
-        subgraphNodes.includes(edge.target)) {
-      g.setEdge(edge.source, edge.target)
-    }
-  })
-
-  // Run dagre layout
-  dagre.layout(g)
-
-  // Get the root node's current position to use as anchor
-  const rootPos = layouts.value.nodes[rootId]
-  if (!rootPos) return
-
-  const rootDagrePos = g.node(rootId)
-  const offsetX = rootPos.x - rootDagrePos.x
-  const offsetY = rootPos.y - rootDagrePos.y
-
-  // Update positions for subgraph nodes (offset to keep root in place)
-  subgraphNodes.forEach(nodeId => {
-    const dagreNode = g.node(nodeId)
-    layouts.value.nodes[nodeId] = {
-      x: dagreNode.x + offsetX,
-      y: dagreNode.y + offsetY,
-    }
-  })
-
-  $q.notify({
-    type: 'positive',
-    message: `Applied ${direction} layout to ${subgraphNodes.length} nodes`,
-    timeout: 1000,
-  })
-}
 
 function logHierarchy() {
   console.log('=== Node Hierarchy ===')
@@ -1214,17 +1137,98 @@ function handleClickOutside() {
   contextMenuVisible.value = false
 }
 
+// Handle dagre layout requests from the test controls
+function handleDagreLayoutRequest(event: CustomEvent) {
+  const detail = event.detail
+  if (!detail || !detail.params) return
+
+  console.log('Received dagre layout request:', detail)
+
+  if (detail.target === 'selected-node') {
+    // Apply to currently selected node
+    if (selectedNodes.value.length === 1) {
+      const selectedNodeId = selectedNodes.value[0]
+      if (selectedNodeId) {
+        const success = dagreService.applyDagreToSelected(
+          nodes.value,
+          edges.value,
+          layouts.value,
+          selectedNodeId,
+          detail.params
+        )
+        
+        if (success) {
+          $q.notify({
+            type: 'positive',
+            message: `Applied ${detail.params.rankdir} layout to selected node`,
+            timeout: 1000,
+          })
+          // Recalculate parent boxes after layout changes
+          calculateParentBoxes()
+        }
+      }
+    } else {
+      $q.notify({
+        type: 'warning',
+        message: 'Please select exactly one node for layout',
+        timeout: 1500,
+      })
+    }
+  } else if (detail.target === 'entire-graph') {
+    // For entire graph, find root nodes (nodes with no parents)
+    const rootNodes = Object.values(nodes.value).filter(node => node.parentId === null)
+    
+    if (rootNodes.length === 0) {
+      $q.notify({
+        type: 'warning',
+        message: 'No root nodes found',
+        timeout: 1500,
+      })
+      return
+    }
+    
+    // Apply layout to each root node
+    let appliedCount = 0
+    rootNodes.forEach(rootNode => {
+      const rootId = Object.keys(nodes.value).find(key => nodes.value[key] === rootNode)
+      if (rootId) {
+        const success = dagreService.applyDagreToSelected(
+          nodes.value,
+          edges.value,
+          layouts.value,
+          rootId,
+          detail.params
+        )
+        if (success) appliedCount++
+      }
+    })
+    
+    $q.notify({
+      type: 'positive',
+      message: `Applied ${detail.params.rankdir} layout to ${appliedCount} root node(s)`,
+      timeout: 1500,
+    })
+    
+    // Recalculate parent boxes after layout changes
+    calculateParentBoxes()
+  }
+}
+
 onMounted(() => {
   calculateParentBoxes()
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
   window.addEventListener('click', handleClickOutside)
+  
+  // Setup event listener for dagre layout requests
+  window.addEventListener('dagre-layout-request', handleDagreLayoutRequest as EventListener)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   window.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('dagre-layout-request', handleDagreLayoutRequest as EventListener)
 })
 </script>
 
