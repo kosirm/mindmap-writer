@@ -149,7 +149,7 @@ export const useDagreService = () => {
     return descendants
   }
 
-  // Helper: Calculate subtree width (total width needed for positioning)
+  // Helper: Calculate subtree width (for TB/BT layouts)
   const calculateSubtreeWidth = (
     nodeId: string,
     edges: Record<string, MindMapEdge>,
@@ -189,7 +189,47 @@ export const useDagreService = () => {
     return Math.max(totalWidth, 120)
   }
 
-  // Helper: Position nodes with DL/DR alignment considering subtree sizes
+  // Helper: Calculate subtree height (for LR/RL layouts)
+  const calculateSubtreeHeight = (
+    nodeId: string,
+    edges: Record<string, MindMapEdge>,
+    layouts: vNG.Layouts,
+    layoutParams: DagreParams,
+    subgraphNodes: string[]
+  ): number => {
+    // Find direct children of this node
+    const directChildren = Object.entries(edges)
+      .filter(([, edge]) => 
+        edge.type === 'hierarchy' && 
+        edge.source === nodeId &&
+        subgraphNodes.includes(edge.target)
+      )
+      .map(([, edge]) => edge.target)
+
+    if (directChildren.length === 0) {
+      // Leaf node - just the node height
+      return 40 // node height
+    }
+
+    let totalHeight = 0
+    const childHeights = directChildren.map(childId => {
+      const childHeight = calculateSubtreeHeight(childId, edges, layouts, layoutParams, subgraphNodes)
+      return childHeight
+    })
+
+    // Sum child heights with spacing between them
+    for (let i = 0; i < childHeights.length; i++) {
+      totalHeight += childHeights[i] || 0
+      if (i < childHeights.length - 1) {
+        totalHeight += layoutParams.nodesep
+      }
+    }
+
+    // Ensure minimum height (at least the node height)
+    return Math.max(totalHeight, 40)
+  }
+
+  // Helper: Position nodes with DL/DR alignment considering subtree sizes and rankdir
   const positionDLDRNodes = (
     nodeId: string,
     parentPos: { x: number; y: number } | null,
@@ -212,27 +252,57 @@ export const useDagreService = () => {
     if (directChildren.length === 0) return
 
     if (parentPos) {
-      // Calculate the total width this level will occupy
-      const childWidths = directChildren.map(childId => 
-        calculateSubtreeWidth(childId, edges, layouts, layoutParams, subgraphNodes)
-      )
-      const totalWidth = childWidths.reduce((sum, width) => sum + (width || 0), 0) + 
-                        (directChildren.length - 1) * layoutParams.nodesep
+      // Calculate dimensions based on rankdir
+      let totalDimension = 0
+      const childDimensions = directChildren.map(childId => {
+        // Use width for TB/BT, height for LR/RL
+        const dimension = (layoutParams.rankdir === 'LR' || layoutParams.rankdir === 'RL')
+          ? calculateSubtreeHeight(childId, edges, layouts, layoutParams, subgraphNodes)
+          : calculateSubtreeWidth(childId, edges, layouts, layoutParams, subgraphNodes)
+        return dimension
+      })
+      
+      totalDimension = childDimensions.reduce((sum, dim) => sum + (dim || 0), 0) + 
+                      (directChildren.length - 1) * layoutParams.nodesep
 
-      // Start positioning from left to right
-      let currentX = parentPos.x - totalWidth / 2
-
+      // Position children based on rankdir
+      let currentPrimary = 0  // Current position along primary axis
       directChildren.forEach((childId, index) => {
-        const childWidth = childWidths[index] || 120 // fallback to node width
+        const childDimension = childDimensions[index] || ((layoutParams.rankdir === 'LR' || layoutParams.rankdir === 'RL') ? 40 : 120)
         
-        // Position this child at the center of its allocated space
+        // Calculate child position based on rankdir
+        let childX: number, childY: number
+        
+        switch (layoutParams.rankdir) {
+          case 'TB': // Top to Bottom
+            childX = parentPos.x - totalDimension / 2 + currentPrimary + childDimension / 2
+            childY = parentPos.y + layoutParams.ranksep
+            break
+          case 'BT': // Bottom to Top
+            childX = parentPos.x - totalDimension / 2 + currentPrimary + childDimension / 2
+            childY = parentPos.y - layoutParams.ranksep
+            break
+          case 'LR': // Left to Right
+            childX = parentPos.x + layoutParams.ranksep
+            childY = parentPos.y - totalDimension / 2 + currentPrimary + childDimension / 2
+            break
+          case 'RL': // Right to Left
+            childX = parentPos.x - layoutParams.ranksep
+            childY = parentPos.y - totalDimension / 2 + currentPrimary + childDimension / 2
+            break
+          default:
+            childX = parentPos.x - totalDimension / 2 + currentPrimary + childDimension / 2
+            childY = parentPos.y + layoutParams.ranksep
+        }
+        
+        // Position this child
         layouts.nodes[childId] = {
-          x: currentX + childWidth / 2,
-          y: parentPos.y + layoutParams.ranksep
+          x: childX,
+          y: childY
         }
 
-        // Move to next position
-        currentX += childWidth + layoutParams.nodesep
+        // Move to next position along the perpendicular axis
+        currentPrimary += childDimension + layoutParams.nodesep
 
         // Recursively position this child's children
         positionDLDRNodes(childId, layouts.nodes[childId], edges, layouts, layoutParams, subgraphNodes)
