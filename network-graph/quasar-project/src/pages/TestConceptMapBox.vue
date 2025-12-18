@@ -11,7 +11,7 @@
         <q-separator vertical />
 
         <!-- Dagre for Selected Node -->
-        <div class="text-caption">Dagre Selected:</div>
+        <div class="text-caption">Dagre:</div>
         <q-btn size="xs" icon="arrow_upward" @click="applyDagreToSelected('TB')" :disable="selectedNodes.length !== 1" dense flat title="Top to Bottom" />
         <q-btn size="xs" icon="arrow_downward" @click="applyDagreToSelected('BT')" :disable="selectedNodes.length !== 1" dense flat title="Bottom to Top" />
         <q-btn size="xs" icon="arrow_forward" @click="applyDagreToSelected('LR')" :disable="selectedNodes.length !== 1" dense flat title="Left to Right" />
