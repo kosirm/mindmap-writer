@@ -861,7 +861,7 @@ function reparentNodes(nodeIds: string[], newParentId: string | null) {
     }
 
     // Check for circular references (only when actually changing parent)
-    if (newParentId && isDescendant(newParentId, nodeId)) {
+    if (newParentId && isDescendant(nodeId, newParentId)) {
       $q.notify({
         type: 'warning',
         message: `Cannot reparent ${node.name} to its own descendant`,
