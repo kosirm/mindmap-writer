@@ -5,121 +5,218 @@
       Dagre Layout Testing
     </div>
 
-    <!-- Layout Direction Controls -->
-    <div class="text-caption q-mb-xs">Layout Direction</div>
-    <div class="row q-gutter-xs q-mb-sm">
-      <q-btn
-        size="sm"
-        icon="arrow_downward"
-        label="TB"
-        @click="applyDagreLayout('TB')"
-        :disable="!canApplyLayout"
-        dense
-        flat
-        title="Top to Bottom"
-        class="col"
-      />
-      <q-btn
-        size="sm"
-        icon="arrow_upward"
-        label="BT"
-        @click="applyDagreLayout('BT')"
-        :disable="!canApplyLayout"
-        dense
-        flat
-        title="Bottom to Top"
-        class="col"
-      />
-      <q-btn
-        size="sm"
-        icon="arrow_forward"
-        label="LR"
-        @click="applyDagreLayout('LR')"
-        :disable="!canApplyLayout"
-        dense
-        flat
-        title="Left to Right"
-        class="col"
-      />
-      <q-btn
-        size="sm"
-        icon="arrow_back"
-        label="RL"
-        @click="applyDagreLayout('RL')"
-        :disable="!canApplyLayout"
-        dense
-        flat
-        title="Right to Left"
-        class="col"
-      />
-    </div>
+    <!-- Layout Type Selection -->
+    <div class="text-caption q-mb-xs">Layout Type</div>
+    <q-select
+      v-model="currentLayoutType"
+      :options="[
+        { label: 'Tree (Dagre)', value: 'tree', icon: 'account_tree' },
+        { label: 'Circular', value: 'circular', icon: 'circle' },
+        { label: 'MindMap Left', value: 'mindmap', icon: 'arrow_left' },
+        { label: 'Boxes', value: 'boxes', icon: 'view_quilt' }
+      ]"
+      label="Select Layout Type"
+      dense
+      class="full-width q-mb-sm"
+      @update:model-value="onLayoutTypeChange"
+      option-value="value"
+      option-label="label"
+      option-icon="icon"
+      emit-value
+      map-options
+    />
 
     <q-separator class="q-my-sm" />
 
-    <!-- Dagre Parameters -->
+    <!-- Layout-Specific Parameters -->
     <div class="text-caption q-mb-xs">Layout Parameters</div>
 
-    <div class="q-mb-sm">
-      <div class="text-caption">rankdir: {{ dagreParams.rankdir }}</div>
-      <q-select
-        v-model="dagreParams.rankdir"
-        :options="['TB', 'BT', 'LR', 'RL']"
-        dense
-        size="sm"
-        class="full-width"
-        @update:model-value="updateParams"
-      />
+    <!-- Tree Layout Parameters (Dagre) -->
+    <div v-if="currentLayoutType === 'tree'">
+      <div class="q-mb-sm">
+        <div class="text-caption">rankdir: {{ dagreParams.rankdir }}</div>
+        <q-select
+          v-model="dagreParams.rankdir"
+          :options="['TB', 'BT', 'LR', 'RL']"
+          dense
+          size="sm"
+          class="full-width"
+          @update:model-value="updateParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">ranksep: {{ dagreParams.ranksep }}px</div>
+        <q-slider
+          v-model="dagreParams.ranksep"
+          :min="50"
+          :max="200"
+          :step="10"
+          dense
+          class="full-width"
+          @change="updateParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">nodesep: {{ dagreParams.nodesep }}px</div>
+        <q-slider
+          v-model="dagreParams.nodesep"
+          :min="20"
+          :max="300"
+          :step="5"
+          dense
+          class="full-width"
+          @change="updateParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">edgesep: {{ dagreParams.edgesep }}px</div>
+        <q-slider
+          v-model="dagreParams.edgesep"
+          :min="5"
+          :max="50"
+          :step="5"
+          dense
+          class="full-width"
+          @change="updateParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">align: {{ dagreParams.align }}</div>
+        <q-select
+          v-model="dagreParams.align"
+          :options="['UL', 'UR', 'DL', 'DR']"
+          dense
+          size="sm"
+          class="full-width"
+          @update:model-value="updateParams"
+        />
+      </div>
     </div>
 
-    <div class="q-mb-sm">
-      <div class="text-caption">ranksep: {{ dagreParams.ranksep }}px</div>
-      <q-slider
-        v-model="dagreParams.ranksep"
-        :min="50"
-        :max="200"
-        :step="10"
-        dense
-        class="full-width"
-        @change="updateParams"
-      />
+    <!-- Circular Layout Parameters -->
+    <div v-if="currentLayoutType === 'circular'">
+      <div class="q-mb-sm">
+        <div class="text-caption">Radius: {{ circularParams.radius }}px</div>
+        <q-slider
+          v-model="circularParams.radius"
+          :min="100"
+          :max="500"
+          :step="10"
+          dense
+          class="full-width"
+          @change="updateCircularParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">Start Angle: {{ circularParams.startAngle }}°</div>
+        <q-slider
+          v-model="circularParams.startAngle"
+          :min="0"
+          :max="360"
+          :step="15"
+          dense
+          class="full-width"
+          @change="updateCircularParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">Direction: {{ circularParams.clockwise ? 'Clockwise' : 'Counter-clockwise' }}</div>
+        <q-toggle
+          v-model="circularParams.clockwise"
+          label="Clockwise"
+          dense
+          @update:model-value="updateCircularParams"
+        />
+      </div>
     </div>
 
-    <div class="q-mb-sm">
-      <div class="text-caption">nodesep: {{ dagreParams.nodesep }}px</div>
-      <q-slider
-        v-model="dagreParams.nodesep"
-        :min="20"
-        :max="100"
-        :step="5"
-        dense
-        class="full-width"
-        @change="updateParams"
-      />
+    <!-- MindMap Layout Parameters -->
+    <div v-if="currentLayoutType === 'mindmap'">
+      <div class="q-mb-sm">
+        <div class="text-caption">Side: {{ mindmapParams.side }}</div>
+        <q-select
+          v-model="mindmapParams.side"
+          :options="['left', 'right']"
+          dense
+          size="sm"
+          class="full-width"
+          @update:model-value="updateMindMapParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">Branch Spacing: {{ mindmapParams.branchSpacing }}px</div>
+        <q-slider
+          v-model="mindmapParams.branchSpacing"
+          :min="30"
+          :max="150"
+          :step="5"
+          dense
+          class="full-width"
+          @change="updateMindMapParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">Level Distance: {{ mindmapParams.levelDistance }}px</div>
+        <q-slider
+          v-model="mindmapParams.levelDistance"
+          :min="50"
+          :max="300"
+          :step="10"
+          dense
+          class="full-width"
+          @change="updateMindMapParams"
+        />
+      </div>
     </div>
 
-    <div class="q-mb-sm">
-      <div class="text-caption">edgesep: {{ dagreParams.edgesep }}px</div>
-      <q-slider
-        v-model="dagreParams.edgesep"
-        :min="5"
-        :max="50"
-        :step="5"
-        dense
-        class="full-width"
-        @change="updateParams"
-      />
-    </div>
+    <!-- Box Layout Parameters -->
+    <div v-if="currentLayoutType === 'boxes'">
+      <div class="q-mb-sm">
+        <div class="text-caption">Box Width: {{ boxParams.boxWidth }}px</div>
+        <q-slider
+          v-model="boxParams.boxWidth"
+          :min="100"
+          :max="300"
+          :step="10"
+          dense
+          class="full-width"
+          @change="updateBoxParams"
+        />
+      </div>
 
-    <div class="q-mb-sm">
-      <div class="text-caption">align: {{ dagreParams.align }}</div>
-      <q-select
-        v-model="dagreParams.align"
-        :options="['UL', 'UR', 'DL', 'DR']"
-        dense
-        size="sm"
-        class="full-width"
-        @update:model-value="updateParams"
-      />
+      <div class="q-mb-sm">
+        <div class="text-caption">Box Height: {{ boxParams.boxHeight }}px</div>
+        <q-slider
+          v-model="boxParams.boxHeight"
+          :min="80"
+          :max="250"
+          :step="10"
+          dense
+          class="full-width"
+          @change="updateBoxParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">Padding: {{ boxParams.padding }}px</div>
+        <q-slider
+          v-model="boxParams.padding"
+          :min="10"
+          :max="50"
+          :step="5"
+          dense
+          class="full-width"
+          @change="updateBoxParams"
+        />
+      </div>
     </div>
 
     <q-separator class="q-my-sm" />
@@ -171,7 +268,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { useDagreService, type DagreParams } from 'src/services/dagreService'
+import { useDagreService, type LayoutType, type LayoutConfig } from 'src/services/dagreService'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -179,6 +276,10 @@ const dagreService = useDagreService()
 
 // Use the service's parameters
 const dagreParams = dagreService.currentParams
+const circularParams = dagreService.currentCircularParams
+const mindmapParams = dagreService.currentMindMapParams
+const boxParams = dagreService.currentBoxParams
+const currentLayoutType = dagreService.currentLayoutType
 
 // Target layout selection
 const targetLayout = ref<'mindmap' | 'conceptmap'>('mindmap')
@@ -196,49 +297,54 @@ watch(targetLayout, (newTarget) => {
   console.log('Target layout changed to:', newTarget)
 })
 
+// Layout type change handler
+function onLayoutTypeChange(newType: LayoutType) {
+  dagreService.setLayoutType(newType)
+  console.log('Layout type changed to:', newType)
+}
+
 // Update parameters in service when UI changes
 function updateParams() {
   dagreService.setParams(dagreParams.value)
   console.log('Dagre params updated in service:', dagreParams.value)
 }
 
-// Apply dagre layout with current parameters
-function applyDagreLayout(direction: 'TB' | 'BT' | 'LR' | 'RL') {
-  dagreParams.value.rankdir = direction
-  applyLayoutToCurrentPage(direction)
+function updateCircularParams() {
+  dagreService.setCircularParams(circularParams.value)
+  console.log('Circular params updated:', circularParams.value)
 }
 
-// Apply to selected node
-function applyToSelectedNode() {
-  applyLayoutToCurrentPage(dagreParams.value.rankdir)
+function updateMindMapParams() {
+  dagreService.setMindMapParams(mindmapParams.value)
+  console.log('MindMap params updated:', mindmapParams.value)
 }
 
-// Apply to entire graph
-function applyToEntireGraph() {
-  // Broadcast event to apply layout to entire graph
-  broadcastDagreLayout('entire-graph', dagreParams.value)
+function updateBoxParams() {
+  dagreService.setBoxParams(boxParams.value)
+  console.log('Box params updated:', boxParams.value)
 }
 
-// Helper function to apply layout based on current route
-function applyLayoutToCurrentPage(direction: 'TB' | 'BT' | 'LR' | 'RL') {
+// Apply layout with current configuration
+function applyLayoutToCurrentPage() {
+  const config = dagreService.getCurrentLayoutConfig()
+  console.log('Applying layout with config:', config)
+  
   const currentPath = route.path
-
+  
   if (currentPath.includes('/test-mindmap')) {
-    // Broadcast event for mindmap page
-    broadcastDagreLayout('selected-node', dagreParams.value)
+    broadcastLayoutRequest('selected-node', config)
     
     $q.notify({
       type: 'positive',
-      message: `Applied ${direction} layout to MindMap`,
+      message: `Applied ${config.type} layout to MindMap`,
       timeout: 1000,
     })
   } else if (currentPath.includes('/test-conceptmap')) {
-    // Broadcast event for conceptmap page
-    broadcastDagreLayout('selected-node', dagreParams.value)
+    broadcastLayoutRequest('selected-node', config)
     
     $q.notify({
       type: 'positive',
-      message: `Applied ${direction} layout to ConceptMap`,
+      message: `Applied ${config.type} layout to ConceptMap`,
       timeout: 1000,
     })
   } else {
@@ -250,19 +356,33 @@ function applyLayoutToCurrentPage(direction: 'TB' | 'BT' | 'LR' | 'RL') {
   }
 }
 
-// Broadcast dagre layout event
-function broadcastDagreLayout(target: 'selected-node' | 'entire-graph', params: DagreParams) {
+// Apply to selected node
+function applyToSelectedNode() {
+  applyLayoutToCurrentPage()
+}
+
+// Apply to entire graph
+function applyToEntireGraph() {
+  const config = dagreService.getCurrentLayoutConfig()
+  broadcastLayoutRequest('entire-graph', config)
+}
+
+// Broadcast layout request event
+function broadcastLayoutRequest(target: 'selected-node' | 'entire-graph', config: LayoutConfig) {
+  // For backward compatibility, extract dagre params if available
+  const params = config.type === 'tree' ? config.dagreParams : dagreService.currentParams.value
+  
   const event = new CustomEvent('dagre-layout-request', {
     detail: {
       target,
-      params,
+      params,  // Use 'params' for backward compatibility
+      config,  // Also include full config for future use
       timestamp: Date.now()
     }
   })
   window.dispatchEvent(event)
-  console.log('Broadcasted dagre layout event:', { target, params })
+  console.log('Broadcasted dagre layout request event:', { target, params, config })
 }
-
 
 onMounted(() => {
   console.log('DagreTestControls mounted, ready to broadcast layout events')
