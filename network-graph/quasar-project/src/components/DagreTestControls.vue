@@ -12,7 +12,7 @@
       :options="[
         { label: 'Tree (Dagre)', value: 'tree', icon: 'account_tree' },
         { label: 'Circular', value: 'circular', icon: 'circle' },
-        { label: 'MindMap Left', value: 'mindmap', icon: 'arrow_left' },
+        { label: 'MindMap', value: 'mindmap', icon: 'arrow_left' },
         { label: 'Boxes', value: 'boxes', icon: 'view_quilt' }
       ]"
       label="Select Layout Type"
