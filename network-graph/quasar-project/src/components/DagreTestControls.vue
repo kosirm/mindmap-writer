@@ -49,7 +49,7 @@
         <div class="text-caption">ranksep: {{ dagreParams.ranksep }}px</div>
         <q-slider
           v-model="dagreParams.ranksep"
-          :min="50"
+          :min="0"
           :max="200"
           :step="10"
           dense
@@ -62,7 +62,7 @@
         <div class="text-caption">nodesep: {{ dagreParams.nodesep }}px</div>
         <q-slider
           v-model="dagreParams.nodesep"
-          :min="20"
+          :min="0"
           :max="300"
           :step="5"
           dense
@@ -75,7 +75,7 @@
         <div class="text-caption">edgesep: {{ dagreParams.edgesep }}px</div>
         <q-slider
           v-model="dagreParams.edgesep"
-          :min="5"
+          :min="0"
           :max="50"
           :step="5"
           dense
