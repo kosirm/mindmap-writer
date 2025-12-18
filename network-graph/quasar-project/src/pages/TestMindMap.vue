@@ -891,28 +891,79 @@ function handleClickOutside() {
 // Handle dagre layout requests from the test controls
 function handleDagreLayoutRequest(event: CustomEvent) {
   const detail = event.detail
-  if (!detail || !detail.params) return
+  if (!detail || !detail.config) return
 
   console.log('Received dagre layout request:', detail)
 
+  // Get layout type from config
+  const layoutType = detail.config.type
+  
   if (detail.target === 'selected-node') {
     // Apply to currently selected node
     if (selectedNodes.value.length === 1) {
       const selectedNodeId = selectedNodes.value[0]
       if (selectedNodeId) {
-        const success = dagreService.applyDagreToSelected(
-          nodes.value,
-          edges.value,
-          layouts.value,
-          selectedNodeId,
-          detail.params
-        )
+        let success = false
+        let message = ''
+        
+        switch (layoutType) {
+          case 'tree':
+            success = dagreService.applyDagreToSelected(
+              nodes.value,
+              edges.value,
+              layouts.value,
+              selectedNodeId,
+              detail.config.dagreParams || detail.params
+            )
+            message = success ? `Applied tree layout to selected node` : 'Failed to apply tree layout'
+            break
+            
+          case 'circular':
+            success = dagreService.applyCircularToSelected(
+              nodes.value,
+              edges.value,
+              layouts.value,
+              selectedNodeId,
+              detail.config.circularParams || detail.params
+            )
+            message = success ? `Applied circular layout to selected node` : 'Failed to apply circular layout'
+            break
+            
+          case 'mindmap':
+            // For mindmap layout, use dagre with mindmap parameters
+            success = dagreService.applyDagreToSelected(
+              nodes.value,
+              edges.value,
+              layouts.value,
+              selectedNodeId,
+              detail.config.mindmapParams || detail.params
+            )
+            message = success ? `Applied mindmap layout to selected node` : 'Failed to apply mindmap layout'
+            break
+            
+          default:
+            // Fallback to tree layout
+            success = dagreService.applyDagreToSelected(
+              nodes.value,
+              edges.value,
+              layouts.value,
+              selectedNodeId,
+              detail.params
+            )
+            message = success ? `Applied default layout to selected node` : 'Failed to apply layout'
+        }
         
         if (success) {
           $q.notify({
             type: 'positive',
-            message: `Applied ${detail.params.rankdir} layout to selected node`,
+            message,
             timeout: 1000,
+          })
+        } else {
+          $q.notify({
+            type: 'negative',
+            message,
+            timeout: 2000,
           })
         }
       }
@@ -924,39 +975,67 @@ function handleDagreLayoutRequest(event: CustomEvent) {
       })
     }
   } else if (detail.target === 'entire-graph') {
-    // For entire graph, find root nodes (nodes with no parents)
-    const rootNodes = Object.values(nodes.value).filter(node => node.parentId === null)
+    let success = false
+    let message = ''
     
-    if (rootNodes.length === 0) {
-      $q.notify({
-        type: 'warning',
-        message: 'No root nodes found',
-        timeout: 1500,
+    if (layoutType === 'circular') {
+      // Apply circular layout to entire graph
+      const centerX = 0
+      const centerY = 0
+      success = dagreService.applyCircularToEntireGraph(
+        nodes.value,
+        edges.value,
+        layouts.value,
+        centerX,
+        centerY,
+        detail.config.circularParams || detail.params
+      )
+      message = success ? `Applied circular layout to entire graph` : 'Failed to apply circular layout'
+    } else {
+      // For tree and mindmap layouts, apply to each root node
+      const rootNodes = Object.values(nodes.value).filter(node => node.parentId === null)
+      
+      if (rootNodes.length === 0) {
+        $q.notify({
+          type: 'warning',
+          message: 'No root nodes found',
+          timeout: 1500,
+        })
+        return
+      }
+      
+      let appliedCount = 0
+      rootNodes.forEach(rootNode => {
+        const rootId = Object.keys(nodes.value).find(key => nodes.value[key] === rootNode)
+        if (rootId) {
+          const nodeSuccess = dagreService.applyDagreToSelected(
+            nodes.value,
+            edges.value,
+            layouts.value,
+            rootId,
+            detail.config.dagreParams || detail.config.mindmapParams || detail.params
+          )
+          if (nodeSuccess) appliedCount++
+        }
       })
-      return
+      
+      success = appliedCount > 0
+      message = `Applied ${layoutType} layout to ${appliedCount} root node(s)`
     }
     
-    // Apply layout to each root node
-    let appliedCount = 0
-    rootNodes.forEach(rootNode => {
-      const rootId = Object.keys(nodes.value).find(key => nodes.value[key] === rootNode)
-      if (rootId) {
-        const success = dagreService.applyDagreToSelected(
-          nodes.value,
-          edges.value,
-          layouts.value,
-          rootId,
-          detail.params
-        )
-        if (success) appliedCount++
-      }
-    })
-    
-    $q.notify({
-      type: 'positive',
-      message: `Applied ${detail.params.rankdir} layout to ${appliedCount} root node(s)`,
-      timeout: 1500,
-    })
+    if (success) {
+      $q.notify({
+        type: 'positive',
+        message,
+        timeout: 1500,
+      })
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: `Failed to apply ${layoutType} layout`,
+        timeout: 2000,
+      })
+    }
   }
 }
 
@@ -996,4 +1075,3 @@ onUnmounted(() => {
   z-index: 9999;
 }
 </style>
-

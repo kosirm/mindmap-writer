@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import type * as vNG from 'v-network-graph'
 // @ts-expect-error - dagre doesn't have proper TypeScript types
 import dagre from 'dagre/dist/dagre.min.js'
+import { useCircularLayout } from 'src/composables/layouts/useCircularLayout'
 
 export interface DagreParams {
   rankdir: 'TB' | 'BT' | 'LR' | 'RL'
@@ -13,9 +14,12 @@ export interface DagreParams {
 }
 
 export interface CircularLayoutParams {
-  radius: number
-  startAngle: number
-  clockwise: boolean
+  innerRadius: number      // Radius for root nodes circle
+  levelSpacing: number     // Distance between concentric circles (generations)
+  startAngle: number       // Starting angle in degrees (0 = right, 90 = bottom)
+  clockwise: boolean       // Direction of layout
+  minSectorAngle: number   // Minimum angle per root node sector (degrees)
+  nodeSpacing: number      // Minimum spacing between nodes on same circle
 }
 
 export interface MindMapLayoutParams {
@@ -62,9 +66,12 @@ export const useDagreService = () => {
     }
   
     const defaultCircularParams: CircularLayoutParams = {
-      radius: 200,
-      startAngle: 0,
-      clockwise: true
+      innerRadius: 100,
+      levelSpacing: 120,
+      startAngle: -90,
+      clockwise: true,
+      minSectorAngle: 30,
+      nodeSpacing: 60
     }
   
     const defaultMindMapParams: MindMapLayoutParams = {
@@ -125,6 +132,9 @@ export const useDagreService = () => {
         boxParams: currentLayoutType.value === 'boxes' ? { ...currentBoxParams.value } : undefined
       }
     }
+
+  // Initialize circular layout
+  const circularLayout = useCircularLayout()
 
   // Helper: Get all descendants of a node (recursive)
   const getDescendants = (nodeId: string, edges: Record<string, MindMapEdge>): string[] => {
@@ -399,6 +409,61 @@ export const useDagreService = () => {
     return true
   }
 
+  // Apply circular layout to selected node and its descendants
+  const applyCircularToSelected = (
+    nodes: Record<string, MindMapNode>,
+    edges: Record<string, MindMapEdge>,
+    layouts: vNG.Layouts,
+    selectedNodeId: string,
+    params: Partial<CircularLayoutParams> = {}
+  ): boolean => {
+    if (!selectedNodeId || !nodes[selectedNodeId]) {
+      console.warn('No valid selected node for circular layout')
+      return false
+    }
+
+    // Merge provided params with current params
+    const layoutParams = { ...currentCircularParams.value, ...params }
+
+    // Get the selected node's position as center
+    const centerPos = layouts.nodes[selectedNodeId]
+    if (!centerPos) {
+      console.warn('Selected node has no position for circular layout')
+      return false
+    }
+
+    // Apply circular layout
+    return circularLayout.applyCircularToSelected(
+      nodes,
+      edges,
+      layouts,
+      selectedNodeId,
+      layoutParams
+    )
+  }
+
+  // Apply circular layout to entire graph
+  const applyCircularToEntireGraph = (
+    nodes: Record<string, MindMapNode>,
+    edges: Record<string, MindMapEdge>,
+    layouts: vNG.Layouts,
+    centerX: number = 0,
+    centerY: number = 0,
+    params: Partial<CircularLayoutParams> = {}
+  ): boolean => {
+    // Merge provided params with current params
+    const layoutParams = { ...currentCircularParams.value, ...params }
+
+    // Apply circular layout to entire graph
+    return circularLayout.applyCircularLayout(
+      nodes,
+      edges,
+      layouts,
+      centerX,
+      centerY,
+      layoutParams
+    )
+  }
 
   return {
     currentParams,
@@ -414,6 +479,8 @@ export const useDagreService = () => {
     resetParams,
     getCurrentLayoutConfig,
     applyDagreToSelected,
+    applyCircularToSelected,
+    applyCircularToEntireGraph,
     getDescendants
   }
 }

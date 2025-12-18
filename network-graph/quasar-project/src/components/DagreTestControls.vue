@@ -10,7 +10,7 @@
     <q-select
       v-model="currentLayoutType"
       :options="[
-        { label: 'Tree (Dagre)', value: 'tree', icon: 'account_tree' },
+        { label: 'Tree', value: 'tree', icon: 'account_tree' },
         { label: 'Circular', value: 'circular', icon: 'circle' },
         { label: 'MindMap', value: 'mindmap', icon: 'arrow_left' },
         { label: 'Boxes', value: 'boxes', icon: 'view_quilt' }
@@ -100,11 +100,24 @@
     <!-- Circular Layout Parameters -->
     <div v-if="currentLayoutType === 'circular'">
       <div class="q-mb-sm">
-        <div class="text-caption">Radius: {{ circularParams.radius }}px</div>
+        <div class="text-caption">Inner Radius: {{ circularParams.innerRadius }}px</div>
         <q-slider
-          v-model="circularParams.radius"
-          :min="100"
-          :max="500"
+          v-model="circularParams.innerRadius"
+          :min="50"
+          :max="300"
+          :step="10"
+          dense
+          class="full-width"
+          @change="updateCircularParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">Level Spacing: {{ circularParams.levelSpacing }}px</div>
+        <q-slider
+          v-model="circularParams.levelSpacing"
+          :min="80"
+          :max="200"
           :step="10"
           dense
           class="full-width"
@@ -116,9 +129,35 @@
         <div class="text-caption">Start Angle: {{ circularParams.startAngle }}°</div>
         <q-slider
           v-model="circularParams.startAngle"
-          :min="0"
-          :max="360"
+          :min="-180"
+          :max="180"
           :step="15"
+          dense
+          class="full-width"
+          @change="updateCircularParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">Minimum Sector Angle: {{ circularParams.minSectorAngle }}°</div>
+        <q-slider
+          v-model="circularParams.minSectorAngle"
+          :min="15"
+          :max="90"
+          :step="5"
+          dense
+          class="full-width"
+          @change="updateCircularParams"
+        />
+      </div>
+
+      <div class="q-mb-sm">
+        <div class="text-caption">Node Spacing: {{ circularParams.nodeSpacing }}px</div>
+        <q-slider
+          v-model="circularParams.nodeSpacing"
+          :min="40"
+          :max="100"
+          :step="5"
           dense
           class="full-width"
           @change="updateCircularParams"
@@ -268,7 +307,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { useDagreService, type LayoutType, type LayoutConfig } from 'src/services/dagreService'
+import { useDagreService, type LayoutType, type LayoutConfig, type DagreParams, type CircularLayoutParams, type MindMapLayoutParams, type BoxLayoutParams } from 'src/services/dagreService'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -369,8 +408,25 @@ function applyToEntireGraph() {
 
 // Broadcast layout request event
 function broadcastLayoutRequest(target: 'selected-node' | 'entire-graph', config: LayoutConfig) {
-  // For backward compatibility, extract dagre params if available
-  const params = config.type === 'tree' ? config.dagreParams : dagreService.currentParams.value
+  // Extract the correct parameters based on layout type
+  let params: DagreParams | CircularLayoutParams | MindMapLayoutParams | BoxLayoutParams | undefined
+  
+  switch (config.type) {
+    case 'tree':
+      params = config.dagreParams
+      break
+    case 'circular':
+      params = config.circularParams
+      break
+    case 'mindmap':
+      params = config.mindmapParams
+      break
+    case 'boxes':
+      params = config.boxParams
+      break
+    default:
+      params = dagreService.currentParams.value // fallback
+  }
   
   const event = new CustomEvent('dagre-layout-request', {
     detail: {
