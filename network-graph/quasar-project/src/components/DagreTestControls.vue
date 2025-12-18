@@ -5,6 +5,21 @@
       Dagre Layout Testing
     </div>
 
+    <!-- Generation-based Node Coloring Toggle -->
+    <div class="q-mb-sm">
+      <q-toggle
+        v-model="generationColoringEnabled"
+        label="Color Nodes by Generation"
+        dense
+        @update:model-value="onGenerationColoringChange"
+      />
+      <div class="text-caption text-grey-6 q-ml-lg">
+        Different colors for each generation level
+      </div>
+    </div>
+
+    <q-separator class="q-my-sm" />
+
     <!-- Layout Type Selection -->
     <div class="text-caption q-mb-xs">Layout Type</div>
     <q-select
@@ -323,6 +338,9 @@ const currentLayoutType = dagreService.currentLayoutType
 // Target layout selection
 const targetLayout = ref<'mindmap' | 'conceptmap'>('mindmap')
 
+// Generation-based node coloring toggle
+const generationColoringEnabled = ref(false)
+
 // Current route for debugging
 const currentRoute = computed(() => route.path)
 
@@ -340,6 +358,19 @@ watch(targetLayout, (newTarget) => {
 function onLayoutTypeChange(newType: LayoutType) {
   dagreService.setLayoutType(newType)
   console.log('Layout type changed to:', newType)
+}
+
+// Generation coloring change handler
+function onGenerationColoringChange(enabled: boolean) {
+  // Broadcast the generation coloring setting to the graph component
+  const event = new CustomEvent('generation-coloring-toggle', {
+    detail: {
+      enabled,
+      timestamp: Date.now()
+    }
+  })
+  window.dispatchEvent(event)
+  console.log('Generation coloring changed to:', enabled)
 }
 
 // Update parameters in service when UI changes

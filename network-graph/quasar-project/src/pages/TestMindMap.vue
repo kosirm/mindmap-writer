@@ -190,6 +190,9 @@ let nodeCounter = 3
 // Force layout instance
 let forceLayout: ForceLayout | null = null
 
+// Generation-based coloring state
+const generationColoringEnabled = ref(false)
+
 // Configs
 const configs = reactive(
   vNG.defineConfigs({
@@ -307,16 +310,52 @@ const eventHandlers: vNG.EventHandlers = {
   },
 }
 
+// Helper function to calculate node generation
+function calculateNodeGeneration(nodeId: string): number {
+  let generation = 0
+  let currentNodeId = nodeId
+  
+  // Traverse up the hierarchy to find the generation
+  while (true) {
+    const node = nodes.value[currentNodeId]
+    if (!node || node.parentId === null) {
+      break
+    }
+    currentNodeId = node.parentId
+    generation++
+  }
+  
+  return generation
+}
+
 // Helper functions for custom node rendering
 function getNodeColor(nodeId: string): string {
   const node = nodes.value[nodeId]
   if (!node) return '#ffffff'
-
+  
   // Check if this node is selected
   const isSelected = selectedNodes.value.includes(nodeId)
-  // Note: Hover state is handled by z-order, not by color change
-
-  if (isSelected) {
+  
+  if (generationColoringEnabled.value) {
+    // Use generation-based coloring
+    const generation = calculateNodeGeneration(nodeId)
+    
+    // Define a color palette for different generations
+    const generationColors = [
+      '#FFCDD2', // Generation 0 (root) - light red
+      '#C8E6C9', // Generation 1 - light green
+      '#BBDEFB', // Generation 2 - light blue
+      '#FFF9C4', // Generation 3 - light yellow
+      '#F8BBD0', // Generation 4 - light pink
+      '#E1BEE7', // Generation 5 - light purple
+      '#C5CAE9', // Generation 6 - light indigo
+      '#B2EBF2', // Generation 7 - light cyan
+    ]
+    
+    // Use modulo to cycle through colors for deeper generations
+    const colorIndex = generation % generationColors.length
+    return generationColors[colorIndex] || '#ffffff'
+  } else if (isSelected) {
     return '#b3e5fc' // Selected color
   } else {
     return '#ffffff' // Normal color
@@ -888,13 +927,29 @@ function handleClickOutside() {
   contextMenuVisible.value = false
 }
 
+// Handle generation coloring toggle from the test controls
+function handleGenerationColoringToggle(event: CustomEvent) {
+  const detail = event.detail
+  if (!detail || typeof detail.enabled !== 'boolean') return
+  
+  generationColoringEnabled.value = detail.enabled
+  
+  console.log('Generation coloring enabled:', detail.enabled)
+  
+  $q.notify({
+    type: 'info',
+    message: `Generation coloring ${detail.enabled ? 'enabled' : 'disabled'}`,
+    timeout: 1000,
+  })
+}
+
 // Handle dagre layout requests from the test controls
 function handleDagreLayoutRequest(event: CustomEvent) {
   const detail = event.detail
   if (!detail || !detail.config) return
-
+  
   console.log('Received dagre layout request:', detail)
-
+  
   // Get layout type from config
   const layoutType = detail.config.type
   
@@ -1044,6 +1099,9 @@ onMounted(() => {
   window.addEventListener('keyup', handleKeyUp)
   window.addEventListener('click', handleClickOutside)
   
+  // Setup event listener for generation coloring toggle
+  window.addEventListener('generation-coloring-toggle', handleGenerationColoringToggle as EventListener)
+  
   // Setup event listener for dagre layout requests
   window.addEventListener('dagre-layout-request', handleDagreLayoutRequest as EventListener)
 })
@@ -1052,6 +1110,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   window.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('generation-coloring-toggle', handleGenerationColoringToggle as EventListener)
   window.removeEventListener('dagre-layout-request', handleDagreLayoutRequest as EventListener)
 })
 </script>
