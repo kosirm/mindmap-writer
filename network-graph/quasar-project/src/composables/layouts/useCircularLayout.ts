@@ -11,6 +11,7 @@ export interface CircularLayoutParams {
   clockwise: boolean       // Direction of layout
   minSectorAngle: number   // Minimum angle per root node sector (degrees)
   nodeSpacing: number      // Minimum spacing between nodes on same circle
+  spacingRatio: number     // Ratio for angle-based spacing (1.0 = uniform, >1.0 = more north/south spacing)
 }
 
 export interface MindMapNode {
@@ -45,7 +46,8 @@ export const useCircularLayout = () => {
     startAngle: -90,  // Start from top
     clockwise: true,
     minSectorAngle: 30,
-    nodeSpacing: 60
+    nodeSpacing: 60,
+    spacingRatio: 1.5  // Default ratio: 1.5x more spacing at north/south than east/west
   }
 
   /**
@@ -112,6 +114,33 @@ export const useCircularLayout = () => {
   const toRadians = (degrees: number): number => degrees * (Math.PI / 180)
 
   /**
+   * Calculate angle-based spacing factor
+   * Returns a spacing multiplier based on angle (0 = more spacing at north/south)
+   */
+  const getAngleSpacingFactor = (angle: number, spacingRatio: number): number => {
+    // Normalize angle to 0-2π range
+    const normalizedAngle = angle % (2 * Math.PI)
+    
+    // Calculate spacing factor based on angle
+    // We want more spacing at north/south (0° and 180°) and less at east/west (90° and 270°)
+    // Use cosine function: cos(0) = 1 (north/south), cos(90°) = 0 (east/west)
+    const cosAngle = Math.cos(normalizedAngle)
+    
+    // Map cosine value to spacing factor
+    // cosAngle ranges from -1 to 1, we want it from 0 to 1
+    const absCosAngle = Math.abs(cosAngle)
+    
+    // Calculate spacing factor: interpolate between 1.0 and spacingRatio
+    // When absCosAngle = 1 (north/south): factor = spacingRatio
+    // When absCosAngle = 0 (east/west): factor = 1.0
+    const factor = 1.0 + (spacingRatio - 1.0) * absCosAngle
+    
+    console.log(`Angle: ${normalizedAngle.toFixed(3)} rad (${(normalizedAngle * 180 / Math.PI).toFixed(1)}°), cos: ${cosAngle.toFixed(3)}, absCos: ${absCosAngle.toFixed(3)}, spacingRatio: ${spacingRatio}, factor: ${factor.toFixed(3)}`)
+    
+    return factor
+  }
+
+  /**
    * Position nodes in a tree within a sector
    * @param tree - The tree structure to position
    * @param centerX - Canvas center X
@@ -132,10 +161,10 @@ export const useCircularLayout = () => {
   ): void => {
     // Calculate radius for this depth level
     const radius = params.innerRadius + (tree.depth * params.levelSpacing)
-    
+     
     // Calculate angle for this node (center of its allocated sector)
     const sectorMid = (sectorStart + sectorEnd) / 2
-    
+     
     // Position this node
     positions[tree.id] = {
       x: centerX + radius * Math.cos(sectorMid),
@@ -155,18 +184,31 @@ export const useCircularLayout = () => {
       const childSectorWidth = (child.subtreeSize / totalSubtreeSize) * sectorWidth
       const childSectorEnd = currentAngle + childSectorWidth
 
+      // Apply angle-based spacing adjustment
+      const midAngle = (currentAngle + childSectorEnd) / 2
+      const spacingFactor = getAngleSpacingFactor(midAngle, params.spacingRatio || 1.5)
+      
+      console.log(`Child sector: ${(currentAngle * 180 / Math.PI).toFixed(1)}° to ${(childSectorEnd * 180 / Math.PI).toFixed(1)}°, mid: ${(midAngle * 180 / Math.PI).toFixed(1)}°, original width: ${(childSectorWidth * 180 / Math.PI).toFixed(1)}°, spacingFactor: ${spacingFactor.toFixed(3)}`)
+      
+      // Adjust the sector width based on the spacing factor
+      // The idea is to make sectors at north/south wider and sectors at east/west narrower
+      const adjustedSectorWidth = childSectorWidth * spacingFactor
+      const adjustedSectorEnd = currentAngle + adjustedSectorWidth
+      
+      console.log(`Adjusted sector width: ${(adjustedSectorWidth * 180 / Math.PI).toFixed(1)}°, end: ${(adjustedSectorEnd * 180 / Math.PI).toFixed(1)}°`)
+
       // Recursively position child's subtree
       positionTreeInSector(
         child,
         centerX,
         centerY,
         currentAngle,
-        childSectorEnd,
+        adjustedSectorEnd,
         params,
         positions
       )
 
-      currentAngle = childSectorEnd
+      currentAngle = adjustedSectorEnd
     })
   }
 
@@ -188,6 +230,7 @@ export const useCircularLayout = () => {
     params: Partial<CircularLayoutParams> = {}
   ): boolean => {
     const layoutParams = { ...defaultParams, ...params }
+    console.log('Circular layout called with params:', layoutParams)
     const nodeIds = new Set(Object.keys(nodes))
 
     // Find root nodes
@@ -213,29 +256,90 @@ export const useCircularLayout = () => {
     const positions: Record<string, NodePosition> = {}
     let currentAngle = startAngleRad
 
-    trees.forEach(tree => {
-      // Allocate sector proportional to subtree size
-      // Ensure minimum sector angle
-      const minSectorRad = toRadians(layoutParams.minSectorAngle)
-      const proportionalSector = (tree.subtreeSize / totalSize) * fullCircle
-      const sectorWidth = Math.max(proportionalSector, minSectorRad) * direction
+    // Implement relative spacing algorithm to ensure all nodes fit within 360°
+    if (layoutParams.spacingRatio && layoutParams.spacingRatio !== 1.0) {
+      // Step 1: Calculate base sector widths (without spacing ratio)
+      const baseSectors = trees.map(tree => {
+        const minSectorRad = toRadians(layoutParams.minSectorAngle)
+        const proportionalSector = (tree.subtreeSize / totalSize) * fullCircle
+        return Math.max(proportionalSector, minSectorRad)
+      })
 
-      const sectorStart = currentAngle
-      const sectorEnd = currentAngle + sectorWidth
+      // Step 2: Calculate midpoint angles for each base sector
+      let tempAngle = startAngleRad
+      const midAngles = baseSectors.map(sectorWidth => {
+        const sectorMid = tempAngle + (sectorWidth / 2)
+        tempAngle += sectorWidth
+        return sectorMid
+      })
 
-      // Position this tree within its sector
-      positionTreeInSector(
-        tree,
-        centerX,
-        centerY,
-        Math.min(sectorStart, sectorEnd),
-        Math.max(sectorStart, sectorEnd),
-        layoutParams,
-        positions
+      // Step 3: Calculate spacing factors for each sector
+      const spacingFactors = midAngles.map(midAngle =>
+        getAngleSpacingFactor(midAngle, layoutParams.spacingRatio || 1.5)
       )
 
-      currentAngle = sectorEnd
-    })
+      // Step 4: Calculate weighted sectors (base * spacing factor)
+      const weightedSectors = baseSectors.map((baseSector, i) =>
+        baseSector * spacingFactors[i]
+      )
+
+      // Step 5: Calculate total weighted space
+      const totalWeightedSpace = weightedSectors.reduce((sum, sector) => sum + sector, 0)
+
+      // Step 6: Normalize to fit within 360° by calculating scaling factor
+      const scalingFactor = fullCircle / totalWeightedSpace
+
+      console.log(`Relative spacing: base sectors sum to ${(baseSectors.reduce((sum, s) => sum + s, 0) * 180 / Math.PI).toFixed(1)}°, weighted sectors sum to ${(totalWeightedSpace * 180 / Math.PI).toFixed(1)}°, scaling factor: ${scalingFactor.toFixed(3)}`)
+
+      // Step 7: Apply relative spacing with normalization
+      trees.forEach((tree, treeIndex) => {
+        const baseSectorWidth = baseSectors[treeIndex]
+        const spacingFactor = spacingFactors[treeIndex]
+        const weightedSectorWidth = weightedSectors[treeIndex]
+        const finalSectorWidth = weightedSectorWidth * scalingFactor
+        
+        const sectorStart = currentAngle
+        const sectorEnd = currentAngle + finalSectorWidth * direction
+
+        console.log(`Tree ${treeIndex}: base=${(baseSectorWidth * 180 / Math.PI).toFixed(1)}°, weighted=${(weightedSectorWidth * 180 / Math.PI).toFixed(1)}°, final=${(finalSectorWidth * 180 / Math.PI).toFixed(1)}°, factor=${spacingFactor.toFixed(3)}`)
+
+        // Position this tree within its sector
+        positionTreeInSector(
+          tree,
+          centerX,
+          centerY,
+          Math.min(sectorStart, sectorEnd),
+          Math.max(sectorStart, sectorEnd),
+          layoutParams,
+          positions
+        )
+
+        currentAngle = sectorEnd
+      })
+    } else {
+      // Original uniform spacing (no spacing ratio)
+      trees.forEach((tree, index) => {
+        const minSectorRad = toRadians(layoutParams.minSectorAngle)
+        const proportionalSector = (tree.subtreeSize / totalSize) * fullCircle
+        const sectorWidth = Math.max(proportionalSector, minSectorRad) * direction
+
+        const sectorStart = currentAngle
+        const sectorEnd = currentAngle + sectorWidth
+
+        // Position this tree within its sector
+        positionTreeInSector(
+          tree,
+          centerX,
+          centerY,
+          Math.min(sectorStart, sectorEnd),
+          Math.max(sectorStart, sectorEnd),
+          layoutParams,
+          positions
+        )
+
+        currentAngle = sectorEnd
+      })
+    }
 
     // Apply positions to layouts
     Object.entries(positions).forEach(([nodeId, pos]) => {
