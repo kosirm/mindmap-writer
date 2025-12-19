@@ -170,8 +170,8 @@
         <div class="text-caption">Spacing Ratio: {{ circularParams.spacingRatio }}</div>
         <q-slider
           v-model="circularParams.spacingRatio"
-          :min="-0.5"
-          :max="0.5"
+          :min="-0.2"
+          :max="0.2"
           :step="0.01"
           dense
           class="full-width"

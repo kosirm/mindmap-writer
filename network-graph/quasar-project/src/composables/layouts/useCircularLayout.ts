@@ -280,7 +280,7 @@ export const useCircularLayout = () => {
 
       // Step 4: Calculate weighted sectors (base * spacing factor)
       const weightedSectors = baseSectors.map((baseSector, i) =>
-        baseSector * spacingFactors[i]
+        baseSector * (spacingFactors[i] ?? 1.0)
       )
 
       // Step 5: Calculate total weighted space
@@ -293,11 +293,11 @@ export const useCircularLayout = () => {
 
       // Step 7: Apply relative spacing with normalization
       trees.forEach((tree, treeIndex) => {
-        const baseSectorWidth = baseSectors[treeIndex]
-        const spacingFactor = spacingFactors[treeIndex]
-        const weightedSectorWidth = weightedSectors[treeIndex]
+        const baseSectorWidth = baseSectors[treeIndex] ?? 0
+        const spacingFactor = spacingFactors[treeIndex] ?? 1.0
+        const weightedSectorWidth = weightedSectors[treeIndex] ?? 0
         const finalSectorWidth = weightedSectorWidth * scalingFactor
-        
+         
         const sectorStart = currentAngle
         const sectorEnd = currentAngle + finalSectorWidth * direction
 
@@ -318,7 +318,7 @@ export const useCircularLayout = () => {
       })
     } else {
       // Original uniform spacing (no spacing ratio)
-      trees.forEach((tree, index) => {
+      trees.forEach((tree) => {
         const minSectorRad = toRadians(layoutParams.minSectorAngle)
         const proportionalSector = (tree.subtreeSize / totalSize) * fullCircle
         const sectorWidth = Math.max(proportionalSector, minSectorRad) * direction
