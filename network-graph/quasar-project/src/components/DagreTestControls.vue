@@ -273,6 +273,19 @@
       </div>
     </div>
 
+    <!-- Center Cross Toggle -->
+    <div class="q-mb-sm">
+      <q-toggle
+        v-model="showCenterCross"
+        label="Show Center Cross"
+        dense
+        @update:model-value="onCenterCrossToggle"
+      />
+      <div class="text-caption text-grey-6 q-ml-lg">
+        Visual indicator of canvas center
+      </div>
+    </div>
+
     <q-separator class="q-my-sm" />
 
     <!-- Apply to Selection -->
@@ -341,6 +354,9 @@ const targetLayout = ref<'mindmap' | 'conceptmap'>('mindmap')
 // Generation-based node coloring toggle
 const generationColoringEnabled = ref(false)
 
+// Center cross visibility toggle
+const showCenterCross = ref(false)
+
 // Current route for debugging
 const currentRoute = computed(() => route.path)
 
@@ -371,6 +387,19 @@ function onGenerationColoringChange(enabled: boolean) {
   })
   window.dispatchEvent(event)
   console.log('Generation coloring changed to:', enabled)
+}
+
+// Center cross toggle handler
+function onCenterCrossToggle(enabled: boolean) {
+  // Broadcast the center cross visibility setting to the graph component
+  const event = new CustomEvent('center-cross-toggle', {
+    detail: {
+      enabled,
+      timestamp: Date.now()
+    }
+  })
+  window.dispatchEvent(event)
+  console.log('Center cross visibility changed to:', enabled)
 }
 
 // Update parameters in service when UI changes

@@ -69,6 +69,14 @@
           </text>
         </template>
       </v-network-graph>
+      
+      <!-- Center Cross - shown when toggle is enabled -->
+      <div v-if="showCenterCross" class="center-cross">
+        <svg width="20" height="20" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;">
+          <line x1="0" y1="10" x2="20" y2="10" stroke="#4dabf7" stroke-width="2" />
+          <line x1="10" y1="0" x2="10" y2="20" stroke="#4dabf7" stroke-width="2" />
+        </svg>
+      </div>
     </div>
 
     <!-- Context Menu -->
@@ -192,6 +200,9 @@ let forceLayout: ForceLayout | null = null
 
 // Generation-based coloring state
 const generationColoringEnabled = ref(false)
+
+// Center cross visibility state
+const showCenterCross = ref(false)
 
 // Configs
 const configs = reactive(
@@ -943,6 +954,22 @@ function handleGenerationColoringToggle(event: CustomEvent) {
   })
 }
 
+// Handle center cross toggle from the test controls
+function handleCenterCrossToggle(event: CustomEvent) {
+  const detail = event.detail
+  if (!detail || typeof detail.enabled !== 'boolean') return
+  
+  showCenterCross.value = detail.enabled
+  
+  console.log('Center cross visibility set to:', detail.enabled)
+  
+  $q.notify({
+    type: 'info',
+    message: `Center cross ${detail.enabled ? 'shown' : 'hidden'}`,
+    timeout: 1000,
+  })
+}
+
 // Handle dagre layout requests from the test controls
 function handleDagreLayoutRequest(event: CustomEvent) {
   const detail = event.detail
@@ -1102,6 +1129,9 @@ onMounted(() => {
   // Setup event listener for generation coloring toggle
   window.addEventListener('generation-coloring-toggle', handleGenerationColoringToggle as EventListener)
   
+  // Setup event listener for center cross toggle
+  window.addEventListener('center-cross-toggle', handleCenterCrossToggle as EventListener)
+  
   // Setup event listener for dagre layout requests
   window.addEventListener('dagre-layout-request', handleDagreLayoutRequest as EventListener)
 })
@@ -1111,6 +1141,7 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyUp)
   window.removeEventListener('click', handleClickOutside)
   window.removeEventListener('generation-coloring-toggle', handleGenerationColoringToggle as EventListener)
+  window.removeEventListener('center-cross-toggle', handleCenterCrossToggle as EventListener)
   window.removeEventListener('dagre-layout-request', handleDagreLayoutRequest as EventListener)
 })
 </script>
@@ -1132,5 +1163,15 @@ onUnmounted(() => {
 .context-menu {
   position: fixed;
   z-index: 9999;
+}
+
+.center-cross {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
 }
 </style>
