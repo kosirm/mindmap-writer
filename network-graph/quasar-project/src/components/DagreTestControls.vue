@@ -47,7 +47,7 @@
       label="Select Layout Type"
       dense
       class="full-width q-mb-sm"
-      @update:model-value="onLayoutTypeChange"
+      @update:model-value="onLayoutTypeChange; applyLayout()"
       option-value="value"
       option-label="label"
       option-icon="icon"
@@ -70,7 +70,7 @@
           dense
           size="sm"
           class="full-width"
-          @update:model-value="updateParams"
+          @update:model-value="updateParams; applyLayout()"
         />
       </div>
 
@@ -83,7 +83,7 @@
           :step="10"
           dense
           class="full-width"
-          @change="updateParams"
+          @change="updateParams; applyLayout()"
         />
       </div>
 
@@ -96,7 +96,7 @@
           :step="5"
           dense
           class="full-width"
-          @change="updateParams"
+          @change="updateParams; applyLayout()"
         />
       </div>
 
@@ -109,7 +109,7 @@
           :step="5"
           dense
           class="full-width"
-          @change="updateParams"
+          @change="updateParams; applyLayout()"
         />
       </div>
 
@@ -121,7 +121,7 @@
           dense
           size="sm"
           class="full-width"
-          @update:model-value="updateParams"
+          @update:model-value="updateParams; applyLayout()"
         />
       </div>
     </div>
@@ -137,7 +137,7 @@
           :step="10"
           dense
           class="full-width"
-          @change="updateCircularParams"
+          @change="updateCircularParams; applyLayout()"
         />
       </div>
 
@@ -150,7 +150,7 @@
           :step="10"
           dense
           class="full-width"
-          @change="updateCircularParams"
+          @change="updateCircularParams; applyLayout()"
         />
       </div>
 
@@ -163,7 +163,7 @@
           :step="1"
           dense
           class="full-width"
-          @change="updateCircularParams"
+          @change="updateCircularParams; applyLayout()"
         />
       </div>
 
@@ -176,7 +176,7 @@
           :step="5"
           dense
           class="full-width"
-          @change="updateCircularParams"
+          @change="updateCircularParams; applyLayout()"
         />
       </div>
 
@@ -189,7 +189,7 @@
           :step="0.01"
           dense
           class="full-width"
-          @change="updateCircularParams"
+          @change="updateCircularParams; applyLayout()"
         />
         <div class="text-caption text-grey-6 q-ml-lg">
           North/South vs East/West spacing ratio
@@ -217,7 +217,7 @@
           dense
           size="sm"
           class="full-width"
-          @update:model-value="updateMindMapParams"
+          @update:model-value="updateMindMapParams; applyLayout()"
         />
       </div>
 
@@ -230,7 +230,7 @@
           :step="5"
           dense
           class="full-width"
-          @change="updateMindMapParams"
+          @change="updateMindMapParams; applyLayout()"
         />
       </div>
 
@@ -243,7 +243,7 @@
           :step="10"
           dense
           class="full-width"
-          @change="updateMindMapParams"
+          @change="updateMindMapParams; applyLayout()"
         />
       </div>
     </div>
@@ -259,7 +259,7 @@
           :step="10"
           dense
           class="full-width"
-          @change="updateBoxParams"
+          @change="updateBoxParams; applyLayout()"
         />
       </div>
 
@@ -272,7 +272,7 @@
           :step="10"
           dense
           class="full-width"
-          @change="updateBoxParams"
+          @change="updateBoxParams; applyLayout()"
         />
       </div>
 
@@ -285,7 +285,7 @@
           :step="5"
           dense
           class="full-width"
-          @change="updateBoxParams"
+          @change="updateBoxParams; applyLayout()"
         />
       </div>
     </div>
