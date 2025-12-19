@@ -45,16 +45,10 @@
         v-model:selected-nodes="selectedNodes"
         v-model:zoom-level="graphZoomLevel"
         :event-handlers="eventHandlers"
+        :layers="layers"
       >
         <!-- Custom node rendering to ensure text is properly layered with node shapes -->
         <template #override-node="{ nodeId, scale }">
-          <!-- Special rendering for center cross marker -->
-          <g v-if="nodeId === centerCrossNodeId">
-            <line x1="-10" y1="0" x2="10" y2="0" stroke="#4dabf7" stroke-width="2" />
-            <line x1="0" y1="-10" x2="0" y2="10" stroke="#4dabf7" stroke-width="2" />
-          </g>
-          <!-- Normal node rendering -->
-          <g v-else>
             <rect
               :width="120 * scale"
               :height="40 * scale"
@@ -74,6 +68,13 @@
             >
               {{ nodes[nodeId]?.name }}
             </text>
+        </template>
+        
+        <!-- Center cross layer - rendered at canvas coordinate (0,0) -->
+        <template #center-cross>
+          <g v-if="showCenterCross">
+            <line x1="-10" y1="0" x2="10" y2="0" stroke="#4dabf7" stroke-width="2" />
+            <line x1="0" y1="-10" x2="0" y2="10" stroke="#4dabf7" stroke-width="2" />
           </g>
         </template>
       </v-network-graph>
@@ -204,8 +205,8 @@ const generationColoringEnabled = ref(false)
 // Center cross visibility state
 const showCenterCross = ref(false)
 
-// Center cross marker node ID
-const centerCrossNodeId = 'center-cross-marker'
+// Layers configuration for v-network-graph
+const layers = ref<Record<string, string>>({})
 
 // Configs
 const configs = reactive(
@@ -965,18 +966,11 @@ function handleCenterCrossToggle(event: CustomEvent) {
   showCenterCross.value = detail.enabled
   
   if (detail.enabled) {
-    // Add center cross marker node at (0,0)
-    nodes.value[centerCrossNodeId] = {
-      name: '+',
-      parentId: null,
-      order: 0,
-      zIndex: 10000
-    }
-    layouts.value.nodes[centerCrossNodeId] = { x: 0, y: 0 }
+    // Add center cross layer
+    layers.value = { 'center-cross': 'base' }
   } else {
-    // Remove center cross marker node
-    delete nodes.value[centerCrossNodeId]
-    delete layouts.value.nodes[centerCrossNodeId]
+    // Remove center cross layer
+    layers.value = {}
   }
   
   console.log('Center cross visibility set to:', detail.enabled)
