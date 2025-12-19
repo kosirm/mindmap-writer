@@ -12,6 +12,8 @@ export interface CircularLayoutParams {
   minSectorAngle: number   // Minimum angle per root node sector (degrees)
   nodeSpacing: number      // Minimum spacing between nodes on same circle
   spacingRatio: number     // Ratio for angle-based spacing (1.0 = uniform, >1.0 = more north/south spacing)
+  nodeWidth?: number       // Width of nodes (default: 120)
+  nodeHeight?: number      // Height of nodes (default: 40)
 }
 
 export interface MindMapNode {
@@ -47,7 +49,9 @@ export const useCircularLayout = () => {
     clockwise: true,
     minSectorAngle: 30,
     nodeSpacing: 60,
-    spacingRatio: 1.5  // Default ratio: 1.5x more spacing at north/south than east/west
+    spacingRatio: 1.5,  // Default ratio: 1.5x more spacing at north/south than east/west
+    nodeWidth: 120,     // Default node width
+    nodeHeight: 40      // Default node height
   }
 
   /**
@@ -114,34 +118,232 @@ export const useCircularLayout = () => {
   const toRadians = (degrees: number): number => degrees * (Math.PI / 180)
 
   /**
-   * Calculate angle-based spacing factor
-   * Returns a spacing multiplier based on angle (0 = more spacing at north/south)
+   * Calculate the shortest distance between two rectangles
+   * Based on the algorithm from: https://weixuanz.github.io/posts/2021/04/11/rectangles-shortest-distance/
    */
-  const getAngleSpacingFactor = (angle: number, spacingRatio: number): number => {
-    // Normalize angle to 0-2π range
-    const normalizedAngle = angle % (2 * Math.PI)
-    
-    // Calculate spacing factor based on angle
-    // We want more spacing at north/south (0° and 180°) and less at east/west (90° and 270°)
-    // Use cosine function: cos(0) = 1 (north/south), cos(90°) = 0 (east/west)
-    const cosAngle = Math.cos(normalizedAngle)
-    
-    // Map cosine value to spacing factor
-    // cosAngle ranges from -1 to 1, we want it from 0 to 1
-    const absCosAngle = Math.abs(cosAngle)
-    
-    // Calculate spacing factor: interpolate between 1.0 and spacingRatio
-    // When absCosAngle = 1 (north/south): factor = spacingRatio
-    // When absCosAngle = 0 (east/west): factor = 1.0
-    const factor = 1.0 + (spacingRatio - 1.0) * absCosAngle
-    
-    console.log(`Angle: ${normalizedAngle.toFixed(3)} rad (${(normalizedAngle * 180 / Math.PI).toFixed(1)}°), cos: ${cosAngle.toFixed(3)}, absCos: ${absCosAngle.toFixed(3)}, spacingRatio: ${spacingRatio}, factor: ${factor.toFixed(3)}`)
-    
-    return factor
+  const getMinDistanceBetweenRectangles = (
+    rect1: { x: number; y: number; width: number; height: number },
+    rect2: { x: number; y: number; width: number; height: number }
+  ): number => {
+    // Helper function to check if a point is in the shadow of a line segment
+    const pointInLineShadow = (p1: { x: number; y: number }, p2: { x: number; y: number }, q: { x: number; y: number }): boolean => {
+      const segmentLength = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2))
+      const segmentDir = {
+        x: (p2.x - p1.x) / segmentLength,
+        y: (p2.y - p1.y) / segmentLength
+      }
+      const projection = (q.x - p1.x) * segmentDir.x + (q.y - p1.y) * segmentDir.y
+      return 0 < projection && projection < segmentLength
+    }
+
+    // Helper function to get the shortest distance from a point to a line segment
+    const getMinDistanceToSegment = (p1: { x: number; y: number }, p2: { x: number; y: number }, q: { x: number; y: number }): number => {
+      if (pointInLineShadow(p1, p2, q)) {
+        // Perpendicular distance
+        const segmentLength = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2))
+        const crossProduct = Math.abs((p2.x - p1.x) * (q.y - p1.y) - (p2.y - p1.y) * (q.x - p1.x))
+        return crossProduct / segmentLength
+      } else {
+        // Distance to closest endpoint
+        const distToP1 = Math.sqrt(Math.pow(q.x - p1.x, 2) + Math.pow(q.y - p1.y, 2))
+        const distToP2 = Math.sqrt(Math.pow(q.x - p2.x, 2) + Math.pow(q.y - p2.y, 2))
+        return Math.min(distToP1, distToP2)
+      }
+    }
+
+    // Get rectangle vertices in clockwise order
+    const getRectangleVertices = (rect: { x: number; y: number; width: number; height: number }): Array<{ x: number; y: number }> => {
+      return [
+        { x: rect.x - rect.width / 2, y: rect.y - rect.height / 2 },  // Top-left
+        { x: rect.x + rect.width / 2, y: rect.y - rect.height / 2 },  // Top-right
+        { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 },  // Bottom-right
+        { x: rect.x - rect.width / 2, y: rect.y + rect.height / 2 }   // Bottom-left
+      ]
+    }
+
+    // Get rectangle sides as line segments
+    const getRectangleSides = (vertices: Array<{ x: number; y: number }>): Array<[{ x: number; y: number }, { x: number; y: number }]> => {
+      return vertices.map((vertex, i) => [vertex, vertices[(i + 1) % 4]!])
+    }
+
+    // Calculate minimum distance from a point to a rectangle
+    const getMinDistancePointRectangle = (rectSides: Array<[ { x: number; y: number }, { x: number; y: number } ]>, q: { x: number; y: number }): number => {
+      return Math.min(...rectSides.map(side => getMinDistanceToSegment(side[0], side[1], q)))
+    }
+
+    // Get vertices and sides for both rectangles
+    const r1Vertices = getRectangleVertices(rect1)
+    const r2Vertices = getRectangleVertices(rect2)
+    const r1Sides = getRectangleSides(r1Vertices)
+    const r2Sides = getRectangleSides(r2Vertices)
+
+    // Calculate minimum distance from r1 vertices to r2 sides
+    const minR1ToR2 = Math.min(...r1Vertices.map(vertex => getMinDistancePointRectangle(r2Sides, vertex)))
+
+    // Calculate minimum distance from r2 vertices to r1 sides
+    const minR2ToR1 = Math.min(...r2Vertices.map(vertex => getMinDistancePointRectangle(r1Sides, vertex)))
+
+    return Math.min(minR1ToR2, minR2ToR1)
   }
 
   /**
-   * Position nodes in a tree within a sector
+   * Adjust node positions to ensure equal spacing between rectangles using iterative relaxation
+   * Returns adjusted positions and the actual radius used (may be larger if auto-increased)
+   */
+  const adjustNodeSpacing = (
+    nodes: Array<{ id: string; x: number; y: number }>,
+    params: CircularLayoutParams,
+    centerX: number,
+    centerY: number,
+    radius: number,
+    startAngle: number
+  ): { positions: Array<{ id: string; x: number; y: number }>; actualRadius: number } => {
+    const numNodes = nodes.length
+
+    if (numNodes < 2) {
+      return { positions: nodes, actualRadius: radius } // Nothing to adjust
+    }
+
+    console.log('=== DEBUG: adjustNodeSpacing called ===')
+    console.log(`Center: (${centerX}, ${centerY}), Radius: ${radius}, Nodes: ${numNodes}`)
+
+    // Node dimensions (use params or defaults)
+    const nodeWidth = params.nodeWidth ?? 120
+    const nodeHeight = params.nodeHeight ?? 40
+
+    // Check if nodes can fit in the circle and auto-increase radius if needed
+    const minSpacing = 0
+    const circumference = 2 * Math.PI * radius
+
+    // For circular layout, we need to account for chord length vs arc length
+    // A rough approximation: each node needs space for its width projected onto the circle
+    // plus the desired spacing. We use a factor of 0.85 to account for the fact that
+    // chord length < arc length, making the calculation less conservative.
+    const requiredCircumference = numNodes * (nodeWidth * 0.85 + minSpacing)
+
+    let actualRadius = radius
+    if (requiredCircumference > circumference) {
+      actualRadius = Math.ceil(requiredCircumference / (2 * Math.PI))
+      console.warn(`⚠️ AUTO-ADJUSTING RADIUS: ${numNodes} nodes cannot fit in circle with radius ${radius}`)
+      console.warn(`   Current circumference: ${circumference.toFixed(1)}px`)
+      console.warn(`   Required circumference: ${requiredCircumference.toFixed(1)}px`)
+      console.warn(`   Auto-increased radius: ${radius}px → ${actualRadius}px`)
+    }
+
+    // IMPORTANT: Always start with equal angular spacing to ensure consistent results
+    // Don't use current positions as they may be from a previous layout with different node count
+    const startAngleRad = (startAngle * Math.PI / 180) - (Math.PI / 2)
+    const angleStep = (2 * Math.PI) / numNodes
+    const angles = nodes.map((_, i) => startAngleRad + (i * angleStep))
+
+    // Iterative relaxation parameters
+    const maxIterations = 100 // Increased for difficult cases
+    const convergenceThreshold = 0.5 // pixels
+    let relaxationFactor = 0.3 // How much to adjust each iteration (0-1)
+
+    console.log(`Initial angles: ${angles.map(a => (a * 180 / Math.PI).toFixed(1)).join(', ')}°`)
+    console.log(`Using radius: ${actualRadius}px (original: ${radius}px)`)
+
+    // Iterative relaxation loop
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      // Calculate current positions from angles using actualRadius
+      const currentPositions = angles.map(angle => ({
+        x: centerX + actualRadius * Math.cos(angle),
+        y: centerY + actualRadius * Math.sin(angle)
+      }))
+
+      // Calculate distances between consecutive rectangles
+      const distances: number[] = []
+      let hasOverlaps = false
+      for (let i = 0; i < numNodes; i++) {
+        const current = {
+          x: currentPositions[i]!.x,
+          y: currentPositions[i]!.y,
+          width: nodeWidth,
+          height: nodeHeight
+        }
+        const next = {
+          x: currentPositions[(i + 1) % numNodes]!.x,
+          y: currentPositions[(i + 1) % numNodes]!.y,
+          width: nodeWidth,
+          height: nodeHeight
+        }
+
+        const distance = getMinDistanceBetweenRectangles(current, next)
+        distances.push(distance)
+        if (distance < 1) hasOverlaps = true // Detect overlaps
+      }
+
+      // Calculate target spacing
+      // If there are overlaps, use minSpacing as target to force separation
+      // Otherwise use average distance
+      const avgDistance = distances.reduce((sum, d) => sum + d, 0) / distances.length
+      const targetSpacing = hasOverlaps ? minSpacing : Math.max(avgDistance, minSpacing)
+
+      // Use more aggressive relaxation when overlaps detected
+      relaxationFactor = hasOverlaps ? 0.5 : 0.3
+
+      // Calculate adjustments for each node
+      const angleAdjustments: number[] = new Array(numNodes).fill(0)
+      let maxAdjustment = 0
+
+      for (let i = 0; i < numNodes; i++) {
+        const prevIdx = (i - 1 + numNodes) % numNodes
+
+        const distToPrev = distances[prevIdx]!
+        const distToNext = distances[i]!
+
+        // Calculate how much we need to adjust based on spacing errors
+        const errorToPrev = targetSpacing - distToPrev
+        const errorToNext = targetSpacing - distToNext
+
+        // If distance is too small, push nodes apart; if too large, pull together
+        // We adjust the angle to change the arc length
+        // Approximate: for small angles, arc length ≈ radius * angle
+        const angleDeltaToPrev = errorToPrev / (2 * actualRadius)
+        const angleDeltaToNext = -errorToNext / (2 * actualRadius)
+
+        // Combine adjustments from both neighbors
+        const totalAdjustment = (angleDeltaToPrev + angleDeltaToNext) * relaxationFactor
+        angleAdjustments[i] = totalAdjustment
+
+        maxAdjustment = Math.max(maxAdjustment, Math.abs(totalAdjustment * actualRadius))
+      }
+
+      // Apply adjustments
+      for (let i = 0; i < numNodes; i++) {
+        const adjustment = angleAdjustments[i]
+        if (adjustment !== undefined) {
+          angles[i]! += adjustment
+        }
+      }
+
+      if (iteration % 10 === 0 || iteration === maxIterations - 1) {
+        console.log(`Iteration ${iteration}: distances=[${distances.map(d => d.toFixed(1)).join(', ')}], target=${targetSpacing.toFixed(1)}, maxAdj=${maxAdjustment.toFixed(2)}`)
+      }
+
+      // Check for convergence
+      if (maxAdjustment < convergenceThreshold) {
+        console.log(`Converged after ${iteration + 1} iterations`)
+        break
+      }
+    }
+
+    // Calculate final positions using actualRadius
+    const adjustedPositions = angles.map((angle, i) => ({
+      id: nodes[i]!.id,
+      x: centerX + actualRadius * Math.cos(angle),
+      y: centerY + actualRadius * Math.sin(angle)
+    }))
+
+    console.log(`Final angles: ${angles.map(a => (a * 180 / Math.PI).toFixed(1)).join(', ')}°`)
+    console.log('=== END adjustNodeSpacing ===')
+
+    return { positions: adjustedPositions, actualRadius }
+  }
+
+  /**
+   * Position nodes in a tree within a sector using equal angular spacing
    * @param tree - The tree structure to position
    * @param centerX - Canvas center X
    * @param centerY - Canvas center Y
@@ -157,14 +359,15 @@ export const useCircularLayout = () => {
     sectorStart: number,
     sectorEnd: number,
     params: CircularLayoutParams,
-    positions: Record<string, NodePosition>
+    positions: Record<string, NodePosition>,
+    depth: number = 0
   ): void => {
     // Calculate radius for this depth level
-    const radius = params.innerRadius + (tree.depth * params.levelSpacing)
-     
+    const radius = params.innerRadius + (depth * params.levelSpacing)
+
     // Calculate angle for this node (center of its allocated sector)
     const sectorMid = (sectorStart + sectorEnd) / 2
-     
+
     // Position this node
     positions[tree.id] = {
       x: centerX + radius * Math.cos(sectorMid),
@@ -174,41 +377,58 @@ export const useCircularLayout = () => {
     // If no children, we're done
     if (tree.children.length === 0) return
 
-    // Distribute children within the sector based on their subtree sizes
-    const totalSubtreeSize = tree.children.reduce((sum, child) => sum + child.subtreeSize, 0)
+    // First, position children using equal angular spacing
     const sectorWidth = sectorEnd - sectorStart
+    const numChildren = tree.children.length
+    const angleStep = sectorWidth / numChildren
 
+    // Position children initially
+    const childPositions: Array<{ id: string; x: number; y: number }> = []
     let currentAngle = sectorStart
+    
     tree.children.forEach(child => {
-      // Allocate sector proportional to subtree size
-      const childSectorWidth = (child.subtreeSize / totalSubtreeSize) * sectorWidth
-      const childSectorEnd = currentAngle + childSectorWidth
+      const childSectorMid = currentAngle + (angleStep / 2)
+      const childX = centerX + radius * Math.cos(childSectorMid)
+      const childY = centerY + radius * Math.sin(childSectorMid)
+      
+      childPositions.push({ id: child.id, x: childX, y: childY })
+      currentAngle += angleStep
+    })
 
-      // Apply angle-based spacing adjustment
-      const midAngle = (currentAngle + childSectorEnd) / 2
-      const spacingFactor = getAngleSpacingFactor(midAngle, params.spacingRatio || 1.5)
+    // Adjust spacing between children to ensure equal distances between rectangles
+    console.log(`=== Before adjustment: ${childPositions.length} children at depth ${depth} ===`)
+    childPositions.forEach((pos, i) => {
+      console.log(`Child ${i} (${tree.children[i]?.id}): (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})`)
+    })
+
+    const { positions: adjustedPositions } = adjustNodeSpacing(childPositions, params, centerX, centerY, radius, params.startAngle)
+
+    console.log(`=== After adjustment: ${adjustedPositions.length} children ===`)
+    adjustedPositions.forEach((pos, i) => {
+      console.log(`Adjusted child ${i} (${tree.children[i]?.id}): (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})`)
+    })
+
+    // Recursively position children's subtrees using adjusted positions
+    adjustedPositions.forEach((adjustedPos, index) => {
+      const child = tree.children[index]
+      const childAngle = Math.atan2(adjustedPos.y - centerY, adjustedPos.x - centerX)
       
-      console.log(`Child sector: ${(currentAngle * 180 / Math.PI).toFixed(1)}° to ${(childSectorEnd * 180 / Math.PI).toFixed(1)}°, mid: ${(midAngle * 180 / Math.PI).toFixed(1)}°, original width: ${(childSectorWidth * 180 / Math.PI).toFixed(1)}°, spacingFactor: ${spacingFactor.toFixed(3)}`)
-      
-      // Adjust the sector width based on the spacing factor
-      // The idea is to make sectors at north/south wider and sectors at east/west narrower
-      const adjustedSectorWidth = childSectorWidth * spacingFactor
-      const adjustedSectorEnd = currentAngle + adjustedSectorWidth
-      
-      console.log(`Adjusted sector width: ${(adjustedSectorWidth * 180 / Math.PI).toFixed(1)}°, end: ${(adjustedSectorEnd * 180 / Math.PI).toFixed(1)}°`)
+      // Calculate sector for this child (small range around its angle)
+      const childSectorWidth = angleStep * 0.8  // Slightly smaller than original
+      const childSectorStart = childAngle - (childSectorWidth / 2)
+      const childSectorEnd = childAngle + (childSectorWidth / 2)
 
       // Recursively position child's subtree
       positionTreeInSector(
-        child,
+        child!,
         centerX,
         centerY,
-        currentAngle,
-        adjustedSectorEnd,
+        childSectorStart,
+        childSectorEnd,
         params,
-        positions
+        positions,
+        depth + 1
       )
-
-      currentAngle = adjustedSectorEnd
     })
   }
 
@@ -220,6 +440,7 @@ export const useCircularLayout = () => {
    * @param centerX - Canvas center X coordinate
    * @param centerY - Canvas center Y coordinate
    * @param params - Layout parameters (optional, uses defaults if not provided)
+   * @returns Object with success status and actual radius used (may be auto-increased)
    */
   const applyCircularLayout = (
     nodes: Record<string, MindMapNode>,
@@ -228,18 +449,21 @@ export const useCircularLayout = () => {
     centerX: number = 0,
     centerY: number = 0,
     params: Partial<CircularLayoutParams> = {}
-  ): boolean => {
+  ): { success: boolean; actualRadius?: number } => {
     const layoutParams = { ...defaultParams, ...params }
     console.log('Circular layout called with params:', layoutParams)
     const nodeIds = new Set(Object.keys(nodes))
 
     // Find root nodes
     const rootIds = findRootNodes(nodes, edges)
-    
+
     if (rootIds.length === 0) {
       console.warn('No root nodes found')
-      return false
+      return { success: false }
     }
+
+    // Track the actual radius used (may be auto-increased)
+    let actualRadiusUsed = layoutParams.innerRadius
 
     // Build trees for each root
     const trees = rootIds.map(rootId => buildTree(rootId, edges, nodeIds))
@@ -256,6 +480,9 @@ export const useCircularLayout = () => {
     const positions: Record<string, NodePosition> = {}
     let currentAngle = startAngleRad
 
+    // First, position all root nodes with equal angular spacing
+    const rootPositions: Array<{ id: string; x: number; y: number }> = []
+
     // Implement relative spacing algorithm to ensure all nodes fit within 360°
     if (layoutParams.spacingRatio && layoutParams.spacingRatio !== 1.0) {
       // Step 1: Calculate base sector widths (without spacing ratio)
@@ -265,43 +492,13 @@ export const useCircularLayout = () => {
         return Math.max(proportionalSector, minSectorRad)
       })
 
-      // Step 2: Calculate midpoint angles for each base sector
-      let tempAngle = startAngleRad
-      const midAngles = baseSectors.map(sectorWidth => {
-        const sectorMid = tempAngle + (sectorWidth / 2)
-        tempAngle += sectorWidth
-        return sectorMid
-      })
-
-      // Step 3: Calculate spacing factors for each sector
-      const spacingFactors = midAngles.map(midAngle =>
-        getAngleSpacingFactor(midAngle, layoutParams.spacingRatio || 1.5)
-      )
-
-      // Step 4: Calculate weighted sectors (base * spacing factor)
-      const weightedSectors = baseSectors.map((baseSector, i) =>
-        baseSector * (spacingFactors[i] ?? 1.0)
-      )
-
-      // Step 5: Calculate total weighted space
-      const totalWeightedSpace = weightedSectors.reduce((sum, sector) => sum + sector, 0)
-
-      // Step 6: Normalize to fit within 360° by calculating scaling factor
-      const scalingFactor = fullCircle / totalWeightedSpace
-
-      console.log(`Relative spacing: base sectors sum to ${(baseSectors.reduce((sum, s) => sum + s, 0) * 180 / Math.PI).toFixed(1)}°, weighted sectors sum to ${(totalWeightedSpace * 180 / Math.PI).toFixed(1)}°, scaling factor: ${scalingFactor.toFixed(3)}`)
-
-      // Step 7: Apply relative spacing with normalization
+      // Apply equal angular spacing
       trees.forEach((tree, treeIndex) => {
-        const baseSectorWidth = baseSectors[treeIndex] ?? 0
-        const spacingFactor = spacingFactors[treeIndex] ?? 1.0
-        const weightedSectorWidth = weightedSectors[treeIndex] ?? 0
-        const finalSectorWidth = weightedSectorWidth * scalingFactor
-         
+        const sectorWidth = baseSectors[treeIndex] ?? 0
+        const finalSectorWidth = sectorWidth
+
         const sectorStart = currentAngle
         const sectorEnd = currentAngle + finalSectorWidth * direction
-
-        console.log(`Tree ${treeIndex}: base=${(baseSectorWidth * 180 / Math.PI).toFixed(1)}°, weighted=${(weightedSectorWidth * 180 / Math.PI).toFixed(1)}°, final=${(finalSectorWidth * 180 / Math.PI).toFixed(1)}°, factor=${spacingFactor.toFixed(3)}`)
 
         // Position this tree within its sector
         positionTreeInSector(
@@ -313,6 +510,14 @@ export const useCircularLayout = () => {
           layoutParams,
           positions
         )
+
+        // Collect root node positions for spacing adjustment
+        if (tree.depth === 0) {  // Only root nodes (depth 0)
+          const pos = positions[tree.id]
+          if (pos) {
+            rootPositions.push({ id: tree.id, x: pos.x, y: pos.y })
+          }
+        }
 
         currentAngle = sectorEnd
       })
@@ -337,7 +542,29 @@ export const useCircularLayout = () => {
           positions
         )
 
+        // Collect root node positions for spacing adjustment
+        if (tree.depth === 0) {  // Only root nodes (depth 0)
+          const pos = positions[tree.id]
+          if (pos) {
+            rootPositions.push({ id: tree.id, x: pos.x, y: pos.y })
+          }
+        }
+
         currentAngle = sectorEnd
+      })
+    }
+
+    // Apply spacing adjustment to root nodes if we have multiple roots
+    if (rootPositions.length > 1) {
+      console.log(`=== APPLYING SPACING ADJUSTMENT TO ${rootPositions.length} ROOT NODES ===`)
+      const { positions: adjustedRootPositions, actualRadius } = adjustNodeSpacing(rootPositions, layoutParams, centerX, centerY, layoutParams.innerRadius, layoutParams.startAngle)
+
+      // Update the actual radius used
+      actualRadiusUsed = actualRadius
+
+      // Update positions with adjusted spacing
+      adjustedRootPositions.forEach(adjustedPos => {
+        positions[adjustedPos.id] = { x: adjustedPos.x, y: adjustedPos.y }
       })
     }
 
@@ -346,7 +573,14 @@ export const useCircularLayout = () => {
       layouts.nodes[nodeId] = { x: pos.x, y: pos.y }
     })
 
-    return true
+    // Debug: Log final positions
+    console.log('=== FINAL NODE POSITIONS ===')
+    Object.entries(layouts.nodes).forEach(([nodeId, pos]) => {
+      console.log(`Node ${nodeId}: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})`)
+    })
+    console.log('=== END POSITIONS ===')
+
+    return { success: true, actualRadius: actualRadiusUsed }
   }
 
   /**

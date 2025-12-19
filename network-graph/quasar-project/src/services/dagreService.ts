@@ -21,6 +21,8 @@ export interface CircularLayoutParams {
   minSectorAngle: number   // Minimum angle per root node sector (degrees)
   nodeSpacing: number      // Minimum spacing between nodes on same circle
   spacingRatio: number     // Ratio for angle-based spacing (1.0 = uniform, >1.0 = more north/south spacing)
+  nodeWidth?: number       // Width of nodes (default: 120)
+  nodeHeight?: number      // Height of nodes (default: 40)
 }
 
 export interface MindMapLayoutParams {
@@ -73,7 +75,9 @@ export const useDagreService = () => {
       clockwise: true,
       minSectorAngle: 30,
       nodeSpacing: 60,
-      spacingRatio: 1.5
+      spacingRatio: 1.5,
+      nodeWidth: 120,
+      nodeHeight: 40
     }
   
     const defaultMindMapParams: MindMapLayoutParams = {
@@ -457,7 +461,7 @@ export const useDagreService = () => {
     const layoutParams = { ...currentCircularParams.value, ...params }
 
     // Apply circular layout to entire graph
-    return circularLayout.applyCircularLayout(
+    const result = circularLayout.applyCircularLayout(
       nodes,
       edges,
       layouts,
@@ -465,6 +469,14 @@ export const useDagreService = () => {
       centerY,
       layoutParams
     )
+
+    // If radius was auto-increased, update the current params
+    if (result.success && result.actualRadius && result.actualRadius !== layoutParams.innerRadius) {
+      console.log(`📐 Updating innerRadius in service: ${layoutParams.innerRadius}px → ${result.actualRadius}px`)
+      currentCircularParams.value.innerRadius = result.actualRadius
+    }
+
+    return result.success
   }
 
   return {

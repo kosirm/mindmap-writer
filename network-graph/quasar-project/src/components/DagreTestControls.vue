@@ -160,7 +160,7 @@
           v-model="circularParams.startAngle"
           :min="-180"
           :max="180"
-          :step="1"
+          :step="15"
           dense
           class="full-width"
           @change="updateCircularParams; applyLayout()"
