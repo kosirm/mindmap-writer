@@ -146,7 +146,7 @@
           v-model="circularParams.startAngle"
           :min="-180"
           :max="180"
-          :step="15"
+          :step="1"
           dense
           class="full-width"
           @change="updateCircularParams"
@@ -170,8 +170,8 @@
         <div class="text-caption">Spacing Ratio: {{ circularParams.spacingRatio }}</div>
         <q-slider
           v-model="circularParams.spacingRatio"
-          :min="-0.2"
-          :max="0.2"
+          :min="-30"
+          :max="30.0"
           :step="0.01"
           dense
           class="full-width"
