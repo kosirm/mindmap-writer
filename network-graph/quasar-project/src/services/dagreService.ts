@@ -20,6 +20,7 @@ export interface CircularLayoutParams {
   clockwise: boolean       // Direction of layout
   minSectorAngle: number   // Minimum angle per root node sector (degrees)
   nodeSpacing: number      // Minimum spacing between nodes on same circle
+  spacingRatio: number     // Ratio for angle-based spacing (1.0 = uniform, >1.0 = more north/south spacing)
 }
 
 export interface MindMapLayoutParams {
@@ -71,7 +72,8 @@ export const useDagreService = () => {
       startAngle: -90,
       clockwise: true,
       minSectorAngle: 30,
-      nodeSpacing: 60
+      nodeSpacing: 60,
+      spacingRatio: 1.5
     }
   
     const defaultMindMapParams: MindMapLayoutParams = {

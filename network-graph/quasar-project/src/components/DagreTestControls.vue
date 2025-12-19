@@ -167,16 +167,19 @@
       </div>
 
       <div class="q-mb-sm">
-        <div class="text-caption">Node Spacing: {{ circularParams.nodeSpacing }}px</div>
+        <div class="text-caption">Spacing Ratio: {{ circularParams.spacingRatio }}</div>
         <q-slider
-          v-model="circularParams.nodeSpacing"
-          :min="40"
-          :max="100"
-          :step="5"
+          v-model="circularParams.spacingRatio"
+          :min="-0.5"
+          :max="0.5"
+          :step="0.01"
           dense
           class="full-width"
           @change="updateCircularParams"
         />
+        <div class="text-caption text-grey-6 q-ml-lg">
+          North/South vs East/West spacing ratio
+        </div>
       </div>
 
       <div class="q-mb-sm">
