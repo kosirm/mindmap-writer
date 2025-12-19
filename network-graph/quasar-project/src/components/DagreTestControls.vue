@@ -325,7 +325,7 @@
       size="sm"
       dense
       no-caps
-      class="full-width q-mb-sm"
+      class="q-mb-sm"
     />
 
     <div class="text-caption text-grey-6">
