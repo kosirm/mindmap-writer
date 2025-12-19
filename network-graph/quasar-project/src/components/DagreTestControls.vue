@@ -1,22 +1,36 @@
 <template>
-  <div class="dagre-test-controls">
+  <div class="dagre-test-controls" @keydown.enter="applyLayout">
     <div class="text-subtitle1 q-mb-sm">
       <q-icon name="hub" class="q-mr-sm" />
       Dagre Layout Testing
     </div>
 
-    <!-- Generation-based Node Coloring Toggle -->
+    <!-- Apply Target Switch -->
     <div class="q-mb-sm">
-      <q-toggle
-        v-model="generationColoringEnabled"
-        label="Color Nodes by Generation"
+      <div class="text-caption q-mb-xs">Apply Target</div>
+      <q-btn-toggle
+        v-model="applyTarget"
+        :options="[
+          { label: 'Selected Node', value: 'selected-node' },
+          { label: 'Entire Graph', value: 'entire-graph' }
+        ]"
+        size="sm"
         dense
-        @update:model-value="onGenerationColoringChange"
+        no-caps
+        class="q-mb-sm"
       />
-      <div class="text-caption text-grey-6 q-ml-lg">
-        Different colors for each generation level
-      </div>
     </div>
+
+    <!-- Main Apply Button -->
+    <q-btn
+      color="primary"
+      size="lg"
+      label="APPLY"
+      icon="play_arrow"
+      class="full-width q-mb-sm"
+      @click="applyLayout"
+      :disable="!canApplyLayout"
+    />
 
     <q-separator class="q-my-sm" />
 
@@ -291,26 +305,18 @@
 
     <q-separator class="q-my-sm" />
 
-    <!-- Apply to Selection -->
-    <q-btn
-      outline
-      size="sm"
-      label="Apply to Selected Node"
-      icon="play_arrow"
-      class="full-width q-mb-xs"
-      @click="applyToSelectedNode"
-      :disable="!canApplyLayout"
-    />
-
-    <q-btn
-      outline
-      size="sm"
-      label="Apply to Entire Graph"
-      icon="play_circle"
-      class="full-width q-mb-xs"
-      @click="applyToEntireGraph"
-      :disable="!canApplyLayout"
-    />
+    <!-- Generation-based Node Coloring Toggle -->
+    <div class="q-mb-sm">
+      <q-toggle
+        v-model="generationColoringEnabled"
+        label="Color Nodes by Generation"
+        dense
+        @update:model-value="onGenerationColoringChange"
+      />
+      <div class="text-caption text-grey-6 q-ml-lg">
+        Different colors for each generation level
+      </div>
+    </div>
 
     <q-separator class="q-my-sm" />
 
@@ -335,7 +341,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useDagreService, type LayoutType, type LayoutConfig, type DagreParams, type CircularLayoutParams, type MindMapLayoutParams, type BoxLayoutParams } from 'src/services/dagreService'
@@ -353,6 +359,9 @@ const currentLayoutType = dagreService.currentLayoutType
 
 // Target layout selection
 const targetLayout = ref<'mindmap' | 'conceptmap'>('mindmap')
+
+// Apply target selection (default: entire-graph)
+const applyTarget = ref<'selected-node' | 'entire-graph'>('entire-graph')
 
 // Generation-based node coloring toggle
 const generationColoringEnabled = ref(false)
@@ -426,48 +435,20 @@ function updateBoxParams() {
   console.log('Box params updated:', boxParams.value)
 }
 
-// Apply layout with current configuration
-function applyLayoutToCurrentPage() {
+// Main apply function that uses the current apply target
+function applyLayout() {
   const config = dagreService.getCurrentLayoutConfig()
-  console.log('Applying layout with config:', config)
+  broadcastLayoutRequest(applyTarget.value, config)
   
-  const currentPath = route.path
-  
-  if (currentPath.includes('/test-mindmap')) {
-    broadcastLayoutRequest('selected-node', config)
-    
-    $q.notify({
-      type: 'positive',
-      message: `Applied ${config.type} layout to MindMap`,
-      timeout: 1000,
-    })
-  } else if (currentPath.includes('/test-conceptmap')) {
-    broadcastLayoutRequest('selected-node', config)
-    
-    $q.notify({
-      type: 'positive',
-      message: `Applied ${config.type} layout to ConceptMap`,
-      timeout: 1000,
-    })
-  } else {
-    $q.notify({
-      type: 'warning',
-      message: 'Not on a supported test page',
-      timeout: 1000,
-    })
-  }
+  const targetName = applyTarget.value === 'selected-node' ? 'Selected Node' : 'Entire Graph'
+  $q.notify({
+    type: 'positive',
+    message: `Applied ${config.type} layout to ${targetName}`,
+    timeout: 1000,
+  })
 }
 
-// Apply to selected node
-function applyToSelectedNode() {
-  applyLayoutToCurrentPage()
-}
 
-// Apply to entire graph
-function applyToEntireGraph() {
-  const config = dagreService.getCurrentLayoutConfig()
-  broadcastLayoutRequest('entire-graph', config)
-}
 
 // Broadcast layout request event
 function broadcastLayoutRequest(target: 'selected-node' | 'entire-graph', config: LayoutConfig) {
@@ -503,8 +484,21 @@ function broadcastLayoutRequest(target: 'selected-node' | 'entire-graph', config
   console.log('Broadcasted dagre layout request event:', { target, params, config })
 }
 
+// Keyboard event handler
+function handleKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && canApplyLayout.value) {
+    applyLayout()
+    event.preventDefault()
+  }
+}
+
 onMounted(() => {
   console.log('DagreTestControls mounted, ready to broadcast layout events')
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyDown)
 })
 </script>
 
