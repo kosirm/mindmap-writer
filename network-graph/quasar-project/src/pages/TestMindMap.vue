@@ -48,35 +48,35 @@
       >
         <!-- Custom node rendering to ensure text is properly layered with node shapes -->
         <template #override-node="{ nodeId, scale }">
-          <rect
-            :width="120 * scale"
-            :height="40 * scale"
-            :x="-60 * scale"
-            :y="-20 * scale"
-            :rx="8 * scale"
-            :fill="getNodeColor(nodeId)"
-            :stroke="getNodeStrokeColor(nodeId)"
-            :stroke-width="getNodeStrokeWidth(nodeId) * scale"
-          />
-          <text
-            text-anchor="middle"
-            dominant-baseline="central"
-            :font-size="14 * scale"
-            fill="#263238"
-            pointer-events="none"
-          >
-            {{ nodes[nodeId]?.name }}
-          </text>
+          <!-- Special rendering for center cross marker -->
+          <g v-if="nodeId === centerCrossNodeId">
+            <line x1="-10" y1="0" x2="10" y2="0" stroke="#4dabf7" stroke-width="2" />
+            <line x1="0" y1="-10" x2="0" y2="10" stroke="#4dabf7" stroke-width="2" />
+          </g>
+          <!-- Normal node rendering -->
+          <g v-else>
+            <rect
+              :width="120 * scale"
+              :height="40 * scale"
+              :x="-60 * scale"
+              :y="-20 * scale"
+              :rx="8 * scale"
+              :fill="getNodeColor(nodeId)"
+              :stroke="getNodeStrokeColor(nodeId)"
+              :stroke-width="getNodeStrokeWidth(nodeId) * scale"
+            />
+            <text
+              text-anchor="middle"
+              dominant-baseline="central"
+              :font-size="14 * scale"
+              fill="#263238"
+              pointer-events="none"
+            >
+              {{ nodes[nodeId]?.name }}
+            </text>
+          </g>
         </template>
       </v-network-graph>
-      
-      <!-- Center Cross - shown when toggle is enabled -->
-      <div v-if="showCenterCross" class="center-cross">
-        <svg width="20" height="20" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;">
-          <line x1="0" y1="10" x2="20" y2="10" stroke="#4dabf7" stroke-width="2" />
-          <line x1="10" y1="0" x2="10" y2="20" stroke="#4dabf7" stroke-width="2" />
-        </svg>
-      </div>
     </div>
 
     <!-- Context Menu -->
@@ -203,6 +203,9 @@ const generationColoringEnabled = ref(false)
 
 // Center cross visibility state
 const showCenterCross = ref(false)
+
+// Center cross marker node ID
+const centerCrossNodeId = 'center-cross-marker'
 
 // Configs
 const configs = reactive(
@@ -961,6 +964,21 @@ function handleCenterCrossToggle(event: CustomEvent) {
   
   showCenterCross.value = detail.enabled
   
+  if (detail.enabled) {
+    // Add center cross marker node at (0,0)
+    nodes.value[centerCrossNodeId] = {
+      name: '+',
+      parentId: null,
+      order: 0,
+      zIndex: 10000
+    }
+    layouts.value.nodes[centerCrossNodeId] = { x: 0, y: 0 }
+  } else {
+    // Remove center cross marker node
+    delete nodes.value[centerCrossNodeId]
+    delete layouts.value.nodes[centerCrossNodeId]
+  }
+  
   console.log('Center cross visibility set to:', detail.enabled)
   
   $q.notify({
@@ -1163,15 +1181,5 @@ onUnmounted(() => {
 .context-menu {
   position: fixed;
   z-index: 9999;
-}
-
-.center-cross {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1000;
 }
 </style>
