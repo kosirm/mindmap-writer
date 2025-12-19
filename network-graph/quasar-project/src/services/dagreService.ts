@@ -92,7 +92,7 @@ export const useDagreService = () => {
     const currentCircularParams = ref<CircularLayoutParams>({ ...defaultCircularParams })
     const currentMindMapParams = ref<MindMapLayoutParams>({ ...defaultMindMapParams })
     const currentBoxParams = ref<BoxLayoutParams>({ ...defaultBoxParams })
-    const currentLayoutType = ref<LayoutType>('tree')
+    const currentLayoutType = ref<LayoutType>('circular')
   
     // Set parameters
     const setParams = (params: Partial<DagreParams>) => {

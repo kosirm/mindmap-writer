@@ -157,7 +157,7 @@
         <div class="text-caption">Minimum Sector Angle: {{ circularParams.minSectorAngle }}°</div>
         <q-slider
           v-model="circularParams.minSectorAngle"
-          :min="15"
+          :min="5"
           :max="90"
           :step="5"
           dense
@@ -170,8 +170,8 @@
         <div class="text-caption">Spacing Ratio: {{ circularParams.spacingRatio }}</div>
         <q-slider
           v-model="circularParams.spacingRatio"
-          :min="-30"
-          :max="30.0"
+          :min="-0.2"
+          :max="0.4"
           :step="0.01"
           dense
           class="full-width"
