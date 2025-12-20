@@ -41,9 +41,11 @@ defineOptions({
 // Define available view types in the order they should appear in the menu
 const availableViews = [
   'mindmap-panel',
+  'd3-mindmap-panel',
   'writer-panel',
   'outline-panel',
-  'concept-map-panel'
+  'concept-map-panel',
+  'd3-concept-map-panel'
 ]
 
 interface DockviewPanelApi {

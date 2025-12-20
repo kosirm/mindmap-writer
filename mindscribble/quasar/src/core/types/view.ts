@@ -12,6 +12,8 @@ export type ViewType =
   | 'circle-pack'
   | 'sunburst'
   | 'treemap'
+  | 'd3-mindmap'
+  | 'd3-concept-map'
 
 export interface ViewConfig {
   type: ViewType
@@ -84,6 +86,20 @@ export const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
     icon: 'grid_view',
     description: 'Treemap visualization',
     component: 'TreemapView'
+  },
+  'd3-mindmap': {
+    type: 'd3-mindmap',
+    label: 'D3 Mind Map',
+    icon: 'sym_o_graph_2',
+    description: 'D3-based mind map visualization',
+    component: 'D3MindmapView'
+  },
+  'd3-concept-map': {
+    type: 'd3-concept-map',
+    label: 'D3 Concept Map',
+    icon: 'sym_o_browse_2',
+    description: 'D3-based concept map visualization',
+    component: 'D3ConceptMapView'
   }
 }
 
