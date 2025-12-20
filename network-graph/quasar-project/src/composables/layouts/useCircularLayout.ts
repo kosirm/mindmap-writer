@@ -6,14 +6,16 @@ import type * as vNG from 'v-network-graph'
 
 export interface CircularLayoutParams {
   innerRadius: number      // Radius for root nodes circle
-  levelSpacing: number     // Distance between concentric circles (generations)
+  levelSpacing: number     // Minimum distance between concentric circles (generations)
   startAngle: number       // Starting angle in degrees (0 = right, 90 = bottom)
   clockwise: boolean       // Direction of layout
   minSectorAngle: number   // Minimum angle per root node sector (degrees)
-  nodeSpacing: number      // Minimum spacing between nodes on same circle
+  nodeSpacing: number      // Minimum spacing between nodes on same circle (pixels)
   spacingRatio: number     // Ratio for angle-based spacing (1.0 = uniform, >1.0 = more north/south spacing)
   nodeWidth?: number       // Width of nodes (default: 120)
   nodeHeight?: number      // Height of nodes (default: 40)
+  minNodeSpacing?: number  // Minimum spacing between node borders (default: 10 pixels)
+  nodeSizeScaleFactor?: number  // Scale factor for node size when they don't fit (default: 0.9)
 }
 
 export interface MindMapNode {
@@ -51,7 +53,9 @@ export const useCircularLayout = () => {
     nodeSpacing: 60,
     spacingRatio: 1.5,  // Default ratio: 1.5x more spacing at north/south than east/west
     nodeWidth: 120,     // Default node width
-    nodeHeight: 40      // Default node height
+    nodeHeight: 40,     // Default node height
+    minNodeSpacing: 10, // Minimum spacing between node borders
+    nodeSizeScaleFactor: 0.9  // Scale factor when nodes don't fit
   }
 
   /**
@@ -343,14 +347,246 @@ export const useCircularLayout = () => {
   }
 
   /**
-   * Position nodes in a tree within a sector using equal angular spacing
-   * @param tree - The tree structure to position
-   * @param centerX - Canvas center X
-   * @param centerY - Canvas center Y
-   * @param sectorStart - Start angle of sector (radians)
-   * @param sectorEnd - End angle of sector (radians)
-   * @param params - Layout parameters
-   * @param positions - Output positions map
+   * Calculate flexible sectors for root nodes based on their child counts
+   * Parents with more children get more angular space
+   */
+  const calculateFlexibleSectors = (
+    trees: TreeNode[],
+    startAngle: number,
+    fullCircle: number
+  ): Array<{ start: number; end: number; tree: TreeNode }> => {
+    if (trees.length === 0) return []
+    if (trees.length === 1) {
+      return [{ start: startAngle, end: startAngle + fullCircle, tree: trees[0]! }]
+    }
+
+    // Count total children at level 1 (direct children of roots)
+    const childCounts = trees.map(tree => tree.children.length)
+    const totalChildren = childCounts.reduce((sum, count) => sum + count, 0)
+
+    // If no children, distribute equally
+    if (totalChildren === 0) {
+      const angleStep = fullCircle / trees.length
+      return trees.map((tree, i) => ({
+        start: startAngle + (i * angleStep),
+        end: startAngle + ((i + 1) * angleStep),
+        tree
+      }))
+    }
+
+    // Allocate sectors proportional to child count
+    // But ensure minimum sector size for nodes with few/no children
+    const minSectorSize = fullCircle / (trees.length * 4) // At least 1/4 of equal share
+    const sectors: Array<{ start: number; end: number; tree: TreeNode }> = []
+
+    let currentAngle = startAngle
+    trees.forEach((tree, i) => {
+      const childCount = childCounts[i]!
+      const proportionalSize = (childCount / totalChildren) * fullCircle
+      const sectorSize = Math.max(proportionalSize, minSectorSize)
+
+      sectors.push({
+        start: currentAngle,
+        end: currentAngle + sectorSize,
+        tree
+      })
+
+      currentAngle += sectorSize
+    })
+
+    // Normalize to fit exactly in fullCircle
+    const totalAllocated = currentAngle - startAngle
+    const scale = fullCircle / totalAllocated
+
+    currentAngle = startAngle
+    sectors.forEach(sector => {
+      const size = (sector.end - sector.start) * scale
+      sector.start = currentAngle
+      sector.end = currentAngle + size
+      currentAngle = sector.end
+    })
+
+    return sectors
+  }
+
+  /**
+   * Check if two rectangles collide
+   */
+  const rectanglesCollide = (
+    rect1: { x: number; y: number; width: number; height: number },
+    rect2: { x: number; y: number; width: number; height: number },
+    minSpacing: number = 0
+  ): boolean => {
+    const distance = getMinDistanceBetweenRectangles(rect1, rect2)
+    return distance < minSpacing
+  }
+
+  /**
+   * Check if a node at given position collides with any existing nodes
+   */
+  const checkCollisionWithExisting = (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    existingPositions: Record<string, NodePosition>,
+    params: CircularLayoutParams
+  ): boolean => {
+    const minSpacing = params.minNodeSpacing ?? 10
+    const nodeWidth = params.nodeWidth ?? 120
+    const nodeHeight = params.nodeHeight ?? 40
+
+    const testRect = { x, y, width, height }
+
+    for (const pos of Object.values(existingPositions)) {
+      const existingRect = { x: pos.x, y: pos.y, width: nodeWidth, height: nodeHeight }
+      if (rectanglesCollide(testRect, existingRect, minSpacing)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Place child nodes on a circle using 3-step algorithm:
+   * 1. Safe distance placement (spread evenly, can't overlap)
+   * 2. Calculate real border distances
+   * 3. Adjust to minimum distance
+   * Returns adjusted positions and actual radius used
+   */
+  const placeChildrenOnCircle = (
+    children: TreeNode[],
+    parentAngle: number,
+    parentRadius: number,
+    childRadius: number,
+    sectorStart: number,
+    sectorEnd: number,
+    centerX: number,
+    centerY: number,
+    params: CircularLayoutParams,
+    allPositions: Record<string, NodePosition>
+  ): { positions: Array<{ id: string; x: number; y: number; angle: number }>; actualRadius: number } => {
+
+    const nodeWidth = params.nodeWidth ?? 120
+    const nodeHeight = params.nodeHeight ?? 40
+
+    if (children.length === 0) {
+      return { positions: [], actualRadius: childRadius }
+    }
+
+    if (children.length === 1) {
+      // Single child: place at parent's angle
+      const x = centerX + childRadius * Math.cos(parentAngle)
+      const y = centerY + childRadius * Math.sin(parentAngle)
+      return {
+        positions: [{ id: children[0]!.id, x, y, angle: parentAngle }],
+        actualRadius: childRadius
+      }
+    }
+
+    // STEP 1: Place children evenly in the sector
+    // Simple algorithm: |-N-N-N-| (equal spacing between sector borders and nodes)
+    console.log(`=== STEP 1: PLACE CHILDREN IN SECTOR ===`)
+    console.log(`Parent angle: ${(parentAngle * 180 / Math.PI).toFixed(1)}°`)
+    console.log(`Sector: [${(sectorStart * 180 / Math.PI).toFixed(1)}°, ${(sectorEnd * 180 / Math.PI).toFixed(1)}°]`)
+
+    // Calculate sector width with wraparound handling
+    let sectorWidth = sectorEnd - sectorStart
+    if (sectorWidth < 0) sectorWidth += 2 * Math.PI
+
+    const currentRadius = childRadius
+
+    console.log(`Sector width: ${(sectorWidth * 180 / Math.PI).toFixed(1)}°`)
+    console.log(`Number of children: ${children.length}`)
+
+    // Divide sector into (n+1) equal parts: | - N - N - N - |
+    // This creates equal spacing between borders and nodes
+    const numSpaces = children.length + 1
+    const spaceWidth = sectorWidth / numSpaces
+
+    console.log(`Space width: ${(spaceWidth * 180 / Math.PI).toFixed(1)}°`)
+
+    let centeredPositions = children.map((child, i) => {
+      // Place node at position (i+1) * spaceWidth from sector start
+      let angle = sectorStart + (i + 1) * spaceWidth
+
+      // Normalize angle to [-π, π]
+      if (angle > Math.PI) angle -= 2 * Math.PI
+      if (angle < -Math.PI) angle += 2 * Math.PI
+      return {
+        id: child.id,
+        x: centerX + currentRadius * Math.cos(angle),
+        y: centerY + currentRadius * Math.sin(angle),
+        angle
+      }
+    })
+
+    console.log(`Node angles: ${centeredPositions.map(p => (p.angle * 180 / Math.PI).toFixed(1)).join(', ')}°`)
+
+    // Calculate distances for debugging
+    if (centeredPositions.length > 1) {
+      const distances: number[] = []
+      for (let i = 0; i < centeredPositions.length - 1; i++) {
+        const current = centeredPositions[i]!
+        const next = centeredPositions[i + 1]!
+
+        const distance = getMinDistanceBetweenRectangles(
+          { x: current.x, y: current.y, width: nodeWidth, height: nodeHeight },
+          { x: next.x, y: next.y, width: nodeWidth, height: nodeHeight }
+        )
+        distances.push(distance)
+      }
+      console.log(`Distances between nodes: ${distances.map(d => d.toFixed(1)).join(', ')}px`)
+    }
+
+    // Check for collisions with existing nodes
+    let collisionAttempts = 0
+    const maxCollisionAttempts = 5
+    let finalRadius = currentRadius
+
+    while (collisionAttempts < maxCollisionAttempts) {
+      let hasCollision = false
+
+      // Check each child position against all existing positions
+      for (const pos of centeredPositions) {
+        if (checkCollisionWithExisting(pos.x, pos.y, nodeWidth, nodeHeight, allPositions, params)) {
+          hasCollision = true
+          break
+        }
+      }
+
+      if (!hasCollision) {
+        break // No collisions, we're good!
+      }
+
+      // Collision detected, increase radius and recalculate
+      console.warn(`Collision detected at radius ${finalRadius}, increasing...`)
+      finalRadius += params.levelSpacing * 0.15
+
+      centeredPositions = centeredPositions.map(pos => {
+        const newAngle = pos.angle
+        return {
+          id: pos.id,
+          x: centerX + finalRadius * Math.cos(newAngle),
+          y: centerY + finalRadius * Math.sin(newAngle),
+          angle: newAngle
+        }
+      })
+
+      collisionAttempts++
+    }
+
+    if (collisionAttempts >= maxCollisionAttempts) {
+      console.warn(`Could not resolve collisions after ${maxCollisionAttempts} attempts`)
+    }
+
+    return { positions: centeredPositions, actualRadius: finalRadius }
+  }
+
+  /**
+   * Position nodes in a tree within a sector
+   * NEW ALGORITHM: Places root first, then children on larger circle aligned with parent
    */
   const positionTreeInSector = (
     tree: TreeNode,
@@ -366,7 +602,18 @@ export const useCircularLayout = () => {
     const radius = params.innerRadius + (depth * params.levelSpacing)
 
     // Calculate angle for this node (center of its allocated sector)
-    const sectorMid = (sectorStart + sectorEnd) / 2
+    // Handle wraparound: if sector crosses -180°/180° boundary
+    let sectorMid: number
+    if (sectorEnd < sectorStart) {
+      // Sector wraps around (e.g., [158.5°, -158.5°])
+      // Add 2π to end to calculate correct midpoint
+      sectorMid = (sectorStart + sectorEnd + 2 * Math.PI) / 2
+      // Normalize to [-π, π]
+      if (sectorMid > Math.PI) sectorMid -= 2 * Math.PI
+    } else {
+      // Normal sector (e.g., [-90°, -21.5°])
+      sectorMid = (sectorStart + sectorEnd) / 2
+    }
 
     // Position this node
     positions[tree.id] = {
@@ -374,53 +621,58 @@ export const useCircularLayout = () => {
       y: centerY + radius * Math.sin(sectorMid)
     }
 
+    console.log(`Positioned node ${tree.id} at depth ${depth}, angle ${(sectorMid * 180 / Math.PI).toFixed(1)}°, radius ${radius}`)
+
     // If no children, we're done
     if (tree.children.length === 0) return
 
-    // First, position children using equal angular spacing
-    const sectorWidth = sectorEnd - sectorStart
-    const numChildren = tree.children.length
-    const angleStep = sectorWidth / numChildren
+    // Calculate child radius
+    const childRadius = params.innerRadius + ((depth + 1) * params.levelSpacing)
 
-    // Position children initially
-    const childPositions: Array<{ id: string; x: number; y: number }> = []
-    let currentAngle = sectorStart
-    
-    tree.children.forEach(child => {
-      const childSectorMid = currentAngle + (angleStep / 2)
-      const childX = centerX + radius * Math.cos(childSectorMid)
-      const childY = centerY + radius * Math.sin(childSectorMid)
-      
-      childPositions.push({ id: child.id, x: childX, y: childY })
-      currentAngle += angleStep
+    // Place children using the 3-step algorithm
+    const { positions: childPositions, actualRadius } = placeChildrenOnCircle(
+      tree.children,
+      sectorMid, // Parent's angle
+      radius,    // Parent's radius
+      childRadius,
+      sectorStart,
+      sectorEnd,
+      centerX,
+      centerY,
+      params,
+      positions
+    )
+
+    console.log(`Placed ${childPositions.length} children at depth ${depth + 1}, radius ${actualRadius}`)
+
+    // Store child positions
+    childPositions.forEach(pos => {
+      positions[pos.id] = { x: pos.x, y: pos.y }
     })
 
-    // Adjust spacing between children to ensure equal distances between rectangles
-    console.log(`=== Before adjustment: ${childPositions.length} children at depth ${depth} ===`)
-    childPositions.forEach((pos, i) => {
-      console.log(`Child ${i} (${tree.children[i]?.id}): (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})`)
-    })
+    // Recursively position grandchildren
+    // Each child gets an equal slice of the parent's sector
+    let parentSectorWidth = sectorEnd - sectorStart
+    if (parentSectorWidth < 0) parentSectorWidth += 2 * Math.PI
 
-    const { positions: adjustedPositions } = adjustNodeSpacing(childPositions, params, centerX, centerY, radius, params.startAngle)
+    const childSectorWidth = parentSectorWidth / tree.children.length
 
-    console.log(`=== After adjustment: ${adjustedPositions.length} children ===`)
-    adjustedPositions.forEach((pos, i) => {
-      console.log(`Adjusted child ${i} (${tree.children[i]?.id}): (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})`)
-    })
+    childPositions.forEach((pos, index) => {
+      const child = tree.children[index]!
 
-    // Recursively position children's subtrees using adjusted positions
-    adjustedPositions.forEach((adjustedPos, index) => {
-      const child = tree.children[index]
-      const childAngle = Math.atan2(adjustedPos.y - centerY, adjustedPos.x - centerX)
-      
-      // Calculate sector for this child (small range around its angle)
-      const childSectorWidth = angleStep * 0.8  // Slightly smaller than original
-      const childSectorStart = childAngle - (childSectorWidth / 2)
-      const childSectorEnd = childAngle + (childSectorWidth / 2)
+      // Calculate sector for this child: parent's sector divided equally among siblings
+      // Child i gets: [sectorStart + i * slice, sectorStart + (i+1) * slice]
+      let childSectorStart = sectorStart + (index * childSectorWidth)
+      let childSectorEnd = sectorStart + ((index + 1) * childSectorWidth)
 
-      // Recursively position child's subtree
+      // Normalize angles to [-π, π]
+      if (childSectorStart > Math.PI) childSectorStart -= 2 * Math.PI
+      if (childSectorStart < -Math.PI) childSectorStart += 2 * Math.PI
+      if (childSectorEnd > Math.PI) childSectorEnd -= 2 * Math.PI
+      if (childSectorEnd < -Math.PI) childSectorEnd += 2 * Math.PI
+
       positionTreeInSector(
-        child!,
+        child,
         centerX,
         centerY,
         childSectorStart,
@@ -469,92 +721,48 @@ export const useCircularLayout = () => {
     const trees = rootIds.map(rootId => buildTree(rootId, edges, nodeIds))
 
     // Calculate total subtree sizes for sector allocation
-    const totalSize = trees.reduce((sum, tree) => sum + tree.subtreeSize, 0)
+    // const totalSize = trees.reduce((sum, tree) => sum + tree.subtreeSize, 0)
 
     // Calculate full circle angle range
     const fullCircle = 2 * Math.PI
     const startAngleRad = toRadians(layoutParams.startAngle)
-    const direction = layoutParams.clockwise ? 1 : -1
+    // const direction = layoutParams.clockwise ? 1 : -1
 
     // Position each root's tree in its allocated sector
     const positions: Record<string, NodePosition> = {}
-    let currentAngle = startAngleRad
 
     // First, position all root nodes with equal angular spacing
     const rootPositions: Array<{ id: string; x: number; y: number }> = []
 
-    // Implement relative spacing algorithm to ensure all nodes fit within 360°
-    if (layoutParams.spacingRatio && layoutParams.spacingRatio !== 1.0) {
-      // Step 1: Calculate base sector widths (without spacing ratio)
-      const baseSectors = trees.map(tree => {
-        const minSectorRad = toRadians(layoutParams.minSectorAngle)
-        const proportionalSector = (tree.subtreeSize / totalSize) * fullCircle
-        return Math.max(proportionalSector, minSectorRad)
-      })
+    // Calculate flexible sectors based on child count
+    console.log('=== CALCULATING FLEXIBLE SECTORS ===')
+    const sectors = calculateFlexibleSectors(trees, startAngleRad, fullCircle)
 
-      // Apply equal angular spacing
-      trees.forEach((tree, treeIndex) => {
-        const sectorWidth = baseSectors[treeIndex] ?? 0
-        const finalSectorWidth = sectorWidth
+    // STEP 1: Position ONLY root nodes first (without children)
+    sectors.forEach(sector => {
+      const tree = sector.tree
+      const sectorStart = sector.start
+      const sectorEnd = sector.end
 
-        const sectorStart = currentAngle
-        const sectorEnd = currentAngle + finalSectorWidth * direction
+      console.log(`Tree ${tree.id}: sector [${(sectorStart * 180 / Math.PI).toFixed(1)}°, ${(sectorEnd * 180 / Math.PI).toFixed(1)}°], ${tree.children.length} children`)
 
-        // Position this tree within its sector
-        positionTreeInSector(
-          tree,
-          centerX,
-          centerY,
-          Math.min(sectorStart, sectorEnd),
-          Math.max(sectorStart, sectorEnd),
-          layoutParams,
-          positions
-        )
+      // Calculate radius for root (depth 0)
+      const radius = layoutParams.innerRadius
+      const sectorMid = (sectorStart + sectorEnd) / 2
 
-        // Collect root node positions for spacing adjustment
-        if (tree.depth === 0) {  // Only root nodes (depth 0)
-          const pos = positions[tree.id]
-          if (pos) {
-            rootPositions.push({ id: tree.id, x: pos.x, y: pos.y })
-          }
-        }
+      // Position root node
+      positions[tree.id] = {
+        x: centerX + radius * Math.cos(sectorMid),
+        y: centerY + radius * Math.sin(sectorMid)
+      }
 
-        currentAngle = sectorEnd
-      })
-    } else {
-      // Original uniform spacing (no spacing ratio)
-      trees.forEach((tree) => {
-        const minSectorRad = toRadians(layoutParams.minSectorAngle)
-        const proportionalSector = (tree.subtreeSize / totalSize) * fullCircle
-        const sectorWidth = Math.max(proportionalSector, minSectorRad) * direction
+      console.log(`Positioned root ${tree.id} at angle ${(sectorMid * 180 / Math.PI).toFixed(1)}°, radius ${radius}`)
 
-        const sectorStart = currentAngle
-        const sectorEnd = currentAngle + sectorWidth
+      // Collect root node positions for spacing adjustment
+      rootPositions.push({ id: tree.id, x: positions[tree.id]!.x, y: positions[tree.id]!.y })
+    })
 
-        // Position this tree within its sector
-        positionTreeInSector(
-          tree,
-          centerX,
-          centerY,
-          Math.min(sectorStart, sectorEnd),
-          Math.max(sectorStart, sectorEnd),
-          layoutParams,
-          positions
-        )
-
-        // Collect root node positions for spacing adjustment
-        if (tree.depth === 0) {  // Only root nodes (depth 0)
-          const pos = positions[tree.id]
-          if (pos) {
-            rootPositions.push({ id: tree.id, x: pos.x, y: pos.y })
-          }
-        }
-
-        currentAngle = sectorEnd
-      })
-    }
-
-    // Apply spacing adjustment to root nodes if we have multiple roots
+    // STEP 2: Apply spacing adjustment to root nodes if we have multiple roots
     if (rootPositions.length > 1) {
       console.log(`=== APPLYING SPACING ADJUSTMENT TO ${rootPositions.length} ROOT NODES ===`)
       const { positions: adjustedRootPositions, actualRadius } = adjustNodeSpacing(rootPositions, layoutParams, centerX, centerY, layoutParams.innerRadius, layoutParams.startAngle)
@@ -567,6 +775,143 @@ export const useCircularLayout = () => {
         positions[adjustedPos.id] = { x: adjustedPos.x, y: adjustedPos.y }
       })
     }
+
+    // STEP 3: Now place children for each root (roots are in final positions)
+    // First, recalculate sectors based on NEW root positions after adjustNodeSpacing
+    const rootAngles = trees.map(tree => {
+      const rootPos = positions[tree.id]!
+      return {
+        id: tree.id,
+        angle: Math.atan2(rootPos.y - centerY, rootPos.x - centerX),
+        tree
+      }
+    })
+
+    // Sort by angle to find neighbors
+    rootAngles.sort((a, b) => a.angle - b.angle)
+
+    console.log(`=== RECALCULATED ROOT ANGLES AFTER SPACING ADJUSTMENT ===`)
+    rootAngles.forEach(r => {
+      console.log(`Root ${r.id}: angle ${(r.angle * 180 / Math.PI).toFixed(1)}°`)
+    })
+
+    // Calculate NEW sectors: from halfway to previous root to halfway to next root
+    const newSectors = rootAngles.map((root, i) => {
+      const prevRoot = rootAngles[(i - 1 + rootAngles.length) % rootAngles.length]!
+      const nextRoot = rootAngles[(i + 1) % rootAngles.length]!
+
+      // Calculate halfway angles with proper wraparound handling
+      let halfwayToPrev: number
+      let halfwayToNext: number
+
+      // Calculate angle difference considering wraparound
+      let diffToPrev = root.angle - prevRoot.angle
+      if (diffToPrev < -Math.PI) diffToPrev += 2 * Math.PI
+      if (diffToPrev > Math.PI) diffToPrev -= 2 * Math.PI
+
+      let diffToNext = nextRoot.angle - root.angle
+      if (diffToNext < -Math.PI) diffToNext += 2 * Math.PI
+      if (diffToNext > Math.PI) diffToNext -= 2 * Math.PI
+
+      // Halfway point is root angle minus half the difference
+      halfwayToPrev = root.angle - diffToPrev / 2
+      halfwayToNext = root.angle + diffToNext / 2
+
+      // Normalize to [-π, π]
+      if (halfwayToPrev > Math.PI) halfwayToPrev -= 2 * Math.PI
+      if (halfwayToPrev < -Math.PI) halfwayToPrev += 2 * Math.PI
+      if (halfwayToNext > Math.PI) halfwayToNext -= 2 * Math.PI
+      if (halfwayToNext < -Math.PI) halfwayToNext += 2 * Math.PI
+
+      return {
+        tree: root.tree,
+        rootAngle: root.angle,
+        sectorStart: halfwayToPrev,
+        sectorEnd: halfwayToNext
+      }
+    })
+
+    console.log(`=== NEW SECTORS BASED ON FINAL ROOT POSITIONS ===`)
+    newSectors.forEach(s => {
+      // Calculate sector width with wraparound handling
+      let sectorWidth = s.sectorEnd - s.sectorStart
+      if (sectorWidth < 0) sectorWidth += 2 * Math.PI
+      console.log(`Root ${s.tree.id}: sector [${(s.sectorStart * 180 / Math.PI).toFixed(1)}°, ${(s.sectorEnd * 180 / Math.PI).toFixed(1)}°], width: ${(sectorWidth * 180 / Math.PI).toFixed(1)}°`)
+    })
+
+    // Now place children using NEW sectors
+    newSectors.forEach(sector => {
+      const tree = sector.tree
+
+      // Skip if no children
+      if (tree.children.length === 0) return
+
+      // Get the root's FINAL position (after spacing adjustment)
+      const rootPos = positions[tree.id]!
+      const rootAngle = sector.rootAngle
+      const rootRadius = Math.sqrt((rootPos.x - centerX) ** 2 + (rootPos.y - centerY) ** 2)
+
+      // Calculate child radius
+      const childRadius = layoutParams.innerRadius + layoutParams.levelSpacing
+
+      // Use the NEW sector boundaries
+      const childSectorStart = sector.sectorStart
+      const childSectorEnd = sector.sectorEnd
+
+      // Place children
+      const { positions: childPositions } = placeChildrenOnCircle(
+        tree.children,
+        rootAngle,
+        rootRadius,
+        childRadius,
+        childSectorStart,
+        childSectorEnd,
+        centerX,
+        centerY,
+        layoutParams,
+        positions
+      )
+
+      console.log(`Placed ${childPositions.length} children for ${tree.id} at depth 1`)
+
+      // Store child positions
+      childPositions.forEach(pos => {
+        positions[pos.id] = { x: pos.x, y: pos.y }
+      })
+
+      // Recursively position grandchildren
+      // Each child gets an equal slice of the parent's sector
+      let parentSectorWidth = childSectorEnd - childSectorStart
+      if (parentSectorWidth < 0) parentSectorWidth += 2 * Math.PI
+
+      const childSectorWidth = parentSectorWidth / tree.children.length
+
+      childPositions.forEach((pos, index) => {
+        const child = tree.children[index]!
+
+        // Calculate sector for this child: parent's sector divided equally among siblings
+        // Child i gets: [sectorStart + i * slice, sectorStart + (i+1) * slice]
+        let grandchildSectorStart = childSectorStart + (index * childSectorWidth)
+        let grandchildSectorEnd = childSectorStart + ((index + 1) * childSectorWidth)
+
+        // Normalize angles to [-π, π]
+        if (grandchildSectorStart > Math.PI) grandchildSectorStart -= 2 * Math.PI
+        if (grandchildSectorStart < -Math.PI) grandchildSectorStart += 2 * Math.PI
+        if (grandchildSectorEnd > Math.PI) grandchildSectorEnd -= 2 * Math.PI
+        if (grandchildSectorEnd < -Math.PI) grandchildSectorEnd += 2 * Math.PI
+
+        positionTreeInSector(
+          child,
+          centerX,
+          centerY,
+          grandchildSectorStart,
+          grandchildSectorEnd,
+          layoutParams,
+          positions,
+          1 // depth = 1 (children are at depth 1, grandchildren at depth 2)
+        )
+      })
+    })
 
     // Apply positions to layouts
     Object.entries(positions).forEach(([nodeId, pos]) => {

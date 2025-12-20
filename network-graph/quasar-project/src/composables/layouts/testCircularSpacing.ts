@@ -44,9 +44,7 @@ const testSevenNodesSpacing = () => {
   // Calculate and display distances between consecutive nodes
   console.log('\nDistances between consecutive rectangles:')
   const nodeIds = Object.keys(nodes)
-  const nodeWidth = 120
-  const nodeHeight = 40
-  
+   
   for (let i = 0; i < nodeIds.length; i++) {
     const currentId = nodeIds[i]!
     const nextId = nodeIds[(i + 1) % nodeIds.length]!

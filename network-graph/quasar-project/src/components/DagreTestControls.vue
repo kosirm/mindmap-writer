@@ -145,8 +145,8 @@
         <div class="text-caption">Level Spacing: {{ circularParams.levelSpacing }}px</div>
         <q-slider
           v-model="circularParams.levelSpacing"
-          :min="80"
-          :max="200"
+          :min="120"
+          :max="700"
           :step="10"
           dense
           class="full-width"
