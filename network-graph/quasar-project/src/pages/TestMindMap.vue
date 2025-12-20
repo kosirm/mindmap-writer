@@ -30,6 +30,12 @@
 
         <q-separator vertical />
 
+        <div class="text-caption">Node Size:</div>
+        <q-input v-model.number="nodeWidth" label="Width" type="number" dense style="width: 80px;" />
+        <q-input v-model.number="nodeHeight" label="Height" type="number" dense style="width: 80px;" />
+
+        <q-separator vertical />
+
         <div class="text-caption">Selected: {{ selectedNodes.length }}</div>
         <q-btn size="xs" color="info" label="Log Hierarchy" @click="logHierarchy" dense flat />
       </div>
@@ -50,10 +56,10 @@
         <!-- Custom node rendering to ensure text is properly layered with node shapes -->
         <template #override-node="{ nodeId, scale }">
             <rect
-              :width="120 * scale"
-              :height="40 * scale"
-              :x="-60 * scale"
-              :y="-20 * scale"
+              :width="nodeWidth * scale"
+              :height="nodeHeight * scale"
+              :x="-(nodeWidth / 2) * scale"
+              :y="-(nodeHeight / 2) * scale"
               :rx="8 * scale"
               :fill="getNodeColor(nodeId)"
               :stroke="getNodeStrokeColor(nodeId)"
@@ -180,6 +186,8 @@ const selectedNodes = ref<string[]>([])
 // UI State
 const d3ForceEnabled = ref(false)
 const connectionType = ref<'hierarchy' | 'reference'>('hierarchy')  // Current connection type for C key
+const nodeWidth = ref(120)
+const nodeHeight = ref(40)
 
 // Context menu state
 const contextMenuVisible = ref(false)
@@ -198,6 +206,21 @@ let nodeCounter = 3
 
 // Force layout instance
 let forceLayout: ForceLayout | null = null
+
+// Watch for changes in node dimensions and update configs
+watch([nodeWidth, nodeHeight], ([newWidth, newHeight]) => {
+  configs.node = configs.node || {}
+  configs.node.normal = configs.node.normal || {}
+  configs.node.hover = configs.node.hover || {}
+  configs.node.selected = configs.node.selected || {}
+  
+  configs.node.normal.width = newWidth
+  configs.node.normal.height = newHeight
+  configs.node.hover.width = newWidth
+  configs.node.hover.height = newHeight
+  configs.node.selected.width = newWidth
+  configs.node.selected.height = newHeight
+})
 
 // Generation-based coloring state
 const generationColoringEnabled = ref(false)
@@ -224,8 +247,8 @@ const configs = reactive(
       selectable: true,
       normal: {
         type: 'rect',
-        width: 120,
-        height: 40,
+        width: nodeWidth.value,
+        height: nodeHeight.value,
         borderRadius: 8,
         color: '#ffffff', // Pure white background - completely opaque
         strokeWidth: 2,
@@ -234,8 +257,8 @@ const configs = reactive(
       },
       hover: {
         type: 'rect',
-        width: 120,
-        height: 40,
+        width: nodeWidth.value,
+        height: nodeHeight.value,
         borderRadius: 8,
         color: '#e1f5fe', // Very light blue background - completely opaque
         strokeWidth: 2,
@@ -244,8 +267,8 @@ const configs = reactive(
       },
       selected: {
         type: 'rect',
-        width: 120,
-        height: 40,
+        width: nodeWidth.value,
+        height: nodeHeight.value,
         borderRadius: 8,
         color: '#b3e5fc', // Light blue background - completely opaque
         strokeWidth: 3,
