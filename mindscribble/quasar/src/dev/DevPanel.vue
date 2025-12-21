@@ -31,6 +31,15 @@
       <ConceptMapDevTools />
     </q-expansion-item>
 
+    <q-expansion-item
+      default-opened
+      icon="graph_1"
+      label="Vue3-Mindmap"
+      header-class="text-primary"
+    >
+      <Vue3MindmapDevTools />
+    </q-expansion-item>
+
     <q-separator class="q-my-md" />
 
     <!-- Global Actions -->
@@ -67,6 +76,7 @@
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import MindMapDevTools from './MindMapDevTools.vue'
 import ConceptMapDevTools from './ConceptMapDevTools.vue'
+import Vue3MindmapDevTools from './Vue3MindmapDevTools.vue'
 
 const documentStore = useDocumentStore()
 

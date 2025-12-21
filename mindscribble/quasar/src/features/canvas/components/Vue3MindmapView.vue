@@ -9,14 +9,16 @@
       @node-select="handleNodeSelect"
       @node-operation="handleNodeOperation"
       @node-side-change="handleNodeSideChange"
+      :key="`mindmap-${branchThickness}-${horizontalSpacing}-${verticalSpacing}`"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useVue3MindmapIntegration } from '../composables/useVue3MindmapIntegration'
 import MindmapCore from './vue3-mindmap/MindmapCore.vue'
+import { useVue3MindmapSettingsStore } from 'src/dev/vue3MindmapSettingsStore'
 
 const {
   mindmapData,
@@ -26,10 +28,25 @@ const {
   setupStoreEventListeners
 } = useVue3MindmapIntegration()
 
-// Configuration
-const branchThickness = ref(2)
-const horizontalSpacing = ref(84)
-const verticalSpacing = ref(18)
+const vue3MindmapSettings = useVue3MindmapSettingsStore()
+
+// Configuration - use settings from store
+const branchThickness = ref(vue3MindmapSettings.branchThickness)
+const horizontalSpacing = ref(vue3MindmapSettings.xGap)
+const verticalSpacing = ref(vue3MindmapSettings.yGap)
+
+// Watch for settings changes and update local refs
+watch(() => vue3MindmapSettings.branchThickness, (newVal) => {
+  branchThickness.value = newVal
+}, { immediate: true })
+
+watch(() => vue3MindmapSettings.xGap, (newVal) => {
+  horizontalSpacing.value = newVal
+}, { immediate: true })
+
+watch(() => vue3MindmapSettings.yGap, (newVal) => {
+  verticalSpacing.value = newVal
+}, { immediate: true })
 
 onMounted(() => {
   setupStoreEventListeners()
