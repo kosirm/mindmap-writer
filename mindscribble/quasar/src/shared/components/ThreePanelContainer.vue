@@ -119,7 +119,9 @@ const viewComponents: Record<ViewType, Component> = {
   timeline: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
   'circle-pack': defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
   sunburst: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
-  treemap: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue'))
+  treemap: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
+  'd3-mindmap': defineAsyncComponent(() => import('src/features/canvas/components/D3MindmapView.vue')),
+  'd3-concept-map': defineAsyncComponent(() => import('src/features/canvas/components/D3ConceptMapView.vue'))
 }
 
 function getViewIcon(position: PanelPosition): string {
