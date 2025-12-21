@@ -1,5 +1,5 @@
 <template>
-  <div class="vue3-mindmap-container">
+  <div class="vue3-mindmap-container" :class="{ selecting: isDraggingSelection }">
     <svg ref="svgEle" class="vue3-mindmap-svg"></svg>
 
     <div v-if="zoom" class="button-list right-bottom">
@@ -17,13 +17,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, watch, onUnmounted, computed } from 'vue'
+import { defineComponent, ref, onMounted, watch, onUnmounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import type { PropType } from 'vue'
 import type { Data } from './types/mindmap-types'
 import * as d3 from 'd3'
 import { Dark } from 'quasar'
 import MindmapContextMenu from './MindmapContextMenu.vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useViewEvents } from 'src/core/events'
 
 export default defineComponent({
   name: 'MindmapCore',
@@ -56,16 +57,24 @@ export default defineComponent({
   setup(props, { emit }) {
     const svgEle = ref<SVGSVGElement | null>(null)
     const documentStore = useDocumentStore()
+    const { onStoreEvent } = useViewEvents('vue3-mindmap')
 
     // Context menu state
     const showContextMenu = ref(false)
     const contextMenuPosition = ref({ x: 0, y: 0 })
     const contextMenuNodeId = ref<string | null>(null)
 
+    // Selection state
+    const selectedNodeIds = ref<string[]>([])
+    const isDraggingSelection = ref(false)
+    const selectionRect = ref<{ x: number, y: number, width: number, height: number } | null>(null)
+    const selectionStart = ref<{ x: number, y: number } | null>(null)
+
     // D3 state
     let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
     let svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
     let g: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
+    let selectionRectElement: d3.Selection<SVGRectElement, unknown, null, undefined> | null = null
 
     // Drag state - store offsets separately to avoid triggering watch
     const dragOffsets = new Map<string, { px: number, py: number }>()
@@ -136,9 +145,221 @@ export default defineComponent({
       console.log('Fit view')
     }
 
-    const handleNodeSelect = (nodeId: string) => {
-      emit('node-select', nodeId)
-      documentStore.selectNode(nodeId, 'mindmap')
+    const handleNodeSelect = (nodeId: string, event: MouseEvent) => {
+      const isCtrlClick = event.ctrlKey || event.metaKey
+      const isShiftClick = event.shiftKey
+
+      console.log('🎯 Node click:', nodeId, { ctrlKey: isCtrlClick, shiftKey: isShiftClick, metaKey: event.metaKey })
+
+      if (isShiftClick) {
+        // Start rectangle selection
+        console.log('📋 Starting rectangle selection')
+        startRectangleSelection(event)
+        return
+      }
+
+      if (isCtrlClick) {
+        // Multi-select: toggle selection
+        console.log('⌨️ Ctrl+click - toggling selection for:', nodeId)
+        console.log('📊 Current store selection:', [...documentStore.selectedNodeIds])
+        console.log('📊 Current local selection:', [...selectedNodeIds.value])
+
+        if (documentStore.selectedNodeIds.includes(nodeId)) {
+          // Remove from selection
+          console.log('➖ Removing from selection')
+          documentStore.removeFromSelection(nodeId, 'vue3-mindmap')
+          // Update local state to match store
+          selectedNodeIds.value = [...documentStore.selectedNodeIds]
+        } else {
+          // Add to selection
+          console.log('➕ Adding to selection')
+          documentStore.addToSelection(nodeId, 'vue3-mindmap')
+          // Update local state to match store
+          selectedNodeIds.value = [...documentStore.selectedNodeIds]
+        }
+
+        console.log('📊 After update - store selection:', [...documentStore.selectedNodeIds])
+        console.log('📊 After update - local selection:', [...selectedNodeIds.value])
+
+        // Update styles immediately
+        console.log('🎨 About to update styles, selectedNodeIds:', [...selectedNodeIds.value])
+        void nextTick(() => {
+          updateSelectedNodeStyles()
+        })
+      } else {
+        // Single select: clear previous selection and select this node
+        console.log('�️ Regular click - selecting:', nodeId, 'current selection:', [...selectedNodeIds.value])
+        // Notify store first (it will update its state)
+        emit('node-select', nodeId)
+        documentStore.selectNode(nodeId, 'vue3-mindmap')
+        // Update local state to match store
+        selectedNodeIds.value = [nodeId]
+        // Update styles immediately
+        console.log('🎨 About to update styles, selectedNodeIds:', [...selectedNodeIds.value])
+        void nextTick(() => {
+          updateSelectedNodeStyles()
+        })
+      }
+    }
+
+    const startRectangleSelection = (event: MouseEvent) => {
+      console.log('🎯 startRectangleSelection called, svg:', !!svg, 'g:', !!g)
+      if (!svg || !g) return
+
+      // Prevent default text selection behavior
+      event.preventDefault()
+      event.stopPropagation()
+
+      isDraggingSelection.value = true
+      selectionStart.value = { x: event.clientX, y: event.clientY }
+
+      console.log('📍 Selection start:', selectionStart.value, 'isDraggingSelection:', isDraggingSelection.value)
+
+      // Add global class to prevent text selection in all panels
+      document.body.classList.add('mindmap-selecting')
+
+      // Create selection rectangle in SVG coordinate space (not in transformed g space)
+      if (!selectionRectElement) {
+        selectionRectElement = svg.append('rect')
+          .attr('class', 'selection-rect')
+          .attr('fill', 'rgba(66, 165, 245, 0.2)')
+          .attr('stroke', 'rgba(66, 165, 245, 0.8)')
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', '5,5')
+          .attr('pointer-events', 'none')
+      }
+
+      // Position the rectangle at the start point (in SVG coordinates)
+      const svgRect = svgEle.value?.getBoundingClientRect()
+      if (svgRect) {
+        const startX = event.clientX - svgRect.left
+        const startY = event.clientY - svgRect.top
+        console.log('📍 Rectangle start (SVG coords):', startX, startY)
+        selectionRectElement
+          .attr('x', startX)
+          .attr('y', startY)
+          .attr('width', 0)
+          .attr('height', 0)
+      }
+    }
+
+    const updateRectangleSelection = (event: MouseEvent) => {
+      if (!isDraggingSelection.value || !selectionStart.value || !svgEle.value || !selectionRectElement) return
+
+      const svgRect = svgEle.value.getBoundingClientRect()
+      const currentX = event.clientX - svgRect.left
+      const currentY = event.clientY - svgRect.top
+      const startX = selectionStart.value.x - svgRect.left
+      const startY = selectionStart.value.y - svgRect.top
+
+      // Calculate rectangle dimensions
+      const x = Math.min(startX, currentX)
+      const y = Math.min(startY, currentY)
+      const width = Math.abs(currentX - startX)
+      const height = Math.abs(currentY - startY)
+
+      // Update rectangle
+      selectionRectElement
+        .attr('x', x)
+        .attr('y', y)
+        .attr('width', width)
+        .attr('height', height)
+
+      // Store current selection rect for later use (in SVG coordinates)
+      selectionRect.value = { x, y, width, height }
+    }
+
+    const endRectangleSelection = () => {
+      if (!isDraggingSelection.value || !selectionRect.value || !g) return
+
+      isDraggingSelection.value = false
+
+      // Remove global class to re-enable text selection
+      document.body.classList.remove('mindmap-selecting')
+
+      // Remove selection rectangle
+      if (selectionRectElement) {
+        selectionRectElement.remove()
+        selectionRectElement = null
+      }
+
+      // Find nodes within the selection rectangle
+      const selectedNodes: string[] = []
+      const rect = selectionRect.value
+      const currentG = g
+
+      if (currentG && svg && svgEle.value) {
+        // Get the current transform of the g element
+        const gTransform = d3.zoomTransform(svgEle.value)
+        console.log('🔍 Current zoom transform:', gTransform)
+        console.log('📦 Selection rect (SVG coords):', rect)
+
+        currentG.selectAll('.node').each(function(d: unknown) {
+          const nodeData = d as { data: { id: string } }
+          if (!nodeData.data.id) return
+
+          // Get node position in g coordinate space
+          const nodeElement = d3.select(this)
+          const transform = nodeElement.attr('transform') || ''
+          const match = transform.match(/translate\(([^,]+),([^)]+)\)/) || []
+          const nodeX = match[1] ? parseFloat(match[1]) : 0
+          const nodeY = match[2] ? parseFloat(match[2]) : 0
+
+          // Transform node position to SVG coordinate space
+          const nodeXSvg = nodeX * gTransform.k + gTransform.x
+          const nodeYSvg = nodeY * gTransform.k + gTransform.y
+
+          // Node dimensions (from the text rectangle) - also scaled by zoom
+          const nodeWidth = 100 * gTransform.k
+          const nodeHeight = 30 * gTransform.k
+
+          // Calculate node bounding box (centered at node position) in SVG coordinates
+          const nodeLeft = nodeXSvg - nodeWidth / 2
+          const nodeTop = nodeYSvg - nodeHeight / 2
+          const nodeRight = nodeXSvg + nodeWidth / 2
+          const nodeBottom = nodeYSvg + nodeHeight / 2
+
+          // Check if node intersects with selection rectangle
+          const intersects = !(
+            nodeRight < rect.x ||
+            nodeLeft > rect.x + rect.width ||
+            nodeBottom < rect.y ||
+            nodeTop > rect.y + rect.height
+          )
+
+          if (intersects) {
+            console.log('✅ Node intersects:', nodeData.data.id, { nodeXSvg, nodeYSvg, nodeLeft, nodeTop, nodeRight, nodeBottom })
+            selectedNodes.push(nodeData.data.id)
+          }
+        })
+
+        // Update selection in store
+        console.log('📦 Rectangle selection completed, selected nodes:', selectedNodes)
+        if (selectedNodes.length > 0) {
+          documentStore.selectNodes(selectedNodes, 'vue3-mindmap')
+          // Update local state to match store
+          selectedNodeIds.value = [...selectedNodes]
+        } else {
+          // No nodes selected, clear selection
+          documentStore.clearSelection('vue3-mindmap')
+          selectedNodeIds.value = []
+        }
+
+        // Update styles immediately
+        void nextTick(() => {
+          updateSelectedNodeStyles()
+        })
+
+        // Reset selection state
+        selectionRect.value = null
+        selectionStart.value = null
+      }
+    }
+
+    const clearSelection = () => {
+      if (!isDraggingSelection.value) {
+        documentStore.clearSelection('vue3-mindmap')
+      }
     }
 
 
@@ -194,7 +415,7 @@ export default defineComponent({
         case 'add-sibling':
         case 'add-parent':
           // Node was added, we might want to select it
-          handleNodeSelect(action.nodeId)
+          handleNodeSelect(action.nodeId, new MouseEvent('click'))
           break
         case 'delete':
           // Node was deleted, clear selection if it was selected
@@ -202,8 +423,15 @@ export default defineComponent({
       }
     }
 
+    let cleanupMouseListeners: (() => void) | null = null
+
     function createMindmap() {
       if (!svgEle.value) return
+
+      // Clean up previous mouse listeners if they exist
+      if (cleanupMouseListeners) {
+        cleanupMouseListeners()
+      }
 
       // Initialize D3 with proper sizing
       svg = d3.select(svgEle.value)
@@ -232,10 +460,38 @@ export default defineComponent({
       // Create main group for zooming/panning
       g = svg.append('g')
         .attr('class', 'mindmap-main-group')
+        .on('mousedown', (event: MouseEvent) => {
+          console.log('🖱️ Mousedown on main group, shiftKey:', event.shiftKey)
+          // Check if we clicked on a node (event.target will be part of a .node group)
+          const target = event.target as Element
+          const isNodeClick = target.closest('.node') !== null
+
+          if (event.shiftKey) {
+            console.log('📦 Starting rectangle selection...')
+            event.preventDefault()
+            startRectangleSelection(event)
+          } else if (!isNodeClick) {
+            // Only clear selection when clicking on empty space (not on a node)
+            clearSelection()
+          }
+        })
 
       // Set up zoom behavior
       zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.1, 4])
+        .filter((event: MouseEvent) => {
+          // Prevent zoom/pan when Shift is held (for rectangle selection)
+          if (event.shiftKey) {
+            return false
+          }
+          // Prevent zoom/pan when dragging a node (event.target is part of .text-group)
+          const target = event.target as Element
+          if (target.closest && target.closest('.text-group')) {
+            return false
+          }
+          // Allow zoom/pan for all other cases
+          return true
+        })
         .on('zoom', (event) => {
           if (g) {
             g.attr('transform', event.transform)
@@ -246,8 +502,45 @@ export default defineComponent({
         svg.call(zoomBehavior)
       }
 
+      // Add direct mousedown listener to SVG for Shift+drag rectangle selection
+      // This needs to be added AFTER zoom behavior to intercept events
+      if (svgEle.value) {
+        svgEle.value.addEventListener('mousedown', (event: MouseEvent) => {
+          console.log('🖱️ SVG mousedown, shiftKey:', event.shiftKey)
+          if (event.shiftKey) {
+            console.log('📦 Shift detected, starting rectangle selection...')
+            event.preventDefault()
+            event.stopPropagation()
+            startRectangleSelection(event)
+          }
+        }, { capture: true })  // Use capture phase to intercept before D3
+      }
+
+      // Set up global mouse event listeners for rectangle selection
+      const handleMouseMove = (event: MouseEvent) => {
+        if (isDraggingSelection.value) {
+          updateRectangleSelection(event)
+        }
+      }
+
+      const handleMouseUp = () => {
+        if (isDraggingSelection.value) {
+          endRectangleSelection()
+        }
+      }
+
+      // Add event listeners
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+
       // Draw the mindmap
       drawMindmap()
+
+      // Assign cleanup function
+      cleanupMouseListeners = () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+      }
     }
 
     function drawMindmap() {
@@ -395,11 +688,18 @@ export default defineComponent({
         .attr('stroke-width', 1)
         .attr('cx', d => d.data.left ? -50 : 50)  // Position connection point at edge based on side
 
+      // Apply selection styles after drawing
+      void nextTick(() => {
+        updateSelectedNodeStyles()
+      })
+
       // Add click handler to text group for selection
-      gText.on('click', (event, d) => {
+      console.log('🔧 Setting up click handler for', gText.size(), 'text groups')
+      gText.on('click', (event: MouseEvent, d) => {
+        console.log('🖐️ Click handler called for node:', d.data.id, 'event:', event, 'ctrlKey:', event.ctrlKey, 'shiftKey:', event.shiftKey)
         event.stopPropagation()
         if (d.data.id) {
-          handleNodeSelect(d.data.id)
+          handleNodeSelect(d.data.id, event)
         }
       })
 
@@ -556,6 +856,10 @@ export default defineComponent({
             const px = offsets?.px ?? 0
             const py = offsets?.py ?? 0
 
+            // Detect if this was a click (no significant movement)
+            const dragDistance = Math.sqrt(px * px + py * py)
+            const isClick = dragDistance < 3  // Less than 3 pixels = click
+
             // Clean up drag offsets for this node and all descendants
             const descendants = d.descendants()
             dragOffsets.delete(d.data.id)
@@ -564,6 +868,13 @@ export default defineComponent({
                 dragOffsets.delete(desc.data.id)
               }
             })
+
+            // If it was a click, handle selection
+            if (isClick && d.data.id) {
+              console.log('🖱️ Detected click (not drag) on node:', d.data.id)
+              handleNodeSelect(d.data.id, event.sourceEvent as MouseEvent)
+              return
+            }
 
             // Calculate actual mouse position from dragged node's current position
             const mouseX = d.y + px  // Horizontal position (y-axis in D3)
@@ -722,10 +1033,34 @@ export default defineComponent({
       }
     }
 
+    // Handle ESC key to clear selection
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedNodeIds.value.length > 0) {
+        console.log('🔑 ESC pressed - clearing selection')
+        selectedNodeIds.value = []
+        documentStore.selectNode(null, 'vue3-mindmap')
+        void nextTick(() => {
+          updateSelectedNodeStyles()
+        })
+      }
+    }
+
     onMounted(() => {
       createMindmap()
       // Center view after initial render
       initializeCenterView()
+      // Initialize selection from store
+      selectedNodeIds.value = documentStore.selectedNodeIds
+      void nextTick(() => {
+        updateSelectedNodeStyles()
+      })
+      // Add keyboard listener for ESC
+      window.addEventListener('keydown', handleKeyDown)
+    })
+
+    onBeforeUnmount(() => {
+      // Clean up keyboard listener
+      window.removeEventListener('keydown', handleKeyDown)
     })
 
     onUnmounted(() => {
@@ -747,6 +1082,54 @@ export default defineComponent({
       drawMindmap()
     }, { deep: true })
 
+    const updateSelectedNodeStyles = () => {
+      const currentG = g
+      if (!currentG) {
+        console.log('⚠️ updateSelectedNodeStyles: g is null')
+        return
+      }
+
+      console.log('🎨 Updating selection styles for nodes:', [...selectedNodeIds.value])
+
+      // Remove selected class from all nodes
+      currentG.selectAll('.node').classed('selected', false)
+
+      // Add selected class to selected nodes
+      selectedNodeIds.value.forEach(nodeId => {
+        console.log('🔍 Applying selected style to node:', nodeId)
+        const selection = currentG.selectAll('.node')
+          .filter(function(d: unknown) {
+            const nodeData = d as { data: { id: string } }
+            return nodeData.data.id === nodeId
+          })
+
+        console.log('📊 Found', selection.size(), 'nodes matching', nodeId)
+        selection.classed('selected', true)
+
+        // Log the actual DOM elements
+        selection.each(function() {
+          console.log('🏷️ Applied selected class to element:', this)
+        })
+      })
+    }
+
+    // Listen to selection changes from other views via event bus
+    onStoreEvent('store:node-selected', ({ nodeId }) => {
+      console.log('👀 Single node selected in store:', nodeId)
+      selectedNodeIds.value = nodeId ? [nodeId] : []
+      void nextTick(() => {
+        updateSelectedNodeStyles()
+      })
+    })
+
+    onStoreEvent('store:nodes-selected', ({ nodeIds }) => {
+      console.log('👀 Multiple nodes selected in store:', [...nodeIds])
+      selectedNodeIds.value = nodeIds
+      void nextTick(() => {
+        updateSelectedNodeStyles()
+      })
+    })
+
     return {
       svgEle,
       centerView,
@@ -755,7 +1138,8 @@ export default defineComponent({
       contextMenuPosition,
       contextMenuNodeId,
       handleContextMenu,
-      handleNodeAction
+      handleNodeAction,
+      isDraggingSelection
     }
   }
 })
@@ -767,11 +1151,25 @@ export default defineComponent({
   height: 100%;
   overflow: hidden;
   position: relative;
+
+  // Prevent text selection when dragging
+  &.selecting {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
 }
 
 .vue3-mindmap-svg {
   width: 100%;
   height: 100%;
+
+  // Prevent text selection in SVG
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 // Button styles
@@ -833,6 +1231,31 @@ button:hover {
 :deep(.node) {
   &.outline {
     opacity: 0.8;
+  }
+
+  &.selected {
+    .text-group rect {
+      stroke: #2196F3 !important;
+      stroke-width: 2px !important;
+      filter: drop-shadow(0 0 6px rgba(33, 150, 243, 0.5));
+    }
+  }
+}
+</style>
+
+<style lang="scss">
+// Global style to prevent text selection during rectangle selection
+body.mindmap-selecting {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+
+  * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
   }
 }
 </style>
