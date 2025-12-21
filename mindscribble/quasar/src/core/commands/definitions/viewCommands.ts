@@ -121,7 +121,7 @@ export const viewCommands: Command[] = [
     order: 10,
     showInPalette: true,
     scope: {
-      views: ['mindmap', 'concept-map'],
+      views: ['mindmap', 'concept-map', 'vue3-mindmap'],
     },
     execute: (ctx) => {
       window.dispatchEvent(new CustomEvent('command:view.zoom.in', { detail: ctx }))

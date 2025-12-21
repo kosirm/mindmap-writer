@@ -121,6 +121,12 @@ export interface SiblingsReorderedPayload extends BasePayload {
   newOrders: Map<string, number>
 }
 
+/** Node side changed (for vue3-mindmap) */
+export interface NodeSideChangedPayload extends BasePayload {
+  nodeId: string
+  newSide: 'left' | 'right' | null
+}
+
 // ============================================================
 // EDGE EVENT PAYLOADS
 // ============================================================
@@ -203,6 +209,7 @@ export type StoreEvents = {
   'store:node-moved': NodeMovedPayload
   'store:node-reparented': NodeReparentedPayload
   'store:siblings-reordered': SiblingsReorderedPayload
+  'store:node-side-changed': NodeSideChangedPayload
 
   // Edge lifecycle events
   'store:edge-created': EdgeCreatedPayload

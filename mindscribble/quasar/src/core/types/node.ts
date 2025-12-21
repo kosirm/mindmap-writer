@@ -39,6 +39,8 @@ export interface MindmapViewData {
   collapsedRight?: boolean       // Right children hidden (for root node)
   isDirty?: boolean              // Needs recalculation
   lastCalculatedZoom?: number    // Zoom level when position was calculated
+  left?: boolean                 // Left side placement for vue3-mindmap
+  side?: 'left' | 'right' | null  // Side placement for root nodes
 }
 
 /**
@@ -68,6 +70,16 @@ export interface KanbanViewData {
 }
 
 /**
+ * Vue3 Mindmap view-specific data
+ * For vue3-mindmap visualization
+ */
+export interface Vue3MindmapViewData {
+  position?: Position | null      // Position in vue3-mindmap view
+  collapsed?: boolean            // Children hidden
+  side?: 'left' | 'right' | null  // Side placement for root nodes
+}
+
+/**
  * All view-specific data for a node
  * Extensible - add new views as needed
  */
@@ -76,6 +88,7 @@ export interface NodeViewData {
   conceptMap?: ConceptMapViewData
   timeline?: TimelineViewData
   kanban?: KanbanViewData
+  vue3mindmap?: Vue3MindmapViewData
   // Future views:
   // treemap?: TreemapViewData
   // sunburst?: SunburstViewData
@@ -110,6 +123,9 @@ export interface NodeData {
   // Visual (shared across views)
   color?: string
   icon?: string
+
+  // Side placement for vue3-mindmap (root nodes only)
+  side?: 'left' | 'right' | null
 }
 
 /**

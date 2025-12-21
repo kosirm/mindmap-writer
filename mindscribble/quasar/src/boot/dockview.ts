@@ -36,6 +36,10 @@ const D3ConceptMapPanel = defineAsyncComponent(() =>
   import('src/pages/components/D3ConceptMapPanel.vue')
 )
 
+const Vue3MindmapPanel = defineAsyncComponent(() =>
+  import('src/pages/components/Vue3MindmapPanel.vue')
+)
+
 export default boot(({ app }) => {
   // Register child panel components (views)
   app.component('mindmap-panel', MindmapPanel)
@@ -44,6 +48,7 @@ export default boot(({ app }) => {
   app.component('concept-map-panel', ConceptMapPanel)
   app.component('d3-mindmap-panel', D3MindmapPanel)
   app.component('d3-concept-map-panel', D3ConceptMapPanel)
+  app.component('vue3-mindmap-panel', Vue3MindmapPanel)
 
   // Register parent panel component (file)
   app.component('file-panel', FilePanel)

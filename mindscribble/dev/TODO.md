@@ -1,5 +1,6 @@
 - detailed data structure
 - hierarchy: root node is document name
+- for mindmap - side ✅
 - for mindmap - orientations
 - for mindmap - left right side (every root node - 1'st level)
 - for all nodes - sibling order
