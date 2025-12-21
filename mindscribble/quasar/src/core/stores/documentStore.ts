@@ -124,7 +124,7 @@ export const useDocumentStore = defineStore('document', () => {
 
   function addToSelection(nodeId: string, source: EventSource = 'store') {
     if (!selectedNodeIds.value.includes(nodeId)) {
-      selectedNodeIds.value.push(nodeId)
+      selectedNodeIds.value = [...selectedNodeIds.value, nodeId]
     }
 
     eventBus.emit('store:nodes-selected', { nodeIds: selectedNodeIds.value, source })
