@@ -475,30 +475,72 @@ export default defineComponent({
                   return node.x
                 }))
 
-            // Highlight potential drop targets
-            const mousePos = d3.pointer(event, g)
-            const potentialTarget = treeData.descendants().find(other => {
-              if (other === d || other === d.parent || other.data.id?.startsWith(d.data.id || '')) {
-                return false
-              }
-              const targetDx = mousePos[0] - other.y
-              const targetDy = mousePos[1] - other.x
-              const distance = Math.sqrt(targetDx * targetDx + targetDy * targetDy)
-              return distance < 60  // Within 60px radius
-            })
+            // Highlight potential drop targets using rectangle-based hit test (like original vue3-mindmap)
+            // event.x/y represent where the dragged node should be, so we need to calculate actual mouse position
+            // The dragged node is at (d.y + px, d.x + py), and event.x/y is the target position
+            // So the mouse is at the same position as the dragged node's current visual position
+            const mouseX = d.y + px  // Horizontal position (y-axis in D3)
+            const mouseY = d.x + py  // Vertical position (x-axis in D3)
 
-            // Remove previous outline
+            // Debug: Only log occasionally to avoid spam
+            if (Math.random() < 0.05) {  // Log ~5% of drag events
+              console.log('🔍 Mouse:', mouseX.toFixed(0), mouseY.toFixed(0), 'Dragging:', d.data.name, 'at', d.y.toFixed(0), d.x.toFixed(0), 'offset:', px.toFixed(0), py.toFixed(0))
+
+              // Log all node positions
+              const allNodes = treeData.descendants()
+              console.log('All nodes:', allNodes.map(n => ({
+                name: n.data.name,
+                x: n.x.toFixed(0),
+                y: n.y.toFixed(0),
+                bbox: `[${(n.y - 60).toFixed(0)}, ${(n.y + 60).toFixed(0)}] x [${(n.x - 25).toFixed(0)}, ${(n.x + 25).toFixed(0)}]`
+              })))
+            }
+
+            // Find all nodes and check if mouse is within their bounding box
+            const potentialTargetNode = g.selectAll<SVGGElement, d3.HierarchyPointNode<Data>>('.node')
+              .filter(function(other: d3.HierarchyPointNode<Data>) {
+                // Exclude self, parent, and descendants
+                if (other === d || other === d.parent) {
+                  return false
+                }
+
+                // Check if other is a descendant of d
+                let current = other.parent
+                while (current) {
+                  if (current === d) return false
+                  current = current.parent
+                }
+
+                // Define node bounding box with padding
+                // Nodes are centered at their position, so we need to calculate from center
+                const padding = 10  // Increased padding for easier targeting
+                const nodeHalfWidth = 50  // Node rect is x: -50 to 50
+                const nodeHalfHeight = 15  // Node rect is y: -15 to 15
+
+                // Calculate bounding box centered at node position
+                const x0 = other.y - nodeHalfWidth - padding
+                const x1 = other.y + nodeHalfWidth + padding
+                const y0 = other.x - nodeHalfHeight - padding
+                const y1 = other.x + nodeHalfHeight + padding
+
+                // Check if mouse is within bounding box
+                const isInside = mouseX > x0 && mouseX < x1 &&
+                                 mouseY > y0 && mouseY < y1
+
+                if (isInside) {
+                  console.log('✅ Found potential target:', other.data.name, 'at (', other.y.toFixed(0), other.x.toFixed(0), ') bbox: [', x0.toFixed(0), x1.toFixed(0), '] x [', y0.toFixed(0), y1.toFixed(0), ']')
+                }
+
+                return isInside
+              })
+
+            // Remove outline from all nodes
             g.selectAll('.node').classed('outline', false)
 
-            // Add outline to potential target
-            if (potentialTarget) {
-              const targetId = potentialTarget.data.id
-              g.selectAll('.node')
-                .filter(function(datum: unknown) {
-                  const node = datum as d3.HierarchyPointNode<Data>
-                  return node.data.id === targetId
-                })
-                .classed('outline', true)
+            // Add outline to the first matching node
+            if (potentialTargetNode.size() > 0) {
+              potentialTargetNode.classed('outline', true)
+              console.log('✓ Highlighting potential parent:', potentialTargetNode.datum()?.data.name)
             }
           })
           .on('end', function(event: d3.D3DragEvent<SVGGElement, d3.HierarchyPointNode<Data>, d3.HierarchyPointNode<Data>>, d) {
@@ -523,8 +565,9 @@ export default defineComponent({
               }
             })
 
-            // Get mouse position relative to g element
-            const mousePos = d3.pointer(event, g)
+            // Calculate actual mouse position from dragged node's current position
+            const mouseX = d.y + px  // Horizontal position (y-axis in D3)
+            const mouseY = d.x + py  // Vertical position (x-axis in D3)
 
             // Check if node crossed to the other side (for depth 1 nodes only)
             const rootNode = treeData
@@ -532,18 +575,38 @@ export default defineComponent({
             const nodeCenterY = d.y + px  // Node's final Y position after drag
             const crossedSide = d.depth === 1 && ((d.y < rootCenterY && nodeCenterY > rootCenterY) || (d.y > rootCenterY && nodeCenterY < rootCenterY))
 
-            // Find node at drop position for reparenting
+            // Find node at drop position for reparenting using rectangle-based hit test
             const target = treeData.descendants().find(other => {
-              if (other === d || other === d.parent || other.data.id?.startsWith(d.data.id || '')) {
+              // Exclude self, parent, and descendants
+              if (other === d || other === d.parent) {
                 return false
               }
-              const targetDx = mousePos[0] - other.y
-              const targetDy = mousePos[1] - other.x
-              const distance = Math.sqrt(targetDx * targetDx + targetDy * targetDy)
-              return distance < 60  // Within 60px radius
+
+              // Check if other is a descendant of d
+              let current = other.parent
+              while (current) {
+                if (current === d) return false
+                current = current.parent
+              }
+
+              // Define node bounding box with padding
+              // Nodes are centered at their position
+              const padding = 10
+              const nodeHalfWidth = 50  // Node rect is x: -50 to 50
+              const nodeHalfHeight = 15  // Node rect is y: -15 to 15
+
+              // Calculate bounding box centered at node position
+              const x0 = other.y - nodeHalfWidth - padding
+              const x1 = other.y + nodeHalfWidth + padding
+              const y0 = other.x - nodeHalfHeight - padding
+              const y1 = other.x + nodeHalfHeight + padding
+
+              // Check if mouse is within bounding box
+              return mouseX > x0 && mouseX < x1 &&
+                     mouseY > y0 && mouseY < y1
             })
 
-            if (target && target.data.id !== d.data.id) {
+            if (target && target.data.id) {
               // Handle node drop (reparenting)
               console.log('Reparenting:', d.data.id, 'to', target.data.id)
               handleNodeDrop(d, target)
@@ -629,10 +692,11 @@ export default defineComponent({
               console.log('No reordering needed, dy too small or no parent')
             }
 
-            // No valid operation, snap back to original position
+            // No valid operation, snap back to original position with smooth animation
             d3.select(nodeGroup)
               .transition()
-              .duration(200)
+              .duration(500)  // Increased from 200ms for smoother, more visible animation
+              .ease(d3.easeCubicOut)
               .attr('transform', `translate(${d.y},${d.x})`)
 
             // Redraw to restore edge

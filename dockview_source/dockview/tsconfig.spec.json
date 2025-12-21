@@ -1,9 +1,0 @@
-{
-    "extends": "./tsconfig.test.json",
-    "compilerOptions": {
-        "jsx": "react-jsx",
-        "noImplicitAny": false,
-        "sourceMap": true
-    },
-    "include": ["**/*.spec.ts", "**/*.test.ts", "**/__tests__/**/*", "./jest-setup.ts"]
-}

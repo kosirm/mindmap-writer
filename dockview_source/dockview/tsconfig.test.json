@@ -1,9 +1,0 @@
-{
-    "extends": "./tsconfig.base.json",
-    "compilerOptions": {
-        "jsx": "react-jsx",
-        "noImplicitAny": false,
-        "sourceMap": true
-    },
-    "include": ["**/*.spec.ts", "./jest-setup.ts"]
-}

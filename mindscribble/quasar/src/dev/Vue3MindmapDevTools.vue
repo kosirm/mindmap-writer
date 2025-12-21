@@ -96,8 +96,8 @@ watch([branchThickness, xGap, yGap], () => {
 
 function resetToDefaults() {
   branchThickness.value = 2
-  xGap.value = 84
-  yGap.value = 18
+  xGap.value = 50
+  yGap.value = 150
 }
 </script>
 
