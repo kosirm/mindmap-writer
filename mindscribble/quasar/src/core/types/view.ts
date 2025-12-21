@@ -14,6 +14,7 @@ export type ViewType =
   | 'treemap'
   | 'd3-mindmap'
   | 'd3-concept-map'
+  | 'vue3-mindmap'
 
 export interface ViewConfig {
   type: ViewType
@@ -100,6 +101,13 @@ export const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
     icon: 'sym_o_browse_2',
     description: 'D3-based concept map visualization',
     component: 'D3ConceptMapView'
+  },
+  'vue3-mindmap': {
+    type: 'vue3-mindmap',
+    label: 'Vue3 Mindmap',
+    icon: 'sym_o_graph_1',
+    description: 'Vue3-based mindmap visualization',
+    component: 'Vue3MindmapView'
   }
 }
 

@@ -121,7 +121,8 @@ const viewComponents: Record<ViewType, Component> = {
   sunburst: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
   treemap: defineAsyncComponent(() => import('src/features/canvas/components/PlaceholderView.vue')),
   'd3-mindmap': defineAsyncComponent(() => import('src/features/canvas/components/D3MindmapView.vue')),
-  'd3-concept-map': defineAsyncComponent(() => import('src/features/canvas/components/D3ConceptMapView.vue'))
+  'd3-concept-map': defineAsyncComponent(() => import('src/features/canvas/components/D3ConceptMapView.vue')),
+  'vue3-mindmap': defineAsyncComponent(() => import('src/features/canvas/components/Vue3MindmapView.vue'))
 }
 
 function getViewIcon(position: PanelPosition): string {

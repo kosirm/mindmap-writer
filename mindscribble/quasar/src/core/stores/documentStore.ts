@@ -682,6 +682,54 @@ export const useDocumentStore = defineStore('document', () => {
   }
 
   // ============================================================
+  // SIDE MANAGEMENT ACTIONS (for vue3-mindmap)
+  // ============================================================
+
+  /**
+   * Set the side for a root node (immediate child of document root)
+   */
+  function setNodeSide(nodeId: string, side: 'left' | 'right' | null, source: EventSource = 'store') {
+    const node = getNodeById(nodeId)
+    if (node && node.data.parentId === null) { // Only allow for root nodes
+      // Update the node's side attribute
+      node.data.side = side
+
+      // Also update view-specific data
+      if (!node.views.vue3mindmap) {
+        node.views.vue3mindmap = {}
+      }
+      node.views.vue3mindmap.side = side
+
+      // Mark as dirty for auto-save
+      markDirty()
+
+      // Emit event
+      eventBus.emit('store:node-side-changed', { nodeId, newSide: side, source })
+    }
+  }
+
+  /**
+   * Toggle node side (left ↔ right)
+   */
+  function toggleNodeSide(nodeId: string, source: EventSource = 'store') {
+    const node = getNodeById(nodeId)
+    if (node && node.data.parentId === null) {
+      const newSide = node.data.side === 'left' ? 'right' : 'left'
+      setNodeSide(nodeId, newSide, source)
+    }
+  }
+
+  /**
+   * Get all root nodes with their sides
+   */
+  function getRootNodesWithSides() {
+    return rootNodes.value.map(rootNode => ({
+      node: rootNode,
+      side: rootNode.data.side || rootNode.views.vue3mindmap?.side || null
+    }))
+  }
+
+  // ============================================================
   // RETURN PUBLIC API
   // ============================================================
 
@@ -737,6 +785,11 @@ export const useDocumentStore = defineStore('document', () => {
     deleteNode,
     moveNode,
     reorderSiblings,
+
+    // Side Management Actions
+    setNodeSide,
+    toggleNodeSide,
+    getRootNodesWithSides,
 
     // Edge Actions
     addEdge,

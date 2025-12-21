@@ -42,6 +42,7 @@ defineOptions({
 const availableViews = [
   'mindmap-panel',
   'd3-mindmap-panel',
+  'vue3-mindmap-panel',
   'writer-panel',
   'outline-panel',
   'concept-map-panel',

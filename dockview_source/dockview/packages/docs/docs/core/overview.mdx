@@ -1,0 +1,51 @@
+---
+title: Overview
+sidebar_position: 0
+---
+
+This section provided a core overview.
+
+The component takes a collection of [Options](/docs/api/dockview/options) as inputs and
+once you have created a dock you can store a reference to the [API](/docs/api/dockview/overview) that is created.
+
+
+<FrameworkSpecific framework='JavaScript'>
+```tsx
+const element: HTMLElement
+const options: DockviewComponentOptions
+const api: DockviewApi = createDockview(element, options);
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='React'>
+```tsx
+function onReady(event: DockviewReadyEvent) {
+  /**
+   * You should store a reference to `api` in a Ref or State
+   * for later interactions
+   */
+  const api: DockviewApi = event.api;
+}
+
+<DockviewReact onReady={onReady}/>
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Vue'>
+```tsx
+const App = {
+    name: 'App',
+    methods: {
+        onReady(event: DockviewReadyEvent) {
+          const api: DockviewApi = event.api;
+        },
+    },
+    template: `
+      <dockview-vue
+        @ready="onReady"
+      >
+      </dockview-vue>`,
+};
+```
+</FrameworkSpecific>
+
