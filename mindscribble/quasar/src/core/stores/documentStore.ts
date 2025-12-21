@@ -690,7 +690,13 @@ export const useDocumentStore = defineStore('document', () => {
    */
   function setNodeSide(nodeId: string, side: 'left' | 'right' | null, source: EventSource = 'store') {
     const node = getNodeById(nodeId)
-    if (node && node.data.parentId === null) { // Only allow for root nodes
+    if (!node) return
+
+    // Check if this is an immediate child of a root node (depth 1 in mindmap)
+    const parent = node.data.parentId ? getNodeById(node.data.parentId) : null
+    const isDepth1 = parent && parent.data.parentId === null
+
+    if (isDepth1) {
       // Update the node's side attribute
       node.data.side = side
 
@@ -713,7 +719,13 @@ export const useDocumentStore = defineStore('document', () => {
    */
   function toggleNodeSide(nodeId: string, source: EventSource = 'store') {
     const node = getNodeById(nodeId)
-    if (node && node.data.parentId === null) {
+    if (!node) return
+
+    // Check if this is an immediate child of a root node (depth 1 in mindmap)
+    const parent = node.data.parentId ? getNodeById(node.data.parentId) : null
+    const isDepth1 = parent && parent.data.parentId === null
+
+    if (isDepth1) {
       const newSide = node.data.side === 'left' ? 'right' : 'left'
       setNodeSide(nodeId, newSide, source)
     }

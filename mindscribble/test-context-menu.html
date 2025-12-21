@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context Menu Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quasar@2/dist/js/quasar.umd.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/quasar@2/dist/css/quasar.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <h1>Context Menu Test</h1>
+        <div style="width: 800px; height: 600px; border: 1px solid #ccc; position: relative;">
+            <div style="position: absolute; top: 50px; left: 50px; width: 100px; height: 50px; background: #f0f0f0; border: 1px solid #999; cursor: pointer;" 
+                 @contextmenu.prevent="showContextMenu($event, 'test-node')">
+                Test Node
+            </div>
+        </div>
+        
+        <div v-if="showMenu" style="position: absolute; left: {{menuX}}px; top: {{menuY}}px; background: white; border: 1px solid #ccc; padding: 10px; z-index: 1000;">
+            <div style="padding: 5px; cursor: pointer;" @click="addChild">Add Child</div>
+            <div style="padding: 5px; cursor: pointer;" @click="addSibling">Add Sibling</div>
+            <div style="padding: 5px; cursor: pointer;" @click="addParent">Add Parent</div>
+            <div style="padding: 5px; cursor: pointer; color: red;" @click="deleteNode">Delete</div>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>Actions Log:</h3>
+            <ul>
+                <li v-for="action in actions">{{ action }}</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue;
+        
+        createApp({
+            setup() {
+                const showMenu = ref(false);
+                const menuX = ref(0);
+                const menuY = ref(0);
+                const currentNodeId = ref(null);
+                const actions = ref([]);
+                
+                function showContextMenu(event, nodeId) {
+                    showMenu.value = true;
+                    menuX.value = event.clientX;
+                    menuY.value = event.clientY;
+                    currentNodeId.value = nodeId;
+                    actions.value.push(`Context menu shown for node: ${nodeId}`);
+                }
+                
+                function addChild() {
+                    actions.value.push(`Add child to node: ${currentNodeId.value}`);
+                    hideMenu();
+                }
+                
+                function addSibling() {
+                    actions.value.push(`Add sibling to node: ${currentNodeId.value}`);
+                    hideMenu();
+                }
+                
+                function addParent() {
+                    actions.value.push(`Add parent to node: ${currentNodeId.value}`);
+                    hideMenu();
+                }
+                
+                function deleteNode() {
+                    actions.value.push(`Delete node: ${currentNodeId.value}`);
+                    hideMenu();
+                }
+                
+                function hideMenu() {
+                    showMenu.value = false;
+                }
+                
+                return {
+                    showMenu,
+                    menuX,
+                    menuY,
+                    actions,
+                    showContextMenu,
+                    addChild,
+                    addSibling,
+                    addParent,
+                    deleteNode
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
