@@ -6,6 +6,13 @@
       <button @click="centerView()"><i class="gps"></i></button>
       <button @click="fitView()"><i class="fit"></i></button>
     </div>
+
+    <MindmapContextMenu
+      v-model="showContextMenu"
+      :position="contextMenuPosition"
+      :node-id="contextMenuNodeId"
+      @node-action="handleNodeAction"
+    />
   </div>
 </template>
 
@@ -15,9 +22,13 @@ import type { PropType } from 'vue'
 import type { Data } from './types/mindmap-types'
 import * as d3 from 'd3'
 import { Dark } from 'quasar'
+import MindmapContextMenu from './MindmapContextMenu.vue'
 
 export default defineComponent({
   name: 'MindmapCore',
+  components: {
+    MindmapContextMenu
+  },
   props: {
     modelValue: {
       type: Array as PropType<Data[]>,
@@ -43,6 +54,11 @@ export default defineComponent({
   emits: ['node-select'],
   setup(props, { emit }) {
     const svgEle = ref<SVGSVGElement | null>(null)
+
+    // Context menu state
+    const showContextMenu = ref(false)
+    const contextMenuPosition = ref({ x: 0, y: 0 })
+    const contextMenuNodeId = ref<string | null>(null)
 
     // D3 state
     let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
@@ -72,6 +88,39 @@ export default defineComponent({
       emit('node-select', nodeId)
     }
 
+    const handleContextMenu = (event: MouseEvent) => {
+      event.preventDefault()
+
+      // Get the target element and find the closest node
+      const target = event.target as HTMLElement
+      const nodeElement = target.closest('.node')
+
+      if (nodeElement) {
+        // Extract node ID from the node element's data-id attribute
+        const nodeId = nodeElement.getAttribute('data-id')
+
+        // Show context menu at mouse position
+        showContextMenu.value = true
+        contextMenuPosition.value = { x: event.clientX, y: event.clientY }
+        contextMenuNodeId.value = nodeId || null
+      }
+    }
+
+    const handleNodeAction = (action: { action: string, nodeId: string }) => {
+      console.log('Node action:', action)
+      // Handle node actions from context menu
+      switch (action.action) {
+        case 'add-child':
+        case 'add-sibling':
+        case 'add-parent':
+          // Node was added, we might want to select it
+          handleNodeSelect(action.nodeId)
+          break
+        case 'delete':
+          // Node was deleted, clear selection if it was selected
+          break
+      }
+    }
 
     function createMindmap() {
       if (!svgEle.value) return
@@ -81,6 +130,24 @@ export default defineComponent({
         .attr('width', '100%')
         .attr('height', '100%')
         .style('background-color', getThemeColors().background)
+        .on('contextmenu', (event: MouseEvent) => {
+          // Prevent default browser context menu
+          event.preventDefault()
+
+          // Get the target element and find the closest node
+          const target = event.target as HTMLElement
+          const nodeElement = target.closest('.node')
+
+          if (nodeElement) {
+            // Extract node ID from the node element's data-id attribute
+            const nodeId = nodeElement.getAttribute('data-id')
+
+            // Show context menu at mouse position
+            showContextMenu.value = true
+            contextMenuPosition.value = { x: event.clientX, y: event.clientY }
+            contextMenuNodeId.value = nodeId || null
+          }
+        })
 
       // Create main group for zooming/panning
       g = svg.append('g')
@@ -144,6 +211,7 @@ export default defineComponent({
         .append('g')
         .attr('class', 'node')
         .attr('transform', d => `translate(${d.y},${d.x})`)
+        .attr('data-id', d => d.data.id || '')
         .on('click', (event, d) => {
           if (d.data.id) {
             handleNodeSelect(d.data.id)
@@ -199,7 +267,12 @@ export default defineComponent({
     return {
       svgEle,
       centerView,
-      fitView
+      fitView,
+      showContextMenu,
+      contextMenuPosition,
+      contextMenuNodeId,
+      handleContextMenu,
+      handleNodeAction
     }
   }
 })
