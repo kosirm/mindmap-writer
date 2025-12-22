@@ -5,16 +5,9 @@
       Dev Tools
     </div>
 
-    <q-banner dense class="bg-orange-2 text-orange-10 q-mb-md" rounded>
-      <template v-slot:avatar>
-        <q-icon name="warning" />
-      </template>
-      Development mode only
-    </q-banner>
-
     <!-- View-specific sections -->
     <q-expansion-item
-      default-opened
+      default-closed
       icon="account_tree"
       label="MindMap"
       header-class="text-primary"
@@ -23,7 +16,7 @@
     </q-expansion-item>
 
     <q-expansion-item
-      default-opened
+      default-closed
       icon="hub"
       label="ConceptMap"
       header-class="text-primary"
