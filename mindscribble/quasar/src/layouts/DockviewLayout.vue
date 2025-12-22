@@ -2,7 +2,7 @@
   <div class="dockview-page">
     <div class="dockview-container">
       <DockviewVue
-        class="parent-dockview"
+        :class="['parent-dockview', appStore.getDockviewThemeClass()]"
         data-dockview-level="parent"
         @ready="onReady"
       />
@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 // import { useQuasar } from 'quasar' // Commented out - unused after removing toast notifications
 import { DockviewVue } from 'dockview-vue'
 import { type DockviewApi } from 'dockview-core'
@@ -30,27 +30,13 @@ const multiDocStore = useMultiDocumentStore()
 const appStore = useAppStore()
 let fileCounter = 0
 
-// Watch for dark mode changes and update dockview theme using updateOptions API
-watch(() => appStore.isDarkMode, (isDark) => {
-  console.log('🎨 [DockviewLayout] Dark mode changed to:', isDark)
-
-  // Use dockview API to update theme
-  if (dockviewApi.value) {
-    const themeClass = isDark ? 'dockview-theme-abyss' : 'dockview-theme-light'
-    dockviewApi.value.updateOptions({ className: themeClass })
-    console.log('🎨 [DockviewLayout] Updated parent dockview theme to:', themeClass)
-  } else {
-    console.error('🎨 [DockviewLayout] dockviewApi.value is null')
-  }
-})
+// Theme is now applied via :class binding in template, no need for updateOptions
 
 function onReady(event: { api: DockviewApi }) {
   dockviewApi.value = event.api
 
-  // CRITICAL: Set theme immediately on initialization
-  const initialThemeClass = appStore.getDockviewThemeClass()
-  dockviewApi.value.updateOptions({ className: initialThemeClass })
-  console.log('🎨 [DockviewLayout] Set initial parent dockview theme to:', initialThemeClass)
+  // Theme is now applied via :class binding in template
+  console.log('🎨 [DockviewLayout] Parent dockview ready, theme applied via template binding')
 
   // Set up auto-save on parent layout changes
   dockviewApi.value.onDidLayoutChange(() => {
@@ -404,7 +390,9 @@ function handleDocumentLoaded() {
   // Common styles for all file tabs
   .dv-tab {
     border: none !important;
-    border-left: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-left: none !important; // Remove left border separator
+    outline: none !important;
+    box-shadow: none !important;
     height: 28px !important;
     margin: 2px 2px 0 2px !important;
     border-radius: 4px 4px 0 0 !important;
@@ -412,6 +400,49 @@ function handleDocumentLoaded() {
     // Remove border from first tab
     &:first-child {
       border-left: none !important;
+    }
+
+    // Remove focus styles
+    &:focus,
+    &:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-left: none !important;
+    }
+
+    // Remove pseudo-element borders/focus indicators
+    &::before,
+    &::after {
+      display: none !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      background: none !important;
+    }
+  }
+
+  // Remove tab dividers (separators between tabs) - make them invisible
+  .dv-tab-divider {
+    display: none !important;
+  }
+
+  // Separators/sashes between file panels - match nested dockview style
+  .dv-separator {
+    background-color: #e0e0e0 !important;
+  }
+
+  .dv-sash {
+    background-color: #e0e0e0 !important;
+  }
+
+  .dv-split-view-container {
+    .dv-separator {
+      background-color: #e0e0e0 !important;
+    }
+
+    .dv-sash {
+      background-color: #e0e0e0 !important;
     }
   }
 
@@ -466,6 +497,28 @@ function handleDocumentLoaded() {
   }
 }
 
+// Parent dockview - DARK MODE
+:deep(.body--dark [data-dockview-level="parent"]) {
+  // Separators/sashes between file panels - match nested dockview dark mode style
+  .dv-separator {
+    background-color: #3e3e42 !important;
+  }
+
+  .dv-sash {
+    background-color: #3e3e42 !important;
+  }
+
+  .dv-split-view-container {
+    .dv-separator {
+      background-color: #3e3e42 !important;
+    }
+
+    .dv-sash {
+      background-color: #3e3e42 !important;
+    }
+  }
+}
+
 // Nested dockview - LIGHT MODE (default)
 :deep([data-dockview-level="nested"]) {
   .dv-tabs-and-actions-container {
@@ -475,13 +528,35 @@ function handleDocumentLoaded() {
   }
 
   .dv-tab {
-    border: 1px solid #e0e0e0 !important;
+    border: none !important;
+    border-left: none !important; // Remove left border separator
+    outline: none !important;
+    box-shadow: none !important;
     height: auto !important;
     margin: 0 !important;
     border-radius: 0 !important;
+
+    // Remove focus styles
+    &:focus,
+    &:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-left: none !important;
+    }
+
+    // Remove pseudo-element borders/focus indicators
+    &::before,
+    &::after {
+      display: none !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      background: none !important;
+    }
   }
 
-  // Separators/sashes between panels
+  // Separators/sashes between panels (light mode)
   .dv-separator {
     background-color: #e0e0e0 !important;
   }
@@ -498,6 +573,11 @@ function handleDocumentLoaded() {
     .dv-sash {
       background-color: #e0e0e0 !important;
     }
+  }
+
+  // Remove tab dividers (separators between tabs) - make them invisible
+  .dv-tab-divider {
+    display: none !important;
   }
 
   // Light mode tab colors
@@ -557,7 +637,34 @@ function handleDocumentLoaded() {
   }
 
   .dv-tab {
-    border: 1px solid #3e3e42 !important;
+    border: none !important;
+    border-left: none !important; // Remove left border separator
+    outline: none !important;
+    box-shadow: none !important;
+
+    // Remove focus styles
+    &:focus,
+    &:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-left: none !important;
+    }
+
+    // Remove pseudo-element borders/focus indicators
+    &::before,
+    &::after {
+      display: none !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      background: none !important;
+    }
+  }
+
+  // Remove tab dividers (separators between tabs) - make them invisible
+  .dv-tab-divider {
+    display: none !important;
   }
 
   // Dark mode tab colors
@@ -630,10 +737,37 @@ function handleDocumentLoaded() {
   }
 
   .dv-tab {
-    border: 1px solid #3e3e42 !important;
+    border: none !important;
+    border-left: none !important; // Remove left border separator
+    outline: none !important;
+    box-shadow: none !important;
+
+    // Remove focus styles
+    &:focus,
+    &:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-left: none !important;
+    }
+
+    // Remove pseudo-element borders/focus indicators
+    &::before,
+    &::after {
+      display: none !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      background: none !important;
+    }
   }
 
-  // Separators/sashes between panels
+  // Remove tab dividers (separators between tabs) - make them invisible
+  .dv-tab-divider {
+    display: none !important;
+  }
+
+  // Separators/sashes between panels (dark mode)
   .dv-separator {
     background-color: #3e3e42 !important;
   }
@@ -684,6 +818,28 @@ function handleDocumentLoaded() {
         color: rgba(255, 255, 255, 0.9) !important;
         background-color: rgba(255, 255, 255, 0.1) !important;
       }
+    }
+  }
+}
+
+// Global styles for parent dockview dark mode (must be unscoped to work with .body--dark)
+.body--dark [data-dockview-level="parent"] {
+  // Separators/sashes between file panels - match nested dockview dark mode style
+  .dv-separator {
+    background-color: #3e3e42 !important;
+  }
+
+  .dv-sash {
+    background-color: #3e3e42 !important;
+  }
+
+  .dv-split-view-container {
+    .dv-separator {
+      background-color: #3e3e42 !important;
+    }
+
+    .dv-sash {
+      background-color: #3e3e42 !important;
     }
   }
 }
