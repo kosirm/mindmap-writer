@@ -417,22 +417,22 @@ function handleDocumentLoaded() {
 
   // INACTIVE FILE TAB - customize colors here
   .dv-inactive-tab {
-    background-color: rgba(255, 255, 255, 0) !important;
+    background-color: #4D9DEC !important;
     color: rgba(255, 255, 255, 0.5) !important;
 
     &:hover {
-      background-color: rgba(255, 255, 255, 0.15) !important;
+      background-color: #4D9DEC !important;
       color: rgba(255, 255, 255, 0.9) !important;
     }
   }
 
   // ACTIVE FILE TAB - customize colors here
   .dv-active-tab {
-    background-color: #186ec5 !important;
+    background-color: #4D9DEC !important;
     color: white !important;
 
     &:hover {
-      background-color: #1976d2 !important;
+      background-color: #4D9DEC !important;
     }
   }
 
