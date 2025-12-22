@@ -1021,8 +1021,20 @@ export default defineComponent({
       if (!g || !svgEle.value) return
 
       const svgNode = svgEle.value
-      const centerX = svgNode?.clientWidth ? svgNode.clientWidth / 2 : 400
-      const centerY = svgNode?.clientHeight ? svgNode.clientHeight / 2 : 300
+
+      // Check if SVG has valid dimensions before attempting to center
+      // This prevents D3 errors when the SVG is not yet laid out by dockview
+      if (!svgNode.clientWidth || !svgNode.clientHeight) {
+        console.log('⚠️ SVG not yet sized, deferring center view')
+        // Retry after a short delay to allow dockview to complete layout
+        setTimeout(() => {
+          initializeCenterView()
+        }, 100)
+        return
+      }
+
+      const centerX = svgNode.clientWidth / 2
+      const centerY = svgNode.clientHeight / 2
 
       // Set initial transform
       const initialTransform = d3.zoomIdentity.translate(centerX, centerY)
