@@ -43,13 +43,26 @@
       <div class="col">
         <q-slider
           v-model="yGap"
-          :min="10"
+          :min="100"
           :max="300"
           :step="1"
           dense
         />
       </div>
       <div class="col-2 text-caption text-right">{{ yGap }}</div>
+    </div>
+    <div class="row items-center q-mb-sm">
+      <div class="col-4 text-caption">Group Spacing:</div>
+      <div class="col">
+        <q-slider
+          v-model="groupSpacing"
+          :min="100"
+          :max="500"
+          :step="1"
+          dense
+        />
+      </div>
+      <div class="col-2 text-caption text-right">{{ groupSpacing }}</div>
     </div>
 
     <q-separator class="q-my-sm" />
@@ -70,6 +83,7 @@
       <div>Current Settings:</div>
       <div>Branch: {{ branchThickness }}px</div>
       <div>Spacing: {{ xGap }}x{{ yGap }}px</div>
+      <div>Group Spacing: {{ groupSpacing }}px</div>
     </div>
   </div>
 </template>
@@ -84,13 +98,15 @@ const vue3MindmapSettings = useVue3MindmapSettingsStore()
 const branchThickness = ref(vue3MindmapSettings.branchThickness || 2)
 const xGap = ref(vue3MindmapSettings.xGap || 84)
 const yGap = ref(vue3MindmapSettings.yGap || 18)
+const groupSpacing = ref(vue3MindmapSettings.groupSpacing || 150)
 
 // Watch for changes and update store
-watch([branchThickness, xGap, yGap], () => {
+watch([branchThickness, xGap, yGap, groupSpacing], () => {
   vue3MindmapSettings.setSettings({
     branchThickness: branchThickness.value,
     xGap: xGap.value,
-    yGap: yGap.value
+    yGap: yGap.value,
+    groupSpacing: groupSpacing.value
   })
 }, { immediate: true })
 
@@ -98,6 +114,7 @@ function resetToDefaults() {
   branchThickness.value = 2
   xGap.value = 50
   yGap.value = 150
+  groupSpacing.value = 150
 }
 </script>
 

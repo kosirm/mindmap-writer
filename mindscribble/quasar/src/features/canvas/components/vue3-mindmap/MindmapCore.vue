@@ -48,6 +48,10 @@ export default defineComponent({
       type: Number,
       default: 18  // Original vue3-mindmap default
     },
+    groupSpacing: {
+      type: Number,
+      default: 100  // Default group spacing
+    },
     zoom: {
       type: Boolean,
       default: true
@@ -575,7 +579,17 @@ export default defineComponent({
       // Create tree layout
       const treeLayout = d3.tree<Data>()
         .nodeSize([props.xGap, props.yGap])
-        .separation((a, b) => (a.parent === b.parent ? 1 : 2))
+        .separation((a, b) => {
+          // If nodes have the same parent, use normal spacing (1)
+          if (a.parent === b.parent) {
+            return 1
+          }
+          // If nodes have different parents, use group spacing
+          // Convert group spacing to a separation multiplier
+          // The separation function expects a multiplier, not absolute pixels
+          const groupSpacingMultiplier = props.groupSpacing / props.yGap
+          return groupSpacingMultiplier
+        })
 
       // Layout left and right trees separately
       const leftRootData = { ...rootData, children: leftChildrenData }

@@ -6,11 +6,13 @@ export const useVue3MindmapSettingsStore = defineStore('vue3MindmapSettings', ()
   const branchThickness = ref(2)
   const xGap = ref(50)
   const yGap = ref(150)
+  const groupSpacing = ref(150)
 
   function setSettings(settings: {
     branchThickness?: number
     xGap?: number
     yGap?: number
+    groupSpacing?: number
   }) {
     if (settings.branchThickness !== undefined) {
       branchThickness.value = settings.branchThickness
@@ -21,18 +23,23 @@ export const useVue3MindmapSettingsStore = defineStore('vue3MindmapSettings', ()
     if (settings.yGap !== undefined) {
       yGap.value = settings.yGap
     }
+    if (settings.groupSpacing !== undefined) {
+      groupSpacing.value = settings.groupSpacing
+    }
   }
 
   function resetToDefaults() {
     branchThickness.value = 2
     xGap.value = 50
     yGap.value = 150
+    groupSpacing.value = 150
   }
 
   return {
     branchThickness,
     xGap,
     yGap,
+    groupSpacing,
     setSettings,
     resetToDefaults
   }
