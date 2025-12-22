@@ -284,9 +284,9 @@ html, body, #q-app {
   --dv-inactivegroup-hiddenpanel-tab-background-color: #e0e0e0;
   --dv-inactivegroup-hiddenpanel-tab-color: #1d1d1d;
 
-  // Borders and separators
+  // Borders and separators - make invisible by matching background colors
   --dv-separator-border: 1px solid #e0e0e0 !important;
-  --dv-tab-divider-color: #e0e0e0 !important;
+  --dv-tab-divider-color: transparent !important; // Make tab dividers invisible
   --dv-paneview-header-border-color: #e0e0e0 !important;
 
   // Drag and drop
@@ -297,4 +297,69 @@ html, body, #q-app {
   --dv-icon-hover-background-color: rgba(0, 0, 0, 0.1);
   --dv-paneview-active-outline-color: #007acc;
   --dv-active-sash-color: #007acc;
+
+  // CRITICAL: Remove all tab borders, outlines, and focus styles
+  .dv-tab {
+    border: none !important;
+    border-left: none !important; // Remove left border separator
+    outline: none !important;
+    box-shadow: none !important;
+
+    &:focus,
+    &:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-left: none !important;
+    }
+
+    // Remove pseudo-element borders/focus indicators
+    &::before,
+    &::after {
+      display: none !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      background: none !important;
+    }
+  }
+
+  // Remove tab dividers
+  .dv-tab-divider {
+    display: none !important;
+  }
+}
+
+// Nested dockview theme overrides for dark mode (abyss theme)
+:global(.dockview-theme-abyss) {
+  // CRITICAL: Remove all tab borders, outlines, and focus styles
+  .dv-tab {
+    border: none !important;
+    border-left: none !important; // Remove left border separator
+    outline: none !important;
+    box-shadow: none !important;
+
+    &:focus,
+    &:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-left: none !important;
+    }
+
+    // Remove pseudo-element borders/focus indicators
+    &::before,
+    &::after {
+      display: none !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      background: none !important;
+    }
+  }
+
+  // Remove tab dividers
+  .dv-tab-divider {
+    display: none !important;
+  }
 }
