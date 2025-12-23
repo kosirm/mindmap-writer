@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject } from 'vue'
+import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject, watch } from 'vue'
 import { EditorContent, Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -74,6 +74,19 @@ const isSelected = computed(() => documentStore.selectedNodeIds.includes(props.n
 
 // Display values
 const displayTitle = computed(() => props.node.data.title || '<span class="placeholder">Untitled</span>')
+
+// Expansion state from store - sync he-tree stat.open with store expansion state
+const isNodeExpanded = computed(() => {
+  if (props.stat.children.length === 0) return false // No children means effectively expanded
+  return documentStore.isNodeExpanded(props.node.id)
+})
+
+// Sync he-tree stat.open with store expansion state
+watch(isNodeExpanded, (expanded) => {
+  // Update he-tree's internal state to match store
+  // eslint-disable-next-line vue/no-mutating-props
+  props.stat.open = expanded
+}, { immediate: true })
 
 // Tiptap editor - use shallowRef for complex objects like Editor
 const titleEditor = shallowRef<Editor | null>(null)
