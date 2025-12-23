@@ -127,6 +127,16 @@ export interface NodeSideChangedPayload extends BasePayload {
   newSide: 'left' | 'right' | null
 }
 
+/** Node expanded in outline view */
+export interface NodeExpandedPayload extends BasePayload {
+  nodeId: string
+}
+
+/** Node collapsed in outline view */
+export interface NodeCollapsedPayload extends BasePayload {
+  nodeId: string
+}
+
 // ============================================================
 // EDGE EVENT PAYLOADS
 // ============================================================
@@ -210,6 +220,8 @@ export type StoreEvents = {
   'store:node-reparented': NodeReparentedPayload
   'store:siblings-reordered': SiblingsReorderedPayload
   'store:node-side-changed': NodeSideChangedPayload
+  'store:node-expanded': NodeExpandedPayload
+  'store:node-collapsed': NodeCollapsedPayload
 
   // Edge lifecycle events
   'store:edge-created': EdgeCreatedPayload

@@ -55,13 +55,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, provide, reactive } from 'vue'
 import { Draggable } from '@he-tree/vue'
 import '@he-tree/vue/style/default.css'
 import '@he-tree/vue/style/material-design.css'
 import OutlineNodeContent from './OutlineNodeContent.vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useViewEvents } from 'src/core/events'
+import { useOutlineNavigation } from '../composables/useOutlineNavigation'
+import type { MindscribbleNode } from 'src/core/types'
 
 const TRIGGER_CLASS = 'drag-handle'
 
@@ -75,16 +77,30 @@ const treeRef = ref<InstanceType<typeof Draggable> | null>(null)
 interface OutlineTreeItem {
   id: string
   text: string
-  node: {
-    data: {
-      parentId: string | null
-      order: number
-    }
-  }
+  node: MindscribbleNode
   children: OutlineTreeItem[]
 }
 
 const treeData = ref<OutlineTreeItem[]>([])
+
+// Simple event emitter for child components
+const outlineEmitter = reactive({
+  handlers: new Map<string, Set<(payload: unknown) => void>>(),
+  emit(event: string, payload: unknown) {
+    this.handlers.get(event)?.forEach(handler => handler(payload))
+  },
+  on(event: string, handler: (payload: unknown) => void) {
+    if (!this.handlers.has(event)) {
+      this.handlers.set(event, new Set())
+    }
+    this.handlers.get(event)!.add(handler)
+  }
+})
+
+// Provide emitter and navigation to children
+provide('outlineEmitter', outlineEmitter)
+const navigation = useOutlineNavigation(treeData)
+provide('outlineNavigation', navigation)
 
 /**
  * Build tree structure from store nodes
@@ -193,14 +209,19 @@ function addRootNode() {
 }
 
 function expandAll() {
-  // he-tree handles expansion/collapse internally via user interaction with expand buttons
-  // For now, we'll leave these as no-ops since the tree component manages its own state
-  console.log('Expand all - he-tree manages expansion state internally')
+  // Expand all nodes using store methods
+  const nodesWithChildren = treeData.value.filter(item => item.children.length > 0)
+  nodesWithChildren.forEach(item => {
+    documentStore.expandNode(item.id, 'outline')
+  })
 }
 
 function collapseAll() {
-  // he-tree handles expansion/collapse internally via user interaction with expand buttons
-  console.log('Collapse all - he-tree manages expansion state internally')
+  // Collapse all nodes using store methods
+  const nodesWithChildren = treeData.value.filter(item => item.children.length > 0)
+  nodesWithChildren.forEach(item => {
+    documentStore.collapseNode(item.id, 'outline')
+  })
 }
 
 // Initial load
