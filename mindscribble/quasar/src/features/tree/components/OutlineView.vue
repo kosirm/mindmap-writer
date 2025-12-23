@@ -11,6 +11,17 @@
       <q-btn flat dense icon="unfold_less" size="sm" @click="collapseAll">
         <q-tooltip>Collapse all</q-tooltip>
       </q-btn>
+      <q-separator vertical inset class="q-mx-sm" />
+<q-btn
+        flat
+        dense
+        :icon="isEditMode ? 'edit' : 'edit_note'"
+        :color="isEditMode ? 'primary' : 'grey-6'"
+        size="sm"
+        @click="toggleEditMode"
+      >
+        <q-tooltip>{{ isEditMode ? 'Edit mode (ON) - Press F2 to toggle' : 'Edit mode (OFF) - Press F2 to toggle' }}</q-tooltip>
+      </q-btn>
       <q-space />
       <span class="text-caption text-grey-6">{{ nodeCount }} nodes</span>
     </div>
@@ -28,11 +39,12 @@
         treeLine
         @change="onTreeChange"
       >
-        <template #default="{ node, stat }">
+<template #default="{ node, stat }">
           <OutlineNodeContent
             :node="node.node"
             :stat="stat"
             :trigger-class="TRIGGER_CLASS"
+            :is-edit-mode="isEditMode"
           />
         </template>
       </Draggable>
@@ -55,8 +67,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, provide, reactive } from 'vue'
+import { ref, watch, computed, provide, reactive, onMounted, onUnmounted } from 'vue'
 import { Draggable } from '@he-tree/vue'
+import { useQuasar } from 'quasar'
 import '@he-tree/vue/style/default.css'
 import '@he-tree/vue/style/material-design.css'
 import OutlineNodeContent from './OutlineNodeContent.vue'
@@ -66,9 +79,13 @@ import { useOutlineNavigation } from '../composables/useOutlineNavigation'
 import type { MindscribbleNode } from 'src/core/types'
 
 const TRIGGER_CLASS = 'drag-handle'
+const $q = useQuasar()
 
 const documentStore = useDocumentStore()
 const { onStoreEvent, source } = useViewEvents('outline')
+
+// Edit mode state (default: OFF)
+const isEditMode = ref(false)
 
 // Tree reference
 const treeRef = ref<InstanceType<typeof Draggable> | null>(null)
@@ -223,6 +240,36 @@ function collapseAll() {
     documentStore.collapseNode(item.id, 'outline')
   })
 }
+
+function toggleEditMode() {
+  isEditMode.value = !isEditMode.value
+
+  // Show brief notification
+  $q.notify({
+    message: `Edit mode ${isEditMode.value ? 'ON' : 'OFF'}`,
+    icon: isEditMode.value ? 'edit' : 'edit_note',
+    color: isEditMode.value ? 'primary' : 'grey',
+    timeout: 1000,
+    position: 'bottom'
+  })
+}
+
+// Global keyboard handler for F2 toggle
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'F2') {
+    event.preventDefault()
+    toggleEditMode()
+  }
+}
+
+// Mount and unmount global keyboard listener
+onMounted(() => {
+  document.addEventListener('keydown', handleGlobalKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleGlobalKeydown)
+})
 
 // Initial load
 treeData.value = buildTreeFromStore()
