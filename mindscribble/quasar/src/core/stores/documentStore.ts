@@ -682,6 +682,78 @@ export const useDocumentStore = defineStore('document', () => {
   }
 
   // ============================================================
+  // OUTLINE EXPANSION ACTIONS
+  // ============================================================
+
+  /**
+   * Expand a node in outline view
+   */
+  function expandNode(nodeId: string, source: EventSource = 'store') {
+    const node = getNodeById(nodeId)
+    if (!node) return
+
+    // Initialize outline view data if needed
+    if (!node.views.outline) {
+      node.views.outline = {}
+    }
+
+    // Only update if not already expanded
+    if (!node.views.outline?.expanded) {
+      node.views.outline.expanded = true
+      markDirty()
+
+      // Emit event
+      eventBus.emit('store:node-expanded', { nodeId, source })
+    }
+  }
+
+  /**
+   * Collapse a node in outline view
+   */
+  function collapseNode(nodeId: string, source: EventSource = 'store') {
+    const node = getNodeById(nodeId)
+    if (!node) return
+
+    // Initialize outline view data if needed
+    if (!node.views.outline) {
+      node.views.outline = {}
+    }
+
+    // Only update if not already collapsed
+    if (node.views.outline?.expanded !== false) {
+      node.views.outline.expanded = false
+      markDirty()
+
+      // Emit event
+      eventBus.emit('store:node-collapsed', { nodeId, source })
+    }
+  }
+
+  /**
+   * Toggle node expansion in outline view
+   */
+  function toggleNodeExpansion(nodeId: string, source: EventSource = 'store') {
+    const node = getNodeById(nodeId)
+    if (!node) return
+
+    const currentlyExpanded = node.views.outline?.expanded ?? true
+
+    if (currentlyExpanded) {
+      collapseNode(nodeId, source)
+    } else {
+      expandNode(nodeId, source)
+    }
+  }
+
+  /**
+   * Check if a node is expanded in outline view
+   */
+  function isNodeExpanded(nodeId: string): boolean {
+    const node = getNodeById(nodeId)
+    return node?.views.outline?.expanded ?? true // Default to expanded
+  }
+
+  // ============================================================
   // SIDE MANAGEMENT ACTIONS (for vue3-mindmap)
   // ============================================================
 
@@ -797,6 +869,12 @@ export const useDocumentStore = defineStore('document', () => {
     deleteNode,
     moveNode,
     reorderSiblings,
+
+    // Outline Expansion Actions
+    expandNode,
+    collapseNode,
+    toggleNodeExpansion,
+    isNodeExpanded,
 
     // Side Management Actions
     setNodeSide,

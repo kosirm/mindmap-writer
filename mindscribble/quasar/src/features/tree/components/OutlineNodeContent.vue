@@ -41,12 +41,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject } from 'vue'
 import { EditorContent, Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { MindscribbleNode } from '../../../core/types'
 import { useDocumentStore } from '../../../core/stores'
+import { createKeyboardHandler } from '../composables/useOutlineKeyboardHandlers'
+import type { useOutlineNavigation } from '../composables/useOutlineNavigation'
 
 const props = defineProps<{
   node: MindscribbleNode
@@ -58,6 +60,10 @@ const props = defineProps<{
 }>()
 
 const documentStore = useDocumentStore()
+const navigation = inject<ReturnType<typeof useOutlineNavigation>>('outlineNavigation')
+
+// Inject emitter at setup time (inject must be called during setup, not inside functions)
+const outlineEmitter = inject<{ emit: (event: string, payload: unknown) => void; on: (event: string, handler: (payload: unknown) => void) => void }>('outlineEmitter')
 
 // UI state
 const isHovered = ref(false)
@@ -87,6 +93,14 @@ function handleTitleClick() {
   openTitleEditor('end')
 }
 
+// Navigation helper
+function navigateToNode(nodeId: string, cursorPosition: 'start' | 'end') {
+  documentStore.selectNode(nodeId, 'outline', false)
+  void nextTick(() => {
+    outlineEmitter?.emit('open-title-editor', { nodeId, cursorPosition })
+  })
+}
+
 // Title editor
 function openTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (isEditing.value) return
@@ -111,21 +125,46 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
     content: props.node.data.title || '',
     autofocus: cursorPosition,
     editorProps: {
-      handleKeyDown: (view, event) => {
-        // Handle Enter key to finish editing
-        if (event.key === 'Enter') {
-          event.preventDefault()
+      handleKeyDown: createKeyboardHandler({
+        onEnterKey: (view, event) => {
+          // Ctrl+Enter: Add new line to title
+          if (event.ctrlKey) {
+            // Insert a line break at cursor position
+            titleEditor.value?.commands.insertContent({ type: 'text', text: '\n' })
+            return true
+          }
+          // Regular Enter: Finish editing
           destroyTitleEditor()
-          return true
+        },
+        onUpArrowAtFirstLine: () => {
+          if (navigation) {
+            const prevNode = navigation.getPreviousNode(props.node.id)
+            if (prevNode) {
+              navigateToNode(prevNode.id, 'end')
+            }
+          }
+        },
+        onDownArrowAtLastLine: () => {
+          if (navigation) {
+            const nextNode = navigation.getNextNode(props.node.id)
+            if (nextNode) {
+              navigateToNode(nextNode.id, 'start')
+            }
+          }
+        },
+        onAltLeftArrow: () => {
+          // Collapse node if it has children and is expanded
+          if (props.stat.children.length > 0) {
+            documentStore.collapseNode(props.node.id, 'outline')
+          }
+        },
+        onAltRightArrow: () => {
+          // Expand node if it has children and is collapsed
+          if (props.stat.children.length > 0) {
+            documentStore.expandNode(props.node.id, 'outline')
+          }
         }
-        // Handle Escape key to cancel editing
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          destroyTitleEditor()
-          return true
-        }
-        return false
-      }
+      })
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML()
@@ -146,6 +185,14 @@ function destroyTitleEditor() {
   titleEditor.value = null
   isEditing.value = false
 }
+
+// Listen for title editor open events (using the outlineEmitter injected at setup time)
+outlineEmitter?.on('open-title-editor', (payload: unknown) => {
+  const { nodeId, cursorPosition } = payload as { nodeId: string; cursorPosition: 'start' | 'end' }
+  if (nodeId === props.node.id) {
+    openTitleEditor(cursorPosition)
+  }
+})
 
 // Cleanup
 onBeforeUnmount(() => {

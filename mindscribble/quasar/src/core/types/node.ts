@@ -70,6 +70,14 @@ export interface KanbanViewData {
 }
 
 /**
+ * Outline view-specific data
+ * Tree expansion state for outline view
+ */
+export interface OutlineViewData {
+  expanded?: boolean            // Node is expanded in outline view
+}
+
+/**
  * Vue3 Mindmap view-specific data
  * For vue3-mindmap visualization
  */
@@ -89,6 +97,7 @@ export interface NodeViewData {
   timeline?: TimelineViewData
   kanban?: KanbanViewData
   vue3mindmap?: Vue3MindmapViewData
+  outline?: OutlineViewData
   // Future views:
   // treemap?: TreemapViewData
   // sunburst?: SunburstViewData
