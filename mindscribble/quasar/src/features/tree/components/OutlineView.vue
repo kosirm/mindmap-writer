@@ -336,13 +336,15 @@ const nodeCount = computed(() => documentStore.nodeCount)
 // Override he-tree default styles for outline view
 :deep(.he-tree) {
   .tree-node {
-    margin-bottom: 2px;
+    margin-bottom: 0; // Remove gaps between tree nodes
   }
 
   // Show tree lines for outline view
   .tree-line {
     display: block;
     border-color: rgba(0, 0, 0, 0.1);
+    margin: 0; // Ensure no margins on tree lines
+    padding: 0; // Ensure no padding on tree lines
 
     .body--dark & {
       border-color: rgba(255, 255, 255, 0.1);
