@@ -16,48 +16,26 @@
     </div>
 
     <!-- Tree -->
-    <q-scroll-area class="outline-tree-container">
-      <q-tree
-        v-if="treeNodes.length > 0"
+    <div class="outline-tree-container">
+      <Draggable
+        v-if="treeData.length > 0"
         ref="treeRef"
-        :nodes="treeNodes"
-        node-key="id"
-        :selected="selectedNodeId"
-        :expanded="expandedNodeIds"
-        default-expand-all
-        dense
-        @update:selected="onNodeSelected"
-        @update:expanded="onNodeExpanded"
+        v-model="treeData"
+        class="outline-tree"
+        :indent="16"
+        :triggerClass="TRIGGER_CLASS"
+        :rootDroppable="true"
+        treeLine
+        @change="onTreeChange"
       >
-        <template #default-header="prop">
-          <div
-            class="outline-node-header"
-            :class="{
-              'outline-node-selected': selectedNodeIds.includes(prop.node.id),
-              'outline-node-root': prop.node.isRoot
-            }"
-            :data-node-id="prop.node.id"
-            @click="onNodeClick($event, prop.node.id)"
-            @dblclick="onNodeDoubleClick(prop.node.id)"
-          >
-            <q-icon
-              :name="prop.node.icon || 'circle'"
-              size="xs"
-              class="q-mr-xs"
-              :color="selectedNodeIds.includes(prop.node.id) ? 'primary' : 'grey-6'"
-            />
-            <span class="outline-node-title">{{ prop.node.label }}</span>
-            <q-badge
-              v-if="prop.node.childCount > 0"
-              color="grey-4"
-              text-color="grey-8"
-              class="q-ml-sm"
-            >
-              {{ prop.node.childCount }}
-            </q-badge>
-          </div>
+        <template #default="{ node, stat }">
+          <OutlineNodeContent
+            :node="node.node"
+            :stat="stat"
+            :trigger-class="TRIGGER_CLASS"
+          />
         </template>
-      </q-tree>
+      </Draggable>
 
       <!-- Empty state -->
       <div v-else class="outline-empty">
@@ -72,202 +50,142 @@
           @click="addRootNode"
         />
       </div>
-    </q-scroll-area>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import type { QTree } from 'quasar'
+import { ref, watch, computed } from 'vue'
+import { Draggable } from '@he-tree/vue'
+import '@he-tree/vue/style/default.css'
+import '@he-tree/vue/style/material-design.css'
+import OutlineNodeContent from './OutlineNodeContent.vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useViewEvents } from 'src/core/events'
 
-// ============================================================
-// STORE & EVENTS
-// ============================================================
+const TRIGGER_CLASS = 'drag-handle'
 
 const documentStore = useDocumentStore()
 const { onStoreEvent, source } = useViewEvents('outline')
 
-// ============================================================
-// LOCAL STATE
-// ============================================================
+// Tree reference
+const treeRef = ref<InstanceType<typeof Draggable> | null>(null)
 
-const treeRef = ref<InstanceType<typeof QTree> | null>(null)
-const expandedNodeIds = ref<string[]>([])
-const selectedNodeId = ref<string | null>(null)
-const selectedNodeIds = ref<string[]>([]) // For multi-selection visual feedback
-
-// ============================================================
-// COMPUTED
-// ============================================================
-
-interface TreeNode {
+// Tree data for he-tree
+interface OutlineTreeItem {
   id: string
-  label: string
-  icon?: string
-  isRoot: boolean
-  childCount: number
-  children?: TreeNode[]
+  text: string
+  node: {
+    data: {
+      parentId: string | null
+      order: number
+    }
+  }
+  children: OutlineTreeItem[]
+}
+
+const treeData = ref<OutlineTreeItem[]>([])
+
+/**
+ * Build tree structure from store nodes
+ */
+function buildTreeFromStore(): OutlineTreeItem[] {
+  const nodeMap = new Map<string, OutlineTreeItem>()
+
+  // First pass: Create tree items
+  documentStore.nodes.forEach(node => {
+    nodeMap.set(node.id, {
+      id: node.id,
+      text: node.data.title || 'Untitled',
+      node: node,
+      children: []
+    })
+  })
+
+  // Second pass: Build hierarchy
+  const rootItems: OutlineTreeItem[] = []
+  nodeMap.forEach(item => {
+    const parentId = item.node.data.parentId
+    if (parentId) {
+      const parent = nodeMap.get(parentId)
+      if (parent) {
+        parent.children.push(item)
+      }
+    } else {
+      rootItems.push(item)
+    }
+  })
+
+  // Third pass: Sort children by order
+  nodeMap.forEach(item => {
+    item.children.sort((a, b) => a.node.data.order - b.node.data.order)
+  })
+  rootItems.sort((a, b) => a.node.data.order - b.node.data.order)
+
+  return rootItems
 }
 
 /**
- * Convert flat nodes to hierarchical tree structure for q-tree
+ * Extract hierarchy and order from current tree structure
  */
-const treeNodes = computed<TreeNode[]>(() => {
-  const nodes = documentStore.nodes
+function extractHierarchyFromTree(
+  items: OutlineTreeItem[],
+  parentId: string | null = null
+): Map<string, { parentId: string | null; order: number }> {
+  const result = new Map<string, { parentId: string | null; order: number }>()
 
-  // Build lookup map
-  const nodeMap = new Map<string, TreeNode>()
-  const rootNodes: TreeNode[] = []
+  items.forEach((item, index) => {
+    result.set(item.id, { parentId, order: index })
 
-  // Helper to strip HTML tags for clean navigation display
-  const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim()
+    if (item.children.length > 0) {
+      const childData = extractHierarchyFromTree(item.children, item.id)
+      childData.forEach((value, key) => result.set(key, value))
+    }
+  })
 
-  // First pass: create tree nodes
-  for (const node of nodes) {
-    const childCount = nodes.filter((n) => n.data.parentId === node.id).length
-    nodeMap.set(node.id, {
-      id: node.id,
-      label: stripHtml(node.data.title) || 'Untitled',
-      icon: node.data.parentId === null ? 'star' : 'circle',
-      isRoot: node.data.parentId === null,
-      childCount,
-      children: []
-    })
-  }
+  return result
+}
 
-  // Second pass: build hierarchy
-  for (const node of nodes) {
-    const treeNode = nodeMap.get(node.id)!
-    if (node.data.parentId === null) {
-      rootNodes.push(treeNode)
-    } else {
-      const parent = nodeMap.get(node.data.parentId)
-      if (parent) {
-        parent.children!.push(treeNode)
+/**
+ * Handle tree changes from drag-and-drop
+ */
+function onTreeChange() {
+  const newHierarchy = extractHierarchyFromTree(treeData.value)
+
+  // Group changes by type: reparenting vs sibling reordering
+  const reparentedNodes: Array<{ nodeId: string; parentId: string | null; order: number }> = []
+  const orderChanges: Map<string | null, Map<string, number>> = new Map() // parentId -> (nodeId -> order)
+
+  newHierarchy.forEach(({ parentId, order }, nodeId) => {
+    const node = documentStore.getNodeById(nodeId)
+    if (node) {
+      const oldParentId = node.data.parentId
+
+      if (oldParentId !== parentId) {
+        // Parent changed - this is a reparent operation
+        reparentedNodes.push({ nodeId, parentId, order })
+      } else if (node.data.order !== order) {
+        // Same parent, order changed - this is a sibling reorder
+        if (!orderChanges.has(parentId)) {
+          orderChanges.set(parentId, new Map())
+        }
+        orderChanges.get(parentId)!.set(nodeId, order)
       }
     }
-  }
-
-  // Sort children by order
-  function sortChildren(treeNode: TreeNode) {
-    if (treeNode.children && treeNode.children.length > 0) {
-      treeNode.children.sort((a, b) => {
-        const nodeA = nodes.find((n) => n.id === a.id)
-        const nodeB = nodes.find((n) => n.id === b.id)
-        return (nodeA?.data.order ?? 0) - (nodeB?.data.order ?? 0)
-      })
-      treeNode.children.forEach(sortChildren)
-    }
-  }
-
-  // Sort root nodes and their children
-  rootNodes.sort((a, b) => {
-    const nodeA = nodes.find((n) => n.id === a.id)
-    const nodeB = nodes.find((n) => n.id === b.id)
-    return (nodeA?.data.order ?? 0) - (nodeB?.data.order ?? 0)
   })
-  rootNodes.forEach(sortChildren)
 
-  return rootNodes
-})
-
-const nodeCount = computed(() => documentStore.nodeCount)
-
-// ============================================================
-// EVENT HANDLERS - Store events (from other views)
-// ============================================================
-
-// Listen to single selection changes from other views
-onStoreEvent('store:node-selected', ({ nodeId, scrollIntoView }) => {
-  selectedNodeId.value = nodeId
-  selectedNodeIds.value = nodeId ? [nodeId] : []
-
-  // Expand parent path to make node visible
-  if (nodeId && scrollIntoView) {
-    expandToNode(nodeId)
+  // Handle reparenting first (uses moveNode)
+  for (const { nodeId, parentId, order } of reparentedNodes) {
+    documentStore.moveNode(nodeId, parentId, order, 'outline')
   }
-})
 
-// Listen to multi-selection changes from other views
-onStoreEvent('store:nodes-selected', ({ nodeIds }) => {
-  selectedNodeIds.value = nodeIds
-  // Update single selection to first item (q-tree only supports single selection natively)
-  selectedNodeId.value = nodeIds.length > 0 ? nodeIds[0]! : null
-
-  // Expand parent paths for all selected nodes
-  nodeIds.forEach(nodeId => {
-    expandToNode(nodeId)
-  })
-})
-
-// Listen to select-navigate events from other views
-onStoreEvent('store:select-navigate', ({ nodeId }) => {
-  selectedNodeId.value = nodeId
-  selectedNodeIds.value = nodeId ? [nodeId] : []
-
-  // Expand parent path and scroll into view
-  if (nodeId) {
-    expandToNode(nodeId)
-    // Scroll the node into view after next DOM update
-    void nextTick(() => {
-      const nodeElement = document.querySelector(`[data-node-id="${nodeId}"]`)
-      if (nodeElement) {
-        nodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    })
-  }
-})
-
-// Listen to node creation
-onStoreEvent('store:node-created', ({ parentId }) => {
-  // Auto-expand parent when child is added
-  if (parentId && !expandedNodeIds.value.includes(parentId)) {
-    expandedNodeIds.value.push(parentId)
-  }
-})
-
-// Listen to document load
-onStoreEvent('store:document-loaded', () => {
-  // Expand all on document load
-  expandAll()
-})
-
-// ============================================================
-// EVENT HANDLERS - User interactions
-// ============================================================
-
-function onNodeClick(event: MouseEvent, nodeId: string) {
-  if (event.ctrlKey || event.metaKey) {
-    // Ctrl+click: Select and navigate
-    documentStore.selectNavigateNode(nodeId, source)
-  } else {
-    // Regular click: Select without navigation
-    onNodeSelected(nodeId)
+  // Handle sibling reordering (uses reorderSiblings - emits store:siblings-reordered)
+  for (const [parentId, nodeOrders] of orderChanges) {
+    documentStore.reorderSiblings(parentId, nodeOrders, 'outline')
   }
 }
 
-function onNodeSelected(nodeId: string | null) {
-  selectedNodeId.value = nodeId
-  selectedNodeIds.value = nodeId ? [nodeId] : []
-  // Update store with this view as source
-  documentStore.selectNode(nodeId, source, false)
-}
-
-function onNodeExpanded(nodeIds: readonly string[]) {
-  expandedNodeIds.value = [...nodeIds]
-}
-
-function onNodeDoubleClick(nodeId: string) {
-  // Emit edit start event (for future Tiptap integration)
-  console.log('Double click on node:', nodeId)
-}
-
-// ============================================================
-// ACTIONS
-// ============================================================
-
+// Actions
 function addRootNode() {
   const newNode = documentStore.addNode(null, 'New Node', '', undefined, source)
   // Select the new node
@@ -275,52 +193,75 @@ function addRootNode() {
 }
 
 function expandAll() {
-  // Collect all node IDs
-  const allIds = documentStore.nodes.map((n) => n.id)
-  expandedNodeIds.value = allIds
+  // he-tree handles expansion/collapse internally via user interaction with expand buttons
+  // For now, we'll leave these as no-ops since the tree component manages its own state
+  console.log('Expand all - he-tree manages expansion state internally')
 }
 
 function collapseAll() {
-  expandedNodeIds.value = []
+  // he-tree handles expansion/collapse internally via user interaction with expand buttons
+  console.log('Collapse all - he-tree manages expansion state internally')
 }
 
-function expandToNode(nodeId: string) {
-  // Get path to node and expand all ancestors
-  const path = documentStore.getNodePath(nodeId)
-  for (const node of path) {
-    if (!expandedNodeIds.value.includes(node.id)) {
-      expandedNodeIds.value.push(node.id)
-    }
-  }
-}
+// Initial load
+treeData.value = buildTreeFromStore()
 
-// ============================================================
-// SYNC WITH STORE
-// ============================================================
-
-// Sync selection from store on mount
-onMounted(() => {
-  const storeSelectedIds = documentStore.selectedNodeIds
-  if (storeSelectedIds.length > 0) {
-    selectedNodeIds.value = [...storeSelectedIds]
-    selectedNodeId.value = storeSelectedIds[0] ?? null
-  }
-  // Expand all initially
-  expandAll()
+// Watch store for changes
+watch(() => documentStore.nodes.length, () => {
+  treeData.value = buildTreeFromStore()
 })
 
-// Watch for external selection changes (fallback)
-watch(
-  () => documentStore.selectedNodeIds,
-  (newIds) => {
-    selectedNodeIds.value = [...newIds]
-    if (newIds.length > 0) {
-      selectedNodeId.value = newIds[0] ?? null
-    } else {
-      selectedNodeId.value = null
+// Listen for store events from other views
+onStoreEvent('store:node-created', () => {
+  treeData.value = buildTreeFromStore()
+})
+
+onStoreEvent('store:node-deleted', () => {
+  treeData.value = buildTreeFromStore()
+})
+
+onStoreEvent('store:node-updated', ({ nodeId, changes }) => {
+  // Update local tree item
+  const updateItem = (items: OutlineTreeItem[]): boolean => {
+    for (const item of items) {
+      if (item.id === nodeId) {
+        if (changes.title !== undefined) {
+          item.text = changes.title
+        }
+        return true
+      }
+      if (updateItem(item.children)) return true
     }
+    return false
   }
-)
+  updateItem(treeData.value)
+})
+
+onStoreEvent('store:node-reparented', () => {
+  treeData.value = buildTreeFromStore()
+})
+
+onStoreEvent('store:siblings-reordered', () => {
+  treeData.value = buildTreeFromStore()
+})
+
+// Listen to select-navigate events from other views
+onStoreEvent('store:select-navigate', ({ nodeId }) => {
+  // Scroll the node into view
+  if (nodeId) {
+    setTimeout(() => {
+      const outlineView = document.querySelector('.outline-view')
+      if (outlineView) {
+        const nodeElement = outlineView.querySelector(`[data-node-id="${nodeId}"]`)
+        if (nodeElement) {
+          nodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }
+    }, 100)
+  }
+})
+
+const nodeCount = computed(() => documentStore.nodeCount)
 </script>
 
 <style scoped lang="scss">
@@ -355,53 +296,11 @@ watch(
 .outline-tree-container {
   flex: 1;
   padding: 8px;
+  overflow-y: auto;
 }
 
-.outline-node-header {
-  display: flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-
-  &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-
-    .body--dark & {
-      background-color: rgba(255, 255, 255, 0.05);
-    }
-  }
-}
-
-.outline-node-selected {
-  background-color: rgba(25, 118, 210, 0.1);
-
-  .outline-node-title {
-    color: #1976d2;
-    font-weight: 500;
-  }
-
-  .body--dark & {
-    background-color: rgba(25, 118, 210, 0.2);
-
-    .outline-node-title {
-      color: #42a5f5;
-    }
-  }
-}
-
-.outline-node-root {
-  .outline-node-title {
-    font-weight: 600;
-  }
-}
-
-.outline-node-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.outline-tree {
+  padding: 4px 0;
 }
 
 .outline-empty {
@@ -411,6 +310,31 @@ watch(
   justify-content: center;
   height: 100%;
   padding: 32px;
+}
+
+// Override he-tree default styles for outline view
+:deep(.he-tree) {
+  .tree-node {
+    margin-bottom: 2px;
+  }
+
+  // Show tree lines for outline view
+  .tree-line {
+    display: block;
+    border-color: rgba(0, 0, 0, 0.1);
+
+    .body--dark & {
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+  }
+}
+
+// Drag placeholder styling
+:deep(.he-tree-drag-placeholder) {
+  background-color: rgba(25, 118, 210, 0.1);
+  border: 2px dashed rgba(25, 118, 210, 0.4);
+  border-radius: 4px;
+  min-height: 32px;
 }
 </style>
 
