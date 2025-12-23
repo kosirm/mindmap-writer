@@ -12,6 +12,16 @@ export interface KeyboardHandlerOptions {
 }
 
 /**
+ * Keyboard handler options for navigation-only mode (no editor)
+ */
+export interface NavigationHandlerOptions {
+  onUpArrow?: () => void
+  onDownArrow?: () => void
+  onAltLeftArrow?: () => void
+  onAltRightArrow?: () => void
+}
+
+/**
  * Create keyboard event handler for Tiptap editor in Outline view
  * Handles arrow key navigation between nodes
  *
@@ -146,6 +156,47 @@ export function createKeyboardHandler(options: KeyboardHandlerOptions) {
           }
         }
       }
+    }
+
+    return false
+  }
+}
+
+/**
+ * Create keyboard event handler for navigation-only mode (when edit mode is OFF)
+ * Handles arrow key navigation without requiring Tiptap editor
+ *
+ * @param options - Callback functions for different keyboard events
+ * @returns handleKeyDown function for regular DOM element
+ */
+export function createNavigationHandler(options: NavigationHandlerOptions) {
+  return (event: KeyboardEvent): boolean => {
+    // Handle Up arrow - move to previous node
+    if (event.key === 'ArrowUp' && !event.shiftKey && !event.ctrlKey && !event.metaKey && options.onUpArrow) {
+      event.preventDefault()
+      options.onUpArrow()
+      return true
+    }
+
+    // Handle Down arrow - move to next node
+    if (event.key === 'ArrowDown' && !event.shiftKey && !event.ctrlKey && !event.metaKey && options.onDownArrow) {
+      event.preventDefault()
+      options.onDownArrow()
+      return true
+    }
+
+    // Handle Alt+Left arrow - collapse node
+    if (event.key === 'ArrowLeft' && event.altKey && options.onAltLeftArrow) {
+      event.preventDefault()
+      options.onAltLeftArrow()
+      return true
+    }
+
+    // Handle Alt+Right arrow - expand node
+    if (event.key === 'ArrowRight' && event.altKey && options.onAltRightArrow) {
+      event.preventDefault()
+      options.onAltRightArrow()
+      return true
     }
 
     return false

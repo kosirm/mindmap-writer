@@ -22,20 +22,33 @@
       <q-icon name="drag_indicator" size="18px" />
     </div>
 
-    <!-- Node title -->
+<!-- Node title -->
     <div class="node-title-wrapper">
-      <div
-        v-if="!isEditing"
-        class="node-title"
-        v-html="displayTitle"
-        @click.stop="handleTitleClick"
-      ></div>
-      <EditorContent
-        v-else-if="titleEditor"
-        :editor="titleEditor"
-        class="node-title editing"
-        @click.stop
-      />
+      <!-- Edit mode ON: Show editor when editing, show title when not editing -->
+      <template v-if="props.isEditMode">
+        <div
+          v-if="!isEditing"
+          class="node-title edit-mode"
+          v-html="displayTitle"
+          @click.stop="handleTitleClick"
+        ></div>
+        <EditorContent
+          v-else-if="titleEditor"
+          :editor="titleEditor"
+          class="node-title editing"
+          @click.stop
+        />
+      </template>
+
+      <!-- Edit mode OFF: Always show title, no editor -->
+      <template v-else>
+        <div
+          class="node-title navigation-mode"
+          v-html="displayTitle"
+          @keydown="handleNavigationKeydown"
+          tabindex="0"
+        ></div>
+      </template>
     </div>
   </div>
 </template>
@@ -47,7 +60,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { MindscribbleNode } from '../../../core/types'
 import { useDocumentStore } from '../../../core/stores'
-import { createKeyboardHandler } from '../composables/useOutlineKeyboardHandlers'
+import { createKeyboardHandler, createNavigationHandler } from '../composables/useOutlineKeyboardHandlers'
 import type { useOutlineNavigation } from '../composables/useOutlineNavigation'
 
 const props = defineProps<{
@@ -57,6 +70,7 @@ const props = defineProps<{
     open: boolean
   }
   triggerClass: string
+  isEditMode: boolean
 }>()
 
 const documentStore = useDocumentStore()
@@ -99,11 +113,76 @@ function handleNodeClick(event: MouseEvent) {
   } else {
     // Regular click: Select without navigation
     documentStore.selectNode(props.node.id, 'outline', false)
+
+    // If in navigation mode (edit mode OFF), focus this node
+    if (!props.isEditMode) {
+      void nextTick(() => {
+        focusNode(props.node.id)
+      })
+    }
   }
 }
 
 function handleTitleClick() {
-  openTitleEditor('end')
+  // Only open editor if edit mode is ON
+  if (props.isEditMode) {
+    openTitleEditor('end')
+  }
+}
+
+function handleNavigationKeydown(event: KeyboardEvent) {
+  // Only handle navigation in edit mode OFF
+  if (props.isEditMode) return
+
+  const navigationHandler = createNavigationHandler({
+    onUpArrow: () => {
+      if (navigation) {
+        const prevNode = navigation.getPreviousNode(props.node.id)
+        if (prevNode) {
+          // Select the previous node and focus it
+          documentStore.selectNode(prevNode.id, 'outline', false)
+          void nextTick(() => {
+            focusNode(prevNode.id)
+          })
+        }
+      }
+    },
+    onDownArrow: () => {
+      if (navigation) {
+        const nextNode = navigation.getNextNode(props.node.id)
+        if (nextNode) {
+          // Select the next node and focus it
+          documentStore.selectNode(nextNode.id, 'outline', false)
+          void nextTick(() => {
+            focusNode(nextNode.id)
+          })
+        }
+      }
+    },
+    onAltLeftArrow: () => {
+      // Collapse node if it has children and is expanded
+      if (props.stat.children.length > 0) {
+        documentStore.collapseNode(props.node.id, 'outline')
+      }
+    },
+    onAltRightArrow: () => {
+      // Expand node if it has children and is collapsed
+      if (props.stat.children.length > 0) {
+        documentStore.expandNode(props.node.id, 'outline')
+      }
+    }
+  })
+
+  navigationHandler(event)
+}
+
+// Focus a specific node when in navigation mode
+function focusNode(nodeId: string) {
+  // Find the node element and focus it
+  const nodeElement = document.querySelector(`[data-node-id="${nodeId}"] .node-title`)
+  if (nodeElement) {
+    (nodeElement as HTMLElement).focus()
+  }
 }
 
 // Navigation helper
@@ -116,7 +195,8 @@ function navigateToNode(nodeId: string, cursorPosition: 'start' | 'end') {
 
 // Title editor
 function openTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
-  if (isEditing.value) return
+  // Only open editor if edit mode is ON
+  if (!props.isEditMode || isEditing.value) return
   documentStore.selectNode(props.node.id, 'outline', false)
   isEditing.value = true
   void nextTick(() => createTitleEditor(cursorPosition))
@@ -204,6 +284,22 @@ outlineEmitter?.on('open-title-editor', (payload: unknown) => {
   const { nodeId, cursorPosition } = payload as { nodeId: string; cursorPosition: 'start' | 'end' }
   if (nodeId === props.node.id) {
     openTitleEditor(cursorPosition)
+  }
+})
+
+// Watch for edit mode changes - close editor if toggled off
+watch(() => props.isEditMode, (newEditMode) => {
+  if (!newEditMode && isEditing.value) {
+    destroyTitleEditor()
+  }
+})
+
+// Watch for selection changes - focus node when selected in navigation mode
+watch(isSelected, (selected) => {
+  if (selected && !props.isEditMode) {
+    void nextTick(() => {
+      focusNode(props.node.id)
+    })
   }
 })
 
@@ -303,10 +399,18 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.5;
   color: var(--ms-text-primary);
-  cursor: text;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  outline: none; // Remove default focus outline
+
+  &.navigation-mode {
+    cursor: default; // Default cursor in navigation mode
+  }
+
+  &.edit-mode {
+    cursor: text; // Text cursor in edit mode
+  }
 
   :deep(.placeholder) {
     color: var(--ms-text-secondary);
