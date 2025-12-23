@@ -1,0 +1,12 @@
+- create file
+- rename file
+- delete file
+- move file
+- copy file
+- paste file
+- create folder
+- rename folder
+- delete folder
+- move folder
+- copy folder
+- paste folder
