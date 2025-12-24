@@ -1,6 +1,5 @@
 import { computed, type Ref } from 'vue'
 import type { MindscribbleNode } from '../../../core/types'
-import { useDocumentStore } from '../../../core/stores/documentStore'
 
 /**
  * Represents a node in the flattened outline structure
@@ -15,17 +14,21 @@ export interface OutlineTreeItem {
 /**
  * Flatten the tree into a linear sequence of visible nodes only
  * This creates a depth-first traversal but only includes expanded nodes
+ *
+ * IMPORTANT: This function directly accesses node.views.outline.expanded to ensure
+ * Vue's reactivity system tracks these reads and triggers recomputation when they change
  */
-function flattenVisibleTree(items: OutlineTreeItem[], documentStore: ReturnType<typeof useDocumentStore>, result: MindscribbleNode[] = []): MindscribbleNode[] {
+function flattenVisibleTree(items: OutlineTreeItem[], result: MindscribbleNode[] = []): MindscribbleNode[] {
   for (const item of items) {
     // Add the current node (always visible)
     result.push(item.node)
 
     // Recursively process children only if node is expanded
+    // Access the expansion state directly from the node to ensure reactivity
     if (item.children && item.children.length > 0) {
-      const isExpanded = documentStore.isNodeExpanded(item.id)
+      const isExpanded = item.node.views.outline?.expanded ?? true
       if (isExpanded) {
-        flattenVisibleTree(item.children, documentStore, result)
+        flattenVisibleTree(item.children, result)
       }
     }
   }
@@ -40,13 +43,13 @@ function flattenVisibleTree(items: OutlineTreeItem[], documentStore: ReturnType<
  * @returns Navigation functions for keyboard navigation
  */
 export function useOutlineNavigation(treeData: Ref<OutlineTreeItem[]>) {
-  const documentStore = useDocumentStore()
-
   /**
    * Get flattened list of all visible nodes in the document
+   * This computed is reactive to both treeData changes AND expansion state changes
+   * because flattenVisibleTree directly accesses node.views.outline.expanded
    */
   const flattenedNodes = computed<MindscribbleNode[]>(() => {
-    return flattenVisibleTree(treeData.value, documentStore)
+    return flattenVisibleTree(treeData.value)
   })
 
   /**

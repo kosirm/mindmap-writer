@@ -61,5 +61,5 @@ export default boot(({ app }) => {
   app.component('view-tab', ViewTab)
   app.component('file-tab', FileTab)
 
-  console.log('Dockview components registered with lazy loading')
+  // console.log('Dockview components registered with lazy loading')
 })

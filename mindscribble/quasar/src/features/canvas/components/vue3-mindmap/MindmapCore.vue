@@ -708,7 +708,7 @@ export default defineComponent({
       })
 
       // Add click handler to text group for selection
-      console.log('🔧 Setting up click handler for', gText.size(), 'text groups')
+      // console.log('🔧 Setting up click handler for', gText.size(), 'text groups')
       gText.on('click', (event: MouseEvent, d) => {
         console.log('🖐️ Click handler called for node:', d.data.id, 'event:', event, 'ctrlKey:', event.ctrlKey, 'shiftKey:', event.shiftKey)
         event.stopPropagation()
@@ -1115,33 +1115,33 @@ export default defineComponent({
         return
       }
 
-      console.log('🎨 Updating selection styles for nodes:', [...selectedNodeIds.value])
+      // console.log('🎨 Updating selection styles for nodes:', [...selectedNodeIds.value])
 
       // Remove selected class from all nodes
       currentG.selectAll('.node').classed('selected', false)
 
       // Add selected class to selected nodes
       selectedNodeIds.value.forEach(nodeId => {
-        console.log('🔍 Applying selected style to node:', nodeId)
+        // console.log('🔍 Applying selected style to node:', nodeId)
         const selection = currentG.selectAll('.node')
           .filter(function(d: unknown) {
             const nodeData = d as { data: { id: string } }
             return nodeData.data.id === nodeId
           })
 
-        console.log('📊 Found', selection.size(), 'nodes matching', nodeId)
+        // console.log('📊 Found', selection.size(), 'nodes matching', nodeId)
         selection.classed('selected', true)
 
         // Log the actual DOM elements
-        selection.each(function() {
-          console.log('🏷️ Applied selected class to element:', this)
-        })
+        // selection.each(function() {
+        //   console.log('🏷️ Applied selected class to element:', this)
+        // })
       })
     }
 
     // Listen to selection changes from other views via event bus
     onStoreEvent('store:node-selected', ({ nodeId }) => {
-      console.log('👀 Single node selected in store:', nodeId)
+      // console.log('👀 Single node selected in store:', nodeId)
       selectedNodeIds.value = nodeId ? [nodeId] : []
       void nextTick(() => {
         updateSelectedNodeStyles()
@@ -1149,7 +1149,7 @@ export default defineComponent({
     })
 
     onStoreEvent('store:nodes-selected', ({ nodeIds }) => {
-      console.log('👀 Multiple nodes selected in store:', [...nodeIds])
+      // console.log('👀 Multiple nodes selected in store:', [...nodeIds])
       selectedNodeIds.value = nodeIds
       void nextTick(() => {
         updateSelectedNodeStyles()

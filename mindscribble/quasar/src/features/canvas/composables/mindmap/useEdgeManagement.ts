@@ -156,7 +156,7 @@ export function useEdgeManagement(
    * Uses closest handle approach - connects to nearest of 4 connection points
    */
   function updateAllEdgeHandles() {
-    console.log('Updating all edge handles (closest handle approach)')
+    // console.log('Updating all edge handles (closest handle approach)')
 
     for (const node of nodes.value) {
       if (!node.parentId) continue // Skip root nodes

@@ -36,7 +36,7 @@ function onReady(event: { api: DockviewApi }) {
   dockviewApi.value = event.api
 
   // Theme is now applied via :class binding in template
-  console.log('🎨 [DockviewLayout] Parent dockview ready, theme applied via template binding')
+  // console.log('🎨 [DockviewLayout] Parent dockview ready, theme applied via template binding')
 
   // Set up auto-save on parent layout changes
   dockviewApi.value.onDidLayoutChange(() => {
@@ -217,7 +217,7 @@ function updateFilePanelTabs() {
     }
   })
 
-  console.log('✅ Updated all file panel tabs to use custom tab component')
+  // console.log('✅ Updated all file panel tabs to use custom tab component')
 }
 
 // Expose functions to parent component (MainLayout)
@@ -289,7 +289,7 @@ onMounted(() => {
   window.addEventListener('file:close', handleFileClose)
 
   // Log initial state
-  console.log('DockviewLayout mounted. Current document:', documentStore.documentName)
+  // console.log('DockviewLayout mounted. Current document:', documentStore.documentName)
   console.log('Drive store state:', {
     hasOpenFile: driveStore.hasOpenFile,
     currentFile: driveStore.currentFile?.name || 'none'
