@@ -37,7 +37,7 @@ export const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
     label: 'Mindmap',
     icon: 'account_tree',
     description: 'Visual mindmap canvas',
-    component: 'MindmapView'
+    component: 'Vue3MindmapView'
   },
   'concept-map': {
     type: 'concept-map',
