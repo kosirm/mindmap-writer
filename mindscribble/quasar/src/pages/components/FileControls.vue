@@ -45,7 +45,6 @@ const availableViews = [
   'vue3-mindmap-panel',
   'writer-panel',
   'outline-panel',
-  'concept-map-panel',
   'd3-concept-map-panel'
 ]
 

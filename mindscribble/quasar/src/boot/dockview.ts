@@ -13,7 +13,7 @@ import FileTab from 'src/pages/components/FileTab.vue'
 
 // Lazy load view components - they'll only be loaded when actually used
 const MindmapPanel = defineAsyncComponent(() =>
-  import('src/pages/components/MindmapPanel.vue')
+  import('src/pages/components/Vue3MindmapPanel.vue')
 )
 
 const WriterPanel = defineAsyncComponent(() =>
