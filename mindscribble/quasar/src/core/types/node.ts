@@ -33,13 +33,8 @@ export interface Size {
  * Hierarchical layout with orientation support
  */
 export interface MindmapViewData {
-  position: Position | null      // null = needs calculation by layout engine
-  collapsed?: boolean            // Children hidden (for non-root nodes)
-  collapsedLeft?: boolean        // Left children hidden (for root node)
-  collapsedRight?: boolean       // Right children hidden (for root node)
-  isDirty?: boolean              // Needs recalculation
-  lastCalculatedZoom?: number    // Zoom level when position was calculated
-  left?: boolean                 // Left side placement for vue3-mindmap
+  position?: Position | null      // Position in mindmap view
+  collapsed?: boolean            // Children hidden
   side?: 'left' | 'right' | null  // Side placement for root nodes
 }
 
@@ -78,16 +73,6 @@ export interface OutlineViewData {
 }
 
 /**
- * Vue3 Mindmap view-specific data
- * For vue3-mindmap visualization
- */
-export interface Vue3MindmapViewData {
-  position?: Position | null      // Position in vue3-mindmap view
-  collapsed?: boolean            // Children hidden
-  side?: 'left' | 'right' | null  // Side placement for root nodes
-}
-
-/**
  * All view-specific data for a node
  * Extensible - add new views as needed
  */
@@ -96,7 +81,6 @@ export interface NodeViewData {
   conceptMap?: ConceptMapViewData
   timeline?: TimelineViewData
   kanban?: KanbanViewData
-  vue3mindmap?: Vue3MindmapViewData
   outline?: OutlineViewData
   // Future views:
   // treemap?: TreemapViewData
@@ -133,7 +117,7 @@ export interface NodeData {
   color?: string
   icon?: string
 
-  // Side placement for vue3-mindmap (root nodes only)
+  // Side placement for mindmap (root nodes only)
   side?: 'left' | 'right' | null
 }
 

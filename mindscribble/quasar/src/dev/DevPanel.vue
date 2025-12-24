@@ -9,10 +9,10 @@
     <q-expansion-item
       default-opened
       icon="graph_1"
-      label="Vue3-Mindmap"
+      label="Mindmap"
       header-class="text-primary"
     >
-      <Vue3MindmapDevTools />
+      <MindmapDevTools />
     </q-expansion-item>
 
     <q-separator class="q-my-md" />
@@ -49,7 +49,7 @@
 
 <script setup lang="ts">
 import { useDocumentStore } from 'src/core/stores/documentStore'
-import Vue3MindmapDevTools from './Vue3MindmapDevTools.vue'
+import MindmapDevTools from './MindmapDevTools.vue'
 
 const documentStore = useDocumentStore()
 

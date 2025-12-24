@@ -1,15 +1,15 @@
 import { computed } from 'vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useViewEvents } from 'src/core/events'
-import type { Data } from '../components/vue3-mindmap/types/mindmap-types'
+import type { Data } from '../components/mindmap/types/mindmap-types'
 import type { MindscribbleNode } from 'src/core/types/node'
 
-export function useVue3MindmapIntegration() {
+export function useMindmapIntegration() {
   const documentStore = useDocumentStore()
-  const { onStoreEvent } = useViewEvents('vue3-mindmap')
+  const { onStoreEvent } = useViewEvents('mindmap')
 
   /**
-   * Transform MindScribble nodes to vue3-mindmap format
+   * Transform MindScribble nodes to mindmap format
    */
   const mindmapData = computed<Data[]>(() => {
     return transformNodesToMindmapFormat(documentStore.nodes)
@@ -19,7 +19,7 @@ export function useVue3MindmapIntegration() {
    * Handle node selection
    */
   function handleNodeSelect(nodeId: string) {
-    documentStore.selectNode(nodeId, 'vue3-mindmap', false)
+    documentStore.selectNode(nodeId, 'mindmap', false)
   }
 
   /**
@@ -44,7 +44,7 @@ export function useVue3MindmapIntegration() {
   * Handle node side changes
   */
  function handleNodeSideChange(nodeId: string, newSide: 'left' | 'right') {
-   documentStore.setNodeSide(nodeId, newSide, 'vue3-mindmap')
+   documentStore.setNodeSide(nodeId, newSide, 'mindmap')
  }
 
   /**
@@ -105,15 +105,14 @@ function transformNodesToMindmapFormat(nodes: MindscribbleNode[]): Data[] {
     // Get side information from node data or view data
     const side = node.data.side
       || node.views.mindmap?.side
-      || node.views.vue3mindmap?.side
       || undefined
 
     return {
       name: node.data.title,
       children: children.map(convertNode),
-      left: side === 'left',  // vue3-mindmap uses 'left' boolean
+      left: side === 'left',  // mindmap uses 'left' boolean
       collapse: node.views.mindmap?.collapsed ?? false,
-      ...(node.views.vue3mindmap || {})
+      ...(node.views.mindmap || {})
     }
   }
 

@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export const useVue3MindmapSettingsStore = defineStore('vue3MindmapSettings', () => {
-  // Vue3-Mindmap specific settings
+export const useMindmapSettingsStore = defineStore('mindmapSettings', () => {
+  // Mindmap specific settings
   const branchThickness = ref(2)
   const xGap = ref(50)
   const yGap = ref(150)

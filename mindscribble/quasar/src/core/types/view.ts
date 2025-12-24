@@ -13,7 +13,6 @@ export type ViewType =
   | 'treemap'
   | 'd3-mindmap'
   | 'd3-concept-map'
-  | 'vue3-mindmap'
 
 export interface ViewConfig {
   type: ViewType
@@ -36,7 +35,7 @@ export const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
     label: 'Mindmap',
     icon: 'account_tree',
     description: 'Visual mindmap canvas',
-    component: 'Vue3MindmapView'
+    component: 'MindmapView'
   },
   writer: {
     type: 'writer',
@@ -94,12 +93,5 @@ export const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
     description: 'D3-based concept map visualization',
     component: 'D3ConceptMapView'
   },
-  'vue3-mindmap': {
-    type: 'vue3-mindmap',
-    label: 'Vue3 Mindmap',
-    icon: 'account_tree',
-    description: 'Vue3-based mindmap visualization',
-    component: 'Vue3MindmapView'
-  }
 }
 

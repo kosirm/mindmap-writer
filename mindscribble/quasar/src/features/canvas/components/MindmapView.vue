@@ -1,5 +1,5 @@
 <template>
-  <div class="vue3-mindmap-view">
+  <div class="mindmap-view">
     <MindmapCore
       :modelValue="mindmapData"
       :branch="branchThickness"
@@ -17,9 +17,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { useVue3MindmapIntegration } from '../composables/useVue3MindmapIntegration'
-import MindmapCore from './vue3-mindmap/MindmapCore.vue'
-import { useVue3MindmapSettingsStore } from 'src/dev/vue3MindmapSettingsStore'
+import { useMindmapIntegration } from '../composables/useMindmapIntegration'
+import MindmapCore from './mindmap/MindmapCore.vue'
+import { useMindmapSettingsStore } from 'src/dev/MindmapSettingsStore'
 
 const {
   mindmapData,
@@ -27,30 +27,30 @@ const {
   handleNodeOperation,
   handleNodeSideChange,
   setupStoreEventListeners
-} = useVue3MindmapIntegration()
+} = useMindmapIntegration()
 
-const vue3MindmapSettings = useVue3MindmapSettingsStore()
+const mindmapSettings = useMindmapSettingsStore()
 
 // Configuration - use settings from store
-const branchThickness = ref(vue3MindmapSettings.branchThickness)
-const horizontalSpacing = ref(vue3MindmapSettings.xGap)
-const verticalSpacing = ref(vue3MindmapSettings.yGap)
-const groupSpacing = ref(vue3MindmapSettings.groupSpacing)
+const branchThickness = ref(mindmapSettings.branchThickness)
+const horizontalSpacing = ref(mindmapSettings.xGap)
+const verticalSpacing = ref(mindmapSettings.yGap)
+const groupSpacing = ref(mindmapSettings.groupSpacing)
 
 // Watch for settings changes and update local refs
-watch(() => vue3MindmapSettings.branchThickness, (newVal) => {
+watch(() => mindmapSettings.branchThickness, (newVal) => {
   branchThickness.value = newVal
 }, { immediate: true })
 
-watch(() => vue3MindmapSettings.xGap, (newVal) => {
+watch(() => mindmapSettings.xGap, (newVal) => {
   horizontalSpacing.value = newVal
 }, { immediate: true })
 
-watch(() => vue3MindmapSettings.yGap, (newVal) => {
+watch(() => mindmapSettings.yGap, (newVal) => {
   verticalSpacing.value = newVal
 }, { immediate: true })
 
-watch(() => vue3MindmapSettings.groupSpacing, (newVal) => {
+watch(() => mindmapSettings.groupSpacing, (newVal) => {
   groupSpacing.value = newVal
 }, { immediate: true })
 
@@ -60,13 +60,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.vue3-mindmap-view {
+.mindmap-view {
   width: 100%;
   height: 100%;
   position: relative;
 }
 
-:deep(.vue3-mindmap-container) {
+:deep(.mindmap-container) {
   width: 100%;
   height: 100%;
 }

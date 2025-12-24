@@ -13,7 +13,7 @@ import FileTab from 'src/pages/components/FileTab.vue'
 
 // Lazy load view components - they'll only be loaded when actually used
 const MindmapPanel = defineAsyncComponent(() =>
-  import('src/pages/components/Vue3MindmapPanel.vue')
+  import('src/pages/components/MindmapPanel.vue')
 )
 
 const WriterPanel = defineAsyncComponent(() =>
@@ -33,9 +33,6 @@ const D3ConceptMapPanel = defineAsyncComponent(() =>
   import('src/pages/components/D3ConceptMapPanel.vue')
 )
 
-const Vue3MindmapPanel = defineAsyncComponent(() =>
-  import('src/pages/components/Vue3MindmapPanel.vue')
-)
 
 export default boot(({ app }) => {
   // Register child panel components (views)
@@ -44,7 +41,6 @@ export default boot(({ app }) => {
   app.component('outline-panel', OutlinePanel)
   app.component('d3-mindmap-panel', D3MindmapPanel)
   app.component('d3-concept-map-panel', D3ConceptMapPanel)
-  app.component('vue3-mindmap-panel', Vue3MindmapPanel)
 
   // Register parent panel component (file)
   app.component('file-panel', FilePanel)

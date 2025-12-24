@@ -1,6 +1,6 @@
 <template>
-  <div class="vue3-mindmap-panel">
-    <Vue3MindmapView />
+  <div class="mindmap-panel">
+    <MindmapView />
 
     <!-- Shield overlay to block pointer events during dockview drag -->
     <div v-if="isDraggingPanel" class="drag-shield"></div>
@@ -9,33 +9,33 @@
 
 <script setup lang="ts">
 import { onMounted, watch, inject, type Ref } from 'vue'
-import Vue3MindmapView from 'src/features/canvas/components/Vue3MindmapView.vue'
+import MindmapView from 'src/features/canvas/components/MindmapView.vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
 
 defineOptions({
-  name: 'Vue3MindmapPanelComponent'
+  name: 'MindmapPanelComponent'
 })
 
 const documentStore = useDocumentStore()
 const isDraggingPanel = inject<Ref<boolean>>('isDraggingPanel')
 
 onMounted(() => {
-  // Ensure the document store is set to vue3-mindmap view when this panel is active
-  if (documentStore.activeView !== 'vue3-mindmap') {
-    documentStore.switchView('vue3-mindmap', 'vue3-mindmap')
+  // Ensure the document store is set to mindmap view when this panel is active
+  if (documentStore.activeView !== 'mindmap') {
+    documentStore.switchView('mindmap', 'mindmap')
   }
 })
 
 // Watch for active view changes
 watch(() => documentStore.activeView, (newView) => {
-  if (newView !== 'vue3-mindmap') {
+  if (newView !== 'mindmap') {
     // Handle view changes if needed
   }
 })
 </script>
 
 <style scoped lang="scss">
-.vue3-mindmap-panel {
+.mindmap-panel {
   width: 100%;
   height: 100%;
   overflow: hidden;

@@ -121,7 +121,7 @@ export interface SiblingsReorderedPayload extends BasePayload {
   newOrders: Map<string, number>
 }
 
-/** Node side changed (for vue3-mindmap) */
+/** Node side changed (for mindmap) */
 export interface NodeSideChangedPayload extends BasePayload {
   nodeId: string
   newSide: 'left' | 'right' | null
