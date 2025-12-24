@@ -15,7 +15,7 @@ import type { ViewType } from './view'
  * Orientation mode for mindmap layout
  * Determines how children are ordered around the root
  *
- * Clockwise:      AntiClockwise:
+ * Clockwise:      Counter-Clockwise (anticlockwise):
  * | 6 |      | 1 |   | 1 |      | 6 |
  * | 5 | root | 2 |   | 2 | root | 5 |
  * | 4 |      | 3 |   | 3 |      | 4 |
@@ -25,7 +25,7 @@ import type { ViewType } from './view'
  * | 2 | root | 5 |   | 5 | root | 2 |
  * | 3 |      | 6 |   | 6 |      | 3 |
  */
-export type OrientationMode = 'clockwise' | 'anticlockwise' | 'left-right' | 'right-left'
+export type OrientationMode = 'clockwise' | 'counter-clockwise' | 'anticlockwise' | 'left-right' | 'right-left'
 
 // ============================================================
 // AI CONTEXT

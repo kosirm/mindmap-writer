@@ -24,9 +24,6 @@ const OutlinePanel = defineAsyncComponent(() =>
   import('src/pages/components/OutlinePanel.vue')
 )
 
-const ConceptMapPanel = defineAsyncComponent(() =>
-  import('src/pages/components/ConceptMapPanel.vue')
-)
 
 const D3MindmapPanel = defineAsyncComponent(() =>
   import('src/pages/components/D3MindmapPanel.vue')
@@ -45,7 +42,6 @@ export default boot(({ app }) => {
   app.component('mindmap-panel', MindmapPanel)
   app.component('writer-panel', WriterPanel)
   app.component('outline-panel', OutlinePanel)
-  app.component('concept-map-panel', ConceptMapPanel)
   app.component('d3-mindmap-panel', D3MindmapPanel)
   app.component('d3-concept-map-panel', D3ConceptMapPanel)
   app.component('vue3-mindmap-panel', Vue3MindmapPanel)

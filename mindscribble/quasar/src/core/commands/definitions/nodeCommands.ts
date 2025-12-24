@@ -27,7 +27,7 @@ export const nodeCommands: Command[] = [
     showInPalette: true,
     showInContextMenu: false,
     scope: {
-      views: ['mindmap', 'concept-map'],
+      views: ['mindmap', 'd3-concept-map'],
     },
     execute: (ctx) => {
       // Emit event for mindmap view to handle
@@ -47,7 +47,7 @@ export const nodeCommands: Command[] = [
     showInPalette: true,
     showInContextMenu: true,
     scope: {
-      views: ['mindmap', 'concept-map', 'outline', 'writer'],
+      views: ['mindmap', 'd3-concept-map', 'outline', 'writer'],
       requiresSelection: true,
     },
     when: (ctx) => ctx.selectedNodeIds.length > 0,
@@ -68,7 +68,7 @@ export const nodeCommands: Command[] = [
     showInPalette: true,
     showInContextMenu: true,
     scope: {
-      views: ['mindmap', 'concept-map', 'outline', 'writer'],
+      views: ['mindmap', 'd3-concept-map', 'outline', 'writer'],
       requiresSelection: true,
     },
     when: (ctx) => ctx.selectedNodeIds.length > 0,
@@ -139,7 +139,7 @@ export const nodeCommands: Command[] = [
     showInPalette: true,
     showInContextMenu: true,
     scope: {
-      views: ['mindmap', 'concept-map', 'outline'],
+      views: ['mindmap', 'd3-concept-map', 'outline'],
       requiresSelection: true,
     },
     when: (ctx) => ctx.selectedNodeIds.length === 1,
@@ -163,7 +163,7 @@ export const nodeCommands: Command[] = [
     showInPalette: true,
     showInContextMenu: true,
     scope: {
-      views: ['mindmap', 'concept-map'],
+      views: ['mindmap', 'd3-concept-map'],
       requiresSelection: true,
     },
     when: (ctx) => ctx.selectedNodeIds.length === 1,
@@ -172,4 +172,3 @@ export const nodeCommands: Command[] = [
     },
   },
 ]
-

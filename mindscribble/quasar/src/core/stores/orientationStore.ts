@@ -7,19 +7,20 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { OrientationMode } from 'src/features/canvas/composables/mindmap/useOrientationSort'
+import type { OrientationMode } from '../types'
 
 export const useOrientationStore = defineStore('orientation', () => {
   // Current orientation mode (default: counter-clockwise)
   const orientation = ref<OrientationMode>('counter-clockwise')
 
   // All available orientations
-  const orientations: OrientationMode[] = ['clockwise', 'counter-clockwise', 'left-right', 'right-left']
+  const orientations: OrientationMode[] = ['clockwise', 'counter-clockwise', 'anticlockwise', 'left-right', 'right-left']
 
   // Get display label for orientation
   const orientationLabels: Record<OrientationMode, string> = {
     'clockwise': 'Clockwise',
     'counter-clockwise': 'Counter-Clockwise',
+    'anticlockwise': 'Counter-Clockwise',
     'left-right': 'Left → Right',
     'right-left': 'Right → Left'
   }
@@ -28,6 +29,7 @@ export const useOrientationStore = defineStore('orientation', () => {
   const orientationIcons: Record<OrientationMode, string> = {
     'clockwise': 'rotate_right',
     'counter-clockwise': 'rotate_left',
+    'anticlockwise': 'rotate_left',
     'left-right': 'arrow_forward',
     'right-left': 'arrow_back'
   }
@@ -56,4 +58,3 @@ export const useOrientationStore = defineStore('orientation', () => {
     cycleOrientation
   }
 })
-

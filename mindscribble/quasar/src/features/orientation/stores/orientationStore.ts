@@ -22,7 +22,7 @@ export const useOrientationStore = defineStore('orientation', () => {
   }
 
   function cycleMode() {
-    const modes: OrientationMode[] = ['clockwise', 'anticlockwise', 'left-right', 'right-left']
+    const modes: OrientationMode[] = ['clockwise', 'anticlockwise', 'counter-clockwise', 'left-right', 'right-left']
     const currentIndex = modes.indexOf(mode.value)
     const nextIndex = (currentIndex + 1) % modes.length
     mode.value = modes[nextIndex] as OrientationMode
@@ -40,6 +40,7 @@ export const useOrientationStore = defineStore('orientation', () => {
         // 6,5,4 on left (top-to-bottom), 1,2,3 on right (top-to-bottom)
         return childOrder <= halfPoint ? 'right' : 'left'
       case 'anticlockwise':
+      case 'counter-clockwise':
         // 1,2,3 on left (top-to-bottom), 6,5,4 on right (top-to-bottom)
         return childOrder <= halfPoint ? 'left' : 'right'
       case 'left-right':

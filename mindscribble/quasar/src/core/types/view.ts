@@ -5,7 +5,6 @@
 export type ViewType =
   | 'outline'
   | 'mindmap'
-  | 'concept-map'
   | 'writer'
   | 'kanban'
   | 'timeline'
@@ -38,13 +37,6 @@ export const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
     icon: 'account_tree',
     description: 'Visual mindmap canvas',
     component: 'Vue3MindmapView'
-  },
-  'concept-map': {
-    type: 'concept-map',
-    label: 'Concept Map',
-    icon: 'hub',
-    description: 'Free-form concept mapping',
-    component: 'ConceptMapView'
   },
   writer: {
     type: 'writer',
@@ -105,7 +97,7 @@ export const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
   'vue3-mindmap': {
     type: 'vue3-mindmap',
     label: 'Vue3 Mindmap',
-    icon: 'sym_o_graph_1',
+    icon: 'account_tree',
     description: 'Vue3-based mindmap visualization',
     component: 'Vue3MindmapView'
   }

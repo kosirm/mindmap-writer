@@ -203,7 +203,7 @@ export const useDocumentStore = defineStore('document', () => {
       if (viewType === 'mindmap') {
         if (!node.views.mindmap) node.views.mindmap = { position: null }
         node.views.mindmap.position = position
-      } else if (viewType === 'concept-map') {
+      } else if (viewType === 'd3-concept-map') {
         if (!node.views.conceptMap) node.views.conceptMap = { position: null }
         node.views.conceptMap.position = position
       }
@@ -223,7 +223,7 @@ export const useDocumentStore = defineStore('document', () => {
 
       if (viewType === 'mindmap') {
         viewPosition = node.views.mindmap?.position ?? null
-      } else if (viewType === 'concept-map') {
+      } else if (viewType === 'd3-concept-map') {
         viewPosition = node.views.conceptMap?.position ?? null
       }
 
@@ -900,4 +900,3 @@ export const useDocumentStore = defineStore('document', () => {
     clearDocument
   }
 })
-

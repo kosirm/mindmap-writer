@@ -176,9 +176,9 @@ export function stopEditing(): void {
 export function useCanvasNodeEditor() {
   const documentStore = useDocumentStore()
 
-  function updateNodeTitle(nodeId: string, title: string, source: 'mindmap' | 'concept-map') {
+  function updateNodeTitle(nodeId: string, title: string, source: 'mindmap' | 'd3-concept-map') {
     // Strip <p> tags from title
-    const cleanTitle = title.replace(/<\/?p>/g, '')
+    const cleanTitle = title.replace(/<\/p>/g, '')
     documentStore.updateNode(nodeId, { title: cleanTitle }, source)
   }
 
@@ -193,4 +193,3 @@ export function useCanvasNodeEditor() {
     updateNodeTitle
   }
 }
-
