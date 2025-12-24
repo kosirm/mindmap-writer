@@ -10,7 +10,6 @@ export function getViewIcon(viewType: string): string {
     'writer-panel': 'sym_o_flowsheet',        // Writer view (edit note icon)
     'd3-mindmap-panel': 'sym_o_graph_1',      // D3 Mind Map view (alternative graph icon)
     'd3-concept-map-panel': 'sym_o_browse',   // D3 Concept Map view (alternative network icon)
-    'vue3-mindmap-panel': 'sym_o_graph_1'    // Vue3 Mindmap view (graph icon)
   }
 
   return iconMap[viewType] || 'help_outline' // Default icon if view type not found
@@ -23,7 +22,6 @@ export function getViewTitle(viewType: string): string {
     'writer-panel': 'Writer',
     'd3-mindmap-panel': 'D3 Mind Map',
     'd3-concept-map-panel': 'D3 Concept Map',
-    'vue3-mindmap-panel': 'Vue3 Mindmap'
   }
 
   return titleMap[viewType] || viewType

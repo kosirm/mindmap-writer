@@ -1,204 +1,120 @@
 <template>
   <div class="dev-tools-section">
     <div class="text-subtitle1 q-mb-sm">
-      <q-icon name="account_tree" class="q-mr-sm" />
-      MindMap
+      <q-icon name="graph_1" class="q-mr-sm" />
+      Mindmap
     </div>
 
-    <!-- Orientation -->
-    <div class="text-caption q-mb-xs">Orientation</div>
-    <q-btn-group spread class="q-mb-sm">
-      <q-btn
-        v-for="mode in orientationStore.orientations"
-        :key="mode"
-        :icon="orientationStore.orientationIcons[mode]"
-        :color="orientationStore.orientation === mode ? 'primary' : undefined"
-        :outline="orientationStore.orientation !== mode"
-        size="sm"
-        @click="orientationStore.setOrientation(mode)"
-      >
-        <q-tooltip>{{ orientationStore.orientationLabels[mode] }}</q-tooltip>
-      </q-btn>
-    </q-btn-group>
-    <div class="text-caption text-grey q-mb-sm">
-      Current: {{ orientationStore.currentLabel }}
+    <!-- Branch Settings -->
+    <div class="text-caption q-mb-xs">Branch Settings</div>
+    <div class="row items-center q-mb-sm">
+      <div class="col-4 text-caption">Branch Thickness:</div>
+      <div class="col">
+        <q-slider
+          v-model="branchThickness"
+          :min="1"
+          :max="6"
+          :step="1"
+          dense
+        />
+      </div>
+      <div class="col-2 text-caption text-right">{{ branchThickness }}</div>
     </div>
 
     <q-separator class="q-my-sm" />
 
-    <!-- Debug Visualization -->
-    <div class="text-caption q-mb-xs">Debug Visualization</div>
-    <q-toggle
-      v-model="devSettings.showBoundingBoxes"
-      label="Show Bounding Boxes"
-      size="sm"
-      dense
-      class="q-mb-xs"
-    />
-    <q-toggle
-      v-model="devSettings.showCanvasCenter"
-      label="Show Canvas Center"
-      size="sm"
-      dense
-      class="q-mb-sm"
-    />
-
-    <!-- Spacing Sliders -->
+    <!-- Spacing Settings -->
     <div class="text-caption q-mb-xs">Node Spacing (px)</div>
     <div class="row items-center q-mb-xs">
-      <div class="col-4 text-caption">H: {{ devSettings.horizontalSpacing }}</div>
+      <div class="col-4 text-caption">Horizontal (x-gap):</div>
       <div class="col">
         <q-slider
-          v-model="devSettings.horizontalSpacing"
-          :min="0"
-          :max="20"
+          v-model="xGap"
+          :min="20"
+          :max="200"
           :step="1"
           dense
         />
       </div>
+      <div class="col-2 text-caption text-right">{{ xGap }}</div>
     </div>
     <div class="row items-center q-mb-sm">
-      <div class="col-4 text-caption">V: {{ devSettings.verticalSpacing }}</div>
+      <div class="col-4 text-caption">Vertical (y-gap):</div>
       <div class="col">
         <q-slider
-          v-model="devSettings.verticalSpacing"
-          :min="0"
-          :max="20"
+          v-model="yGap"
+          :min="100"
+          :max="300"
           :step="1"
           dense
         />
       </div>
-    </div>
-
-    <q-separator class="q-my-sm" />
-
-    <!-- Edge Types -->
-    <div class="text-caption q-mb-xs">Edge Types</div>
-    <div class="row items-center q-mb-xs">
-      <div class="col-4 text-caption">Hierarchy:</div>
-      <div class="col">
-        <q-select
-          v-model="devSettings.hierarchyEdgeType"
-          :options="edgeTypeOptions"
-          emit-value
-          map-options
-          dense
-          options-dense
-          size="sm"
-        />
-      </div>
+      <div class="col-2 text-caption text-right">{{ yGap }}</div>
     </div>
     <div class="row items-center q-mb-sm">
-      <div class="col-4 text-caption">Reference:</div>
+      <div class="col-4 text-caption">Group Spacing:</div>
       <div class="col">
-        <q-select
-          v-model="devSettings.referenceEdgeType"
-          :options="edgeTypeOptions"
-          emit-value
-          map-options
+        <q-slider
+          v-model="groupSpacing"
+          :min="100"
+          :max="500"
+          :step="1"
           dense
-          options-dense
-          size="sm"
         />
       </div>
+      <div class="col-2 text-caption text-right">{{ groupSpacing }}</div>
     </div>
 
     <q-separator class="q-my-sm" />
 
-    <!-- Basic Actions -->
+    <!-- Reset to Defaults -->
     <q-btn
       outline
       size="sm"
-      label="Add Root Node"
-      icon="add"
-      class="full-width q-mb-xs"
-      @click="addRootNode"
-    />
-    <q-btn
-      outline
-      size="sm"
-      label="Generate Test Data (10)"
-      icon="data_object"
-      class="full-width q-mb-xs"
-      @click="generateTestData(10)"
-    />
-    <q-btn
-      outline
-      size="sm"
-      label="Clear All Nodes"
-      icon="delete_sweep"
-      color="negative"
+      label="Reset to Defaults"
+      icon="restart_alt"
+      color="primary"
       class="full-width q-mb-sm"
-      @click="clearAllNodes"
+      @click="resetToDefaults"
     />
-
-    <q-separator class="q-my-sm" />
-
-    <!-- Stress Test -->
-    <div class="text-caption q-mb-xs">Stress Test</div>
-    <div class="row q-gutter-xs q-mb-sm">
-      <q-btn size="xs" outline label="50" @click="generateTestData(50)" />
-      <q-btn size="xs" outline label="100" @click="generateTestData(100)" />
-      <q-btn size="xs" outline label="500" @click="generateTestData(500)" />
-      <q-btn size="xs" outline label="1K" @click="generateTestData(1000)" />
-    </div>
-
-    <q-separator class="q-my-sm" />
 
     <!-- Stats -->
     <div class="text-caption">
-      <div>Total Nodes: {{ stats.totalNodes }}</div>
-      <div>Root Nodes: {{ stats.rootNodes }}</div>
+      <div>Current Settings:</div>
+      <div>Branch: {{ branchThickness }}px</div>
+      <div>Spacing: {{ xGap }}x{{ yGap }}px</div>
+      <div>Group Spacing: {{ groupSpacing }}px</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
-import { useOrientationStore } from 'src/core/stores/orientationStore'
-import { useDevSettingsStore, edgeTypeOptions } from './devSettingsStore'
+import { ref, watch } from 'vue'
+import { useMindmapSettingsStore } from './MindmapSettingsStore'
 
-const documentStore = useDocumentStore()
-const orientationStore = useOrientationStore()
-const devSettings = useDevSettingsStore()
+const mindmapSettings = useMindmapSettingsStore()
 
-const stats = computed(() => ({
-  totalNodes: documentStore.nodes.length,
-  rootNodes: documentStore.nodes.filter(n => n.data.parentId === null).length
-}))
+// Initialize with default values from original mindmap
+const branchThickness = ref(mindmapSettings.branchThickness || 2)
+const xGap = ref(mindmapSettings.xGap || 84)
+const yGap = ref(mindmapSettings.yGap || 18)
+const groupSpacing = ref(mindmapSettings.groupSpacing || 150)
 
-function addRootNode() {
-  documentStore.addNode(null, 'New Root', '', { x: 0, y: 0 })
-}
+// Watch for changes and update store
+watch([branchThickness, xGap, yGap, groupSpacing], () => {
+  mindmapSettings.setSettings({
+    branchThickness: branchThickness.value,
+    xGap: xGap.value,
+    yGap: yGap.value,
+    groupSpacing: groupSpacing.value
+  })
+}, { immediate: true })
 
-function generateTestData(count: number) {
-  // Generate hierarchical test data
-  const rootCount = Math.max(1, Math.floor(count / 10))
-
-  for (let i = 0; i < rootCount; i++) {
-    const root = documentStore.addNode(null, `Root ${i + 1}`, '', { x: i * 300, y: 0 })
-    const childCount = Math.floor((count - rootCount) / rootCount / 2)
-
-    for (let j = 0; j < childCount; j++) {
-      const child = documentStore.addNode(root.id, `Child ${j + 1}`, '', { x: 0, y: 0 })
-
-      // Add some grandchildren
-      const grandchildCount = Math.floor(childCount / 3)
-      for (let k = 0; k < grandchildCount; k++) {
-        documentStore.addNode(child.id, `Grandchild ${k + 1}`, '', { x: 0, y: 0 })
-      }
-    }
-  }
-}
-
-function clearAllNodes() {
-  // Get all root nodes and delete them (cascade deletes children)
-  const rootIds = documentStore.nodes
-    .filter(n => n.data.parentId === null)
-    .map(n => n.id)
-
-  rootIds.forEach(id => documentStore.deleteNode(id, true))
+function resetToDefaults() {
+  branchThickness.value = 2
+  xGap.value = 50
+  yGap.value = 150
+  groupSpacing.value = 150
 }
 </script>
 
@@ -207,4 +123,3 @@ function clearAllNodes() {
   padding: 8px 0;
 }
 </style>
-

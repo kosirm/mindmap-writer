@@ -1,6 +1,6 @@
 <template>
-  <div class="vue3-mindmap-container" :class="{ selecting: isDraggingSelection }">
-    <svg ref="svgEle" class="vue3-mindmap-svg"></svg>
+  <div class="mindmap-container" :class="{ selecting: isDraggingSelection }">
+    <svg ref="svgEle" class="mindmap-svg"></svg>
 
     <div v-if="zoom" class="button-list right-bottom">
       <button @click="centerView()"><i class="gps"></i></button>
@@ -42,11 +42,11 @@ export default defineComponent({
     },
     xGap: {
       type: Number,
-      default: 84  // Original vue3-mindmap default
+      default: 84  // Original mindmap default
     },
     yGap: {
       type: Number,
-      default: 18  // Original vue3-mindmap default
+      default: 18  // Original mindmap default
     },
     groupSpacing: {
       type: Number,
@@ -61,7 +61,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const svgEle = ref<SVGSVGElement | null>(null)
     const documentStore = useDocumentStore()
-    const { onStoreEvent } = useViewEvents('vue3-mindmap')
+    const { onStoreEvent } = useViewEvents('mindmap')
 
     // Context menu state
     const showContextMenu = ref(false)
@@ -171,13 +171,13 @@ export default defineComponent({
         if (documentStore.selectedNodeIds.includes(nodeId)) {
           // Remove from selection
           console.log('➖ Removing from selection')
-          documentStore.removeFromSelection(nodeId, 'vue3-mindmap')
+          documentStore.removeFromSelection(nodeId, 'mindmap')
           // Update local state to match store
           selectedNodeIds.value = [...documentStore.selectedNodeIds]
         } else {
           // Add to selection
           console.log('➕ Adding to selection')
-          documentStore.addToSelection(nodeId, 'vue3-mindmap')
+          documentStore.addToSelection(nodeId, 'mindmap')
           // Update local state to match store
           selectedNodeIds.value = [...documentStore.selectedNodeIds]
         }
@@ -195,7 +195,7 @@ export default defineComponent({
         console.log('�️ Regular click - selecting:', nodeId, 'current selection:', [...selectedNodeIds.value])
         // Notify store first (it will update its state)
         emit('node-select', nodeId)
-        documentStore.selectNode(nodeId, 'vue3-mindmap')
+        documentStore.selectNode(nodeId, 'mindmap')
         // Update local state to match store
         selectedNodeIds.value = [nodeId]
         // Update styles immediately
@@ -340,12 +340,12 @@ export default defineComponent({
         // Update selection in store
         console.log('📦 Rectangle selection completed, selected nodes:', selectedNodes)
         if (selectedNodes.length > 0) {
-          documentStore.selectNodes(selectedNodes, 'vue3-mindmap')
+          documentStore.selectNodes(selectedNodes, 'mindmap')
           // Update local state to match store
           selectedNodeIds.value = [...selectedNodes]
         } else {
           // No nodes selected, clear selection
-          documentStore.clearSelection('vue3-mindmap')
+          documentStore.clearSelection('mindmap')
           selectedNodeIds.value = []
         }
 
@@ -362,7 +362,7 @@ export default defineComponent({
 
     const clearSelection = () => {
       if (!isDraggingSelection.value) {
-        documentStore.clearSelection('vue3-mindmap')
+        documentStore.clearSelection('mindmap')
       }
     }
 
@@ -789,7 +789,7 @@ export default defineComponent({
                   return node.x
                 }))
 
-            // Highlight potential drop targets using rectangle-based hit test (like original vue3-mindmap)
+            // Highlight potential drop targets using rectangle-based hit test (like original mindmap)
             // event.x/y represent where the dragged node should be, so we need to calculate actual mouse position
             // The dragged node is at (d.y + px, d.x + py), and event.x/y is the target position
             // So the mouse is at the same position as the dragged node's current visual position
@@ -941,7 +941,7 @@ export default defineComponent({
               // Handle side change for root children
               const newSide = nodeCenterY < rootCenterY ? 'left' : 'right'
               console.log('Side change:', d.data.id, 'to', newSide)
-              documentStore.setNodeSide(d.data.id, newSide, 'vue3-mindmap')
+              documentStore.setNodeSide(d.data.id, newSide, 'mindmap')
               // Redraw will happen via store watch
               return
             } else if (d.parent && Math.abs(py) > 10) {
@@ -1064,7 +1064,7 @@ export default defineComponent({
       if (event.key === 'Escape' && selectedNodeIds.value.length > 0) {
         console.log('🔑 ESC pressed - clearing selection')
         selectedNodeIds.value = []
-        documentStore.selectNode(null, 'vue3-mindmap')
+        documentStore.selectNode(null, 'mindmap')
         void nextTick(() => {
           updateSelectedNodeStyles()
         })
@@ -1172,7 +1172,7 @@ export default defineComponent({
 </script>
 
 <style scoped lang="scss">
-.vue3-mindmap-container {
+.mindmap-container {
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -1187,7 +1187,7 @@ export default defineComponent({
   }
 }
 
-.vue3-mindmap-svg {
+.mindmap-svg {
   width: 100%;
   height: 100%;
 

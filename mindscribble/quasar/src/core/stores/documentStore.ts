@@ -754,7 +754,7 @@ export const useDocumentStore = defineStore('document', () => {
   }
 
   // ============================================================
-  // SIDE MANAGEMENT ACTIONS (for vue3-mindmap)
+  // SIDE MANAGEMENT ACTIONS (for mindmap)
   // ============================================================
 
   /**
@@ -773,10 +773,10 @@ export const useDocumentStore = defineStore('document', () => {
       node.data.side = side
 
       // Also update view-specific data
-      if (!node.views.vue3mindmap) {
-        node.views.vue3mindmap = {}
+      if (!node.views.mindmap) {
+        node.views.mindmap = {}
       }
-      node.views.vue3mindmap.side = side
+      node.views.mindmap.side = side
 
       // Mark as dirty for auto-save
       markDirty()
@@ -809,7 +809,7 @@ export const useDocumentStore = defineStore('document', () => {
   function getRootNodesWithSides() {
     return rootNodes.value.map(rootNode => ({
       node: rootNode,
-      side: rootNode.data.side || rootNode.views.vue3mindmap?.side || null
+      side: rootNode.data.side || rootNode.views.mindmap?.side || null
     }))
   }
 

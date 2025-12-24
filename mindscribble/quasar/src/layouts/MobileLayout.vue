@@ -46,7 +46,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 // View components
-import Vue3MindmapView from 'src/features/canvas/components/Vue3MindmapView.vue'
+import MindmapView from 'src/features/canvas/components/MindmapView.vue'
 import WriterView from 'src/features/writer/components/WriterView.vue'
 import OutlineView from 'src/features/tree/components/OutlineView.vue'
 import type { Component } from 'vue'
@@ -76,14 +76,14 @@ const fileOptions = ref<FileOption[]>([
 ])
 
 const viewOptions = ref<ViewOption[]>([
-  { label: 'Mind Map', value: 'mindmap', component: Vue3MindmapView },
+  { label: 'Mind Map', value: 'mindmap', component: MindmapView },
   { label: 'Writer', value: 'writer', component: WriterView },
   { label: 'Outline', value: 'outline', component: OutlineView }
 ])
 
 const currentViewComponent = computed(() => {
   const view = viewOptions.value.find(v => v.value === currentView.value)
-  return view?.component || Vue3MindmapView
+  return view?.component || MindmapView
 })
 
 function goBack() {
