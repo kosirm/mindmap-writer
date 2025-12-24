@@ -202,7 +202,7 @@ declare global {
 export function initCommandAPI(): void {
   if (typeof window !== 'undefined') {
     window.mindscribble = createAPI()
-    console.log('[MindScribble] Command API initialized. Try: window.mindscribble.listCommands()')
+    // console.log('[MindScribble] Command API initialized. Try: window.mindscribble.listCommands()')
   }
 }
 

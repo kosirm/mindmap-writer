@@ -49,7 +49,7 @@ export function useReferenceEdges(
    * Handle connection start - capture if C key is pressed
    */
   function onConnectStart() {
-    console.log('[useReferenceEdges] onConnectStart - isCKeyPressed:', isCKeyPressed.value)
+    // console.log('[useReferenceEdges] onConnectStart - isCKeyPressed:', isCKeyPressed.value)
     isDraggingConnection.value = true
     isCKeyPressedDuringConnection.value = isCKeyPressed.value
   }
@@ -66,15 +66,15 @@ export function useReferenceEdges(
    * Returns true if a reference edge was created, false otherwise
    */
   function onConnect(params: ReferenceEdgeParams): boolean {
-    console.log('[useReferenceEdges] onConnect called:', params)
-    console.log('[useReferenceEdges] isCKeyPressedDuringConnection:', isCKeyPressedDuringConnection.value)
-    console.log('[useReferenceEdges] isCKeyPressed:', isCKeyPressed.value)
+    // console.log('[useReferenceEdges] onConnect called:', params)
+    // console.log('[useReferenceEdges] isCKeyPressedDuringConnection:', isCKeyPressedDuringConnection.value)
+    // console.log('[useReferenceEdges] isCKeyPressed:', isCKeyPressed.value)
 
     isDraggingConnection.value = false
 
     // Only create reference edge if C key was pressed during connection
     if (!isCKeyPressedDuringConnection.value) {
-      console.log('[useReferenceEdges] C key was not pressed during connection, skipping')
+      // console.log('[useReferenceEdges] C key was not pressed during connection, skipping')
       isCKeyPressedDuringConnection.value = false
       return false
     }
@@ -124,7 +124,7 @@ export function useReferenceEdges(
    * Setup keyboard listeners
    */
   function setupKeyboardListeners() {
-    console.log('[useReferenceEdges] Setting up keyboard listeners')
+    // console.log('[useReferenceEdges] Setting up keyboard listeners')
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
   }

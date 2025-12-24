@@ -87,7 +87,7 @@ function onChildReady(event: { api: DockviewApi }) {
   childDockviewApi.value = event.api
 
   // Theme is now applied via :class binding in template
-  console.log('🎨 [FilePanel] Nested dockview ready, theme applied via template binding')
+  // console.log('🎨 [FilePanel] Nested dockview ready, theme applied via template binding')
 
   // Get the file panel ID from the parent panel's ID
   filePanelId.value = props.params?.api?.id || 'unknown'
@@ -101,12 +101,12 @@ function onChildReady(event: { api: DockviewApi }) {
   // Get the document ID for localStorage key
   const docInstance = multiDocStore.getDocument(filePanelId.value)
   const documentId = docInstance?.document.dockviewLayoutId || docInstance?.document.metadata.id || filePanelId.value
-  console.log('📂 FilePanel ready - File Panel ID:', filePanelId.value, 'Document ID:', documentId)
+  // console.log('📂 FilePanel ready - File Panel ID:', filePanelId.value, 'Document ID:', documentId)
 
   // Try to load saved layout, otherwise create default
   const layoutLoaded = loadChildLayoutFromStorage(documentId)
   if (!layoutLoaded) {
-    console.log('📂 No saved layout found, creating default layout')
+    // console.log('📂 No saved layout found, creating default layout')
     createDefaultChildLayout()
   } else {
     // Update panel titles to include icons (for layouts saved before icons were added)
@@ -115,13 +115,13 @@ function onChildReady(event: { api: DockviewApi }) {
 
   // Shield overlay: Show during panel drag to prevent interference from child components
   childDockviewApi.value?.onWillDragPanel(() => {
-    console.log('🛡️ Panel drag started - showing shield')
+    // console.log('🛡️ Panel drag started - showing shield')
     isDraggingPanel.value = true
   })
 
   // Hide shield on drop
   childDockviewApi.value?.onDidDrop(() => {
-    console.log('🛡️ Panel dropped - hiding shield (onDidDrop)')
+    // console.log('🛡️ Panel dropped - hiding shield (onDidDrop)')
     isDraggingPanel.value = false
   })
 
@@ -129,7 +129,7 @@ function onChildReady(event: { api: DockviewApi }) {
   childDockviewApi.value?.onDidLayoutChange(() => {
     // Hide shield when layout changes (panel was moved)
     if (isDraggingPanel.value) {
-      console.log('🛡️ Layout changed - hiding shield (onDidLayoutChange)')
+      // console.log('🛡️ Layout changed - hiding shield (onDidLayoutChange)')
       isDraggingPanel.value = false
     }
 
@@ -140,11 +140,11 @@ function onChildReady(event: { api: DockviewApi }) {
       saveChildLayoutToStorage(documentId)
     }
 
-    const width = childDockviewApi.value?.width || 0
-    const height = childDockviewApi.value?.height || 0
-    const layout = childDockviewApi.value?.toJSON()
-    console.log('🔍 Dockview layout changed! Size:', width, 'x', height)
-    console.log('🔍 Layout structure:', JSON.stringify(layout, null, 2))
+    // const width = childDockviewApi.value?.width || 0
+    // const height = childDockviewApi.value?.height || 0
+    // const layout = childDockviewApi.value?.toJSON()
+    // console.log('🔍 Dockview layout changed! Size:', width, 'x', height)
+    // console.log('🔍 Layout structure:', JSON.stringify(layout, null, 2))
   })
 
   // DEBUGGING: Add global function to dump layout
@@ -154,7 +154,7 @@ function onChildReady(event: { api: DockviewApi }) {
   ;(window as WindowWithDebug).dumpLayout = () => {
     if (childDockviewApi.value) {
       const layout = childDockviewApi.value.toJSON()
-      console.log('📊 LAYOUT DUMP:', JSON.stringify(layout, null, 2))
+      // console.log('📊 LAYOUT DUMP:', JSON.stringify(layout, null, 2))
       return layout
     }
     return null
@@ -185,14 +185,14 @@ function setupDocumentWatchers() {
   })
 
   // Watch for active view changes to update panel content
-  watch(() => documentStore.activeView, (newView) => {
-    console.log('Active view changed to:', newView)
-  })
+  // watch(() => documentStore.activeView, (newView) => {
+  //   console.log('Active view changed to:', newView)
+  // })
 
   // Watch for node count changes
-  watch(() => documentStore.nodeCount, (newCount) => {
-    console.log('Node count changed to:', newCount)
-  })
+  // watch(() => documentStore.nodeCount, (newCount) => {
+  //   console.log('Node count changed to:', newCount)
+  // })
 }
 
 
@@ -218,13 +218,13 @@ function updatePanelTitlesWithIcons() {
     }
   })
 
-  console.log('✅ Updated all panel tabs to use custom tab component')
+  // console.log('✅ Updated all panel tabs to use custom tab component')
 }
 
 function createDefaultChildLayout() {
   if (!childDockviewApi.value) return
 
-  console.log('🔧 Creating default child layout...')
+  // console.log('🔧 Creating default child layout...')
 
   // Create default 3-panel layout: Outline | Mindmap | Writer (left to right)
   const outlinePanel = childDockviewApi.value.addPanel({
@@ -250,8 +250,8 @@ function createDefaultChildLayout() {
     tabComponent: 'view-tab'
   })
 
-  console.log('✅ Default child layout created')
-  console.log('📊 Current layout:', childDockviewApi.value.toJSON())
+  // console.log('✅ Default child layout created')
+  // console.log('📊 Current layout:', childDockviewApi.value.toJSON())
 }
 
 function addChildPanel(type: string) {
@@ -316,13 +316,13 @@ function saveChildLayoutToStorage(documentId: string) {
 
   // Don't save layouts with 0x0 dimensions
   if (layout.grid && (layout.grid.width === 0 || layout.grid.height === 0)) {
-    console.warn('⚠️ Skipping save - layout has 0x0 dimensions:', layout.grid.width, 'x', layout.grid.height)
+    // console.warn('⚠️ Skipping save - layout has 0x0 dimensions:', layout.grid.width, 'x', layout.grid.height)
     return
   }
 
   const storageKey = `dockview-child-${documentId}-layout`
   localStorage.setItem(storageKey, JSON.stringify(layout))
-  console.log(`💾 Saved child layout to localStorage: ${storageKey} (${layout.grid.width}x${layout.grid.height})`)
+  // console.log(`💾 Saved child layout to localStorage: ${storageKey} (${layout.grid.width}x${layout.grid.height})`)
 }
 
 /**
@@ -335,13 +335,13 @@ function loadChildLayoutFromStorage(documentId: string): boolean {
   const storageKey = `dockview-child-${documentId}-layout`
   const saved = localStorage.getItem(storageKey)
   if (!saved) {
-    console.log(`📂 No saved layout found in localStorage: ${storageKey}`)
+    // console.log(`📂 No saved layout found in localStorage: ${storageKey}`)
     return false
   }
 
   try {
     const layout = JSON.parse(saved)
-    console.log(`📂 Layout to restore (original):`, layout)
+    // console.log(`📂 Layout to restore (original):`, layout)
 
     // Remove width/height from grid to let dockview calculate sizes dynamically
     // This prevents issues when restoring layouts in different window sizes

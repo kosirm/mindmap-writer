@@ -867,7 +867,7 @@ onUnmounted(() => {
 // Listen for node creation events from OTHER views (not mindmap)
 // The onStoreEvent automatically ignores events where source === 'mindmap'
 onStoreEvent('store:node-created', ({ nodeId, parentId }) => {
-  console.log(`Node created from another view: ${nodeId}, parent: ${parentId ?? 'ROOT'}, syncing to mindmap...`)
+  // console.log(`Node created from another view: ${nodeId}, parent: ${parentId ?? 'ROOT'}, syncing to mindmap...`)
 
   // Get the store node to access order information
   const storeNode = documentStore.getNodeById(nodeId)

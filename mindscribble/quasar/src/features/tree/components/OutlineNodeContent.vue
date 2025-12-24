@@ -162,13 +162,25 @@ function handleNavigationKeydown(event: KeyboardEvent) {
     onAltLeftArrow: () => {
       // Collapse node if it has children and is expanded
       if (props.stat.children.length > 0) {
+        const nodeIdToRefocus = props.node.id
         documentStore.collapseNode(props.node.id, 'outline')
+        // Refocus this node after collapse to maintain keyboard focus
+        // Use setTimeout with 100ms delay to ensure DOM has fully updated after he-tree re-render
+        setTimeout(() => {
+          focusNode(nodeIdToRefocus)
+        }, 100)
       }
     },
     onAltRightArrow: () => {
       // Expand node if it has children and is collapsed
       if (props.stat.children.length > 0) {
+        const nodeIdToRefocus = props.node.id
         documentStore.expandNode(props.node.id, 'outline')
+        // Refocus this node after expand to maintain keyboard focus
+        // Use setTimeout with 100ms delay to ensure DOM has fully updated after he-tree re-render
+        setTimeout(() => {
+          focusNode(nodeIdToRefocus)
+        }, 100)
       }
     }
   })

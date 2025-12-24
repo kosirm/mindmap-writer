@@ -31,13 +31,13 @@ export const useAppStore = defineStore('app', () => {
 
   // Sync with Quasar Dark mode
   Dark.set(isDarkMode.value)
-  console.log('🎨 [AppStore] Initial dark mode:', isDarkMode.value)
+  // console.log('🎨 [AppStore] Initial dark mode:', isDarkMode.value)
 
   watch(isDarkMode, (newValue) => {
-    console.log('🎨 [AppStore] Dark mode changed to:', newValue)
+    // console.log('🎨 [AppStore] Dark mode changed to:', newValue)
     Dark.set(newValue)
     LocalStorage.set(DARK_MODE_KEY, newValue)
-    console.log('🎨 [AppStore] Quasar Dark.isActive:', Dark.isActive)
+    // console.log('🎨 [AppStore] Quasar Dark.isActive:', Dark.isActive)
   })
 
   // Actions
@@ -71,9 +71,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function toggleDarkMode() {
-    console.log('🎨 [AppStore] toggleDarkMode called, current value:', isDarkMode.value)
+    // console.log('🎨 [AppStore] toggleDarkMode called, current value:', isDarkMode.value)
     isDarkMode.value = !isDarkMode.value
-    console.log('🎨 [AppStore] toggleDarkMode new value:', isDarkMode.value)
+    // console.log('🎨 [AppStore] toggleDarkMode new value:', isDarkMode.value)
   }
 
   // Initialize online status listeners
