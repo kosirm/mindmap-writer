@@ -72,7 +72,11 @@ export function createKeyboardHandler(options: KeyboardHandlerOptions) {
           parentContentSize: $head.parent.content.size,
           parentType: $head.parent.type.name,
           docSize: state.doc.content.size,
-          textLength: state.doc.textContent.length
+          textLength: state.doc.textContent.length,
+          $headAfter: $head.after(),
+          $headBefore: $head.before(),
+          selectionFrom: selection.from,
+          selectionTo: selection.to
         })
 
         // Empty document - always trigger
@@ -119,7 +123,11 @@ export function createKeyboardHandler(options: KeyboardHandlerOptions) {
           parentContentSize: $head.parent.content.size,
           parentType: $head.parent.type.name,
           docSize: state.doc.content.size,
-          textLength: state.doc.textContent.length
+          textLength: state.doc.textContent.length,
+          $headAfter: $head.after(),
+          $headBefore: $head.before(),
+          selectionFrom: selection.from,
+          selectionTo: selection.to
         })
 
         // Empty document - always trigger
