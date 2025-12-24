@@ -65,40 +65,43 @@ export function createKeyboardHandler(options: KeyboardHandlerOptions) {
         const { $head } = selection
         const currentPos = $head.pos
 
-        // DEBUG: Log cursor position and paragraph info
-        console.log('🔵 [DEBUG UP ARROW] Cursor position:', {
+        // Get the DOM coordinates to check if we can move up
+        const coordsAtCursor = view.coordsAtPos(currentPos)
+        const coordsAtStart = view.coordsAtPos(1) // Position 1 is start of content
+
+        // DEBUG: Enhanced logging
+        console.log('🔵 [DEBUG UP ARROW] Detailed analysis:', {
           currentPos,
           parentOffset: $head.parentOffset,
           parentContentSize: $head.parent.content.size,
           parentType: $head.parent.type.name,
           docSize: state.doc.content.size,
-          textLength: state.doc.textContent.length
+          textLength: state.doc.textContent.length,
+          coordsAtCursor: { top: coordsAtCursor.top, left: coordsAtCursor.left },
+          coordsAtStart: { top: coordsAtStart.top, left: coordsAtStart.left },
+          isOnFirstLine: Math.abs(coordsAtCursor.top - coordsAtStart.top) < 5,
+          textContent: state.doc.textContent.substring(0, 50) + (state.doc.textContent.length > 50 ? '...' : '')
         })
 
         // Empty document - always trigger
         if (state.doc.textContent.length === 0) {
-          console.log('🔵 [DEBUG UP ARROW] Empty document - triggering navigation')
+          console.log('🔵 [DEBUG UP ARROW] ✅ Empty document - triggering navigation')
           event.preventDefault()
           options.onUpArrowAtFirstLine()
           return true
         }
 
-        // Check if we're at the absolute start of the document (position 1)
-        if (currentPos === 1) {
-          console.log('🔵 [DEBUG UP ARROW] At absolute start of document - triggering navigation')
-          event.preventDefault()
-          options.onUpArrowAtFirstLine()
-          return true
-        }
+        // Check if we're on the first line by comparing vertical positions
+        // If cursor is on the same line as the start (within 5px tolerance), we're on the first line
+        const isOnFirstLine = Math.abs(coordsAtCursor.top - coordsAtStart.top) < 5
 
-        // Check if we're at the start of the current paragraph (reliable ProseMirror approach)
-        if ($head.parentOffset === 0) {
-          console.log('🔵 [DEBUG UP ARROW] At start of paragraph - triggering navigation')
+        if (isOnFirstLine) {
+          console.log('🔵 [DEBUG UP ARROW] ✅ On first line - triggering navigation')
           event.preventDefault()
           options.onUpArrowAtFirstLine()
           return true
         } else {
-          console.log('🔵 [DEBUG UP ARROW] Not at start of paragraph, staying in current node')
+          console.log('🔵 [DEBUG UP ARROW] ❌ Not on first line, allowing default behavior')
         }
       }
     }
@@ -112,41 +115,45 @@ export function createKeyboardHandler(options: KeyboardHandlerOptions) {
         const { $head } = selection
         const currentPos = $head.pos
 
-        // DEBUG: Log cursor position and paragraph info
-        console.log('🔴 [DEBUG DOWN ARROW] Cursor position:', {
+        // Get the DOM coordinates to check if we can move down
+        const coordsAtCursor = view.coordsAtPos(currentPos)
+        const endPos = state.doc.content.size - 1
+        const coordsAtEnd = view.coordsAtPos(endPos) // Last position in content
+
+        // DEBUG: Enhanced logging
+        console.log('🔴 [DEBUG DOWN ARROW] Detailed analysis:', {
           currentPos,
+          endPos,
           parentOffset: $head.parentOffset,
           parentContentSize: $head.parent.content.size,
           parentType: $head.parent.type.name,
           docSize: state.doc.content.size,
-          textLength: state.doc.textContent.length
+          textLength: state.doc.textContent.length,
+          coordsAtCursor: { top: coordsAtCursor.top, left: coordsAtCursor.left },
+          coordsAtEnd: { top: coordsAtEnd.top, left: coordsAtEnd.left },
+          isOnLastLine: Math.abs(coordsAtCursor.top - coordsAtEnd.top) < 5,
+          textContent: state.doc.textContent.substring(0, 50) + (state.doc.textContent.length > 50 ? '...' : '')
         })
 
         // Empty document - always trigger
         if (state.doc.textContent.length === 0) {
-          console.log('🔴 [DEBUG DOWN ARROW] Empty document - triggering navigation')
+          console.log('🔴 [DEBUG DOWN ARROW] ✅ Empty document - triggering navigation')
           event.preventDefault()
           options.onDownArrowAtLastLine()
           return true
         }
 
-        // Check if we're at the absolute end of the document
-        if (currentPos >= state.doc.content.size - 1) {
-          console.log('🔴 [DEBUG DOWN ARROW] At absolute end of document - triggering navigation')
-          event.preventDefault()
-          options.onDownArrowAtLastLine()
-          return true
-        }
+        // Check if we're on the last line by comparing vertical positions
+        // If cursor is on the same line as the end (within 5px tolerance), we're on the last line
+        const isOnLastLine = Math.abs(coordsAtCursor.top - coordsAtEnd.top) < 5
 
-        // Check if we're at the end of the current paragraph (reliable ProseMirror approach)
-        // This works for 1-line, 2-line, and 3+ line content without any pixel dependencies
-        if ($head.parentOffset === $head.parent.content.size) {
-          console.log('🔴 [DEBUG DOWN ARROW] At end of paragraph - triggering navigation')
+        if (isOnLastLine) {
+          console.log('🔴 [DEBUG DOWN ARROW] ✅ On last line - triggering navigation')
           event.preventDefault()
           options.onDownArrowAtLastLine()
           return true
         } else {
-          console.log('🔴 [DEBUG DOWN ARROW] Not at end of paragraph, staying in current node')
+          console.log('🔴 [DEBUG DOWN ARROW] ❌ Not on last line, allowing default behavior')
         }
       }
     }
