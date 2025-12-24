@@ -19,7 +19,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { eventBus, type Events } from '../events'
 import type {
-  MindscribbleDocument
+  MindscribbleDocument,
+  Position,
+  NodeData,
+  MasterMapDocument,
+  ViewType
 } from '../types'
 import type { DriveFileMetadata } from '../services/googleDriveService'
 import { useDocumentStore, useMultiDocumentStore } from './index'
@@ -79,6 +83,9 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
   /** Dirty state tracking */
   const dirtyDocuments = ref<Set<string>>(new Set())
+
+  /** Master map documents */
+  const masterMapDocuments = ref<Map<string, MasterMapDocument>>(new Map())
 
   // ============================================================
   // COMPUTED PROPERTIES (Preserve existing patterns)
@@ -147,6 +154,12 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function addDocument(document: MindscribbleDocument) {
     documents.value.set(document.metadata.id, document)
+
+    // If this is the first document, set it as active
+    if (documents.value.size === 1) {
+      setActiveDocument(document.metadata.id)
+    }
+
     logMigrationOperation('addDocument', {
       documentId: document.metadata.id,
       documentName: document.metadata.name
@@ -158,6 +171,13 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function removeDocument(documentId: string) {
     documents.value.delete(documentId)
+
+    // If we removed the active document, set active to another document
+    if (activeDocumentId.value === documentId) {
+      const remaining = Array.from(documents.value.keys())
+      setActiveDocument(remaining[0] || null)
+    }
+
     logMigrationOperation('removeDocument', { documentId })
   }
 
@@ -197,6 +217,73 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     return dirtyDocuments.value.has(documentId)
   }
 
+  /**
+   * Get document by ID
+   */
+  function getDocumentById(documentId: string): MindscribbleDocument | null {
+    return documents.value.get(documentId) ?? null
+  }
+
+  /**
+   * Create a new empty document
+   */
+  function createEmptyDocument(name = 'Untitled'): MindscribbleDocument {
+    const documentId = `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
+
+    const newDocument: MindscribbleDocument = {
+      version: '1.0',
+      metadata: {
+        id: documentId,
+        name,
+        description: '',
+        created: new Date().toISOString(),
+        modified: new Date().toISOString(),
+        tags: [],
+        searchableText: '',
+        nodeCount: 0,
+        edgeCount: 0,
+        maxDepth: 0
+      },
+      nodes: [],
+      edges: [],
+      interMapLinks: [],
+      layout: {
+        activeView: 'mindmap',
+        orientationMode: 'anticlockwise',
+        lodEnabled: true,
+        lodThresholds: [10, 30, 50, 70, 90],
+        horizontalSpacing: 50,
+        verticalSpacing: 20
+      }
+    }
+
+    return newDocument
+  }
+
+  /**
+   * Update document metadata
+   */
+  function updateDocumentMetadata(documentId: string, metadataUpdates: Partial<MindscribbleDocument['metadata']>) {
+    const doc = documents.value.get(documentId)
+    if (doc) {
+      Object.assign(doc.metadata, metadataUpdates, {
+        modified: new Date().toISOString()
+      })
+      markDirty(documentId)
+    }
+  }
+
+  /**
+   * Update document layout settings
+   */
+  function updateDocumentLayoutSettings(documentId: string, layoutUpdates: Partial<MindscribbleDocument['layout']>) {
+    const doc = documents.value.get(documentId)
+    if (doc) {
+      Object.assign(doc.layout, layoutUpdates)
+      markDirty(documentId)
+    }
+  }
+
   // ============================================================
   // EVENT FORWARDING (Phase 3: Dual-write system)
   // ============================================================
@@ -213,6 +300,69 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
     // Log in migration mode
     logMigrationOperation('emitEvent', { eventName, data })
+  }
+
+  /**
+   * Forward node creation event
+   */
+  function emitNodeCreated(nodeId: string, parentId: string | null, position: Position) {
+    emitEvent('store:node-created', { nodeId, parentId, position, source: 'store' })
+  }
+
+  /**
+   * Forward node updated event
+   */
+  function emitNodeUpdated(nodeId: string, changes: Partial<NodeData>) {
+    emitEvent('store:node-updated', { nodeId, changes, source: 'store' })
+  }
+
+  /**
+   * Forward node moved event
+   */
+  function emitNodeMoved(nodeId: string, position: Position, previousPosition: Position) {
+    emitEvent('store:node-moved', { nodeId, position, previousPosition, source: 'store' })
+  }
+
+  /**
+   * Forward node deleted event
+   */
+  function emitNodeDeleted(nodeId: string, deletedIds: string[]) {
+    emitEvent('store:node-deleted', { nodeId, deletedIds, source: 'store' })
+  }
+
+  /**
+   * Forward node selected event
+   */
+  function emitNodeSelected(nodeId: string | null, scrollIntoView = true) {
+    emitEvent('store:node-selected', { nodeId, source: 'store', scrollIntoView })
+  }
+
+  /**
+   * Forward nodes selected event
+   */
+  function emitNodesSelected(nodeIds: string[]) {
+    emitEvent('store:nodes-selected', { nodeIds, source: 'store' })
+  }
+
+  /**
+   * Forward view changed event
+   */
+  function emitViewChanged(previousView: ViewType, newView: ViewType, positionsLoaded: boolean) {
+    emitEvent('store:view-changed', { previousView, newView, positionsLoaded, source: 'store' })
+  }
+
+  /**
+   * Forward document loaded event
+   */
+  function emitDocumentLoaded(documentId: string, documentName: string) {
+    emitEvent('store:document-loaded', { documentId, documentName, source: 'store' })
+  }
+
+  /**
+   * Forward document cleared event
+   */
+  function emitDocumentCleared() {
+    emitEvent('store:document-cleared', { source: 'store' })
   }
 
   // ============================================================
@@ -251,6 +401,77 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   // ============================================================
+  // MASTER MAP METHODS (Phase 4: Future integration)
+  // ============================================================
+
+  /**
+   * Add a document to the master map
+   */
+  function addToMasterMap(documentId: string, masterMapData: MasterMapDocument) {
+    masterMapDocuments.value.set(documentId, masterMapData)
+    logMigrationOperation('addToMasterMap', { documentId })
+  }
+
+  /**
+   * Remove a document from the master map
+   */
+  function removeFromMasterMap(documentId: string) {
+    masterMapDocuments.value.delete(documentId)
+    logMigrationOperation('removeFromMasterMap', { documentId })
+  }
+
+  /**
+   * Update master map position for a document
+   */
+  function updateMasterMapPosition(documentId: string, position: {x: number, y: number}) {
+    const mapDoc = masterMapDocuments.value.get(documentId)
+    if (mapDoc) {
+      // Create a new object with updated position and timestamp
+      const updatedMapDoc: MasterMapDocument = {
+        ...mapDoc,
+        metadata: {
+          ...mapDoc.metadata,
+          modified: new Date().toISOString()
+        },
+        visualization: {
+          nodePositions: {
+            ...mapDoc.visualization?.nodePositions,
+            [documentId]: position
+          },
+          expandedMaps: mapDoc.visualization?.expandedMaps || [],
+          zoom: mapDoc.visualization?.zoom || 1,
+          panX: mapDoc.visualization?.panX || 0,
+          panY: mapDoc.visualization?.panY || 0
+        }
+      }
+      masterMapDocuments.value.set(documentId, updatedMapDoc)
+      logMigrationOperation('updateMasterMapPosition', { documentId, position })
+    }
+  }
+
+  /**
+   * Get master map document by ID
+   */
+  function getMasterMapDocument(documentId: string): MasterMapDocument | null {
+    return masterMapDocuments.value.get(documentId) ?? null
+  }
+
+  /**
+   * Get all master map documents
+   */
+  function getAllMasterMapDocuments(): MasterMapDocument[] {
+    return Array.from(masterMapDocuments.value.values())
+  }
+
+  /**
+   * Clear all master map documents
+   */
+  function clearMasterMap() {
+    masterMapDocuments.value.clear()
+    logMigrationOperation('clearMasterMap', {})
+  }
+
+  // ============================================================
   // PUBLIC API (Phase 1)
   // ============================================================
 
@@ -261,6 +482,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     activeDocumentId,
     layouts,
     dirtyDocuments,
+    masterMapDocuments,
 
     // Computed
     activeDocument,
@@ -278,6 +500,10 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     markDirty,
     markClean,
     isDirty,
+    getDocumentById,
+    createEmptyDocument,
+    updateDocumentMetadata,
+    updateDocumentLayoutSettings,
 
     // Layout management
     saveLayout,
@@ -285,7 +511,24 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     removeLayout,
     clearAllLayouts,
 
+    // Master map methods
+    addToMasterMap,
+    removeFromMasterMap,
+    updateMasterMapPosition,
+    getMasterMapDocument,
+    getAllMasterMapDocuments,
+    clearMasterMap,
+
     // Event forwarding
-    emitEvent
+    emitEvent,
+    emitNodeCreated,
+    emitNodeUpdated,
+    emitNodeMoved,
+    emitNodeDeleted,
+    emitNodeSelected,
+    emitNodesSelected,
+    emitViewChanged,
+    emitDocumentLoaded,
+    emitDocumentCleared
   }
 })
