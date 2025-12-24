@@ -49,7 +49,7 @@
 
 <script setup lang="ts">
 import { useDocumentStore } from 'src/core/stores/documentStore'
-import MindmapDevTools from './MindmapDevTools.vue'
+import MindmapDevTools from './MindMapDevTools.vue'
 
 const documentStore = useDocumentStore()
 
