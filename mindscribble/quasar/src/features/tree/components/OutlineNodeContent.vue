@@ -182,6 +182,13 @@ function focusNode(nodeId: string) {
   const nodeElement = document.querySelector(`[data-node-id="${nodeId}"] .node-title`)
   if (nodeElement) {
     (nodeElement as HTMLElement).focus()
+
+    // For navigation mode, ensure the element is scrollable and visible
+    if (!props.isEditMode) {
+      setTimeout(() => {
+        nodeElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 10)
+    }
   }
 }
 
@@ -274,9 +281,18 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
 }
 
 function destroyTitleEditor() {
+  const wasInEditMode = props.isEditMode
   titleEditor.value?.destroy()
   titleEditor.value = null
   isEditing.value = false
+
+  // If we're still in edit mode (just finished editing a node), keep focus on the node
+  // If we're exiting edit mode entirely, also keep focus for navigation
+  if (wasInEditMode || !props.isEditMode) {
+    void nextTick(() => {
+      focusNode(props.node.id)
+    })
+  }
 }
 
 // Listen for title editor open events (using the outlineEmitter injected at setup time)
@@ -287,10 +303,29 @@ outlineEmitter?.on('open-title-editor', (payload: unknown) => {
   }
 })
 
+// Listen for focus-and-edit events
+outlineEmitter?.on('focus-and-edit-node', (payload: unknown) => {
+  const { nodeId } = payload as { nodeId: string }
+  if (nodeId === props.node.id) {
+    // Use setTimeout instead of nextTick for more reliable DOM updates
+    setTimeout(() => {
+      if (props.isEditMode) {
+        openTitleEditor('end')
+      } else {
+        focusNode(props.node.id)
+      }
+    }, 50)
+  }
+})
+
 // Watch for edit mode changes - close editor if toggled off
 watch(() => props.isEditMode, (newEditMode) => {
   if (!newEditMode && isEditing.value) {
     destroyTitleEditor()
+    // When edit mode is turned off, ensure the node keeps focus for navigation
+    void nextTick(() => {
+      focusNode(props.node.id)
+    })
   }
 })
 

@@ -242,6 +242,7 @@ function collapseAll() {
 }
 
 function toggleEditMode() {
+  const wasEditMode = isEditMode.value
   isEditMode.value = !isEditMode.value
 
   // Show brief notification
@@ -252,6 +253,17 @@ function toggleEditMode() {
     timeout: 1000,
     position: 'bottom'
   })
+
+  // If entering edit mode, focus the selected node for immediate editing
+  if (isEditMode.value && !wasEditMode) {
+    const selectedNodeId = documentStore.selectedNodeIds[0]
+    if (selectedNodeId) {
+      // Use a slight delay to ensure the DOM is fully updated
+      setTimeout(() => {
+        outlineEmitter.emit('focus-and-edit-node', { nodeId: selectedNodeId })
+      }, 50)
+    }
+  }
 }
 
 // Global keyboard handler for F2 toggle
