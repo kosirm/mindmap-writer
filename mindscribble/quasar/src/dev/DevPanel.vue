@@ -7,24 +7,6 @@
 
     <!-- View-specific sections -->
     <q-expansion-item
-      default-closed
-      icon="account_tree"
-      label="MindMap"
-      header-class="text-primary"
-    >
-      <MindMapDevTools />
-    </q-expansion-item>
-
-    <q-expansion-item
-      default-closed
-      icon="hub"
-      label="ConceptMap"
-      header-class="text-primary"
-    >
-      <ConceptMapDevTools />
-    </q-expansion-item>
-
-    <q-expansion-item
       default-opened
       icon="graph_1"
       label="Vue3-Mindmap"
@@ -67,8 +49,6 @@
 
 <script setup lang="ts">
 import { useDocumentStore } from 'src/core/stores/documentStore'
-import MindMapDevTools from './MindMapDevTools.vue'
-import ConceptMapDevTools from './ConceptMapDevTools.vue'
 import Vue3MindmapDevTools from './Vue3MindmapDevTools.vue'
 
 const documentStore = useDocumentStore()
