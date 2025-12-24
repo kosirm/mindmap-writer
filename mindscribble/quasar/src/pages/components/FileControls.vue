@@ -40,9 +40,8 @@ defineOptions({
 
 // Define available view types in the order they should appear in the menu
 const availableViews = [
-  'mindmap-panel',
+  'mindmap-panel',        // Vue3 Mind Map (default)
   'd3-mindmap-panel',
-  'vue3-mindmap-panel',
   'writer-panel',
   'outline-panel',
   'd3-concept-map-panel'

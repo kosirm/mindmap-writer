@@ -121,7 +121,7 @@ export const viewCommands: Command[] = [
     order: 10,
     showInPalette: true,
     scope: {
-      views: ['mindmap', 'concept-map', 'vue3-mindmap'],
+      views: ['mindmap', 'd3-concept-map', 'vue3-mindmap'],
     },
     execute: (ctx) => {
       window.dispatchEvent(new CustomEvent('command:view.zoom.in', { detail: ctx }))
@@ -139,7 +139,7 @@ export const viewCommands: Command[] = [
     order: 11,
     showInPalette: true,
     scope: {
-      views: ['mindmap', 'concept-map'],
+      views: ['mindmap', 'd3-concept-map'],
     },
     execute: (ctx) => {
       window.dispatchEvent(new CustomEvent('command:view.zoom.out', { detail: ctx }))
@@ -157,7 +157,7 @@ export const viewCommands: Command[] = [
     order: 12,
     showInPalette: true,
     scope: {
-      views: ['mindmap', 'concept-map'],
+      views: ['mindmap', 'd3-concept-map'],
     },
     execute: (ctx) => {
       window.dispatchEvent(new CustomEvent('command:view.zoom.fit', { detail: ctx }))
@@ -168,13 +168,14 @@ export const viewCommands: Command[] = [
     label: 'Reset Zoom',
     icon: 'zoom_out_map',
     category: 'view',
+    keybinding: 'Ctrl+0',
     description: 'Reset zoom to 100%',
     keywords: ['zoom', '100%', 'normal'],
     group: 'layout',
     order: 13,
     showInPalette: true,
     scope: {
-      views: ['mindmap', 'concept-map'],
+      views: ['mindmap', 'd3-concept-map'],
     },
     execute: (ctx) => {
       window.dispatchEvent(new CustomEvent('command:view.zoom.reset', { detail: ctx }))
@@ -233,4 +234,3 @@ export const viewCommands: Command[] = [
     },
   },
 ]
-
