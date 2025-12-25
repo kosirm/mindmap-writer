@@ -166,6 +166,9 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       setActiveDocument(document.metadata.id)
     }
 
+    // Mark document as dirty when added
+    markDirty(document.metadata.id)
+
     logMigrationOperation('addDocument', {
       documentId: document.metadata.id,
       documentName: document.metadata.name
@@ -272,10 +275,20 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   function updateDocumentMetadata(documentId: string, metadataUpdates: Partial<MindscribbleDocument['metadata']>) {
     const doc = documents.value.get(documentId)
     if (doc) {
-      Object.assign(doc.metadata, metadataUpdates, {
+      // Create a new metadata object to ensure proper reactivity and timestamp update
+      const updatedMetadata = {
+        ...doc.metadata,
+        ...metadataUpdates,
         modified: new Date().toISOString()
-      })
-      markDirty(documentId)
+      }
+      
+      // Create a new document object to trigger reactivity
+      const updatedDoc: MindscribbleDocument = {
+        ...doc,
+        metadata: updatedMetadata
+      }
+      
+      updateDocument(documentId, updatedDoc)
     }
   }
 
@@ -308,6 +321,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   function updateDocument(docId: string, updatedDoc: MindscribbleDocument) {
     documents.value.set(docId, updatedDoc)
     documentRevision.value++
+    // Mark document as dirty when updated
+    markDirty(docId)
   }
 
   /**
@@ -726,6 +741,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   ) {
     if (nodeId === null) {
       selectedNodeIds.value = []
+      scrollIntoView = false
     } else {
       selectedNodeIds.value = [nodeId]
     }
@@ -1227,6 +1243,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     deleteNode,
     moveNode,
     reorderSiblings,
+    updateDocument,
+    documentRevision,
 
     // Selection operations
     selectedNodeIds,

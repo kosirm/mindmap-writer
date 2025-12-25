@@ -3,7 +3,7 @@
 ## Overview
 
 MindScribble is a professional mindmap application built with Vue 3, Quasar, and VueFlow. This document outlines the architecture designed to avoid the performance and maintainability issues encountered in the vueflow prototype.
-
+:
 ## Core Principles
 
 1. **Feature-based modular structure** - Code organized by feature, not by layer
