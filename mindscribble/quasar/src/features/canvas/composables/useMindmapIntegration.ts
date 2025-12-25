@@ -1,25 +1,48 @@
 import { computed } from 'vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
+import { useStoreMode } from 'src/composables/useStoreMode'
 import { useViewEvents } from 'src/core/events'
 import type { Data } from '../components/mindmap/types/mindmap-types'
 import type { MindscribbleNode } from 'src/core/types/node'
 
 export function useMindmapIntegration() {
+  // Store mode toggle
+  const { isUnifiedMode } = useStoreMode()
+
+  // Legacy store
   const documentStore = useDocumentStore()
+
+  // Unified store
+  const unifiedStore = useUnifiedDocumentStore()
+
   const { onStoreEvent } = useViewEvents('mindmap')
 
   /**
    * Transform MindScribble nodes to mindmap format
    */
   const mindmapData = computed<Data[]>(() => {
-    return transformNodesToMindmapFormat(documentStore.nodes)
+    if (isUnifiedMode.value) {
+      // Access the nodes array to ensure reactivity
+      const doc = unifiedStore.activeDocument
+      const nodes = doc?.nodes || []
+      console.log('[MindmapIntegration] Computing mindmapData (unified mode), nodes count:', nodes.length)
+      return transformNodesToMindmapFormat(nodes)
+    } else {
+      console.log('[MindmapIntegration] Computing mindmapData (legacy mode), nodes count:', documentStore.nodes.length)
+      return transformNodesToMindmapFormat(documentStore.nodes)
+    }
   })
 
   /**
    * Handle node selection
    */
   function handleNodeSelect(nodeId: string) {
-    documentStore.selectNode(nodeId, 'mindmap', false)
+    if (isUnifiedMode.value) {
+      unifiedStore.selectNode(nodeId, 'mindmap', false)
+    } else {
+      documentStore.selectNode(nodeId, 'mindmap', false)
+    }
   }
 
   /**
@@ -44,7 +67,11 @@ export function useMindmapIntegration() {
   * Handle node side changes
   */
  function handleNodeSideChange(nodeId: string, newSide: 'left' | 'right') {
-   documentStore.setNodeSide(nodeId, newSide, 'mindmap')
+   if (isUnifiedMode.value) {
+     unifiedStore.setNodeSide(nodeId, newSide, 'mindmap')
+   } else {
+     documentStore.setNodeSide(nodeId, newSide, 'mindmap')
+   }
  }
 
   /**
@@ -99,22 +126,24 @@ function transformNodesToMindmapFormat(nodes: MindscribbleNode[]): Data[] {
     }]
   }
 
-  function convertNode(node: MindscribbleNode): Data {
+  function convertNode(node: MindscribbleNode, inheritedSide?: 'left' | 'right'): Data {
     const children = nodes.filter(n => n.data.parentId === node.id)
+      .sort((a, b) => a.data.order - b.data.order)
 
     // Get side information from node data or view data
-    const side = node.data.side
-      || node.views.mindmap?.side
-      || undefined
+    // Depth-1 nodes have explicit side, deeper nodes inherit from parent
+    const explicitSide = node.data.side || node.views.mindmap?.side
+    const effectiveSide = explicitSide || inheritedSide
 
     return {
+      id: node.id,  // Include node ID for interactions
       name: node.data.title,
-      children: children.map(convertNode),
-      left: side === 'left',  // mindmap uses 'left' boolean
+      children: children.map(child => convertNode(child, effectiveSide)),  // Pass side to children
+      left: effectiveSide === 'left',  // mindmap uses 'left' boolean
       collapse: node.views.mindmap?.collapsed ?? false,
       ...(node.views.mindmap || {})
     }
   }
 
-  return rootNodes.map(convertNode)
+  return rootNodes.map(node => convertNode(node))
 }

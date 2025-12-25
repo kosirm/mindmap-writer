@@ -74,6 +74,9 @@ import '@he-tree/vue/style/default.css'
 import '@he-tree/vue/style/material-design.css'
 import OutlineNodeContent from './OutlineNodeContent.vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
+import { useStoreSynchronizer } from 'src/core/stores/storeSynchronizer'
+import { useStoreMode } from 'src/composables/useStoreMode'
 import { useViewEvents } from 'src/core/events'
 import { useOutlineNavigation } from '../composables/useOutlineNavigation'
 import type { MindscribbleNode } from 'src/core/types'
@@ -81,8 +84,20 @@ import type { MindscribbleNode } from 'src/core/types'
 const TRIGGER_CLASS = 'drag-handle'
 const $q = useQuasar()
 
+// Store mode toggle
+const { isUnifiedMode, isDualWriteMode } = useStoreMode()
+
+// Legacy store for node operations
 const documentStore = useDocumentStore()
+
+// Unified store for document-level operations
+const unifiedStore = useUnifiedDocumentStore()
+
+// Synchronizer for dual-write during migration
+const synchronizer = useStoreSynchronizer()
+
 const { onStoreEvent, source } = useViewEvents('outline')
+
 
 // Edit mode state (default: OFF)
 const isEditMode = ref(false)
@@ -119,14 +134,41 @@ provide('outlineEmitter', outlineEmitter)
 const navigation = useOutlineNavigation(treeData)
 provide('outlineNavigation', navigation)
 
+// Provide method to update local tree data (to avoid prop mutation)
+const updateLocalNodeData = (nodeId: string, updates: { title?: string; content?: string }) => {
+  const updateItem = (items: OutlineTreeItem[]): boolean => {
+    for (const item of items) {
+      if (item.id === nodeId) {
+        if (updates.title !== undefined) {
+          item.text = updates.title
+          item.node.data.title = updates.title
+        }
+        if (updates.content !== undefined) {
+          item.node.data.content = updates.content
+        }
+        return true
+      }
+      if (updateItem(item.children)) return true
+    }
+    return false
+  }
+  updateItem(treeData.value)
+}
+provide('updateLocalNodeData', updateLocalNodeData)
+
 /**
  * Build tree structure from store nodes
  */
 function buildTreeFromStore(): OutlineTreeItem[] {
   const nodeMap = new Map<string, OutlineTreeItem>()
 
+  // Get nodes from the appropriate store
+  const nodes = isUnifiedMode.value
+    ? (unifiedStore.activeDocument?.nodes || [])
+    : documentStore.nodes
+
   // First pass: Create tree items
-  documentStore.nodes.forEach(node => {
+  nodes.forEach(node => {
     nodeMap.set(node.id, {
       id: node.id,
       text: node.data.title || 'Untitled',
@@ -209,27 +251,45 @@ function onTreeChange() {
 
   // Handle reparenting first (uses moveNode)
   for (const { nodeId, parentId, order } of reparentedNodes) {
-    documentStore.moveNode(nodeId, parentId, order, 'outline')
+    if (isUnifiedMode.value) {
+      unifiedStore.moveNode(nodeId, parentId, order, 'outline')
+    } else {
+      documentStore.moveNode(nodeId, parentId, order, 'outline')
+    }
   }
 
   // Handle sibling reordering (uses reorderSiblings - emits store:siblings-reordered)
   for (const [parentId, nodeOrders] of orderChanges) {
-    documentStore.reorderSiblings(parentId, nodeOrders, 'outline')
+    if (isUnifiedMode.value) {
+      unifiedStore.reorderSiblings(parentId, nodeOrders, 'outline')
+    } else {
+      documentStore.reorderSiblings(parentId, nodeOrders, 'outline')
+    }
   }
 }
 
 // Actions
 function addRootNode() {
-  const newNode = documentStore.addNode(null, 'New Node', '', undefined, source)
-  // Select the new node
-  documentStore.selectNode(newNode.id, source, true)
+  if (isUnifiedMode.value) {
+    const newNode = unifiedStore.addNode(null, 'New Node', '', undefined, source)
+    if (newNode) {
+      unifiedStore.selectNode(newNode.id, source, true)
+    }
+  } else {
+    const newNode = documentStore.addNode(null, 'New Node', '', undefined, source)
+    documentStore.selectNode(newNode.id, source, true)
+  }
 }
 
 function expandAll() {
   // Expand all nodes using store methods
   const nodesWithChildren = treeData.value.filter(item => item.children.length > 0)
   nodesWithChildren.forEach(item => {
-    documentStore.expandNode(item.id, 'outline')
+    if (isUnifiedMode.value) {
+      unifiedStore.expandNode(item.id, 'outline')
+    } else {
+      documentStore.expandNode(item.id, 'outline')
+    }
   })
 }
 
@@ -237,7 +297,11 @@ function collapseAll() {
   // Collapse all nodes using store methods
   const nodesWithChildren = treeData.value.filter(item => item.children.length > 0)
   nodesWithChildren.forEach(item => {
-    documentStore.collapseNode(item.id, 'outline')
+    if (isUnifiedMode.value) {
+      unifiedStore.collapseNode(item.id, 'outline')
+    } else {
+      documentStore.collapseNode(item.id, 'outline')
+    }
   })
 }
 
@@ -277,6 +341,25 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 // Mount and unmount global keyboard listener
 onMounted(() => {
   document.addEventListener('keydown', handleGlobalKeydown)
+
+  // MIGRATION: Sync from legacy stores to unified store on mount
+  synchronizer.syncFromLegacyStores()
+
+  // MIGRATION: Run consistency checks in development mode
+  if (import.meta.env.DEV) {
+    // Initial consistency check
+    synchronizer.checkConsistency()
+
+    // Periodic consistency checks every 5 seconds
+    const consistencyInterval = setInterval(() => {
+      synchronizer.checkConsistency()
+    }, 5000)
+
+    // Clean up interval on unmount
+    onUnmounted(() => {
+      clearInterval(consistencyInterval)
+    })
+  }
 })
 
 onUnmounted(() => {
@@ -286,9 +369,27 @@ onUnmounted(() => {
 // Initial load
 treeData.value = buildTreeFromStore()
 
-// Watch store for changes
-watch(() => documentStore.nodes.length, () => {
+// Watch store for changes based on mode
+watch(() => {
+  if (isUnifiedMode.value) {
+    return unifiedStore.activeDocument?.nodes.length || 0
+  }
+  return documentStore.nodes.length
+}, () => {
   treeData.value = buildTreeFromStore()
+
+  // MIGRATION: Sync document changes to unified store in dual-write mode
+  if (isDualWriteMode.value && unifiedStore.activeDocumentId) {
+    const currentDoc = documentStore.toDocument()
+    const unifiedDoc = unifiedStore.documents.get(unifiedStore.activeDocumentId)
+    if (unifiedDoc) {
+      // Update nodes and edges in unified store
+      unifiedDoc.nodes = currentDoc.nodes
+      unifiedDoc.edges = currentDoc.edges
+      unifiedDoc.metadata.modified = new Date().toISOString()
+      unifiedStore.markDirty(unifiedStore.activeDocumentId)
+    }
+  }
 })
 
 // Listen for store events from other views
@@ -307,6 +408,12 @@ onStoreEvent('store:node-updated', ({ nodeId, changes }) => {
       if (item.id === nodeId) {
         if (changes.title !== undefined) {
           item.text = changes.title
+          // Also update the node reference so the component displays the updated title
+          item.node.data.title = changes.title
+        }
+        if (changes.content !== undefined) {
+          // Update content if changed
+          item.node.data.content = changes.content
         }
         return true
       }
@@ -341,7 +448,12 @@ onStoreEvent('store:select-navigate', ({ nodeId }) => {
   }
 })
 
-const nodeCount = computed(() => documentStore.nodeCount)
+const nodeCount = computed(() => {
+  if (isUnifiedMode.value) {
+    return unifiedStore.activeDocument?.nodes.length || 0
+  }
+  return documentStore.nodeCount
+})
 </script>
 
 <style scoped lang="scss">

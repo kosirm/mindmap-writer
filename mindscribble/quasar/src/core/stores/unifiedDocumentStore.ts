@@ -17,13 +17,14 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { eventBus, type Events } from '../events'
+import { eventBus, type Events, type EventSource } from '../events'
 import type {
   MindscribbleDocument,
   Position,
   NodeData,
   MasterMapDocument,
-  ViewType
+  ViewType,
+  MindscribbleNode
 } from '../types'
 import type { DriveFileMetadata } from '../services/googleDriveService'
 import { useDocumentStore, useMultiDocumentStore } from './index'
@@ -87,12 +88,17 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /** Master map documents */
   const masterMapDocuments = ref<Map<string, MasterMapDocument>>(new Map())
 
+  /** Revision counter to force reactivity updates */
+  const documentRevision = ref(0)
+
   // ============================================================
   // COMPUTED PROPERTIES (Preserve existing patterns)
   // ============================================================
 
   /** Active document - preserves DocumentStore pattern */
   const activeDocument = computed(() => {
+    // Access revision counter to force reactivity
+    void documentRevision.value
     if (!activeDocumentId.value) return null
     return documents.value.get(activeDocumentId.value) ?? null
   })
@@ -153,7 +159,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    * Add a new document to the unified store
    */
   function addDocument(document: MindscribbleDocument) {
-    documents.value.set(document.metadata.id, document)
+    updateDocument(document.metadata.id, document)
 
     // If this is the first document, set it as active
     if (documents.value.size === 1) {
@@ -285,6 +291,696 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   // ============================================================
+  // NODE OPERATIONS (Phase 5: Full node-level operations)
+  // ============================================================
+
+  /**
+   * Generate a unique node ID
+   */
+  function generateNodeId(): string {
+    return `node-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+  }
+
+  /**
+   * Update a document in the store and increment revision counter
+   * This ensures Vue's reactivity system detects the change
+   */
+  function updateDocument(docId: string, updatedDoc: MindscribbleDocument) {
+    documents.value.set(docId, updatedDoc)
+    documentRevision.value++
+  }
+
+  /**
+   * Get node by ID from active document
+   */
+  function getNodeById(nodeId: string): MindscribbleNode | undefined {
+    if (!activeDocumentId.value) return undefined
+    const doc = documents.value.get(activeDocumentId.value)
+    return doc?.nodes.find((n) => n.id === nodeId)
+  }
+
+  /**
+   * Get child nodes of a parent
+   */
+  function getChildNodes(parentId: string): MindscribbleNode[] {
+    if (!activeDocumentId.value) return []
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return []
+    return doc.nodes
+      .filter((n) => n.data.parentId === parentId)
+      .sort((a, b) => a.data.order - b.data.order)
+  }
+
+  /**
+   * Get all descendants of a node
+   */
+  function getAllDescendants(nodeId: string): MindscribbleNode[] {
+    const descendants: MindscribbleNode[] = []
+    const children = getChildNodes(nodeId)
+    for (const child of children) {
+      descendants.push(child)
+      descendants.push(...getAllDescendants(child.id))
+    }
+    return descendants
+  }
+
+  /**
+   * Get root nodes from active document
+   */
+  function getRootNodes(): MindscribbleNode[] {
+    if (!activeDocumentId.value) return []
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return []
+    return doc.nodes
+      .filter((n) => n.data.parentId === null)
+      .sort((a, b) => a.data.order - b.data.order)
+  }
+
+  /**
+   * Add a new node to the active document
+   */
+  function addNode(
+    parentId: string | null,
+    title: string,
+    content = '',
+    position?: Position,
+    source: EventSource = 'store'
+  ): MindscribbleNode | null {
+    if (!activeDocumentId.value) return null
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return null
+
+    const siblings = parentId ? getChildNodes(parentId) : getRootNodes()
+    const order = siblings.length
+
+    const newNode: MindscribbleNode = {
+      id: generateNodeId(),
+      type: 'custom',
+      position: position ?? { x: 0, y: 0 },
+      data: {
+        parentId,
+        order,
+        title,
+        content,
+        created: new Date().toISOString(),
+        modified: new Date().toISOString()
+      },
+      views: {}
+    }
+
+    // Create a new document object to trigger reactivity
+    const updatedDoc = {
+      ...doc,
+      nodes: [...doc.nodes, newNode],
+      metadata: {
+        ...doc.metadata,
+        modified: new Date().toISOString(),
+        nodeCount: doc.nodes.length + 1
+      }
+    }
+    updateDocument(activeDocumentId.value, updatedDoc)
+    markDirty(activeDocumentId.value)
+
+    // Emit event
+    eventBus.emit('store:node-created', {
+      nodeId: newNode.id,
+      parentId,
+      position: newNode.position,
+      source
+    })
+
+    logMigrationOperation('addNode', { nodeId: newNode.id, parentId, title })
+
+    return newNode
+  }
+
+  /**
+   * Update node data
+   */
+  function updateNode(
+    nodeId: string,
+    updates: Partial<NodeData>,
+    source: EventSource = 'store'
+  ) {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const nodeIndex = doc.nodes.findIndex((n) => n.id === nodeId)
+    if (nodeIndex !== -1) {
+      const node = doc.nodes[nodeIndex]
+      if (!node) return
+
+      // Create updated node with all required properties
+      const updatedNode: MindscribbleNode = {
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: {
+          ...node.data,
+          ...updates,
+          modified: new Date().toISOString()
+        },
+        views: node.views
+      }
+
+      // Create new nodes array with updated node
+      const updatedNodes = [...doc.nodes]
+      updatedNodes[nodeIndex] = updatedNode
+
+      // Create new document object to trigger reactivity
+      const updatedDoc: MindscribbleDocument = {
+        ...doc,
+        nodes: updatedNodes,
+        metadata: {
+          ...doc.metadata,
+          modified: new Date().toISOString()
+        }
+      }
+      updateDocument(activeDocumentId.value, updatedDoc)
+      markDirty(activeDocumentId.value)
+
+      // Emit event
+      eventBus.emit('store:node-updated', {
+        nodeId,
+        changes: updates as { title?: string; content?: string; [key: string]: unknown },
+        source
+      })
+
+      logMigrationOperation('updateNode', { nodeId, updates })
+    }
+  }
+
+  /**
+   * Update node position
+   */
+  function updateNodePosition(
+    nodeId: string,
+    position: Position,
+    source: EventSource = 'store'
+  ) {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const node = doc.nodes.find((n) => n.id === nodeId)
+    if (!node) return
+
+    const previousPosition = { ...node.position }
+    node.position = { ...position }
+    doc.metadata.modified = new Date().toISOString()
+    markDirty(activeDocumentId.value)
+
+    // Emit event
+    eventBus.emit('store:node-moved', {
+      nodeId,
+      position,
+      previousPosition,
+      source
+    })
+
+    logMigrationOperation('updateNodePosition', { nodeId, position })
+  }
+
+  /**
+   * Delete a node and optionally its children
+   */
+  function deleteNode(
+    nodeId: string,
+    deleteChildren = true,
+    source: EventSource = 'store'
+  ) {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const node = doc.nodes.find((n) => n.id === nodeId)
+    if (!node) return
+
+    // Get all nodes to delete
+    const nodesToDelete = deleteChildren
+      ? [nodeId, ...getAllDescendants(nodeId).map((n) => n.id)]
+      : [nodeId]
+
+    // Create updated nodes array
+    let updatedNodes = [...doc.nodes]
+
+    // If not deleting children, reparent them
+    if (!deleteChildren) {
+      const children = getChildNodes(nodeId)
+      updatedNodes = updatedNodes.map(n => {
+        if (children.some(c => c.id === n.id)) {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              parentId: node.data.parentId
+            }
+          }
+        }
+        return n
+      })
+    }
+
+    // Remove nodes
+    updatedNodes = updatedNodes.filter((n) => !nodesToDelete.includes(n.id))
+
+    // Remove edges involving deleted nodes
+    const updatedEdges = doc.edges.filter(
+      (e) => !nodesToDelete.includes(e.source) && !nodesToDelete.includes(e.target)
+    )
+
+    // Create new document object to trigger reactivity
+    const updatedDoc: MindscribbleDocument = {
+      ...doc,
+      nodes: updatedNodes,
+      edges: updatedEdges,
+      metadata: {
+        ...doc.metadata,
+        modified: new Date().toISOString(),
+        nodeCount: updatedNodes.length,
+        edgeCount: updatedEdges.length
+      }
+    }
+    updateDocument(activeDocumentId.value, updatedDoc)
+    markDirty(activeDocumentId.value)
+
+    // Emit event
+    eventBus.emit('store:node-deleted', {
+      nodeId,
+      deletedIds: nodesToDelete,
+      source
+    })
+
+    logMigrationOperation('deleteNode', { nodeId, deletedCount: nodesToDelete.length })
+  }
+
+  /**
+   * Move a node to a new parent
+   */
+  function moveNode(
+    nodeId: string,
+    newParentId: string | null,
+    newOrder?: number,
+    source: EventSource = 'store'
+  ) {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const node = doc.nodes.find((n) => n.id === nodeId)
+    if (!node) return
+
+    // Prevent moving to own descendant
+    if (newParentId) {
+      const descendants = getAllDescendants(nodeId)
+      if (descendants.some((d) => d.id === newParentId)) {
+        console.warn('Cannot move node to its own descendant')
+        return
+      }
+    }
+
+    const oldParentId = node.data.parentId
+
+    // Create updated nodes array
+    const updatedNodes = doc.nodes.map(n => ({ ...n, data: { ...n.data } }))
+    const updatedNode = updatedNodes.find(n => n.id === nodeId)!
+
+    // Reorder old siblings
+    if (oldParentId !== newParentId) {
+      const oldSiblings = updatedNodes.filter(n =>
+        n.data.parentId === oldParentId && n.id !== nodeId
+      )
+      oldSiblings.forEach((s, i) => {
+        s.data.order = i
+      })
+    }
+
+    // Update parent
+    updatedNode.data.parentId = newParentId
+
+    // Insert at new position
+    const newSiblings = updatedNodes.filter(n =>
+      n.data.parentId === newParentId && n.id !== nodeId
+    )
+    const targetOrder = newOrder ?? newSiblings.length
+
+    newSiblings.forEach((s, i) => {
+      s.data.order = i >= targetOrder ? i + 1 : i
+    })
+    updatedNode.data.order = targetOrder
+
+    // Create new document object to trigger reactivity
+    const updatedDoc: MindscribbleDocument = {
+      ...doc,
+      nodes: updatedNodes,
+      metadata: {
+        ...doc.metadata,
+        modified: new Date().toISOString()
+      }
+    }
+    updateDocument(activeDocumentId.value, updatedDoc)
+    markDirty(activeDocumentId.value)
+
+    // Emit event
+    eventBus.emit('store:node-reparented', {
+      nodeId,
+      oldParentId,
+      newParentId,
+      newOrder: targetOrder,
+      source
+    })
+
+    logMigrationOperation('moveNode', { nodeId, oldParentId, newParentId, newOrder: targetOrder })
+  }
+
+  /**
+   * Reorder siblings - update order values for multiple nodes at once
+   */
+  function reorderSiblings(
+    parentId: string | null,
+    newOrders: Map<string, number>,
+    source: EventSource = 'store'
+  ) {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    let anyChanged = false
+
+    // Create updated nodes array
+    const updatedNodes = doc.nodes.map(n => {
+      const newOrder = newOrders.get(n.id)
+      if (newOrder !== undefined && n.data.order !== newOrder) {
+        anyChanged = true
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            order: newOrder,
+            modified: new Date().toISOString()
+          }
+        }
+      }
+      return n
+    })
+
+    if (anyChanged) {
+      // Create new document object to trigger reactivity
+      const updatedDoc: MindscribbleDocument = {
+        ...doc,
+        nodes: updatedNodes,
+        metadata: {
+          ...doc.metadata,
+          modified: new Date().toISOString()
+        }
+      }
+      updateDocument(activeDocumentId.value, updatedDoc)
+      markDirty(activeDocumentId.value)
+
+      // Emit siblings-reordered event
+      eventBus.emit('store:siblings-reordered', {
+        parentId,
+        newOrders,
+        source
+      })
+
+      logMigrationOperation('reorderSiblings', { parentId, orderCount: newOrders.size })
+    }
+  }
+
+  // ============================================================
+  // SELECTION OPERATIONS
+  // ============================================================
+
+  /** Selected node IDs for active document */
+  const selectedNodeIds = ref<string[]>([])
+
+  /**
+   * Select a single node
+   */
+  function selectNode(
+    nodeId: string | null,
+    source: EventSource = 'store',
+    scrollIntoView = true
+  ) {
+    if (nodeId === null) {
+      selectedNodeIds.value = []
+    } else {
+      selectedNodeIds.value = [nodeId]
+    }
+
+    eventBus.emit('store:node-selected', { nodeId, source, scrollIntoView })
+    logMigrationOperation('selectNode', { nodeId })
+  }
+
+  /**
+   * Select multiple nodes
+   */
+  function selectNodes(nodeIds: string[], source: EventSource = 'store') {
+    selectedNodeIds.value = [...nodeIds]
+    eventBus.emit('store:nodes-selected', { nodeIds, source })
+    logMigrationOperation('selectNodes', { count: nodeIds.length })
+  }
+
+  /**
+   * Clear selection
+   */
+  function clearSelection(source: EventSource = 'store') {
+    selectedNodeIds.value = []
+    eventBus.emit('store:node-selected', { nodeId: null, source, scrollIntoView: false })
+    logMigrationOperation('clearSelection')
+  }
+
+  // ============================================================
+  // NODE EXPANSION OPERATIONS (for Outline view)
+  // ============================================================
+
+  /**
+   * Expand a node in outline view
+   */
+  function expandNode(nodeId: string, source: EventSource = 'store') {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const nodeIndex = doc.nodes.findIndex((n) => n.id === nodeId)
+    if (nodeIndex !== -1) {
+      const node = doc.nodes[nodeIndex]
+      if (!node) return
+
+      const updatedNode: MindscribbleNode = {
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: node.data,
+        views: {
+          ...node.views,
+          outline: {
+            ...node.views.outline,
+            expanded: true
+          }
+        }
+      }
+
+      const updatedNodes = [...doc.nodes]
+      updatedNodes[nodeIndex] = updatedNode
+
+      const updatedDoc: MindscribbleDocument = {
+        ...doc,
+        nodes: updatedNodes
+      }
+      updateDocument(activeDocumentId.value, updatedDoc)
+      markDirty(activeDocumentId.value)
+
+      eventBus.emit('store:node-expanded', { nodeId, source })
+      logMigrationOperation('expandNode', { nodeId })
+    }
+  }
+
+  /**
+   * Collapse a node in outline view
+   */
+  function collapseNode(nodeId: string, source: EventSource = 'store') {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const nodeIndex = doc.nodes.findIndex((n) => n.id === nodeId)
+    if (nodeIndex !== -1) {
+      const node = doc.nodes[nodeIndex]
+      if (!node) return
+
+      const updatedNode: MindscribbleNode = {
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: node.data,
+        views: {
+          ...node.views,
+          outline: {
+            ...node.views.outline,
+            expanded: false
+          }
+        }
+      }
+
+      const updatedNodes = [...doc.nodes]
+      updatedNodes[nodeIndex] = updatedNode
+
+      const updatedDoc: MindscribbleDocument = {
+        ...doc,
+        nodes: updatedNodes
+      }
+      updateDocument(activeDocumentId.value, updatedDoc)
+      markDirty(activeDocumentId.value)
+
+      eventBus.emit('store:node-collapsed', { nodeId, source })
+      logMigrationOperation('collapseNode', { nodeId })
+    }
+  }
+
+  /**
+   * Toggle node expansion
+   */
+  function toggleNodeExpansion(nodeId: string, source: EventSource = 'store') {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const node = doc.nodes.find((n) => n.id === nodeId)
+    if (!node) return
+
+    const isExpanded = node.views.outline?.expanded ?? true
+    if (isExpanded) {
+      collapseNode(nodeId, source)
+    } else {
+      expandNode(nodeId, source)
+    }
+  }
+
+  /**
+   * Check if node is expanded
+   */
+  function isNodeExpanded(nodeId: string): boolean {
+    if (!activeDocumentId.value) return true
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return true
+
+    const node = doc.nodes.find((n) => n.id === nodeId)
+    if (!node) return true
+
+    return node?.views.outline?.expanded ?? true
+  }
+
+  // ============================================================
+  // SIDE MANAGEMENT (for Mindmap view)
+  // ============================================================
+
+  /**
+   * Set the side for a root node (immediate child of document root)
+   */
+  function setNodeSide(nodeId: string, side: 'left' | 'right' | null, source: EventSource = 'store') {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const nodeIndex = doc.nodes.findIndex((n) => n.id === nodeId)
+    if (nodeIndex === -1) return
+
+    const node = doc.nodes[nodeIndex]
+    if (!node) return
+
+    // Check if this is an immediate child of a root node (depth 1 in mindmap)
+    const parent = node.data.parentId ? doc.nodes.find((n) => n.id === node.data.parentId) : null
+    const isDepth1 = parent && parent.data.parentId === null
+
+    if (isDepth1) {
+      // Create updated node
+      const updatedNode: MindscribbleNode = {
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: {
+          ...node.data,
+          side
+        },
+        views: {
+          ...node.views,
+          mindmap: {
+            ...node.views.mindmap,
+            side
+          }
+        }
+      }
+
+      const updatedNodes = [...doc.nodes]
+      updatedNodes[nodeIndex] = updatedNode
+
+      // Create new document object to trigger reactivity
+      const updatedDoc: MindscribbleDocument = {
+        ...doc,
+        nodes: updatedNodes,
+        metadata: {
+          ...doc.metadata,
+          modified: new Date().toISOString()
+        }
+      }
+      updateDocument(activeDocumentId.value, updatedDoc)
+      markDirty(activeDocumentId.value)
+
+      // Emit event
+      eventBus.emit('store:node-side-changed', { nodeId, newSide: side, source })
+
+      // Log in migration mode
+      logMigrationOperation('setNodeSide', { nodeId, side, source })
+    }
+  }
+
+  /**
+   * Toggle node side (left ↔ right)
+   */
+  function toggleNodeSide(nodeId: string, source: EventSource = 'store') {
+    if (!activeDocumentId.value) return
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return
+
+    const node = doc.nodes.find((n) => n.id === nodeId)
+    if (!node) return
+
+    // Check if this is an immediate child of a root node (depth 1 in mindmap)
+    const parent = node.data.parentId ? doc.nodes.find((n) => n.id === node.data.parentId) : null
+    const isDepth1 = parent && parent.data.parentId === null
+
+    if (isDepth1) {
+      const newSide = node.data.side === 'left' ? 'right' : 'left'
+      setNodeSide(nodeId, newSide, source)
+    }
+  }
+
+  /**
+   * Get all root nodes with their sides
+   */
+  function getRootNodesWithSides() {
+    if (!activeDocumentId.value) return []
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) return []
+
+    const rootNodes = doc.nodes.filter((n) => !n.data.parentId)
+    return rootNodes.map(rootNode => ({
+      id: rootNode.id,
+      title: rootNode.data.title,
+      children: doc.nodes
+        .filter((n) => n.data.parentId === rootNode.id)
+        .map(child => ({
+          id: child.id,
+          title: child.data.title,
+          side: child.data.side || child.views.mindmap?.side || null
+        }))
+    }))
+  }
+
+  // ============================================================
   // EVENT FORWARDING (Phase 3: Dual-write system)
   // ============================================================
 
@@ -354,7 +1050,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /**
    * Forward document loaded event
    */
-  function emitDocumentLoaded(documentId: string, documentName: string) {
+  function emitNodeLoaded(documentId: string, documentName: string) {
     emitEvent('store:document-loaded', { documentId, documentName, source: 'store' })
   }
 
@@ -519,6 +1215,36 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     getAllMasterMapDocuments,
     clearMasterMap,
 
+    // Node operations
+    generateNodeId,
+    getNodeById,
+    getChildNodes,
+    getAllDescendants,
+    getRootNodes,
+    addNode,
+    updateNode,
+    updateNodePosition,
+    deleteNode,
+    moveNode,
+    reorderSiblings,
+
+    // Selection operations
+    selectedNodeIds,
+    selectNode,
+    selectNodes,
+    clearSelection,
+
+    // Node expansion operations
+    expandNode,
+    collapseNode,
+    toggleNodeExpansion,
+    isNodeExpanded,
+
+    // Side management operations
+    setNodeSide,
+    toggleNodeSide,
+    getRootNodesWithSides,
+
     // Event forwarding
     emitEvent,
     emitNodeCreated,
@@ -528,7 +1254,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     emitNodeSelected,
     emitNodesSelected,
     emitViewChanged,
-    emitDocumentLoaded,
+    emitNodeLoaded,
     emitDocumentCleared
   }
 })
