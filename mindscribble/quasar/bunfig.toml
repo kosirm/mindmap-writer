@@ -1,0 +1,26 @@
+# Bun configuration for MindScribble Quasar project
+# https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Use exact versions for reproducible builds
+exact = false
+
+# Automatically install peer dependencies
+auto = true
+
+# Use global cache for faster installs
+cache = true
+
+[install.scopes]
+# Configure scoped registries if needed
+# "@myorg" = "https://registry.myorg.com"
+
+[test]
+# Test configuration (when using Bun's built-in test runner)
+# Currently using Vitest, but this is here for reference
+preload = ["./test/vitest.setup.ts"]
+
+[run]
+# Automatically install dependencies when running scripts
+autoInstall = true
+
