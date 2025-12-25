@@ -232,7 +232,10 @@ function onTreeChange() {
   const orderChanges: Map<string | null, Map<string, number>> = new Map() // parentId -> (nodeId -> order)
 
   newHierarchy.forEach(({ parentId, order }, nodeId) => {
-    const node = documentStore.getNodeById(nodeId)
+    const node = isUnifiedMode.value
+      ? unifiedStore.getNodeById(nodeId)
+      : documentStore.getNodeById(nodeId)
+
     if (node) {
       const oldParentId = node.data.parentId
 
