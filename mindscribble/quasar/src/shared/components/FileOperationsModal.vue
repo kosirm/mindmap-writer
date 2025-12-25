@@ -154,6 +154,8 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useQuasar } from 'quasar'
 import { useGoogleDriveStore, useDocumentStore, useAuthStore } from 'src/core/stores'
 import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
+import { useStoreMode } from 'src/composables/useStoreMode'
 import {
   getOrCreateAppFolder,
   listMindmapFiles,
@@ -184,6 +186,8 @@ const driveStore = useGoogleDriveStore()
 const documentStore = useDocumentStore()
 const authStore = useAuthStore()
 const multiDocStore = useMultiDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
+const { isUnifiedMode, isDualWriteMode } = useStoreMode()
 
 // State
 const fileName = ref('')
@@ -300,8 +304,29 @@ async function handleSave() {
       driveStore.setAppFolderId(folderId)
     }
 
-    // Get document data
-    const document = documentStore.toDocument()
+    // Get document data from the appropriate store
+    let document: MindscribbleDocument | null = null
+
+    if (isUnifiedMode.value || isDualWriteMode.value) {
+      // Use unified store (primary source in unified/dual-write mode)
+      document = unifiedStore.toDocument()
+      console.log('💾 Getting document from unified store:', {
+        nodeCount: document?.nodes.length,
+        edgeCount: document?.edges.length
+      })
+    } else {
+      // Use legacy store (legacy mode only)
+      document = documentStore.toDocument()
+      console.log('💾 Getting document from legacy store:', {
+        nodeCount: document?.nodes.length,
+        edgeCount: document?.edges.length
+      })
+    }
+
+    if (!document) {
+      throw new Error('No active document to save')
+    }
+
     document.metadata.name = fileName.value.trim()
 
     // Include child dockview layout from localStorage using document ID
@@ -344,8 +369,26 @@ async function handleSave() {
     }
 
     driveStore.setCurrentFile(savedFile)
-    documentStore.documentName = fileName.value.trim()
-    documentStore.markClean()
+
+    // Mark document as clean in the appropriate store(s)
+    if (isUnifiedMode.value || isDualWriteMode.value) {
+      // Update unified store
+      if (unifiedStore.activeDocumentId) {
+        unifiedStore.markClean(unifiedStore.activeDocumentId)
+        // Update document name in unified store
+        unifiedStore.updateDocumentMetadata(unifiedStore.activeDocumentId, {
+          name: fileName.value.trim()
+        })
+        console.log('✅ Marked document as clean in unified store')
+      }
+    }
+
+    if (!isUnifiedMode.value) {
+      // Update legacy stores (in legacy or dual-write mode)
+      documentStore.documentName = fileName.value.trim()
+      documentStore.markClean()
+      console.log('✅ Marked document as clean in legacy store')
+    }
 
     // Update the document name in multi-document store for the active file panel
     const activeFilePanelId = multiDocStore.activeFilePanelId

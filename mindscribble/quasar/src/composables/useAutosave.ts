@@ -7,9 +7,12 @@
 
 import { ref, watch, onUnmounted } from 'vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useAuthStore } from 'src/core/stores/authStore'
+import { useStoreMode } from 'src/composables/useStoreMode'
 import { updateMindmapFile } from 'src/core/services/googleDriveService'
+import type { MindscribbleDocument } from 'src/core/types'
 
 // Default autosave delay (2 seconds after last change)
 const DEFAULT_AUTOSAVE_DELAY = 2000
@@ -19,8 +22,10 @@ const MIN_SAVE_INTERVAL = 5000
 
 export function useAutosave(delay: number = DEFAULT_AUTOSAVE_DELAY) {
   const documentStore = useDocumentStore()
+  const unifiedStore = useUnifiedDocumentStore()
   const driveStore = useGoogleDriveStore()
   const authStore = useAuthStore()
+  const { isUnifiedMode, isDualWriteMode } = useStoreMode()
 
   // Internal state
   const isAutosaving = ref(false)
@@ -68,18 +73,51 @@ export function useAutosave(delay: number = DEFAULT_AUTOSAVE_DELAY) {
     driveStore.setSyncStatus('saving')
 
     try {
-      const document = documentStore.toDocument()
+      // Get document from the appropriate store
+      let document: MindscribbleDocument | null = null
+
+      if (isUnifiedMode.value || isDualWriteMode.value) {
+        // Use unified store (primary source in unified/dual-write mode)
+        document = unifiedStore.toDocument()
+        console.log('💾 Autosaving from unified store:', {
+          nodeCount: document?.nodes.length,
+          edgeCount: document?.edges.length
+        })
+      } else {
+        // Use legacy store (legacy mode only)
+        document = documentStore.toDocument()
+        console.log('💾 Autosaving from legacy store:', {
+          nodeCount: document?.nodes.length,
+          edgeCount: document?.edges.length
+        })
+      }
+
+      if (!document) {
+        throw new Error('No active document to autosave')
+      }
+
       const currentFile = driveStore.currentFile!
 
       const savedFile = await updateMindmapFile(
         currentFile.id,
         document,
-        documentStore.documentName
+        document.metadata.name
       )
 
       driveStore.updateFileInList(savedFile)
       driveStore.setCurrentFile(savedFile)
-      documentStore.markClean()
+
+      // Mark document as clean in the appropriate store(s)
+      if (isUnifiedMode.value || isDualWriteMode.value) {
+        if (unifiedStore.activeDocumentId) {
+          unifiedStore.markClean(unifiedStore.activeDocumentId)
+        }
+      }
+
+      if (!isUnifiedMode.value) {
+        documentStore.markClean()
+      }
+
       lastSaveTime.value = Date.now()
 
       // Show "synced" status briefly, then return to idle
