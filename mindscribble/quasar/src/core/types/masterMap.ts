@@ -109,6 +109,8 @@ export interface MasterMapDocument {
 
   // Document metadata
   metadata: {
+    id: string                    // Unique identifier
+    name?: string                 // Optional name for display
     created: string               // ISO 8601
     modified: string              // ISO 8601
     lastSyncedDevice?: string     // Device identifier for conflict resolution
