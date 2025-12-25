@@ -60,8 +60,12 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { MindscribbleNode } from '../../../core/types'
 import { useDocumentStore } from '../../../core/stores'
+import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
+import { useStoreMode } from '../../../composables/useStoreMode'
 import { createKeyboardHandler, createNavigationHandler } from '../composables/useOutlineKeyboardHandlers'
 import type { useOutlineNavigation } from '../composables/useOutlineNavigation'
+import type { EventSource } from '../../../core/events'
+import type { NodeData } from '../../../core/types'
 
 const props = defineProps<{
   node: MindscribbleNode
@@ -73,18 +77,51 @@ const props = defineProps<{
   isEditMode: boolean
 }>()
 
+// Store mode toggle
+const { isUnifiedMode } = useStoreMode()
+
+// Legacy store for node operations
 const documentStore = useDocumentStore()
+
+// Unified store
+const unifiedStore = useUnifiedDocumentStore()
+
 const navigation = inject<ReturnType<typeof useOutlineNavigation>>('outlineNavigation')
 
 // Inject emitter at setup time (inject must be called during setup, not inside functions)
 const outlineEmitter = inject<{ emit: (event: string, payload: unknown) => void; on: (event: string, handler: (payload: unknown) => void) => void }>('outlineEmitter')
+
+// Inject method to update local tree data (to avoid prop mutation)
+const updateLocalNodeData = inject<(nodeId: string, updates: { title?: string; content?: string }) => void>('updateLocalNodeData')
+
+// Helper functions to call the appropriate store
+function selectNode(nodeId: string, source: EventSource, scrollIntoView: boolean) {
+  if (isUnifiedMode.value) {
+    unifiedStore.selectNode(nodeId, source, scrollIntoView)
+  } else {
+    documentStore.selectNode(nodeId, source, scrollIntoView)
+  }
+}
+
+function updateNode(nodeId: string, updates: Partial<NodeData>, source: EventSource) {
+  if (isUnifiedMode.value) {
+    unifiedStore.updateNode(nodeId, updates, source)
+  } else {
+    documentStore.updateNode(nodeId, updates, source)
+  }
+}
 
 // UI state
 const isHovered = ref(false)
 const isEditing = ref(false)
 
 // Selection state
-const isSelected = computed(() => documentStore.selectedNodeIds.includes(props.node.id))
+const isSelected = computed(() => {
+  if (isUnifiedMode.value) {
+    return unifiedStore.selectedNodeIds.includes(props.node.id)
+  }
+  return documentStore.selectedNodeIds.includes(props.node.id)
+})
 
 // Display values
 const displayTitle = computed(() => props.node.data.title || '<span class="placeholder">Untitled</span>')
@@ -92,6 +129,9 @@ const displayTitle = computed(() => props.node.data.title || '<span class="place
 // Expansion state from store - sync he-tree stat.open with store expansion state
 const isNodeExpanded = computed(() => {
   if (props.stat.children.length === 0) return false // No children means effectively expanded
+  if (isUnifiedMode.value) {
+    return unifiedStore.isNodeExpanded(props.node.id)
+  }
   return documentStore.isNodeExpanded(props.node.id)
 })
 
@@ -109,10 +149,14 @@ const titleEditor = shallowRef<Editor | null>(null)
 function handleNodeClick(event: MouseEvent) {
   if (event.ctrlKey || event.metaKey) {
     // Ctrl+click: Select and navigate
-    documentStore.selectNavigateNode(props.node.id, 'outline')
+    if (isUnifiedMode.value) {
+      unifiedStore.selectNode(props.node.id, 'outline', true)
+    } else {
+      documentStore.selectNavigateNode(props.node.id, 'outline')
+    }
   } else {
     // Regular click: Select without navigation
-    documentStore.selectNode(props.node.id, 'outline', false)
+    selectNode(props.node.id, 'outline', false)
 
     // If in navigation mode (edit mode OFF), focus this node
     if (!props.isEditMode) {
@@ -140,7 +184,7 @@ function handleNavigationKeydown(event: KeyboardEvent) {
         const prevNode = navigation.getPreviousNode(props.node.id)
         if (prevNode) {
           // Select the previous node and focus it
-          documentStore.selectNode(prevNode.id, 'outline', false)
+          selectNode(prevNode.id, 'outline', false)
           void nextTick(() => {
             focusNode(prevNode.id)
           })
@@ -152,7 +196,7 @@ function handleNavigationKeydown(event: KeyboardEvent) {
         const nextNode = navigation.getNextNode(props.node.id)
         if (nextNode) {
           // Select the next node and focus it
-          documentStore.selectNode(nextNode.id, 'outline', false)
+          selectNode(nextNode.id, 'outline', false)
           void nextTick(() => {
             focusNode(nextNode.id)
           })
@@ -206,7 +250,7 @@ function focusNode(nodeId: string) {
 
 // Navigation helper
 function navigateToNode(nodeId: string, cursorPosition: 'start' | 'end') {
-  documentStore.selectNode(nodeId, 'outline', false)
+  selectNode(nodeId, 'outline', false)
   void nextTick(() => {
     outlineEmitter?.emit('open-title-editor', { nodeId, cursorPosition })
   })
@@ -216,7 +260,7 @@ function navigateToNode(nodeId: string, cursorPosition: 'start' | 'end') {
 function openTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
   // Only open editor if edit mode is ON
   if (!props.isEditMode || isEditing.value) return
-  documentStore.selectNode(props.node.id, 'outline', false)
+  selectNode(props.node.id, 'outline', false)
   isEditing.value = true
   void nextTick(() => createTitleEditor(cursorPosition))
 }
@@ -282,7 +326,13 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
       const html = editor.getHTML()
       // Strip <p> tags for title
       const text = html.replace(/<\/?p>/g, '')
-      documentStore.updateNode(props.node.id, { title: text }, 'outline')
+
+      // Update the store (this will emit an event that other views will receive)
+      updateNode(props.node.id, { title: text }, 'outline')
+
+      // Also update the local tree data immediately to avoid stale data
+      // This is necessary because the store creates new node objects for reactivity
+      updateLocalNodeData?.(props.node.id, { title: text })
     },
     onBlur: () => destroyTitleEditor()
   })

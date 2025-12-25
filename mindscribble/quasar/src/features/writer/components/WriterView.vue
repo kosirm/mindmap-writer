@@ -35,12 +35,22 @@ import { Draggable } from '@he-tree/vue'
 import '@he-tree/vue/style/default.css'
 import WriterNodeContent from './WriterNodeContent.vue'
 import { useDocumentStore } from '../../../core/stores'
+import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
+import { useStoreMode } from '../../../composables/useStoreMode'
 import { useViewEvents } from '../../../core/events'
 import { useWriterNavigation, type WriterTreeItem } from '../composables/useWriterNavigation'
 
 const TRIGGER_CLASS = 'drag-handle'
 
+// Store mode toggle
+const { isUnifiedMode } = useStoreMode()
+
+// Legacy store
 const documentStore = useDocumentStore()
+
+// Unified store
+const unifiedStore = useUnifiedDocumentStore()
+
 const { onStoreEvent } = useViewEvents('writer')
 
 // console.log('🔍 WriterView.vue script setup running')
@@ -75,14 +85,41 @@ provide('writerEmitter', writerEmitter)
 const navigation = useWriterNavigation(treeData)
 provide('writerNavigation', navigation)
 
+// Provide method to update local tree data (to avoid prop mutation)
+const updateLocalNodeData = (nodeId: string, updates: { title?: string; content?: string }) => {
+  const updateItem = (items: WriterTreeItem[]): boolean => {
+    for (const item of items) {
+      if (item.id === nodeId) {
+        if (updates.title !== undefined) {
+          item.text = updates.title
+          item.node.data.title = updates.title
+        }
+        if (updates.content !== undefined) {
+          item.node.data.content = updates.content
+        }
+        return true
+      }
+      if (updateItem(item.children)) return true
+    }
+    return false
+  }
+  updateItem(treeData.value)
+}
+provide('updateLocalNodeData', updateLocalNodeData)
+
 /**
  * Build tree structure from store nodes
  */
 function buildTreeFromStore(): WriterTreeItem[] {
   const nodeMap = new Map<string, WriterTreeItem>()
 
+  // Get nodes from the appropriate store
+  const nodes = isUnifiedMode.value
+    ? (unifiedStore.activeDocument?.nodes || [])
+    : documentStore.nodes
+
   // First pass: Create tree items
-  documentStore.nodes.forEach(node => {
+  nodes.forEach(node => {
     nodeMap.set(node.id, {
       id: node.id,
       text: node.data.title || 'Untitled',
@@ -146,7 +183,10 @@ function onTreeChange() {
   const orderChanges: Map<string | null, Map<string, number>> = new Map() // parentId -> (nodeId -> order)
 
   newHierarchy.forEach(({ parentId, order }, nodeId) => {
-    const node = documentStore.getNodeById(nodeId)
+    const node = isUnifiedMode.value
+      ? unifiedStore.getNodeById(nodeId)
+      : documentStore.getNodeById(nodeId)
+
     if (node) {
       const oldParentId = node.data.parentId
 
@@ -165,12 +205,20 @@ function onTreeChange() {
 
   // Handle reparenting first (uses moveNode)
   for (const { nodeId, parentId, order } of reparentedNodes) {
-    documentStore.moveNode(nodeId, parentId, order, 'writer')
+    if (isUnifiedMode.value) {
+      unifiedStore.moveNode(nodeId, parentId, order, 'writer')
+    } else {
+      documentStore.moveNode(nodeId, parentId, order, 'writer')
+    }
   }
 
   // Handle sibling reordering (uses reorderSiblings - emits store:siblings-reordered)
   for (const [parentId, nodeOrders] of orderChanges) {
-    documentStore.reorderSiblings(parentId, nodeOrders, 'writer')
+    if (isUnifiedMode.value) {
+      unifiedStore.reorderSiblings(parentId, nodeOrders, 'writer')
+    } else {
+      documentStore.reorderSiblings(parentId, nodeOrders, 'writer')
+    }
   }
 }
 
@@ -213,8 +261,13 @@ function onTreeChange() {
 // Initial load
 treeData.value = buildTreeFromStore()
 
-// Watch store for changes
-watch(() => documentStore.nodes.length, () => {
+// Watch store for changes based on mode
+watch(() => {
+  if (isUnifiedMode.value) {
+    return unifiedStore.activeDocument?.nodes.length || 0
+  }
+  return documentStore.nodes.length
+}, () => {
   treeData.value = buildTreeFromStore()
 })
 
@@ -234,6 +287,12 @@ onStoreEvent('store:node-updated', ({ nodeId, changes }) => {
       if (item.id === nodeId) {
         if (changes.title !== undefined) {
           item.text = changes.title
+          // Also update the node reference so the component displays the updated title
+          item.node.data.title = changes.title
+        }
+        if (changes.content !== undefined) {
+          // Update content if changed
+          item.node.data.content = changes.content
         }
         return true
       }

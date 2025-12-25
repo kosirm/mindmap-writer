@@ -528,6 +528,7 @@ function handleDocumentLoaded() {
   }
 
   .dv-tab {
+    border-top-right-radius: 10px !important;
     border: none !important;
     border-left: none !important; // Remove left border separator
     outline: none !important;

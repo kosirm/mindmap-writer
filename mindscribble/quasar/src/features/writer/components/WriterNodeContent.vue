@@ -57,8 +57,11 @@ import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject, watch } f
 import { EditorContent, Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import type { MindscribbleNode } from '../../../core/types'
+import type { MindscribbleNode, NodeData } from '../../../core/types'
+import type { EventSource } from '../../../core/events'
 import { useDocumentStore } from '../../../core/stores'
+import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
+import { useStoreMode } from '../../../composables/useStoreMode'
 import { createKeyboardHandler } from '../composables/useWriterKeyboardHandlers'
 import type { useWriterNavigation } from '../composables/useWriterNavigation'
 
@@ -68,11 +71,39 @@ const props = defineProps<{
   triggerClass: string
 }>()
 
+// Store mode toggle
+const { isUnifiedMode } = useStoreMode()
+
+// Legacy store
 const documentStore = useDocumentStore()
+
+// Unified store
+const unifiedStore = useUnifiedDocumentStore()
+
 const navigation = inject<ReturnType<typeof useWriterNavigation>>('writerNavigation')
 
 // Inject emitter at setup time (inject must be called during setup, not inside functions)
 const writerEmitter = inject<{ emit: (event: string, payload: unknown) => void; on: (event: string, handler: (payload: unknown) => void) => void }>('writerEmitter')
+
+// Inject method to update local tree data (to avoid prop mutation)
+const updateLocalNodeData = inject<(nodeId: string, updates: { title?: string; content?: string }) => void>('updateLocalNodeData')
+
+// Helper functions to call the appropriate store
+function selectNode(nodeId: string, source: EventSource, scrollIntoView: boolean) {
+  if (isUnifiedMode.value) {
+    unifiedStore.selectNode(nodeId, source, scrollIntoView)
+  } else {
+    documentStore.selectNode(nodeId, source, scrollIntoView)
+  }
+}
+
+function updateNode(nodeId: string, updates: Partial<NodeData>, source: EventSource) {
+  if (isUnifiedMode.value) {
+    unifiedStore.updateNode(nodeId, updates, source)
+  } else {
+    documentStore.updateNode(nodeId, updates, source)
+  }
+}
 
 // UI state
 const isHovered = ref(false)
@@ -80,7 +111,12 @@ const isTitleEditing = ref(false)
 const isContentEditing = ref(false)
 
 // Selection state
-const isSelected = computed(() => documentStore.selectedNodeIds.includes(props.node.id))
+const isSelected = computed(() => {
+  if (isUnifiedMode.value) {
+    return unifiedStore.selectedNodeIds.includes(props.node.id)
+  }
+  return documentStore.selectedNodeIds.includes(props.node.id)
+})
 
 // Display values
 const displayTitle = computed(() => props.node.data.title || '<span class="placeholder">Untitled</span>')
@@ -100,10 +136,14 @@ const contentEditor = shallowRef<Editor | null>(null)
 function handleNodeClick(event: MouseEvent) {
   if (event.ctrlKey || event.metaKey) {
     // Ctrl+click: Select and navigate
-    documentStore.selectNavigateNode(props.node.id, 'writer')
+    if (isUnifiedMode.value) {
+      unifiedStore.selectNode(props.node.id, 'writer', true)
+    } else {
+      documentStore.selectNavigateNode(props.node.id, 'writer')
+    }
   } else {
     // Regular click: Select without navigation
-    documentStore.selectNode(props.node.id, 'writer', false)
+    selectNode(props.node.id, 'writer', false)
   }
 }
 
@@ -117,7 +157,7 @@ function handleContentClick() {
 
 // Navigation helper
 function navigateToField(nodeId: string, field: 'title' | 'content', cursorPosition: 'start' | 'end') {
-  documentStore.selectNode(nodeId, 'writer', false)
+  selectNode(nodeId, 'writer', false)
   void nextTick(() => {
     writerEmitter?.emit('open-field', { nodeId, field, cursorPosition })
   })
@@ -126,7 +166,7 @@ function navigateToField(nodeId: string, field: 'title' | 'content', cursorPosit
 // Title editor
 function openTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (isTitleEditing.value) return
-  documentStore.selectNode(props.node.id, 'writer', false)
+  selectNode(props.node.id, 'writer', false)
   isTitleEditing.value = true
   void nextTick(() => createTitleEditor(cursorPosition))
 }
@@ -173,7 +213,13 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
       const html = editor.getHTML()
       // Strip <p> tags for title
       const text = html.replace(/<\/?p>/g, '')
-      documentStore.updateNode(props.node.id, { title: text }, 'writer')
+
+      // Update the store (this will emit an event that other views will receive)
+      updateNode(props.node.id, { title: text }, 'writer')
+
+      // Also update the local tree data immediately to avoid stale data
+      // This is necessary because the store creates new node objects for reactivity
+      updateLocalNodeData?.(props.node.id, { title: text })
     },
     onBlur: () => destroyTitleEditor()
   })
@@ -192,7 +238,7 @@ function destroyTitleEditor() {
 // Content editor
 function openContentEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (isContentEditing.value) return
-  documentStore.selectNode(props.node.id, 'writer', false)
+  selectNode(props.node.id, 'writer', false)
   isContentEditing.value = true
   void nextTick(() => createContentEditor(cursorPosition))
 }
@@ -242,7 +288,14 @@ function createContentEditor(cursorPosition: 'start' | 'end' = 'end') {
       })
     },
     onUpdate: ({ editor }) => {
-      documentStore.updateNode(props.node.id, { content: editor.getHTML() }, 'writer')
+      const html = editor.getHTML()
+
+      // Update the store (this will emit an event that other views will receive)
+      updateNode(props.node.id, { content: html }, 'writer')
+
+      // Also update the local tree data immediately to avoid stale data
+      // This is necessary because the store creates new node objects for reactivity
+      updateLocalNodeData?.(props.node.id, { content: html })
     },
     onBlur: () => destroyContentEditor()
   })
@@ -267,7 +320,12 @@ writerEmitter?.on('open-field', (payload: unknown) => {
 })
 
 // Watch for external selection changes to scroll into view
-watch(() => documentStore.selectedNodeIds, (newIds) => {
+watch(() => {
+  if (isUnifiedMode.value) {
+    return unifiedStore.selectedNodeIds
+  }
+  return documentStore.selectedNodeIds
+}, (newIds) => {
   if (newIds.includes(props.node.id)) {
     // Could scroll into view here if needed
   }

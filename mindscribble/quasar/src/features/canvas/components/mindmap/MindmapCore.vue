@@ -24,6 +24,8 @@ import * as d3 from 'd3'
 import { Dark } from 'quasar'
 import MindmapContextMenu from './MindmapContextMenu.vue'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
+import { useStoreMode } from 'src/composables/useStoreMode'
 import { useViewEvents } from 'src/core/events'
 
 export default defineComponent({
@@ -60,7 +62,11 @@ export default defineComponent({
   emits: ['node-select'],
   setup(props, { emit }) {
     const svgEle = ref<SVGSVGElement | null>(null)
+
+    // Store mode toggle
+    const { isUnifiedMode } = useStoreMode()
     const documentStore = useDocumentStore()
+    const unifiedStore = useUnifiedDocumentStore()
     const { onStoreEvent } = useViewEvents('mindmap')
 
     // Context menu state
@@ -83,44 +89,10 @@ export default defineComponent({
     // Drag state - store offsets separately to avoid triggering watch
     const dragOffsets = new Map<string, { px: number, py: number }>()
 
-    // Convert document store nodes to D3 hierarchical data format
-    const convertToD3Data = (): Data[] => {
-      const rootNodes = documentStore.nodes.filter(node => node.data.parentId === null)
-
-      const convertNode = (nodeId: string, depth: number = 0, parentLeft?: boolean): Data => {
-        const node = documentStore.getNodeById(nodeId)
-        if (!node) return { name: 'Unknown' }
-
-        const children = documentStore.getChildNodes(nodeId)
-          .sort((a, b) => a.data.order - b.data.order)
-          .map(child => convertNode(child.id, depth + 1, depth === 1 ? (node.data.side === 'left') : parentLeft))
-
-        const result: Data = {
-          name: node.data.title,
-          id: node.id
-        }
-
-        // Only set 'left' for depth 1 nodes (immediate children of root)
-        // Descendants will inherit from their parent during layout
-        if (depth === 1) {
-          result.left = node.data.side === 'left'
-        } else if (depth > 1 && parentLeft !== undefined) {
-          result.left = parentLeft
-        }
-
-        if (children.length > 0) {
-          result.children = children
-        }
-
-        return result
-      }
-
-      return rootNodes.map(rootNode => convertNode(rootNode.id))
-    }
-
-    // Computed property for D3 data
+    // Computed property for D3 data - use modelValue prop
     const d3Data = computed(() => {
-      return convertToD3Data()
+      console.log('[MindmapCore] d3Data computed, modelValue:', props.modelValue)
+      return props.modelValue
     })
 
     // Theme colors based on dark/light mode
@@ -387,7 +359,11 @@ export default defineComponent({
       // Reparent: make draggedNode a child of targetNode
       const newParentId = targetNode.data.id || null
       if (draggedNode.data.id && newParentId) {
-        documentStore.moveNode(draggedNode.data.id, newParentId)
+        if (isUnifiedMode.value) {
+          unifiedStore.moveNode(draggedNode.data.id, newParentId, undefined, 'mindmap')
+        } else {
+          documentStore.moveNode(draggedNode.data.id, newParentId, undefined, 'mindmap')
+        }
       }
 
       return true
@@ -941,7 +917,11 @@ export default defineComponent({
               // Handle side change for root children
               const newSide = nodeCenterY < rootCenterY ? 'left' : 'right'
               console.log('Side change:', d.data.id, 'to', newSide)
-              documentStore.setNodeSide(d.data.id, newSide, 'mindmap')
+              if (isUnifiedMode.value) {
+                unifiedStore.setNodeSide(d.data.id, newSide, 'mindmap')
+              } else {
+                documentStore.setNodeSide(d.data.id, newSide, 'mindmap')
+              }
               // Redraw will happen via store watch
               return
             } else if (d.parent && Math.abs(py) > 10) {
@@ -1006,7 +986,11 @@ export default defineComponent({
 
                   console.log('New orders:', Array.from(newOrders.entries()))
                   const parentId = d.parent?.data.id || null
-                  documentStore.reorderSiblings(parentId, newOrders)
+                  if (isUnifiedMode.value) {
+                    unifiedStore.reorderSiblings(parentId, newOrders, 'mindmap')
+                  } else {
+                    documentStore.reorderSiblings(parentId, newOrders, 'mindmap')
+                  }
                   // Redraw will happen via store watch
                   return
                 }
@@ -1103,8 +1087,9 @@ export default defineComponent({
       drawMindmap()
     })
 
-    // Watch for document store node changes
-    watch(() => documentStore.nodes, () => {
+    // Watch for modelValue changes (works with both legacy and unified stores)
+    watch(() => props.modelValue, () => {
+      console.log('[MindmapCore] modelValue changed, redrawing mindmap')
       drawMindmap()
     }, { deep: true })
 
