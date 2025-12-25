@@ -234,6 +234,43 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   /**
+   * Convert active document to MindscribbleDocument format
+   * This is compatible with the legacy documentStore.toDocument() method
+   */
+  function toDocument(): MindscribbleDocument | null {
+    if (!activeDocumentId.value) {
+      logMigrationOperation('toDocument', { error: 'No active document' })
+      return null
+    }
+
+    const doc = documents.value.get(activeDocumentId.value)
+    if (!doc) {
+      logMigrationOperation('toDocument', { error: 'Active document not found', activeDocumentId: activeDocumentId.value })
+      return null
+    }
+
+    // Update metadata before returning
+    const updatedDoc: MindscribbleDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        modified: new Date().toISOString(),
+        searchableText: doc.nodes.map((n) => `${n.data.title} ${n.data.content}`).join(' '),
+        nodeCount: doc.nodes.length,
+        edgeCount: doc.edges.length
+      }
+    }
+
+    logMigrationOperation('toDocument', {
+      documentId: updatedDoc.metadata.id,
+      nodeCount: updatedDoc.nodes.length,
+      edgeCount: updatedDoc.edges.length
+    })
+
+    return updatedDoc
+  }
+
+  /**
    * Create a new empty document
    */
   function createEmptyDocument(name = 'Untitled'): MindscribbleDocument {
@@ -1213,6 +1250,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     markClean,
     isDirty,
     getDocumentById,
+    toDocument,
     createEmptyDocument,
     updateDocumentMetadata,
     updateDocumentLayoutSettings,

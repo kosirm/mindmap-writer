@@ -221,9 +221,11 @@ import { useQuasar, Platform } from 'quasar'
 import { useAppStore } from 'src/core/stores/appStore'
 import { useAuthStore } from 'src/core/stores/authStore'
 import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { usePanelStore } from 'src/core/stores/panelStore'
 import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
+import { useStoreMode } from 'src/composables/useStoreMode'
 import DockviewLayout from './DockviewLayout.vue'
 import MobileLayout from './MobileLayout.vue'
 import CommandPalette from 'src/shared/components/CommandPalette.vue'
@@ -249,10 +251,12 @@ const $q = useQuasar()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const documentStore = useDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 const driveStore = useGoogleDriveStore()
 const panelStore = usePanelStore()
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const multiDocStore = useMultiDocumentStore()
+const { isUnifiedMode, isDualWriteMode } = useStoreMode()
 
 // Initialize autosave (2 second debounce)
 useAutosave(2000)
@@ -424,8 +428,30 @@ async function saveCurrentFile() {
 
   driveStore.setSyncStatus('saving')
   try {
-    const document = documentStore.toDocument()
-    document.metadata.name = driveStore.currentFileName || documentStore.documentName || 'Untitled'
+    // Get document from the appropriate store
+    let document: MindscribbleDocument | null = null
+
+    if (isUnifiedMode.value || isDualWriteMode.value) {
+      // Use unified store (primary source in unified/dual-write mode)
+      document = unifiedStore.toDocument()
+      console.log('💾 Saving from unified store:', {
+        nodeCount: document?.nodes.length,
+        edgeCount: document?.edges.length
+      })
+    } else {
+      // Use legacy store (legacy mode only)
+      document = documentStore.toDocument()
+      console.log('💾 Saving from legacy store:', {
+        nodeCount: document?.nodes.length,
+        edgeCount: document?.edges.length
+      })
+    }
+
+    if (!document) {
+      throw new Error('No active document to save')
+    }
+
+    document.metadata.name = driveStore.currentFileName || document.metadata.name || 'Untitled'
 
     const savedFile = await updateMindmapFile(
       driveStore.currentFile.id,
@@ -434,7 +460,17 @@ async function saveCurrentFile() {
     )
     driveStore.updateFileInList(savedFile)
     driveStore.setCurrentFile(savedFile)
-    documentStore.markClean()
+
+    // Mark document as clean in the appropriate store(s)
+    if (isUnifiedMode.value || isDualWriteMode.value) {
+      if (unifiedStore.activeDocumentId) {
+        unifiedStore.markClean(unifiedStore.activeDocumentId)
+      }
+    }
+
+    if (!isUnifiedMode.value) {
+      documentStore.markClean()
+    }
 
     // Show "synced" status briefly
     driveStore.setSyncStatus('synced')
