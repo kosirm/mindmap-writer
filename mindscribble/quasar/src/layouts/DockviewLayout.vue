@@ -528,14 +528,15 @@ function handleDocumentLoaded() {
   }
 
   .dv-tab {
-    border-top-right-radius: 10px !important;
+    border-top-right-radius: 5px !important;
+    border-top-left-radius: 5px !important;
     border: none !important;
     border-left: none !important; // Remove left border separator
     outline: none !important;
     box-shadow: none !important;
     height: auto !important;
     margin: 0 !important;
-    border-radius: 0 !important;
+    // border-radius: 0 !important;
 
     // Remove focus styles
     &:focus,
@@ -638,6 +639,8 @@ function handleDocumentLoaded() {
   }
 
   .dv-tab {
+    border-top-right-radius: 5px !important;
+    border-top-left-radius: 5px !important;
     border: none !important;
     border-left: none !important; // Remove left border separator
     outline: none !important;
