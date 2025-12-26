@@ -7,12 +7,21 @@
 
     <!-- View-specific sections -->
     <q-expansion-item
-      default-opened
+      default-closed
       icon="graph_1"
       label="Mindmap"
       header-class="text-primary"
     >
       <MindmapDevTools />
+    </q-expansion-item>
+
+    <q-expansion-item
+      default-opened
+      icon="edit"
+      label="Writer"
+      header-class="text-primary"
+    >
+      <WriterDevTools />
     </q-expansion-item>
 
     <q-separator class="q-my-md" />
@@ -52,6 +61,7 @@
 <script setup lang="ts">
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import MindmapDevTools from './MindMapDevTools.vue'
+import WriterDevTools from './WriterDevTools.vue'
 
 const unifiedStore = useUnifiedDocumentStore()
 
