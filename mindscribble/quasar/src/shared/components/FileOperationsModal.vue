@@ -152,10 +152,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useQuasar } from 'quasar'
-import { useGoogleDriveStore, useDocumentStore, useAuthStore } from 'src/core/stores'
-import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
+import { useGoogleDriveStore, useAuthStore } from 'src/core/stores'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
-import { useStoreMode } from 'src/composables/useStoreMode'
 import {
   getOrCreateAppFolder,
   listMindmapFiles,
@@ -183,11 +181,8 @@ const emit = defineEmits<{
 // Stores
 const $q = useQuasar()
 const driveStore = useGoogleDriveStore()
-const documentStore = useDocumentStore()
 const authStore = useAuthStore()
-const multiDocStore = useMultiDocumentStore()
 const unifiedStore = useUnifiedDocumentStore()
-const { isUnifiedMode, isDualWriteMode } = useStoreMode()
 
 // State
 const fileName = ref('')
@@ -239,7 +234,7 @@ watch(() => props.modelValue, async (open) => {
   if (open) {
     // Initialize file name from document name if saving
     if (props.mode === 'save') {
-      fileName.value = driveStore.currentFileName || documentStore.documentName || 'Untitled'
+      fileName.value = driveStore.currentFileName || unifiedStore.activeDocument?.metadata.name || 'Untitled'
     }
     // Load files if opening or managing
     if (props.mode === 'open' || props.mode === 'manage') {
@@ -304,24 +299,12 @@ async function handleSave() {
       driveStore.setAppFolderId(folderId)
     }
 
-    // Get document data from the appropriate store
-    let document: MindscribbleDocument | null = null
-
-    if (isUnifiedMode.value || isDualWriteMode.value) {
-      // Use unified store (primary source in unified/dual-write mode)
-      document = unifiedStore.toDocument()
-      console.log('💾 Getting document from unified store:', {
-        nodeCount: document?.nodes.length,
-        edgeCount: document?.edges.length
-      })
-    } else {
-      // Use legacy store (legacy mode only)
-      document = documentStore.toDocument()
-      console.log('💾 Getting document from legacy store:', {
-        nodeCount: document?.nodes.length,
-        edgeCount: document?.edges.length
-      })
-    }
+    // Get document data from the unified store
+    const document = unifiedStore.toDocument()
+    console.log('💾 Getting document from unified store:', {
+      nodeCount: document?.nodes.length,
+      edgeCount: document?.edges.length
+    })
 
     if (!document) {
       throw new Error('No active document to save')
@@ -370,35 +353,14 @@ async function handleSave() {
 
     driveStore.setCurrentFile(savedFile)
 
-    // Mark document as clean in the appropriate store(s)
-    if (isUnifiedMode.value || isDualWriteMode.value) {
-      // Update unified store
-      if (unifiedStore.activeDocumentId) {
-        unifiedStore.markClean(unifiedStore.activeDocumentId)
-        // Update document name in unified store
-        unifiedStore.updateDocumentMetadata(unifiedStore.activeDocumentId, {
-          name: fileName.value.trim()
-        })
-        console.log('✅ Marked document as clean in unified store')
-      }
-    }
-
-    if (!isUnifiedMode.value) {
-      // Update legacy stores (in legacy or dual-write mode)
-      documentStore.documentName = fileName.value.trim()
-      documentStore.markClean()
-      console.log('✅ Marked document as clean in legacy store')
-    }
-
-    // Update the document name in multi-document store for the active file panel
-    const activeFilePanelId = multiDocStore.activeFilePanelId
-    if (activeFilePanelId) {
-      const docInstance = multiDocStore.getDocument(activeFilePanelId)
-      if (docInstance) {
-        docInstance.document.metadata.name = fileName.value.trim()
-        docInstance.driveFile = savedFile
-        console.log('✅ Updated document name in multi-doc store:', fileName.value.trim())
-      }
+    // Mark document as clean in the unified store
+    if (unifiedStore.activeDocumentId) {
+      unifiedStore.markClean(unifiedStore.activeDocumentId)
+      // Update document name in unified store
+      unifiedStore.updateDocumentMetadata(unifiedStore.activeDocumentId, {
+        name: fileName.value.trim()
+      })
+      console.log('✅ Marked document as clean in unified store')
     }
 
     // Show "synced" status briefly

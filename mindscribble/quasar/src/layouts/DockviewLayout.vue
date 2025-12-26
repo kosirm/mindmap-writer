@@ -15,18 +15,16 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 // import { useQuasar } from 'quasar' // Commented out - unused after removing toast notifications
 import { DockviewVue } from 'dockview-vue'
 import { type DockviewApi } from 'dockview-core'
-import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
-import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useAppStore } from 'src/core/stores/appStore'
 import type { MindscribbleDocument } from 'src/core/types'
 import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
 
 // const $q = useQuasar() // Commented out - unused after removing toast notifications
 const dockviewApi = ref<DockviewApi | null>(null)
-const documentStore = useDocumentStore()
 const driveStore = useGoogleDriveStore()
-const multiDocStore = useMultiDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 const appStore = useAppStore()
 let fileCounter = 0
 
@@ -92,8 +90,8 @@ function addFile() {
     }
   }
 
-  // Create document instance in multi-document store
-  multiDocStore.createDocument(fileId, newDocument, null, null)
+  // Create document instance in unified store
+  unifiedStore.createDocument(fileId, newDocument, null, null)
 
   // Add panel to dockview
   dockviewApi.value.addPanel({
@@ -130,9 +128,9 @@ function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileM
     console.log(`✅ Saved layout to localStorage: ${storageKey}`)
   }
 
-  // Create document instance in multi-document store with Drive file metadata
+  // Create document instance in unified store with Drive file metadata
   // Pass the document ID so FilePanel can use it for localStorage key
-  multiDocStore.createDocument(fileId, document, driveFile, null)
+  unifiedStore.createDocument(fileId, document, driveFile, null)
 
   // Add panel to dockview
   dockviewApi.value.addPanel({
@@ -197,8 +195,8 @@ function updateFilePanelTabs() {
 
   dockviewApi.value.panels.forEach(panel => {
     if (panel.id.startsWith('file-')) {
-      // Get the document name from multiDocStore
-      const docInstance = multiDocStore.getDocument(panel.id)
+      // Get the document name from unified store
+      const docInstance = unifiedStore.getDocumentInstance(panel.id)
       let cleanTitle = 'Untitled'
 
       if (docInstance) {
@@ -310,10 +308,11 @@ function handleFileClose() {
 
 function handleDocumentLoaded() {
   console.log('Document loaded event received in DockviewLayout')
-  console.log('Loaded document:', documentStore.documentName)
+  const activeDoc = unifiedStore.activeDocument
+  console.log('Loaded document:', activeDoc?.metadata.name)
 
   // When a document is loaded, update the dockview layout if needed
-  if (dockviewApi.value) {
+  if (dockviewApi.value && activeDoc) {
     // Save the current layout state
     const layout = dockviewApi.value.toJSON()
     console.log('Current dockview layout:', layout)
@@ -321,7 +320,7 @@ function handleDocumentLoaded() {
     // Update panel titles to reflect the loaded document
     dockviewApi.value.panels.forEach(panel => {
       if (panel.id.startsWith('file-')) {
-        panel.api.setTitle(documentStore.documentName)
+        panel.api.setTitle(activeDoc.metadata.name)
       }
     })
   }

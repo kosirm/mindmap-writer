@@ -10,26 +10,30 @@
 <script setup lang="ts">
 import { onMounted, watch, inject, type Ref } from 'vue'
 import D3ConceptMapView from 'src/features/canvas/components/D3ConceptMapView.vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 
 defineOptions({
   name: 'D3ConceptMapPanelComponent'
 })
 
-const documentStore = useDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 
 // Inject the drag state from FilePanel
 const isDraggingPanel = inject<Ref<boolean>>('isDraggingPanel')
 
 onMounted(() => {
-  // Ensure the document store is set to d3-concept-map view when this panel is active
-  if (documentStore.activeView !== 'd3-concept-map') {
-    documentStore.switchView('d3-concept-map', 'd3-concept-map')
+  // Ensure the unified store is set to d3-concept-map view when this panel is active
+  const activeDoc = unifiedStore.activeDocument
+  if (activeDoc && activeDoc.layout.activeView !== 'd3-concept-map') {
+    // Update the document layout to use d3-concept-map view
+    unifiedStore.updateDocumentLayoutSettings(activeDoc.metadata.id, {
+      activeView: 'd3-concept-map'
+    })
   }
 })
 
 // Watch for active view changes and update if needed
-watch(() => documentStore.activeView, (newView) => {
+watch(() => unifiedStore.activeDocument?.layout.activeView, (newView) => {
   if (newView !== 'd3-concept-map') {
     // If the active view changed away from d3-concept-map, we might want to switch back
     // when this panel becomes active again

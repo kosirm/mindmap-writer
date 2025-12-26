@@ -83,6 +83,8 @@ function handleClose(event: MouseEvent) {
 }
 
 .file-tab-title {
+  font-size: 14px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
