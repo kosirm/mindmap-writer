@@ -658,7 +658,7 @@ onUnmounted(() => {
   left: 0;
   top: 0; // Start from top of screen
   bottom: 0;
-  width: 56px;
+  width: 48px;
   background-color: var(--ms-drawer-bg);
   display: flex;
   flex-direction: column;
@@ -690,8 +690,8 @@ onUnmounted(() => {
 }
 
 .mini-btn {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   color: rgba(255, 255, 255, 0.7);
   transition: all 0.2s ease;
 
@@ -715,7 +715,7 @@ onUnmounted(() => {
 // Expanded drawer - positioned to the right of mini sidebar
 .drawer-expanded {
   position: fixed;
-  left: 56px; // Right next to mini sidebar
+  left: 48px; // Right next to mini sidebar
   top: 0; // Start from top of screen
   bottom: 0;
   width: 280px;
@@ -757,7 +757,7 @@ onUnmounted(() => {
 
 // Adjust main content to account for mini sidebar
 .q-page-container {
-  padding-left: 56px; // Offset by mini sidebar width
+  padding-left: 48px; // Offset by mini sidebar width
 }
 
 </style>
