@@ -6,13 +6,10 @@
  */
 
 import { ref, watch, onUnmounted } from 'vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useAuthStore } from 'src/core/stores/authStore'
-import { useStoreMode } from 'src/composables/useStoreMode'
 import { updateMindmapFile } from 'src/core/services/googleDriveService'
-import type { MindscribbleDocument } from 'src/core/types'
 
 // Default autosave delay (2 seconds after last change)
 const DEFAULT_AUTOSAVE_DELAY = 2000
@@ -21,11 +18,9 @@ const DEFAULT_AUTOSAVE_DELAY = 2000
 const MIN_SAVE_INTERVAL = 5000
 
 export function useAutosave(delay: number = DEFAULT_AUTOSAVE_DELAY) {
-  const documentStore = useDocumentStore()
   const unifiedStore = useUnifiedDocumentStore()
   const driveStore = useGoogleDriveStore()
   const authStore = useAuthStore()
-  const { isUnifiedMode, isDualWriteMode } = useStoreMode()
 
   // Internal state
   const isAutosaving = ref(false)
@@ -34,32 +29,10 @@ export function useAutosave(delay: number = DEFAULT_AUTOSAVE_DELAY) {
   let statusResetTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
-   * Check if autosave should run
-   */
-  function shouldAutosave(): boolean {
-    // Must be signed in
-    if (!authStore.isSignedIn) return false
-
-    // Must have an open file (already saved at least once)
-    if (!driveStore.currentFile) return false
-
-    // Document must be dirty
-    if (!documentStore.isDirty) return false
-
-    // Autosave must be enabled
-    if (!driveStore.autoSaveEnabled) return false
-
-    // Not already saving
-    if (driveStore.syncStatus === 'saving') return false
-
-    return true
-  }
-
-  /**
    * Perform the actual save
    */
   async function performAutosave(): Promise<void> {
-    if (!shouldAutosave()) return
+    if (!authStore.isSignedIn || !driveStore.currentFile || !unifiedStore.isDirty || !driveStore.autoSaveEnabled || driveStore.syncStatus === 'saving') return
 
     // Check minimum save interval
     const now = Date.now()
@@ -73,30 +46,18 @@ export function useAutosave(delay: number = DEFAULT_AUTOSAVE_DELAY) {
     driveStore.setSyncStatus('saving')
 
     try {
-      // Get document from the appropriate store
-      let document: MindscribbleDocument | null = null
-
-      if (isUnifiedMode.value || isDualWriteMode.value) {
-        // Use unified store (primary source in unified/dual-write mode)
-        document = unifiedStore.toDocument()
-        console.log('💾 Autosaving from unified store:', {
-          nodeCount: document?.nodes.length,
-          edgeCount: document?.edges.length
-        })
-      } else {
-        // Use legacy store (legacy mode only)
-        document = documentStore.toDocument()
-        console.log('💾 Autosaving from legacy store:', {
-          nodeCount: document?.nodes.length,
-          edgeCount: document?.edges.length
-        })
-      }
+      // Get document from the unified store
+      const document = unifiedStore.toDocument()
+      console.log('💾 Autosaving from unified store:', {
+        nodeCount: document?.nodes.length,
+        edgeCount: document?.edges.length
+      })
 
       if (!document) {
         throw new Error('No active document to autosave')
       }
 
-      const currentFile = driveStore.currentFile!
+      const currentFile = driveStore.currentFile
 
       const savedFile = await updateMindmapFile(
         currentFile.id,
@@ -107,15 +68,9 @@ export function useAutosave(delay: number = DEFAULT_AUTOSAVE_DELAY) {
       driveStore.updateFileInList(savedFile)
       driveStore.setCurrentFile(savedFile)
 
-      // Mark document as clean in the appropriate store(s)
-      if (isUnifiedMode.value || isDualWriteMode.value) {
-        if (unifiedStore.activeDocumentId) {
-          unifiedStore.markClean(unifiedStore.activeDocumentId)
-        }
-      }
-
-      if (!isUnifiedMode.value) {
-        documentStore.markClean()
+      // Mark document as clean in the unified store
+      if (unifiedStore.activeDocumentId) {
+        unifiedStore.markClean(unifiedStore.activeDocumentId)
       }
 
       lastSaveTime.value = Date.now()
@@ -162,10 +117,11 @@ export function useAutosave(delay: number = DEFAULT_AUTOSAVE_DELAY) {
   }
 
   // Watch for document changes (dirty state)
+  // All safety checks are performed in performAutosave(), so we only need to check isDirty here
   const stopWatch = watch(
-    () => documentStore.isDirty,
+    () => unifiedStore.isActiveDocumentDirty,
     (isDirty) => {
-      if (isDirty && shouldAutosave()) {
+      if (isDirty) {
         scheduleAutosave()
       }
     }

@@ -59,9 +59,7 @@ import { EditorContent, Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { MindscribbleNode } from '../../../core/types'
-import { useDocumentStore } from '../../../core/stores'
 import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
-import { useStoreMode } from '../../../composables/useStoreMode'
 import { createKeyboardHandler, createNavigationHandler } from '../composables/useOutlineKeyboardHandlers'
 import type { useOutlineNavigation } from '../composables/useOutlineNavigation'
 import type { EventSource } from '../../../core/events'
@@ -77,12 +75,6 @@ const props = defineProps<{
   isEditMode: boolean
 }>()
 
-// Store mode toggle
-const { isUnifiedMode } = useStoreMode()
-
-// Legacy store for node operations
-const documentStore = useDocumentStore()
-
 // Unified store
 const unifiedStore = useUnifiedDocumentStore()
 
@@ -96,19 +88,11 @@ const updateLocalNodeData = inject<(nodeId: string, updates: { title?: string; c
 
 // Helper functions to call the appropriate store
 function selectNode(nodeId: string, source: EventSource, scrollIntoView: boolean) {
-  if (isUnifiedMode.value) {
-    unifiedStore.selectNode(nodeId, source, scrollIntoView)
-  } else {
-    documentStore.selectNode(nodeId, source, scrollIntoView)
-  }
+  unifiedStore.selectNode(nodeId, source, scrollIntoView)
 }
 
 function updateNode(nodeId: string, updates: Partial<NodeData>, source: EventSource) {
-  if (isUnifiedMode.value) {
-    unifiedStore.updateNode(nodeId, updates, source)
-  } else {
-    documentStore.updateNode(nodeId, updates, source)
-  }
+  unifiedStore.updateNode(nodeId, updates, source)
 }
 
 // UI state
@@ -117,10 +101,7 @@ const isEditing = ref(false)
 
 // Selection state
 const isSelected = computed(() => {
-  if (isUnifiedMode.value) {
-    return unifiedStore.selectedNodeIds.includes(props.node.id)
-  }
-  return documentStore.selectedNodeIds.includes(props.node.id)
+  return unifiedStore.selectedNodeIds.includes(props.node.id)
 })
 
 // Display values
@@ -129,10 +110,7 @@ const displayTitle = computed(() => props.node.data.title || '<span class="place
 // Expansion state from store - sync he-tree stat.open with store expansion state
 const isNodeExpanded = computed(() => {
   if (props.stat.children.length === 0) return false // No children means effectively expanded
-  if (isUnifiedMode.value) {
-    return unifiedStore.isNodeExpanded(props.node.id)
-  }
-  return documentStore.isNodeExpanded(props.node.id)
+  return unifiedStore.isNodeExpanded(props.node.id)
 })
 
 // Sync he-tree stat.open with store expansion state
@@ -149,11 +127,7 @@ const titleEditor = shallowRef<Editor | null>(null)
 function handleNodeClick(event: MouseEvent) {
   if (event.ctrlKey || event.metaKey) {
     // Ctrl+click: Select and navigate
-    if (isUnifiedMode.value) {
-      unifiedStore.selectNode(props.node.id, 'outline', true)
-    } else {
-      documentStore.selectNode(props.node.id, 'outline', true)
-    }
+    unifiedStore.selectNode(props.node.id, 'outline', true)
   } else {
     // Regular click: Select and scroll into view in other views
     // The useViewEvents composable will automatically ignore this event in the outline view itself
@@ -208,7 +182,7 @@ function handleNavigationKeydown(event: KeyboardEvent) {
       // Collapse node if it has children and is expanded
       if (props.stat.children.length > 0) {
         const nodeIdToRefocus = props.node.id
-        documentStore.collapseNode(props.node.id, 'outline')
+        unifiedStore.collapseNode(props.node.id, 'outline')
         // Refocus this node after collapse to maintain keyboard focus
         // Use setTimeout with 100ms delay to ensure DOM has fully updated after he-tree re-render
         setTimeout(() => {
@@ -220,7 +194,7 @@ function handleNavigationKeydown(event: KeyboardEvent) {
       // Expand node if it has children and is collapsed
       if (props.stat.children.length > 0) {
         const nodeIdToRefocus = props.node.id
-        documentStore.expandNode(props.node.id, 'outline')
+        unifiedStore.expandNode(props.node.id, 'outline')
         // Refocus this node after expand to maintain keyboard focus
         // Use setTimeout with 100ms delay to ensure DOM has fully updated after he-tree re-render
         setTimeout(() => {
@@ -312,13 +286,13 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
         onAltLeftArrow: () => {
           // Collapse node if it has children and is expanded
           if (props.stat.children.length > 0) {
-            documentStore.collapseNode(props.node.id, 'outline')
+            unifiedStore.collapseNode(props.node.id, 'outline')
           }
         },
         onAltRightArrow: () => {
           // Expand node if it has children and is collapsed
           if (props.stat.children.length > 0) {
-            documentStore.expandNode(props.node.id, 'outline')
+            unifiedStore.expandNode(props.node.id, 'outline')
           }
         }
       })

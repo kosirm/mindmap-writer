@@ -73,10 +73,7 @@ import { useQuasar } from 'quasar'
 import '@he-tree/vue/style/default.css'
 import '@he-tree/vue/style/material-design.css'
 import OutlineNodeContent from './OutlineNodeContent.vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
-import { useStoreSynchronizer } from 'src/core/stores/storeSynchronizer'
-import { useStoreMode } from 'src/composables/useStoreMode'
 import { useViewEvents } from 'src/core/events'
 import { useOutlineNavigation } from '../composables/useOutlineNavigation'
 import type { MindscribbleNode } from 'src/core/types'
@@ -84,17 +81,8 @@ import type { MindscribbleNode } from 'src/core/types'
 const TRIGGER_CLASS = 'drag-handle'
 const $q = useQuasar()
 
-// Store mode toggle
-const { isUnifiedMode, isDualWriteMode } = useStoreMode()
-
-// Legacy store for node operations
-const documentStore = useDocumentStore()
-
 // Unified store for document-level operations
 const unifiedStore = useUnifiedDocumentStore()
-
-// Synchronizer for dual-write during migration
-const synchronizer = useStoreSynchronizer()
 
 const { onStoreEvent, source } = useViewEvents('outline')
 
@@ -162,10 +150,8 @@ provide('updateLocalNodeData', updateLocalNodeData)
 function buildTreeFromStore(): OutlineTreeItem[] {
   const nodeMap = new Map<string, OutlineTreeItem>()
 
-  // Get nodes from the appropriate store
-  const nodes = isUnifiedMode.value
-    ? (unifiedStore.activeDocument?.nodes || [])
-    : documentStore.nodes
+  // Get nodes from unified store
+  const nodes = unifiedStore.activeDocument?.nodes || []
 
   // First pass: Create tree items
   nodes.forEach(node => {
@@ -232,9 +218,7 @@ function onTreeChange() {
   const orderChanges: Map<string | null, Map<string, number>> = new Map() // parentId -> (nodeId -> order)
 
   newHierarchy.forEach(({ parentId, order }, nodeId) => {
-    const node = isUnifiedMode.value
-      ? unifiedStore.getNodeById(nodeId)
-      : documentStore.getNodeById(nodeId)
+    const node = unifiedStore.getNodeById(nodeId)
 
     if (node) {
       const oldParentId = node.data.parentId
@@ -254,33 +238,27 @@ function onTreeChange() {
 
   // Handle reparenting first (uses moveNode)
   for (const { nodeId, parentId, order } of reparentedNodes) {
-    if (isUnifiedMode.value) {
-      unifiedStore.moveNode(nodeId, parentId, order, 'outline')
-    } else {
-      documentStore.moveNode(nodeId, parentId, order, 'outline')
-    }
+    unifiedStore.moveNode(nodeId, parentId, order, 'outline')
   }
 
   // Handle sibling reordering (uses reorderSiblings - emits store:siblings-reordered)
   for (const [parentId, nodeOrders] of orderChanges) {
-    if (isUnifiedMode.value) {
-      unifiedStore.reorderSiblings(parentId, nodeOrders, 'outline')
-    } else {
-      documentStore.reorderSiblings(parentId, nodeOrders, 'outline')
-    }
+    unifiedStore.reorderSiblings(parentId, nodeOrders, 'outline')
   }
 }
 
 // Actions
 function addRootNode() {
-  if (isUnifiedMode.value) {
-    const newNode = unifiedStore.addNode(null, 'New Node', '', undefined, source)
-    if (newNode) {
-      unifiedStore.selectNode(newNode.id, source, true)
-    }
-  } else {
-    const newNode = documentStore.addNode(null, 'New Node', '', undefined, source)
-    documentStore.selectNode(newNode.id, source, true)
+  // Check if there's an active document, if not create one
+  if (!unifiedStore.activeDocumentId) {
+    const newDocument = unifiedStore.createEmptyDocument('Untitled')
+    unifiedStore.addDocument(newDocument)
+    unifiedStore.setActiveDocument(newDocument.metadata.id)
+  }
+
+  const newNode = unifiedStore.addNode(null, 'New Node', '', undefined, source)
+  if (newNode) {
+    unifiedStore.selectNode(newNode.id, source, true)
   }
 }
 
@@ -288,11 +266,7 @@ function expandAll() {
   // Expand all nodes using store methods
   const nodesWithChildren = treeData.value.filter(item => item.children.length > 0)
   nodesWithChildren.forEach(item => {
-    if (isUnifiedMode.value) {
-      unifiedStore.expandNode(item.id, 'outline')
-    } else {
-      documentStore.expandNode(item.id, 'outline')
-    }
+    unifiedStore.expandNode(item.id, 'outline')
   })
 }
 
@@ -300,11 +274,7 @@ function collapseAll() {
   // Collapse all nodes using store methods
   const nodesWithChildren = treeData.value.filter(item => item.children.length > 0)
   nodesWithChildren.forEach(item => {
-    if (isUnifiedMode.value) {
-      unifiedStore.collapseNode(item.id, 'outline')
-    } else {
-      documentStore.collapseNode(item.id, 'outline')
-    }
+    unifiedStore.collapseNode(item.id, 'outline')
   })
 }
 
@@ -323,7 +293,7 @@ function toggleEditMode() {
 
   // If entering edit mode, focus the selected node for immediate editing
   if (isEditMode.value && !wasEditMode) {
-    const selectedNodeId = documentStore.selectedNodeIds[0]
+    const selectedNodeId = unifiedStore.selectedNodeIds[0]
     if (selectedNodeId) {
       // Use a slight delay to ensure the DOM is fully updated
       setTimeout(() => {
@@ -344,25 +314,6 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 // Mount and unmount global keyboard listener
 onMounted(() => {
   document.addEventListener('keydown', handleGlobalKeydown)
-
-  // MIGRATION: Sync from legacy stores to unified store on mount
-  synchronizer.syncFromLegacyStores()
-
-  // MIGRATION: Run consistency checks in development mode
-  if (import.meta.env.DEV) {
-    // Initial consistency check
-    synchronizer.checkConsistency()
-
-    // Periodic consistency checks every 5 seconds
-    const consistencyInterval = setInterval(() => {
-      synchronizer.checkConsistency()
-    }, 5000)
-
-    // Clean up interval on unmount
-    onUnmounted(() => {
-      clearInterval(consistencyInterval)
-    })
-  }
 })
 
 onUnmounted(() => {
@@ -372,27 +323,11 @@ onUnmounted(() => {
 // Initial load
 treeData.value = buildTreeFromStore()
 
-// Watch store for changes based on mode
+// Watch store for changes
 watch(() => {
-  if (isUnifiedMode.value) {
-    return unifiedStore.activeDocument?.nodes.length || 0
-  }
-  return documentStore.nodes.length
+  return unifiedStore.activeDocument?.nodes.length || 0
 }, () => {
   treeData.value = buildTreeFromStore()
-
-  // MIGRATION: Sync document changes to unified store in dual-write mode
-  if (isDualWriteMode.value && unifiedStore.activeDocumentId) {
-    const currentDoc = documentStore.toDocument()
-    const unifiedDoc = unifiedStore.documents.get(unifiedStore.activeDocumentId)
-    if (unifiedDoc) {
-      // Update nodes and edges in unified store
-      unifiedDoc.nodes = currentDoc.nodes
-      unifiedDoc.edges = currentDoc.edges
-      unifiedDoc.metadata.modified = new Date().toISOString()
-      unifiedStore.markDirty(unifiedStore.activeDocumentId)
-    }
-  }
 })
 
 // Listen for store events from other views
@@ -452,10 +387,7 @@ onStoreEvent('store:node-selected', ({ nodeId, scrollIntoView }) => {
 })
 
 const nodeCount = computed(() => {
-  if (isUnifiedMode.value) {
-    return unifiedStore.activeDocument?.nodes.length || 0
-  }
-  return documentStore.nodeCount
+  return unifiedStore.activeDocument?.nodes.length || 0
 })
 </script>
 

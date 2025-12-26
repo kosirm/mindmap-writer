@@ -34,19 +34,11 @@ import { ref, watch, provide, reactive } from 'vue'
 import { Draggable } from '@he-tree/vue'
 import '@he-tree/vue/style/default.css'
 import WriterNodeContent from './WriterNodeContent.vue'
-import { useDocumentStore } from '../../../core/stores'
 import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
-import { useStoreMode } from '../../../composables/useStoreMode'
 import { useViewEvents } from '../../../core/events'
 import { useWriterNavigation, type WriterTreeItem } from '../composables/useWriterNavigation'
 
 const TRIGGER_CLASS = 'drag-handle'
-
-// Store mode toggle
-const { isUnifiedMode } = useStoreMode()
-
-// Legacy store
-const documentStore = useDocumentStore()
 
 // Unified store
 const unifiedStore = useUnifiedDocumentStore()
@@ -113,10 +105,8 @@ provide('updateLocalNodeData', updateLocalNodeData)
 function buildTreeFromStore(): WriterTreeItem[] {
   const nodeMap = new Map<string, WriterTreeItem>()
 
-  // Get nodes from the appropriate store
-  const nodes = isUnifiedMode.value
-    ? (unifiedStore.activeDocument?.nodes || [])
-    : documentStore.nodes
+  // Get nodes from the unified store
+  const nodes = unifiedStore.activeDocument?.nodes || []
 
   // First pass: Create tree items
   nodes.forEach(node => {
@@ -183,9 +173,7 @@ function onTreeChange() {
   const orderChanges: Map<string | null, Map<string, number>> = new Map() // parentId -> (nodeId -> order)
 
   newHierarchy.forEach(({ parentId, order }, nodeId) => {
-    const node = isUnifiedMode.value
-      ? unifiedStore.getNodeById(nodeId)
-      : documentStore.getNodeById(nodeId)
+    const node = unifiedStore.getNodeById(nodeId)
 
     if (node) {
       const oldParentId = node.data.parentId
@@ -205,20 +193,12 @@ function onTreeChange() {
 
   // Handle reparenting first (uses moveNode)
   for (const { nodeId, parentId, order } of reparentedNodes) {
-    if (isUnifiedMode.value) {
-      unifiedStore.moveNode(nodeId, parentId, order, 'writer')
-    } else {
-      documentStore.moveNode(nodeId, parentId, order, 'writer')
-    }
+    unifiedStore.moveNode(nodeId, parentId, order, 'writer')
   }
 
   // Handle sibling reordering (uses reorderSiblings - emits store:siblings-reordered)
   for (const [parentId, nodeOrders] of orderChanges) {
-    if (isUnifiedMode.value) {
-      unifiedStore.reorderSiblings(parentId, nodeOrders, 'writer')
-    } else {
-      documentStore.reorderSiblings(parentId, nodeOrders, 'writer')
-    }
+    unifiedStore.reorderSiblings(parentId, nodeOrders, 'writer')
   }
 }
 
@@ -261,13 +241,8 @@ function onTreeChange() {
 // Initial load
 treeData.value = buildTreeFromStore()
 
-// Watch store for changes based on mode
-watch(() => {
-  if (isUnifiedMode.value) {
-    return unifiedStore.activeDocument?.nodes.length || 0
-  }
-  return documentStore.nodes.length
-}, () => {
+// Watch store for changes
+watch(() => unifiedStore.activeDocument?.nodes.length || 0, () => {
   treeData.value = buildTreeFromStore()
 })
 

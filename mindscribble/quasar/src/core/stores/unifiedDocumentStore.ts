@@ -108,6 +108,12 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
   const hasUnsavedChanges = computed(() => dirtyDocuments.value.size > 0)
 
+  /** Check if active document is dirty - preserves DocumentStore pattern */
+  const isActiveDocumentDirty = computed(() => {
+    if (!activeDocumentId.value) return false
+    return dirtyDocuments.value.has(activeDocumentId.value)
+  })
+
   // ============================================================
   // MIGRATION MODE LOGGING
   // ============================================================
@@ -318,13 +324,13 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         ...metadataUpdates,
         modified: new Date().toISOString()
       }
-      
+
       // Create a new document object to trigger reactivity
       const updatedDoc: MindscribbleDocument = {
         ...doc,
         metadata: updatedMetadata
       }
-      
+
       updateDocument(documentId, updatedDoc)
     }
   }
@@ -1221,6 +1227,102 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   // ============================================================
+  // DOCUMENT INSTANCE MANAGEMENT (Multi-document support)
+  // ============================================================
+
+  /**
+   * Create a new document instance for a file panel
+   * This combines document storage with file panel management
+   */
+  function createDocument(
+    filePanelId: string,
+    document: MindscribbleDocument,
+    driveFile: DriveFileMetadata | null = null,
+    childLayoutState: unknown = null
+  ): DocumentInstance {
+    const documentId = document.metadata.id
+
+    // Add document to documents map
+    addDocument(document)
+
+    // Create document instance
+    const instance: DocumentInstance = {
+      filePanelId,
+      document,
+      driveFile,
+      childLayoutState,
+      isDirty: false,
+      lastModified: new Date()
+    }
+
+    // Store instance
+    documentInstances.value.set(filePanelId, instance)
+
+    // Set as active document
+    setActiveDocument(documentId)
+
+    logMigrationOperation('createDocument', {
+      filePanelId,
+      documentId,
+      documentName: document.metadata.name
+    })
+
+    return instance
+  }
+
+  /**
+   * Get document instance by file panel ID
+   */
+  function getDocumentInstance(filePanelId: string): DocumentInstance | null {
+    return documentInstances.value.get(filePanelId) ?? null
+  }
+
+  /**
+   * Update document instance
+   */
+  function updateDocumentInstance(filePanelId: string, updates: Partial<DocumentInstance>) {
+    const instance = documentInstances.value.get(filePanelId)
+    if (instance) {
+      const updated = { ...instance, ...updates }
+      documentInstances.value.set(filePanelId, updated)
+      logMigrationOperation('updateDocumentInstance', { filePanelId })
+    }
+  }
+
+  /**
+   * Remove document instance
+   */
+  function removeDocumentInstance(filePanelId: string) {
+    const instance = documentInstances.value.get(filePanelId)
+    if (instance) {
+      const documentId = instance.document.metadata.id
+      documentInstances.value.delete(filePanelId)
+
+      // If no more instances reference this document, remove it
+      const hasOtherInstances = Array.from(documentInstances.value.values())
+        .some(inst => inst.document.metadata.id === documentId)
+
+      if (!hasOtherInstances) {
+        removeDocument(documentId)
+      }
+
+      logMigrationOperation('removeDocumentInstance', { filePanelId, documentId })
+    }
+  }
+
+  /**
+   * Set active file panel (switches active document)
+   */
+  function setActiveFilePanel(filePanelId: string) {
+    const instance = documentInstances.value.get(filePanelId)
+    if (instance) {
+      const documentId = instance.document.metadata.id
+      setActiveDocument(documentId)
+      logMigrationOperation('setActiveFilePanel', { filePanelId, documentId })
+    }
+  }
+
+  // ============================================================
   // PUBLIC API (Phase 1)
   // ============================================================
 
@@ -1237,6 +1339,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     activeDocument,
     allDocuments,
     hasUnsavedChanges,
+    isActiveDocumentDirty,
 
     // Migration utilities
     getActiveDocumentFromLegacy,
@@ -1254,6 +1357,13 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     createEmptyDocument,
     updateDocumentMetadata,
     updateDocumentLayoutSettings,
+
+    // Document instance management (multi-document support)
+    createDocument,
+    getDocumentInstance,
+    updateDocumentInstance,
+    removeDocumentInstance,
+    setActiveFilePanel,
 
     // Layout management
     saveLayout,

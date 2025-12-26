@@ -59,9 +59,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { MindscribbleNode, NodeData } from '../../../core/types'
 import type { EventSource } from '../../../core/events'
-import { useDocumentStore } from '../../../core/stores'
 import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
-import { useStoreMode } from '../../../composables/useStoreMode'
 import { createKeyboardHandler } from '../composables/useWriterKeyboardHandlers'
 import type { useWriterNavigation } from '../composables/useWriterNavigation'
 
@@ -70,12 +68,6 @@ const props = defineProps<{
   stat: unknown // he-tree stat object
   triggerClass: string
 }>()
-
-// Store mode toggle
-const { isUnifiedMode } = useStoreMode()
-
-// Legacy store
-const documentStore = useDocumentStore()
 
 // Unified store
 const unifiedStore = useUnifiedDocumentStore()
@@ -90,19 +82,11 @@ const updateLocalNodeData = inject<(nodeId: string, updates: { title?: string; c
 
 // Helper functions to call the appropriate store
 function selectNode(nodeId: string, source: EventSource, scrollIntoView: boolean) {
-  if (isUnifiedMode.value) {
-    unifiedStore.selectNode(nodeId, source, scrollIntoView)
-  } else {
-    documentStore.selectNode(nodeId, source, scrollIntoView)
-  }
+  unifiedStore.selectNode(nodeId, source, scrollIntoView)
 }
 
 function updateNode(nodeId: string, updates: Partial<NodeData>, source: EventSource) {
-  if (isUnifiedMode.value) {
-    unifiedStore.updateNode(nodeId, updates, source)
-  } else {
-    documentStore.updateNode(nodeId, updates, source)
-  }
+  unifiedStore.updateNode(nodeId, updates, source)
 }
 
 // UI state
@@ -112,10 +96,7 @@ const isContentEditing = ref(false)
 
 // Selection state
 const isSelected = computed(() => {
-  if (isUnifiedMode.value) {
-    return unifiedStore.selectedNodeIds.includes(props.node.id)
-  }
-  return documentStore.selectedNodeIds.includes(props.node.id)
+  return unifiedStore.selectedNodeIds.includes(props.node.id)
 })
 
 // Display values
@@ -136,11 +117,7 @@ const contentEditor = shallowRef<Editor | null>(null)
 function handleNodeClick(event: MouseEvent) {
   if (event.ctrlKey || event.metaKey) {
     // Ctrl+click: Select and navigate
-    if (isUnifiedMode.value) {
-      unifiedStore.selectNode(props.node.id, 'writer', true)
-    } else {
-      documentStore.selectNode(props.node.id, 'writer', true)
-    }
+    unifiedStore.selectNode(props.node.id, 'writer', true)
   } else {
     // Regular click: Select and scroll into view in other views
     // The useViewEvents composable will automatically ignore this event in the writer view itself
@@ -321,12 +298,7 @@ writerEmitter?.on('open-field', (payload: unknown) => {
 })
 
 // Watch for external selection changes to scroll into view
-watch(() => {
-  if (isUnifiedMode.value) {
-    return unifiedStore.selectedNodeIds
-  }
-  return documentStore.selectedNodeIds
-}, (newIds) => {
+watch(() => unifiedStore.selectedNodeIds, (newIds) => {
   if (newIds.includes(props.node.id)) {
     // Could scroll into view here if needed
   }

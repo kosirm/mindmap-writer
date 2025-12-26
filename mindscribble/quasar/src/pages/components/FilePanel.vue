@@ -14,9 +14,8 @@
 import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
 import { DockviewVue } from 'dockview-vue'
 import { type IDockviewPanelProps, type DockviewApi } from 'dockview-core'
-import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
-import { useMultiDocumentStore } from 'src/core/stores/multiDocumentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useAppStore } from 'src/core/stores/appStore'
 import { getViewTitle } from 'src/shared/utils/viewIcons'
 
@@ -32,9 +31,8 @@ const childDockviewApi = ref<DockviewApi | null>(null)
 let childPanelCounter = 0
 
 // Stores
-const documentStore = useDocumentStore()
 const driveStore = useGoogleDriveStore()
-const multiDocStore = useMultiDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 const appStore = useAppStore()
 
 // Theme is now applied via :class binding in template, no need for updateOptions
@@ -92,14 +90,14 @@ function onChildReady(event: { api: DockviewApi }) {
   // Get the file panel ID from the parent panel's ID
   filePanelId.value = props.params?.api?.id || 'unknown'
 
-  // Set active file panel in multi-document store
-  multiDocStore.setActiveFilePanel(filePanelId.value)
+  // Set active file panel in unified store
+  unifiedStore.setActiveFilePanel(filePanelId.value)
 
   // Load document for this file panel
   loadDocumentForPanel()
 
   // Get the document ID for localStorage key
-  const docInstance = multiDocStore.getDocument(filePanelId.value)
+  const docInstance = unifiedStore.getDocumentInstance(filePanelId.value)
   const documentId = docInstance?.document.dockviewLayoutId || docInstance?.document.metadata.id || filePanelId.value
   // console.log('📂 FilePanel ready - File Panel ID:', filePanelId.value, 'Document ID:', documentId)
 
@@ -134,7 +132,7 @@ function onChildReady(event: { api: DockviewApi }) {
     }
 
     // Auto-save layout to localStorage when it changes
-    const docInstance = multiDocStore.getDocument(filePanelId.value)
+    const docInstance = unifiedStore.getDocumentInstance(filePanelId.value)
     if (docInstance) {
       const documentId = docInstance.document.dockviewLayoutId || docInstance.document.metadata.id
       saveChildLayoutToStorage(documentId)
@@ -166,7 +164,7 @@ function onChildReady(event: { api: DockviewApi }) {
   // Listen for panel activation to switch active document
   props.params?.api?.onDidActiveChange(() => {
     if (props.params?.api?.isActive) {
-      multiDocStore.setActiveFilePanel(filePanelId.value)
+      unifiedStore.setActiveFilePanel(filePanelId.value)
       loadDocumentForPanel()
     }
   })
@@ -174,25 +172,15 @@ function onChildReady(event: { api: DockviewApi }) {
 
 // Set up watchers for document store changes
 function setupDocumentWatchers() {
-  // Watch for changes to THIS file panel's document in the multi-doc store
+  // Watch for changes to THIS file panel's document in the unified store
   watch(() => {
-    const docInstance = multiDocStore.getDocument(filePanelId.value)
+    const docInstance = unifiedStore.getDocumentInstance(filePanelId.value)
     return docInstance?.document.metadata.name
   }, (newName) => {
     if (newName && props.params?.api) {
       props.params.api.setTitle(newName)
     }
   })
-
-  // Watch for active view changes to update panel content
-  // watch(() => documentStore.activeView, (newView) => {
-  //   console.log('Active view changed to:', newView)
-  // })
-
-  // Watch for node count changes
-  // watch(() => documentStore.nodeCount, (newCount) => {
-  //   console.log('Node count changed to:', newCount)
-  // })
 }
 
 
@@ -288,14 +276,12 @@ function getOpenChildPanelTypes(): string[] {
 
 
 /**
- * Load document from multi-document store into the main documentStore
+ * Load document for this file panel
+ * The document is already in the unified store, we just need to update drive store
  */
 function loadDocumentForPanel() {
-  const docInstance = multiDocStore.getDocument(filePanelId.value)
+  const docInstance = unifiedStore.getDocumentInstance(filePanelId.value)
   if (docInstance) {
-    // Load document into the main document store
-    documentStore.fromDocument(docInstance.document, 'store')
-
     // Update drive store if this document has a drive file
     if (docInstance.driveFile) {
       driveStore.setCurrentFile(docInstance.driveFile)

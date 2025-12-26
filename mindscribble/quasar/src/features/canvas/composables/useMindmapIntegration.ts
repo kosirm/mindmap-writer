@@ -1,18 +1,10 @@
 import { computed } from 'vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
-import { useStoreMode } from 'src/composables/useStoreMode'
 import { useViewEvents } from 'src/core/events'
 import type { Data } from '../components/mindmap/types/mindmap-types'
 import type { MindscribbleNode } from 'src/core/types/node'
 
 export function useMindmapIntegration() {
-  // Store mode toggle
-  const { isUnifiedMode } = useStoreMode()
-
-  // Legacy store
-  const documentStore = useDocumentStore()
-
   // Unified store
   const unifiedStore = useUnifiedDocumentStore()
 
@@ -22,27 +14,18 @@ export function useMindmapIntegration() {
    * Transform MindScribble nodes to mindmap format
    */
   const mindmapData = computed<Data[]>(() => {
-    if (isUnifiedMode.value) {
-      // Access the nodes array to ensure reactivity
-      const doc = unifiedStore.activeDocument
-      const nodes = doc?.nodes || []
-      console.log('[MindmapIntegration] Computing mindmapData (unified mode), nodes count:', nodes.length)
-      return transformNodesToMindmapFormat(nodes)
-    } else {
-      console.log('[MindmapIntegration] Computing mindmapData (legacy mode), nodes count:', documentStore.nodes.length)
-      return transformNodesToMindmapFormat(documentStore.nodes)
-    }
+    // Access the nodes array to ensure reactivity
+    const doc = unifiedStore.activeDocument
+    const nodes = doc?.nodes || []
+    console.log('[MindmapIntegration] Computing mindmapData (unified mode), nodes count:', nodes.length)
+    return transformNodesToMindmapFormat(nodes)
   })
 
   /**
    * Handle node selection
    */
   function handleNodeSelect(nodeId: string) {
-    if (isUnifiedMode.value) {
-      unifiedStore.selectNode(nodeId, 'mindmap', false)
-    } else {
-      documentStore.selectNode(nodeId, 'mindmap', false)
-    }
+    unifiedStore.selectNode(nodeId, 'mindmap', false)
   }
 
   /**
@@ -67,11 +50,7 @@ export function useMindmapIntegration() {
   * Handle node side changes
   */
  function handleNodeSideChange(nodeId: string, newSide: 'left' | 'right') {
-   if (isUnifiedMode.value) {
-     unifiedStore.setNodeSide(nodeId, newSide, 'mindmap')
-   } else {
-     documentStore.setNodeSide(nodeId, newSide, 'mindmap')
-   }
+   unifiedStore.setNodeSide(nodeId, newSide, 'mindmap')
  }
 
   /**
