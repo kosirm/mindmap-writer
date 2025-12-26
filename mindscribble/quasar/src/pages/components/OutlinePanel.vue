@@ -10,26 +10,26 @@
 <script setup lang="ts">
 import { onMounted, watch, inject, type Ref } from 'vue'
 import OutlineView from 'src/features/tree/components/OutlineView.vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 
 defineOptions({
   name: 'OutlinePanelComponent'
 })
 
-const documentStore = useDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 
 // Inject the drag state from FilePanel
 const isDraggingPanel = inject<Ref<boolean>>('isDraggingPanel')
 
 onMounted(() => {
   // Ensure the document store is set to outline view when this panel is active
-  if (documentStore.activeView !== 'outline') {
-    documentStore.switchView('outline', 'outline')
+  if (unifiedStore.activeDocument?.layout.activeView !== 'outline') {
+    unifiedStore.updateDocumentLayoutSettings(unifiedStore.activeDocumentId!, { activeView: 'outline' })
   }
 })
 
 // Watch for active view changes
-watch(() => documentStore.activeView, (newView) => {
+watch(() => unifiedStore.activeDocument?.layout.activeView, (newView) => {
   if (newView !== 'outline') {
     // If the active view changed away from outline, we might want to switch back
     // when this panel becomes active again

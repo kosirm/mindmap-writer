@@ -8,11 +8,6 @@
  * - Document instances and layouts
  * - Dirty state tracking
  * - Event emission for view synchronization
- *
- * Migration Strategy: Hybrid approach with dual-write system
- * - Phase 1: Read-only access to legacy stores
- * - Phase 2: Dual-write to both legacy and unified stores
- * - Phase 3: Full migration to unified store only
  */
 
 import { defineStore } from 'pinia'
@@ -27,9 +22,6 @@ import type {
   MindscribbleNode
 } from '../types'
 import type { DriveFileMetadata } from '../services/googleDriveService'
-import { useDocumentStore, useMultiDocumentStore } from './index'
-
-const MIGRATION_MODE = import.meta.env.DEV
 
 /**
  * Document instance with its associated state
@@ -115,50 +107,11 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   })
 
   // ============================================================
-  // MIGRATION MODE LOGGING
+  // CORE METHODS
   // ============================================================
 
-  function logMigrationOperation(operation: string, data: Record<string, unknown> = {}) {
-    if (MIGRATION_MODE) {
-      console.log(`[UnifiedStore] ${operation}`, {
-        documentId: activeDocumentId.value,
-        ...data
-      })
-    }
-  }
-
   // ============================================================
-  // CORE METHODS (Phase 1: Read-only access to existing stores)
-  // ============================================================
-
-  /**
-   * Get document from existing DocumentStore (read-only)
-   */
-  function getActiveDocumentFromLegacy() {
-    const documentStore = useDocumentStore()
-    const doc = documentStore.toDocument()
-    logMigrationOperation('getActiveDocumentFromLegacy', {
-      documentId: doc.metadata.id,
-      nodeCount: doc.nodes.length,
-      edgeCount: doc.edges.length
-    })
-    return doc
-  }
-
-  /**
-   * Get documents from existing MultiDocumentStore (read-only)
-   */
-  function getAllDocumentsFromLegacy() {
-    const multiDocumentStore = useMultiDocumentStore()
-    const docs = multiDocumentStore.allDocuments
-    logMigrationOperation('getAllDocumentsFromLegacy', {
-      documentCount: docs.length
-    })
-    return docs
-  }
-
-  // ============================================================
-  // DOCUMENT MANAGEMENT METHODS (Phase 2)
+  // DOCUMENT MANAGEMENT METHODS
   // ============================================================
 
   /**
@@ -174,11 +127,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
     // Mark document as dirty when added
     markDirty(document.metadata.id)
-
-    logMigrationOperation('addDocument', {
-      documentId: document.metadata.id,
-      documentName: document.metadata.name
-    })
   }
 
   /**
@@ -193,20 +141,13 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       setActiveDocument(remaining[0] || null)
     }
 
-    logMigrationOperation('removeDocument', { documentId })
   }
 
   /**
    * Set the active document
    */
   function setActiveDocument(documentId: string | null) {
-    const previousId = activeDocumentId.value
     activeDocumentId.value = documentId
-
-    logMigrationOperation('setActiveDocument', {
-      previousDocumentId: previousId,
-      newDocumentId: documentId
-    })
   }
 
   /**
@@ -214,7 +155,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function markDirty(documentId: string) {
     dirtyDocuments.value.add(documentId)
-    logMigrationOperation('markDirty', { documentId })
   }
 
   /**
@@ -222,7 +162,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function markClean(documentId: string) {
     dirtyDocuments.value.delete(documentId)
-    logMigrationOperation('markClean', { documentId })
   }
 
   /**
@@ -241,17 +180,14 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
   /**
    * Convert active document to MindscribbleDocument format
-   * This is compatible with the legacy documentStore.toDocument() method
    */
   function toDocument(): MindscribbleDocument | null {
     if (!activeDocumentId.value) {
-      logMigrationOperation('toDocument', { error: 'No active document' })
       return null
     }
 
     const doc = documents.value.get(activeDocumentId.value)
     if (!doc) {
-      logMigrationOperation('toDocument', { error: 'Active document not found', activeDocumentId: activeDocumentId.value })
       return null
     }
 
@@ -266,12 +202,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         edgeCount: doc.edges.length
       }
     }
-
-    logMigrationOperation('toDocument', {
-      documentId: updatedDoc.metadata.id,
-      nodeCount: updatedDoc.nodes.length,
-      edgeCount: updatedDoc.edges.length
-    })
 
     return updatedDoc
   }
@@ -347,7 +277,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   // ============================================================
-  // NODE OPERATIONS (Phase 5: Full node-level operations)
+  // NODE OPERATIONS
   // ============================================================
 
   /**
@@ -467,8 +397,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       source
     })
 
-    logMigrationOperation('addNode', { nodeId: newNode.id, parentId, title })
-
     return newNode
   }
 
@@ -524,8 +452,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         changes: updates as { title?: string; content?: string; [key: string]: unknown },
         source
       })
-
-      logMigrationOperation('updateNode', { nodeId, updates })
     }
   }
 
@@ -556,8 +482,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       previousPosition,
       source
     })
-
-    logMigrationOperation('updateNodePosition', { nodeId, position })
   }
 
   /**
@@ -629,8 +553,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       deletedIds: nodesToDelete,
       source
     })
-
-    logMigrationOperation('deleteNode', { nodeId, deletedCount: nodesToDelete.length })
   }
 
   /**
@@ -708,8 +630,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       newOrder: targetOrder,
       source
     })
-
-    logMigrationOperation('moveNode', { nodeId, oldParentId, newParentId, newOrder: targetOrder })
   }
 
   /**
@@ -762,8 +682,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         newOrders,
         source
       })
-
-      logMigrationOperation('reorderSiblings', { parentId, orderCount: newOrders.size })
     }
   }
 
@@ -790,7 +708,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     }
 
     eventBus.emit('store:node-selected', { nodeId, source, scrollIntoView })
-    logMigrationOperation('selectNode', { nodeId })
   }
 
   /**
@@ -799,7 +716,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   function selectNodes(nodeIds: string[], source: EventSource = 'store') {
     selectedNodeIds.value = [...nodeIds]
     eventBus.emit('store:nodes-selected', { nodeIds, source })
-    logMigrationOperation('selectNodes', { count: nodeIds.length })
   }
 
   /**
@@ -808,7 +724,24 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   function clearSelection(source: EventSource = 'store') {
     selectedNodeIds.value = []
     eventBus.emit('store:node-selected', { nodeId: null, source, scrollIntoView: false })
-    logMigrationOperation('clearSelection')
+  }
+
+  /**
+   * Add a node to the current selection (multi-select)
+   */
+  function addToSelection(nodeId: string, source: EventSource = 'store') {
+    if (!selectedNodeIds.value.includes(nodeId)) {
+      selectedNodeIds.value = [...selectedNodeIds.value, nodeId]
+      eventBus.emit('store:nodes-selected', { nodeIds: selectedNodeIds.value, source })
+    }
+  }
+
+  /**
+   * Remove a node from the current selection
+   */
+  function removeFromSelection(nodeId: string, source: EventSource = 'store') {
+    selectedNodeIds.value = selectedNodeIds.value.filter((id) => id !== nodeId)
+    eventBus.emit('store:nodes-selected', { nodeIds: selectedNodeIds.value, source })
   }
 
   // ============================================================
@@ -853,7 +786,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       markDirty(activeDocumentId.value)
 
       eventBus.emit('store:node-expanded', { nodeId, source })
-      logMigrationOperation('expandNode', { nodeId })
     }
   }
 
@@ -895,7 +827,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       markDirty(activeDocumentId.value)
 
       eventBus.emit('store:node-collapsed', { nodeId, source })
-      logMigrationOperation('collapseNode', { nodeId })
     }
   }
 
@@ -991,8 +922,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       // Emit event
       eventBus.emit('store:node-side-changed', { nodeId, newSide: side, source })
 
-      // Log in migration mode
-      logMigrationOperation('setNodeSide', { nodeId, side, source })
     }
   }
 
@@ -1040,7 +969,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   // ============================================================
-  // EVENT FORWARDING (Phase 3: Dual-write system)
+  // EVENT FORWARDING
   // ============================================================
 
   /**
@@ -1053,10 +982,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     // Emit through unified store
     eventBus.emit(eventName, payload as Events[keyof Events])
 
-    // Log in migration mode
-    logMigrationOperation('emitEvent', { eventName, data })
-  }
-
+    
+        }
   /**
    * Forward node creation event
    */
@@ -1129,7 +1056,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function saveLayout(documentId: string, layoutData: DockviewLayoutData) {
     layouts.value.set(documentId, layoutData)
-    logMigrationOperation('saveLayout', { documentId })
   }
 
   /**
@@ -1144,7 +1070,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function removeLayout(documentId: string) {
     layouts.value.delete(documentId)
-    logMigrationOperation('removeLayout', { documentId })
   }
 
   /**
@@ -1152,11 +1077,10 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function clearAllLayouts() {
     layouts.value.clear()
-    logMigrationOperation('clearAllLayouts', {})
   }
 
   // ============================================================
-  // MASTER MAP METHODS (Phase 4: Future integration)
+  // MASTER MAP METHODS
   // ============================================================
 
   /**
@@ -1164,7 +1088,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function addToMasterMap(documentId: string, masterMapData: MasterMapDocument) {
     masterMapDocuments.value.set(documentId, masterMapData)
-    logMigrationOperation('addToMasterMap', { documentId })
   }
 
   /**
@@ -1172,7 +1095,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function removeFromMasterMap(documentId: string) {
     masterMapDocuments.value.delete(documentId)
-    logMigrationOperation('removeFromMasterMap', { documentId })
   }
 
   /**
@@ -1200,7 +1122,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         }
       }
       masterMapDocuments.value.set(documentId, updatedMapDoc)
-      logMigrationOperation('updateMasterMapPosition', { documentId, position })
     }
   }
 
@@ -1223,7 +1144,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function clearMasterMap() {
     masterMapDocuments.value.clear()
-    logMigrationOperation('clearMasterMap', {})
   }
 
   // ============================================================
@@ -1261,12 +1181,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     // Set as active document
     setActiveDocument(documentId)
 
-    logMigrationOperation('createDocument', {
-      filePanelId,
-      documentId,
-      documentName: document.metadata.name
-    })
-
     return instance
   }
 
@@ -1285,7 +1199,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     if (instance) {
       const updated = { ...instance, ...updates }
       documentInstances.value.set(filePanelId, updated)
-      logMigrationOperation('updateDocumentInstance', { filePanelId })
     }
   }
 
@@ -1306,7 +1219,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         removeDocument(documentId)
       }
 
-      logMigrationOperation('removeDocumentInstance', { filePanelId, documentId })
     }
   }
 
@@ -1318,12 +1230,11 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     if (instance) {
       const documentId = instance.document.metadata.id
       setActiveDocument(documentId)
-      logMigrationOperation('setActiveFilePanel', { filePanelId, documentId })
     }
   }
 
   // ============================================================
-  // PUBLIC API (Phase 1)
+  // PUBLIC API
   // ============================================================
 
   return {
@@ -1340,10 +1251,6 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     allDocuments,
     hasUnsavedChanges,
     isActiveDocumentDirty,
-
-    // Migration utilities
-    getActiveDocumentFromLegacy,
-    getAllDocumentsFromLegacy,
 
     // Document management
     addDocument,
@@ -1399,6 +1306,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     selectNode,
     selectNodes,
     clearSelection,
+    addToSelection,
+    removeFromSelection,
 
     // Node expansion operations
     expandNode,

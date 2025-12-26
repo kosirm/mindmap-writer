@@ -6,7 +6,7 @@
 import { ref } from 'vue'
 import { Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
-import { useDocumentStore } from '../../../core/stores'
+import { useUnifiedDocumentStore } from '../../../core/stores'
 
 /**
  * Currently active node ID (only one node can be edited at a time)
@@ -174,12 +174,12 @@ export function stopEditing(): void {
  * Provides reactive state and methods for use in components
  */
 export function useCanvasNodeEditor() {
-  const documentStore = useDocumentStore()
+  const unifiedStore = useUnifiedDocumentStore()
 
   function updateNodeTitle(nodeId: string, title: string, source: 'mindmap' | 'd3-concept-map') {
     // Strip <p> tags from title
     const cleanTitle = title.replace(/<\/p>/g, '')
-    documentStore.updateNode(nodeId, { title: cleanTitle }, source)
+    unifiedStore.updateNode(nodeId, { title: cleanTitle }, source)
   }
 
   return {

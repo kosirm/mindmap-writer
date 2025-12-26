@@ -287,7 +287,6 @@ onMounted(() => {
   window.addEventListener('file:close', handleFileClose)
 
   // Log initial state
-  // console.log('DockviewLayout mounted. Current document:', documentStore.documentName)
   console.log('Drive store state:', {
     hasOpenFile: driveStore.hasOpenFile,
     currentFile: driveStore.currentFile?.name || 'none'

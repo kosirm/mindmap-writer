@@ -374,23 +374,15 @@ describe('Unified Document Store - Layout and Master Map', () => {
   })
 
   // ============================================================
-  // MIGRATION UTILITIES TESTS
+  // MIGRATION UTILITIES TESTS (Removed - migration complete)
   // ============================================================
 
-  it('should have working migration utilities', () => {
-    const store = useUnifiedDocumentStore()
-    
-    // These should not throw errors
-    expect(() => store.getActiveDocumentFromLegacy()).not.toThrow()
-    expect(() => store.getAllDocumentsFromLegacy()).not.toThrow()
-  })
-
-  it('should log migration operations in development mode', () => {
+  it('should have working core operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
     
-    // These operations should log in development mode
+    // These operations should work without migration utilities
     expect(() => store.addNode(null, 'Test Node')).not.toThrow()
     expect(() => store.updateNode('test-id', { title: 'Test' })).not.toThrow()
     expect(() => store.deleteNode('test-id')).not.toThrow()
