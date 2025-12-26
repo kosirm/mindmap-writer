@@ -383,8 +383,8 @@ function handleDocumentLoaded() {
 :deep([data-dockview-level="parent"]) {
   .dv-tabs-and-actions-container {
     background-color: var(--ms-drawer-bg) !important; // Use CSS variable for brand color consistency
-    height: 32px !important; // Reduced height
-    min-height: 32px !important;
+    height: 38px !important; // Reduced height
+    min-height: 38px !important;
   }
 
   // Common styles for all file tabs
@@ -393,7 +393,7 @@ function handleDocumentLoaded() {
     border-left: none !important; // Remove left border separator
     outline: none !important;
     box-shadow: none !important;
-    height: 28px !important;
+    height: 32px !important;
     margin: 2px 2px 0 2px !important;
     border-radius: 4px 4px 0 0 !important;
 

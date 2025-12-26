@@ -177,6 +177,7 @@ function clearLocalStorage() {
 <style scoped>
 .dev-panel {
   padding: 8px;
+  padding-right:16px
 }
 </style>
 
