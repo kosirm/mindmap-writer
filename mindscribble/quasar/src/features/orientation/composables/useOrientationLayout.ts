@@ -5,18 +5,18 @@
 
 import { computed } from 'vue'
 import { useOrientationStore } from '../stores/orientationStore'
-import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 
 export function useOrientationLayout() {
   const orientationStore = useOrientationStore()
-  const documentStore = useDocumentStore()
+  const unifiedStore = useUnifiedDocumentStore()
 
   /**
    * Calculate the side and vertical order for a node's children
    * Returns layout info for each child based on current orientation
    */
   function calculateChildrenLayout(parentId: string) {
-    const children = documentStore.getChildNodes(parentId)
+    const children = unifiedStore.getChildNodes(parentId)
     const totalChildren = children.length
 
     return children.map((child, index) => {

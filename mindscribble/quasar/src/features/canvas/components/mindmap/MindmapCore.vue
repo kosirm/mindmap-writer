@@ -24,6 +24,7 @@ import * as d3 from 'd3'
 import { Dark } from 'quasar'
 import MindmapContextMenu from './MindmapContextMenu.vue'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
+import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useStoreMode } from 'src/composables/useStoreMode'
 import { useViewEvents } from 'src/core/events'
 
@@ -65,7 +66,11 @@ export default defineComponent({
     // Store mode toggle
     const { isUnifiedMode } = useStoreMode()
     const unifiedStore = useUnifiedDocumentStore()
+    const documentStore = useDocumentStore()
     const { onStoreEvent } = useViewEvents('mindmap')
+
+    // Helper to get the appropriate store based on mode
+    const getStore = () => isUnifiedMode.value ? unifiedStore : documentStore
 
     // Context menu state
     const showContextMenu = ref(false)
@@ -258,24 +263,24 @@ export default defineComponent({
       if (isCtrlClick) {
         // Multi-select: toggle selection
         console.log('⌨️ Ctrl+click - toggling selection for:', nodeId)
-        console.log('📊 Current store selection:', [...documentStore.selectedNodeIds])
+        console.log('📊 Current store selection:', [...getStore().selectedNodeIds])
         console.log('📊 Current local selection:', [...selectedNodeIds.value])
 
-        if (documentStore.selectedNodeIds.includes(nodeId)) {
+        if (getStore().selectedNodeIds.includes(nodeId)) {
           // Remove from selection
           console.log('➖ Removing from selection')
-          documentStore.removeFromSelection(nodeId, 'mindmap')
+          getStore().removeFromSelection(nodeId, 'mindmap')
           // Update local state to match store
-          selectedNodeIds.value = [...documentStore.selectedNodeIds]
+          selectedNodeIds.value = [...getStore().selectedNodeIds]
         } else {
           // Add to selection
           console.log('➕ Adding to selection')
-          documentStore.addToSelection(nodeId, 'mindmap')
+          getStore().addToSelection(nodeId, 'mindmap')
           // Update local state to match store
-          selectedNodeIds.value = [...documentStore.selectedNodeIds]
+          selectedNodeIds.value = [...getStore().selectedNodeIds]
         }
 
-        console.log('📊 After update - store selection:', [...documentStore.selectedNodeIds])
+        console.log('📊 After update - store selection:', [...getStore().selectedNodeIds])
         console.log('📊 After update - local selection:', [...selectedNodeIds.value])
 
         // Update styles immediately
@@ -285,10 +290,10 @@ export default defineComponent({
         })
       } else {
         // Single select: clear previous selection and select this node
-        console.log('�️ Regular click - selecting:', nodeId, 'current selection:', [...selectedNodeIds.value])
+        console.log('🎯 Regular click - selecting:', nodeId, 'current selection:', [...selectedNodeIds.value])
         // Notify store first (it will update its state)
         emit('node-select', nodeId)
-        documentStore.selectNode(nodeId, 'mindmap')
+        getStore().selectNode(nodeId, 'mindmap')
         // Update local state to match store
         selectedNodeIds.value = [nodeId]
         // Update styles immediately
@@ -433,12 +438,12 @@ export default defineComponent({
         // Update selection in store
         console.log('📦 Rectangle selection completed, selected nodes:', selectedNodes)
         if (selectedNodes.length > 0) {
-          documentStore.selectNodes(selectedNodes, 'mindmap')
+          getStore().selectNodes(selectedNodes, 'mindmap')
           // Update local state to match store
           selectedNodeIds.value = [...selectedNodes]
         } else {
           // No nodes selected, clear selection
-          documentStore.clearSelection('mindmap')
+          getStore().clearSelection('mindmap')
           selectedNodeIds.value = []
         }
 
@@ -455,7 +460,7 @@ export default defineComponent({
 
     const clearSelection = () => {
       if (!isDraggingSelection.value) {
-        documentStore.clearSelection('mindmap')
+        getStore().clearSelection('mindmap')
       }
     }
 
@@ -480,11 +485,7 @@ export default defineComponent({
       // Reparent: make draggedNode a child of targetNode
       const newParentId = targetNode.data.id || null
       if (draggedNode.data.id && newParentId) {
-        if (isUnifiedMode.value) {
-          unifiedStore.moveNode(draggedNode.data.id, newParentId, undefined, 'mindmap')
-        } else {
-          documentStore.moveNode(draggedNode.data.id, newParentId, undefined, 'mindmap')
-        }
+        getStore().moveNode(draggedNode.data.id, newParentId, undefined, 'mindmap')
       }
 
       return true
@@ -1038,11 +1039,7 @@ export default defineComponent({
               // Handle side change for root children
               const newSide = nodeCenterY < rootCenterY ? 'left' : 'right'
               console.log('Side change:', d.data.id, 'to', newSide)
-              if (isUnifiedMode.value) {
-                unifiedStore.setNodeSide(d.data.id, newSide, 'mindmap')
-              } else {
-                documentStore.setNodeSide(d.data.id, newSide, 'mindmap')
-              }
+              getStore().setNodeSide(d.data.id, newSide, 'mindmap')
               // Redraw will happen via store watch
               return
             } else if (d.parent && Math.abs(py) > 10) {
@@ -1107,11 +1104,7 @@ export default defineComponent({
 
                   console.log('New orders:', Array.from(newOrders.entries()))
                   const parentId = d.parent?.data.id || null
-                  if (isUnifiedMode.value) {
-                    unifiedStore.reorderSiblings(parentId, newOrders, 'mindmap')
-                  } else {
-                    documentStore.reorderSiblings(parentId, newOrders, 'mindmap')
-                  }
+                  getStore().reorderSiblings(parentId, newOrders, 'mindmap')
                   // Redraw will happen via store watch
                   return
                 }
@@ -1175,7 +1168,7 @@ export default defineComponent({
       if (event.key === 'Escape' && selectedNodeIds.value.length > 0) {
         console.log('🔑 ESC pressed - clearing selection')
         selectedNodeIds.value = []
-        documentStore.selectNode(null, 'mindmap')
+        getStore().selectNode(null, 'mindmap')
         void nextTick(() => {
           updateSelectedNodeStyles()
         })
@@ -1187,7 +1180,7 @@ export default defineComponent({
       // Center view after initial render
       initializeCenterView()
       // Initialize selection from store
-      selectedNodeIds.value = documentStore.selectedNodeIds
+      selectedNodeIds.value = getStore().selectedNodeIds
       void nextTick(() => {
         updateSelectedNodeStyles()
       })

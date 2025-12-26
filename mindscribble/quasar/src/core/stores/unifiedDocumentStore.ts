@@ -726,6 +726,24 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     eventBus.emit('store:node-selected', { nodeId: null, source, scrollIntoView: false })
   }
 
+  /**
+   * Add a node to the current selection (multi-select)
+   */
+  function addToSelection(nodeId: string, source: EventSource = 'store') {
+    if (!selectedNodeIds.value.includes(nodeId)) {
+      selectedNodeIds.value = [...selectedNodeIds.value, nodeId]
+      eventBus.emit('store:nodes-selected', { nodeIds: selectedNodeIds.value, source })
+    }
+  }
+
+  /**
+   * Remove a node from the current selection
+   */
+  function removeFromSelection(nodeId: string, source: EventSource = 'store') {
+    selectedNodeIds.value = selectedNodeIds.value.filter((id) => id !== nodeId)
+    eventBus.emit('store:nodes-selected', { nodeIds: selectedNodeIds.value, source })
+  }
+
   // ============================================================
   // NODE EXPANSION OPERATIONS (for Outline view)
   // ============================================================
@@ -1288,6 +1306,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     selectNode,
     selectNodes,
     clearSelection,
+    addToSelection,
+    removeFromSelection,
 
     // Node expansion operations
     expandNode,

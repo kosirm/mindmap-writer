@@ -11,7 +11,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, inject, type Ref } from 'vue'
 import * as d3 from 'd3'
-import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useOrientationStore } from 'src/core/stores/orientationStore'
 import { useAppStore } from 'src/core/stores/appStore'
 
@@ -20,7 +20,7 @@ defineOptions({
 })
 
 const svgRef = ref<SVGSVGElement | null>(null)
-const documentStore = useDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 const orientationStore = useOrientationStore()
 const appStore = useAppStore()
 
@@ -70,8 +70,8 @@ onMounted(() => {
   }
 
   // Ensure the document store is set to d3-concept-map view when this panel is active
-  if (documentStore.activeView !== 'd3-concept-map') {
-    documentStore.switchView('d3-concept-map', 'd3-concept-map')
+  if (unifiedStore.activeDocument?.layout.activeView !== 'd3-concept-map') {
+    unifiedStore.updateDocumentLayoutSettings(unifiedStore.activeDocumentId!, { activeView: 'd3-concept-map' })
   }
 
   // Draw initial concept map
@@ -94,7 +94,7 @@ function drawConceptMap() {
   g.selectAll('*').remove()
 
   // Get nodes from document store
-  const nodes = documentStore.nodes
+  const nodes = unifiedStore.activeDocument?.nodes || []
 
   if (nodes.length === 0) {
     // Draw placeholder text if no nodes
@@ -142,7 +142,7 @@ function drawConceptMap() {
 }
 
 // Watch for document changes
-watch(() => documentStore.nodes, () => {
+watch(() => unifiedStore.activeDocument?.nodes, () => {
   drawConceptMap()
 }, { deep: true })
 

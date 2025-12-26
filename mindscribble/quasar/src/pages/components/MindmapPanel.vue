@@ -10,24 +10,24 @@
 <script setup lang="ts">
 import { onMounted, watch, inject, type Ref } from 'vue'
 import MindmapView from 'src/features/canvas/components/MindmapView.vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 
 defineOptions({
   name: 'MindmapPanelComponent'
 })
 
-const documentStore = useDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 const isDraggingPanel = inject<Ref<boolean>>('isDraggingPanel')
 
 onMounted(() => {
   // Ensure the document store is set to mindmap view when this panel is active
-  if (documentStore.activeView !== 'mindmap') {
-    documentStore.switchView('mindmap', 'mindmap')
+  if (unifiedStore.activeDocument?.layout.activeView !== 'mindmap') {
+    unifiedStore.updateDocumentLayoutSettings(unifiedStore.activeDocumentId!, { activeView: 'mindmap' })
   }
 })
 
 // Watch for active view changes
-watch(() => documentStore.activeView, (newView) => {
+watch(() => unifiedStore.activeDocument?.layout.activeView, (newView) => {
   if (newView !== 'mindmap') {
     // Handle view changes if needed
   }

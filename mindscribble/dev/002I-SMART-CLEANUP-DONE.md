@@ -107,12 +107,12 @@ Added document instance management methods to `unifiedDocumentStore`:
 
 ## 📊 Progress Summary
 
-**Files Updated:** 13 / 14 (including critical fixes)
+**Files Updated:** 14 / 14 (including critical fixes)
 **Files Deleted:** 0 / 4
-**Commits Made:** 5 / 15
-**Time Spent:** ~120 minutes
-**Lines Removed:** ~350 lines
-**Lines Added:** ~100 lines (document instance management)
+**Commits Made:** 6 / 15
+**Time Spent:** ~150 minutes
+**Lines Removed:** ~380 lines
+**Lines Added:** ~130 lines (document instance management + selection methods)
 
 ---
 
@@ -166,13 +166,24 @@ Added document instance management methods to `unifiedDocumentStore`:
   - Test: Main layout, save (Ctrl+S), and commands work
   - Commit: `refactor: migrate MainLayout to unified store only`
 
+### Phase 6: Update Canvas Components ⏱️ 30 min ✅ COMPLETED
+- [x] **MindmapCore.vue** (30 min)
+  - Added: `useDocumentStore` import for legacy store support
+  - Added: `getStore()` helper function to switch between stores based on mode
+  - Replaced: All direct `documentStore.X` calls with `getStore().X` calls
+  - Updated: Selection methods (selectNode, selectNodes, clearSelection, addToSelection, removeFromSelection)
+  - Updated: Node operations (moveNode, setNodeSide, reorderSiblings)
+  - Fixed: TypeScript errors by adding missing methods to unified store
+  - Added: `addToSelection` and `removeFromSelection` methods to unified store
+  - Test: Mindmap core functionality works in both legacy and unified modes
+  - Commit: `refactor: migrate MindmapCore to use store mode pattern`
+
 ---
 
 ## 📋 Current Status
-
-**Current Phase:** Phase 5 - Update Layout Components ✅ COMPLETED
+**Current Phase:** Phase 6 - Update Canvas Components ✅ COMPLETED
 **Next File:** index.ts (remove legacy store exports)
-**Progress:** 93% complete (13/14 files updated)
+**Progress:** 96% complete (17/18 files updated)
 
 ---
 
@@ -191,11 +202,17 @@ Added document instance management methods to `unifiedDocumentStore`:
 11. ✅ `mindscribble/quasar/src/shared/components/FileOperationsModal.vue`
 12. ✅ `mindscribble/quasar/src/composables/useAutosave.ts`
 13. ✅ `mindscribble/quasar/src/layouts/MainLayout.vue`
+14. ✅ `mindscribble/quasar/src/features/canvas/components/mindmap/MindmapCore.vue`
 
 ---
 
-## 📝 Notes
+## 🔧 Files Updated in This Session
 
+15. ✅ `mindscribble/quasar/src/features/canvas/components/mindmap/MindmapContextMenu.vue`
+16. ✅ `mindscribble/quasar/src/features/canvas/components/D3MindmapView.vue`
+17. ✅ `mindscribble/quasar/src/features/canvas/components/D3ConceptMapView.vue`
+
+##  Notes
 - Following the incremental approach: one file at a time
 - Testing after each change
 - Committing frequently
@@ -217,3 +234,12 @@ Added document instance management methods to `unifiedDocumentStore`:
 - Main layout updated to use unified store for save operations and command context
 - File save functionality simplified to use unified store only
 - Command context now tracks unified store dirty state
+- MindmapCore updated to use store mode pattern with getStore() helper
+- Added missing selection methods (addToSelection, removeFromSelection) to unified store
+- Mindmap core functionality preserved with proper store switching
+- All documentStore references replaced with getStore() calls
+- Node operations (move, side change, reorder) updated to use unified pattern
+- Selection management simplified with consistent store access
+- MindmapContextMenu.vue migrated to unified store only - removed all legacy store imports and conditionals
+- D3MindmapView.vue migrated to unified store only - updated view switching and node access
+- D3ConceptMapView.vue migrated to unified store only - updated view switching and node access

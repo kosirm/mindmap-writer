@@ -41,9 +41,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
-import { useStoreMode } from 'src/composables/useStoreMode'
 
 const props = defineProps<{
   modelValue: boolean
@@ -56,9 +54,6 @@ const emit = defineEmits(['update:modelValue', 'node-action'])
 const showMenu = ref(props.modelValue)
 const menuPosition = ref(props.position)
 
-// Store mode toggle
-const { isUnifiedMode } = useStoreMode()
-const documentStore = useDocumentStore()
 const unifiedStore = useUnifiedDocumentStore()
 
 // Watch for prop changes
@@ -77,30 +72,16 @@ function onMenuHide() {
 function addChildNode() {
   if (!props.nodeId) return
 
-  if (isUnifiedMode.value) {
-    const parentNode = unifiedStore.getNodeById(props.nodeId)
-    if (parentNode) {
-      const newNode = unifiedStore.addNode(
-        props.nodeId,
-        'New Child',
-        '',
-        undefined,
-        'mindmap'
-      )
-      if (newNode) {
-        emit('node-action', { action: 'add-child', nodeId: newNode.id })
-      }
-    }
-  } else {
-    const parentNode = documentStore.getNodeById(props.nodeId)
-    if (parentNode) {
-      const newNode = documentStore.addNode(
-        props.nodeId,
-        'New Child',
-        '',
-        undefined,
-        'mindmap'
-      )
+  const parentNode = unifiedStore.getNodeById(props.nodeId)
+  if (parentNode) {
+    const newNode = unifiedStore.addNode(
+      props.nodeId,
+      'New Child',
+      '',
+      undefined,
+      'mindmap'
+    )
+    if (newNode) {
       emit('node-action', { action: 'add-child', nodeId: newNode.id })
     }
   }
@@ -110,32 +91,17 @@ function addChildNode() {
 function addSiblingNode() {
   if (!props.nodeId) return
 
-  if (isUnifiedMode.value) {
-    const node = unifiedStore.getNodeById(props.nodeId)
-    if (node) {
-      const parentId = node.data.parentId
-      const newNode = unifiedStore.addNode(
-        parentId,
-        'New Sibling',
-        '',
-        undefined,
-        'mindmap'
-      )
-      if (newNode) {
-        emit('node-action', { action: 'add-sibling', nodeId: newNode.id })
-      }
-    }
-  } else {
-    const node = documentStore.getNodeById(props.nodeId)
-    if (node) {
-      const parentId = node.data.parentId
-      const newNode = documentStore.addNode(
-        parentId,
-        'New Sibling',
-        '',
-        undefined,
-        'mindmap'
-      )
+  const node = unifiedStore.getNodeById(props.nodeId)
+  if (node) {
+    const parentId = node.data.parentId
+    const newNode = unifiedStore.addNode(
+      parentId,
+      'New Sibling',
+      '',
+      undefined,
+      'mindmap'
+    )
+    if (newNode) {
       emit('node-action', { action: 'add-sibling', nodeId: newNode.id })
     }
   }
@@ -145,44 +111,20 @@ function addSiblingNode() {
 function addParentNode() {
   if (!props.nodeId) return
 
-  if (isUnifiedMode.value) {
-    const node = unifiedStore.getNodeById(props.nodeId)
-    if (node) {
-      const parentId = node.data.parentId
-      const newParent = unifiedStore.addNode(
-        parentId,
-        'New Parent',
-        '',
-        undefined,
-        'mindmap'
-      )
+  const node = unifiedStore.getNodeById(props.nodeId)
+  if (node) {
+    const parentId = node.data.parentId
+    const newParent = unifiedStore.addNode(
+      parentId,
+      'New Parent',
+      '',
+      undefined,
+      'mindmap'
+    )
 
-      if (newParent) {
-        // Move the current node to be a child of the new parent
-        unifiedStore.moveNode(
-          props.nodeId,
-          newParent.id,
-          0,
-          'mindmap'
-        )
-
-        emit('node-action', { action: 'add-parent', nodeId: newParent.id })
-      }
-    }
-  } else {
-    const node = documentStore.getNodeById(props.nodeId)
-    if (node) {
-      const parentId = node.data.parentId
-      const newParent = documentStore.addNode(
-        parentId,
-        'New Parent',
-        '',
-        undefined,
-        'mindmap'
-      )
-
+    if (newParent) {
       // Move the current node to be a child of the new parent
-      documentStore.moveNode(
+      unifiedStore.moveNode(
         props.nodeId,
         newParent.id,
         0,
@@ -198,11 +140,7 @@ function addParentNode() {
 function deleteNode() {
   if (!props.nodeId) return
 
-  if (isUnifiedMode.value) {
-    unifiedStore.deleteNode(props.nodeId, true, 'mindmap')
-  } else {
-    documentStore.deleteNode(props.nodeId, true, 'mindmap')
-  }
+  unifiedStore.deleteNode(props.nodeId, true, 'mindmap')
   emit('node-action', { action: 'delete', nodeId: props.nodeId })
   onMenuHide()
 }

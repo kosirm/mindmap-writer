@@ -10,7 +10,7 @@
 <script setup lang="ts">
 import { onMounted, watch, inject, type Ref } from 'vue'
 import WriterView from 'src/features/writer/components/WriterView.vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 
 defineOptions({
   name: 'WriterPanelComponent'
@@ -18,7 +18,7 @@ defineOptions({
 
 // console.log('🔍🔍🔍 WriterPanel.vue script setup running')
 
-const documentStore = useDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 
 // Inject the drag state from FilePanel
 const isDraggingPanel = inject<Ref<boolean>>('isDraggingPanel')
@@ -26,13 +26,13 @@ const isDraggingPanel = inject<Ref<boolean>>('isDraggingPanel')
 onMounted(() => {
   // console.log('🔍🔍🔍 WriterPanel.vue mounted!')
   // Ensure the document store is set to writer view when this panel is active
-  if (documentStore.activeView !== 'writer') {
-    documentStore.switchView('writer', 'writer')
+  if (unifiedStore.activeDocument?.layout.activeView !== 'writer') {
+    unifiedStore.updateDocumentLayoutSettings(unifiedStore.activeDocumentId!, { activeView: 'writer' })
   }
 })
 
 // Watch for active view changes
-watch(() => documentStore.activeView, (newView) => {
+watch(() => unifiedStore.activeDocument?.layout.activeView, (newView) => {
   if (newView !== 'writer') {
     // If the active view changed away from writer, we might want to switch back
     // when this panel becomes active again

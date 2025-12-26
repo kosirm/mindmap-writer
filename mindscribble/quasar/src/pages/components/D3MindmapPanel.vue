@@ -10,26 +10,26 @@
 <script setup lang="ts">
 import { onMounted, watch, inject, type Ref } from 'vue'
 import D3MindmapView from 'src/features/canvas/components/D3MindmapView.vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 
 defineOptions({
   name: 'D3MindmapPanelComponent'
 })
 
-const documentStore = useDocumentStore()
+const unifiedStore = useUnifiedDocumentStore()
 
 // Inject the drag state from FilePanel
 const isDraggingPanel = inject<Ref<boolean>>('isDraggingPanel')
 
 onMounted(() => {
   // Ensure the document store is set to d3-mindmap view when this panel is active
-  if (documentStore.activeView !== 'd3-mindmap') {
-    documentStore.switchView('d3-mindmap', 'd3-mindmap')
+  if (unifiedStore.activeDocument?.layout.activeView !== 'd3-mindmap') {
+    unifiedStore.updateDocumentLayoutSettings(unifiedStore.activeDocumentId!, { activeView: 'd3-mindmap' })
   }
 })
 
 // Watch for active view changes and update if needed
-watch(() => documentStore.activeView, (newView) => {
+watch(() => unifiedStore.activeDocument?.layout.activeView, (newView) => {
   if (newView !== 'd3-mindmap') {
     // If the active view changed away from d3-mindmap, we might want to switch back
     // when this panel becomes active again
