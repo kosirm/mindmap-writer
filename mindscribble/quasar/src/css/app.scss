@@ -43,6 +43,45 @@
 }
 
 
+// Quasar-style scrollbars for consistent theming
+// This applies to all scrollable areas in the application
+// Scrollbars are hidden by default and shown only on hover (Quasar standard behavior)
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+// Show scrollbar thumb only on hover
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+*:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+// Dark mode scrollbar styling
+.body--dark {
+  *:hover::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  *:hover::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+}
+
 // Prevent text selection in outline and writer views during canvas selection
 .canvas-selecting {
   // Disable text selection on the entire document during canvas selection
