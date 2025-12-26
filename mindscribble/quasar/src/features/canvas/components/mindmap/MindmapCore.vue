@@ -80,6 +80,9 @@ export default defineComponent({
     const selectionRect = ref<{ x: number, y: number, width: number, height: number } | null>(null)
     const selectionStart = ref<{ x: number, y: number } | null>(null)
 
+    // Pan state - prevent multiple concurrent pans
+    let isPanning = false
+
     // D3 state
     let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
     let svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
@@ -115,6 +118,126 @@ export default defineComponent({
 
       const centerTransform = d3.zoomIdentity.translate(centerX, centerY)
       svg.transition().duration(750).call(zoomBehavior.transform.bind(zoomBehavior), centerTransform)
+    }
+
+    /**
+     * Pan to a specific node with smooth animation
+     * @param nodeId - The ID of the node to pan to
+     * @param retryCount - Internal parameter for retry logic
+     */
+    const panToNode = (nodeId: string, retryCount = 0) => {
+      if (retryCount === 0) {
+        console.log('🎯 panToNode called for node:', nodeId)
+      }
+
+      // Prevent multiple concurrent pan operations
+      if (isPanning) {
+        if (retryCount === 0) {
+          console.log('⚠️ Pan already in progress, skipping this request')
+        }
+        return
+      }
+
+      if (!svg || !svgEle.value || !zoomBehavior || !g) {
+        if (retryCount === 0) {
+          console.log('⚠️ Cannot pan: missing required elements', { svg: !!svg, svgEle: !!svgEle.value, zoomBehavior: !!zoomBehavior, g: !!g })
+        }
+        return
+      }
+
+      // Set panning flag
+      isPanning = true
+
+      // Check if SVG has valid dimensions
+      const svgNode = svgEle.value
+      if (!svgNode.clientWidth || !svgNode.clientHeight) {
+        // If SVG doesn't have dimensions yet (e.g., panel not visible), retry up to 5 times
+        if (retryCount < 5) {
+          if (retryCount === 0) {
+            console.log(`⚠️ SVG has no dimensions, retrying in 100ms (attempt ${retryCount + 1}/5)`)
+          }
+          setTimeout(() => {
+            panToNode(nodeId, retryCount + 1)
+          }, 100)
+        } else {
+          console.log('⚠️ Cannot pan: SVG has no dimensions after 5 retries (panel may not be visible)')
+          // Clear panning flag on failure
+          isPanning = false
+        }
+        return
+      }
+
+      // Find the node element
+      const nodeElement = g.select<SVGGElement>(`.node[data-id="${nodeId}"]`)
+      if (!nodeElement.node()) {
+        console.log('⚠️ Node not found for panning:', nodeId)
+        isPanning = false
+        return
+      }
+
+      // Get the node's position in the g coordinate system
+      const transform = nodeElement.attr('transform')
+      const match = transform?.match(/translate\(([^,]+),([^)]+)\)/) || []
+      if (match.length < 3) {
+        console.log('⚠️ Could not parse node transform:', transform)
+        isPanning = false
+        return
+      }
+
+      const nodeX = parseFloat(match[1] || '0')
+      const nodeY = parseFloat(match[2] || '0')
+      console.log('📍 Node position in g coordinates:', { nodeX, nodeY })
+
+      // Get current zoom transform
+      const currentTransform = d3.zoomTransform(svgEle.value)
+      const currentScale = currentTransform.k
+      console.log('🔍 Current zoom transform:', { k: currentScale, x: currentTransform.x, y: currentTransform.y })
+
+      // Calculate the position in SVG coordinates
+      const nodeXSvg = nodeX * currentScale + currentTransform.x
+      const nodeYSvg = nodeY * currentScale + currentTransform.y
+      console.log('📍 Node position in SVG coordinates:', { nodeXSvg, nodeYSvg })
+
+      // Get SVG dimensions
+      const svgWidth = svgNode.clientWidth
+      const svgHeight = svgNode.clientHeight
+      console.log('📐 SVG viewport dimensions:', { svgWidth, svgHeight })
+
+      // Calculate center of SVG viewport
+      const svgCenterX = svgWidth / 2
+      const svgCenterY = svgHeight / 2
+      console.log('🎯 SVG viewport center:', { svgCenterX, svgCenterY })
+
+      // Calculate target translation to center the node
+      const targetX = svgCenterX - nodeXSvg
+      const targetY = svgCenterY - nodeYSvg
+      console.log('🎯 Target translation:', { targetX, targetY })
+
+      // Create target transform
+      const targetTransform = d3.zoomIdentity.translate(targetX, targetY).scale(currentScale)
+      console.log('🎯 Target transform:', targetTransform)
+
+      // Animate to the target transform
+      svg.transition()
+        .duration(750)
+        .ease(d3.easeCubicOut)
+        .call(zoomBehavior.transform.bind(zoomBehavior), targetTransform)
+        .on('end', () => {
+          console.log('🎬 Pan animation completed for node:', nodeId)
+          // Verify final position
+          if (svgEle.value) {
+            const finalTransform = d3.zoomTransform(svgEle.value)
+            console.log('🎯 Final transform after pan:', { k: finalTransform.k, x: finalTransform.x, y: finalTransform.y })
+          } else {
+            console.log('⚠️ SVG element not available when checking final transform')
+          }
+          // Clear panning flag
+          isPanning = false
+        })
+        .on('interrupt', () => {
+          // Also clear flag if animation is interrupted
+          isPanning = false
+        })
     }
 
     const fitView = () => {
@@ -1014,7 +1137,7 @@ export default defineComponent({
         )
     }
 
-    function initializeCenterView() {
+    function initializeCenterView(retryCount = 0) {
       // Center the view on initial load only
       if (!g || !svgEle.value) return
 
@@ -1023,11 +1146,17 @@ export default defineComponent({
       // Check if SVG has valid dimensions before attempting to center
       // This prevents D3 errors when the SVG is not yet laid out by dockview
       if (!svgNode.clientWidth || !svgNode.clientHeight) {
-        console.log('⚠️ SVG not yet sized, deferring center view')
-        // Retry after a short delay to allow dockview to complete layout
-        setTimeout(() => {
-          initializeCenterView()
-        }, 100)
+        if (retryCount < 10) { // Limit retries to prevent spam
+          if (retryCount === 0 || retryCount % 5 === 0) {
+            console.log(`⚠️ SVG not yet sized, deferring center view (attempt ${retryCount + 1}/10)`)
+          }
+          // Retry after a short delay to allow dockview to complete layout
+          setTimeout(() => {
+            initializeCenterView(retryCount + 1)
+          }, 100)
+        } else {
+          console.log('⚠️ SVG still not sized after 10 attempts, giving up')
+        }
         return
       }
 
@@ -1125,9 +1254,20 @@ export default defineComponent({
     }
 
     // Listen to selection changes from other views via event bus
-    onStoreEvent('store:node-selected', ({ nodeId }) => {
-      // console.log('👀 Single node selected in store:', nodeId)
+    onStoreEvent('store:node-selected', ({ nodeId, scrollIntoView }) => {
+      console.log('👀 Single node selected in store:', nodeId, 'scrollIntoView:', scrollIntoView)
+
       selectedNodeIds.value = nodeId ? [nodeId] : []
+
+      // Pan to the selected node if requested
+      // Note: useViewEvents already filters out events from this view (source === 'mindmap')
+      if (nodeId && scrollIntoView) {
+        console.log('🎯 Requesting pan to node:', nodeId)
+        setTimeout(() => {
+          panToNode(nodeId)
+        }, 100) // Small delay to ensure node is rendered
+      }
+
       void nextTick(() => {
         updateSelectedNodeStyles()
       })

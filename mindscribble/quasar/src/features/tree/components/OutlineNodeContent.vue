@@ -152,11 +152,12 @@ function handleNodeClick(event: MouseEvent) {
     if (isUnifiedMode.value) {
       unifiedStore.selectNode(props.node.id, 'outline', true)
     } else {
-      documentStore.selectNavigateNode(props.node.id, 'outline')
+      documentStore.selectNode(props.node.id, 'outline', true)
     }
   } else {
-    // Regular click: Select without navigation
-    selectNode(props.node.id, 'outline', false)
+    // Regular click: Select and scroll into view in other views
+    // The useViewEvents composable will automatically ignore this event in the outline view itself
+    selectNode(props.node.id, 'outline', true)
 
     // If in navigation mode (edit mode OFF), focus this node
     if (!props.isEditMode) {

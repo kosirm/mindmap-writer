@@ -395,7 +395,6 @@ function handleDocumentLoaded() {
     box-shadow: none !important;
     height: 32px !important;
     margin: 2px 2px 0 2px !important;
-    border-radius: 4px 4px 0 0 !important;
 
     // Remove border from first tab
     &:first-child {

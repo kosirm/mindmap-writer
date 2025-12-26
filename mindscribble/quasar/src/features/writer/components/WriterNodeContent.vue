@@ -139,11 +139,12 @@ function handleNodeClick(event: MouseEvent) {
     if (isUnifiedMode.value) {
       unifiedStore.selectNode(props.node.id, 'writer', true)
     } else {
-      documentStore.selectNavigateNode(props.node.id, 'writer')
+      documentStore.selectNode(props.node.id, 'writer', true)
     }
   } else {
-    // Regular click: Select without navigation
-    selectNode(props.node.id, 'writer', false)
+    // Regular click: Select and scroll into view in other views
+    // The useViewEvents composable will automatically ignore this event in the writer view itself
+    selectNode(props.node.id, 'writer', true)
   }
 }
 

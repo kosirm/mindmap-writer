@@ -142,18 +142,6 @@ export const useDocumentStore = defineStore('document', () => {
     eventBus.emit('store:node-selected', { nodeId: null, source })
   }
 
-  function selectNavigateNode(
-    nodeId: string | null,
-    source: EventSource = 'store'
-  ) {
-    if (nodeId === null) {
-      selectedNodeIds.value = []
-    } else {
-      selectedNodeIds.value = [nodeId]
-    }
-
-    eventBus.emit('store:select-navigate', { nodeId, source, scrollIntoView: true })
-  }
 
   // ============================================================
   // NODE QUERY ACTIONS
@@ -849,7 +837,6 @@ export const useDocumentStore = defineStore('document', () => {
     addToSelection,
     removeFromSelection,
     clearSelection,
-    selectNavigateNode,
 
     // Node Query Actions
     getNodeById,
