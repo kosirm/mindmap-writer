@@ -23,7 +23,6 @@ import type { Data } from './types/mindmap-types'
 import * as d3 from 'd3'
 import { Dark } from 'quasar'
 import MindmapContextMenu from './MindmapContextMenu.vue'
-import { useDocumentStore } from 'src/core/stores/documentStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useStoreMode } from 'src/composables/useStoreMode'
 import { useViewEvents } from 'src/core/events'
@@ -65,7 +64,6 @@ export default defineComponent({
 
     // Store mode toggle
     const { isUnifiedMode } = useStoreMode()
-    const documentStore = useDocumentStore()
     const unifiedStore = useUnifiedDocumentStore()
     const { onStoreEvent } = useViewEvents('mindmap')
 
