@@ -78,12 +78,31 @@
       @click="resetToDefaults"
     />
 
+    <!-- Select and Navigate Toggle -->
+    <div class="text-caption q-mb-xs">Select & Navigate</div>
+    <q-btn-toggle
+      v-model="devSettings.selectNavigate"
+      toggle-color="primary"
+      :options="[
+        { label: 'ON', value: true },
+        { label: 'OFF', value: false }
+      ]"
+      class="full-width q-mb-sm"
+      @click="devSettings.toggleSelectNavigate"
+    />
+    <div class="text-caption text-grey-6 q-mb-sm">
+      <q-icon name="info" size="xs" />
+      <strong>ON:</strong> All selections pan node to center<br>
+      <strong>OFF:</strong> Only explicit clicks pan node (navigation/editing just highlights)
+    </div>
+
     <!-- Stats -->
     <div class="text-caption">
       <div>Current Settings:</div>
       <div>Branch: {{ branchThickness }}px</div>
       <div>Spacing: {{ xGap }}x{{ yGap }}px</div>
       <div>Group Spacing: {{ groupSpacing }}px</div>
+      <div>Select & Navigate: {{ devSettings.selectNavigate ? 'ON' : 'OFF' }}</div>
     </div>
   </div>
 </template>
@@ -91,8 +110,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useMindmapSettingsStore } from './MindmapSettingsStore'
+import { useDevSettingsStore } from './devSettingsStore'
 
 const mindmapSettings = useMindmapSettingsStore()
+const devSettings = useDevSettingsStore()
 
 // Initialize with default values from original mindmap
 const branchThickness = ref(mindmapSettings.branchThickness || 2)

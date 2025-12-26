@@ -21,6 +21,7 @@ import type {
   MindscribbleNode
 } from '../types'
 import type { DriveFileMetadata } from '../services/googleDriveService'
+import { useDevSettingsStore } from '../../dev/devSettingsStore'
 
 /**
  * Document instance with its associated state
@@ -61,6 +62,9 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
   /** All documents by ID */
   const documents = ref<Map<string, MindscribbleDocument>>(new Map())
+  
+  // Dev settings store for selectNavigate feature
+  const devSettings = useDevSettingsStore()
 
   /** Document instances (file panels)*/
   const documentInstances = ref<Map<string, DocumentInstance>>(new Map())
@@ -704,7 +708,12 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       selectedNodeIds.value = [nodeId]
     }
 
-    eventBus.emit('store:node-selected', { nodeId, source, scrollIntoView })
+    // Check if selectNavigate is enabled in dev settings
+    // When selectNavigate is ON: always scroll into view (ignore scrollIntoView parameter)
+    // When selectNavigate is OFF: only scroll into view when scrollIntoView is true (explicit clicks)
+    const shouldScrollIntoView = devSettings.selectNavigate || scrollIntoView
+
+    eventBus.emit('store:node-selected', { nodeId, source, scrollIntoView: shouldScrollIntoView })
   }
 
   /**
