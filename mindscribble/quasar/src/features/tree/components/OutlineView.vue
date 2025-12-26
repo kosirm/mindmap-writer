@@ -435,10 +435,10 @@ onStoreEvent('store:siblings-reordered', () => {
   treeData.value = buildTreeFromStore()
 })
 
-// Listen to select-navigate events from other views
-onStoreEvent('store:select-navigate', ({ nodeId }) => {
-  // Scroll the node into view
-  if (nodeId) {
+// Listen to node selection events from other views
+onStoreEvent('store:node-selected', ({ nodeId, scrollIntoView }) => {
+  // Scroll the node into view if requested and not from this view
+  if (nodeId && scrollIntoView) {
     setTimeout(() => {
       const outlineView = document.querySelector('.outline-view')
       if (outlineView) {

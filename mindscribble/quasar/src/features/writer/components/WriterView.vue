@@ -311,11 +311,11 @@ onStoreEvent('store:siblings-reordered', () => {
   treeData.value = buildTreeFromStore()
 })
 
-// Listen to select-navigate events from other views
-onStoreEvent('store:select-navigate', ({ nodeId, source }) => {
-  console.log('WriterView: select-navigate received for node:', nodeId, 'from source:', source)
-  // Scroll the node into view
-  if (nodeId) {
+// Listen to node selection events from other views
+onStoreEvent('store:node-selected', ({ nodeId, source, scrollIntoView }) => {
+  console.log('WriterView: node-selected received for node:', nodeId, 'from source:', source, 'scrollIntoView:', scrollIntoView)
+  // Scroll the node into view if requested and not from this view
+  if (nodeId && scrollIntoView) {
     setTimeout(() => {
       // Try to find within the writer view container
       const writerView = document.querySelector('.writer-view')

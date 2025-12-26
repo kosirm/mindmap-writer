@@ -9,7 +9,7 @@
  *        │   User Action    │                  │
  *        ▼                  ▼                  ▼
  * ┌─────────────────────────────────────────────────────┐
- * │                 Document Store                       │
+ * │                 Document Store                      │
  * │  • Single source of truth                           │
  * │  • Methods update state + emit events               │
  * └──────────────────────┬──────────────────────────────┘
@@ -17,9 +17,9 @@
  *                        │ emit('store:*', { ..., source })
  *                        ▼
  * ┌─────────────────────────────────────────────────────┐
- * │                   Event Bus                          │
+ * │                   Event Bus                         │
  * │  • Notifies all views of store changes              │
- * │  • Source tracking prevents circular updates         │
+ * │  • Source tracking prevents circular updates        │
  * └──────────────────────┬──────────────────────────────┘
  *                        │
  *        ┌───────────────┼───────────────┐
@@ -210,7 +210,6 @@ export type StoreEvents = {
   // Selection events
   'store:node-selected': NodeSelectedPayload
   'store:nodes-selected': NodesSelectedPayload
-  'store:select-navigate': NodeSelectedPayload
 
   // Node lifecycle events
   'store:node-created': NodeCreatedPayload
