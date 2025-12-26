@@ -446,24 +446,24 @@ function handleDocumentLoaded() {
     }
   }
 
-  // INACTIVE FILE TAB - customize colors here
+  // INACTIVE FILE TAB - use CSS variable for brand color consistency
   .dv-inactive-tab {
-    background-color: #4D9DEC !important;
+    background-color: var(--ms-drawer-bg) !important;
     color: rgba(255, 255, 255, 0.5) !important;
 
     &:hover {
-      background-color: #4D9DEC !important;
+      background-color: var(--ms-drawer-bg) !important;
       color: rgba(255, 255, 255, 0.9) !important;
     }
   }
 
-  // ACTIVE FILE TAB - customize colors here
+  // ACTIVE FILE TAB - use CSS variable for brand color consistency
   .dv-active-tab {
-    background-color: #4D9DEC !important;
+    background-color: var(--ms-drawer-bg) !important;
     color: white !important;
 
     &:hover {
-      background-color: #4D9DEC !important;
+      background-color: var(--ms-drawer-bg) !important;
     }
   }
 
@@ -515,6 +515,45 @@ function handleDocumentLoaded() {
 
     .dv-sash {
       background-color: #3e3e42 !important;
+    }
+  }
+
+  // Keep the same tab colors for dark mode to match the brand color consistency
+  // The tabs should use the CSS variable which changes based on light/dark mode
+  .dv-inactive-tab {
+    background-color: var(--ms-drawer-bg) !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+
+    &:hover {
+      background-color: var(--ms-drawer-bg) !important;
+      color: rgba(255, 255, 255, 0.9) !important;
+    }
+  }
+
+  // ACTIVE TAB - slightly lighter for contrast
+  .dv-active-tab {
+    background-color: var(--ms-drawer-bg) !important;
+    color: white !important;
+    filter: brightness(1.2) !important; // Make active tab slightly brighter
+
+    &:hover {
+      background-color: var(--ms-drawer-bg) !important;
+      filter: brightness(1.2) !important;
+    }
+  }
+
+  // Action buttons in tab bar - dark mode
+  .dv-left-actions-container,
+  .dv-right-actions-container {
+    color: rgba(255, 255, 255, 0.9) !important;
+
+    button {
+      color: rgba(255, 255, 255, 0.7) !important;
+
+      &:hover {
+        color: white !important;
+        background-color: rgba(255, 255, 255, 0.1) !important;
+      }
     }
   }
 }
@@ -847,4 +886,7 @@ function handleDocumentLoaded() {
     }
   }
 }
+
+// Remove all global dark mode tab styling to prevent it from affecting nested dockviews
+// Nested dockviews should use their original dark mode styling from lines 672-744
 </style>
