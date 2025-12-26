@@ -32,6 +32,9 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
   const hierarchyEdgeType = ref<EdgeType>('default')
   const referenceEdgeType = ref<EdgeType>('default')
 
+  // Select and navigate behavior
+  const selectNavigate = ref(true)
+
   // Actions
   function toggleBoundingBoxes() {
     showBoundingBoxes.value = !showBoundingBoxes.value
@@ -58,6 +61,10 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
     referenceEdgeType.value = type
   }
 
+  function toggleSelectNavigate() {
+    selectNavigate.value = !selectNavigate.value
+  }
+
   return {
     // State - Mindmap
     showBoundingBoxes,
@@ -69,13 +76,16 @@ export const useDevSettingsStore = defineStore('devSettings', () => {
     verticalSpacing,
     hierarchyEdgeType,
     referenceEdgeType,
+    // State - Navigation
+    selectNavigate,
     // Actions
     toggleBoundingBoxes,
     toggleCanvasCenter,
     toggleConceptMapCanvasCenter,
     setSpacing,
     setHierarchyEdgeType,
-    setReferenceEdgeType
+    setReferenceEdgeType,
+    toggleSelectNavigate
   }
 })
 
