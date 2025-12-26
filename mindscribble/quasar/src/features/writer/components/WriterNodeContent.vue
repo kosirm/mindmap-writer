@@ -6,6 +6,7 @@
       'is-hovered': isHovered
     }"
     :data-node-id="node.id"
+    :data-indent-level="indentLevel"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
     @click="handleNodeClick"
@@ -98,6 +99,43 @@ const isContentEditing = ref(false)
 const isSelected = computed(() => {
   return unifiedStore.selectedNodeIds.includes(props.node.id)
 })
+
+// Indent level calculation - based on the stat object from he-tree
+// The stat object typically contains information about the node's position in the tree
+const indentLevel = computed(() => {
+  // Try to extract depth from the stat object
+  // he-tree typically provides depth information in the stat object
+  if (props.stat && typeof props.stat === 'object') {
+    console.log('Stat object for node', props.node.id, ':', props.stat)
+    
+    // Check for common depth properties
+    if ('depth' in props.stat) {
+      const depth = props.stat.depth as number
+      console.log('Using depth:', depth)
+      return depth
+    } else if ('level' in props.stat) {
+      const level = props.stat.level as number
+      console.log('Using level:', level)
+      return level
+    } else if ('path' in props.stat && Array.isArray(props.stat.path)) {
+      const pathLength = props.stat.path.length - 1
+      console.log('Using path length:', pathLength)
+      return pathLength
+    } else if ('indent' in props.stat) {
+      // Some tree components use 'indent' to indicate depth
+      const indent = props.stat.indent as number
+      console.log('Using indent:', indent)
+      return indent
+    } else if ('treeDepth' in props.stat) {
+      const treeDepth = props.stat.treeDepth as number
+      console.log('Using treeDepth:', treeDepth)
+      return treeDepth
+    }
+  }
+  console.log('No depth info found, defaulting to 0')
+  return 0 // default to 0 if we can't determine the level
+})
+
 
 // Display values
 const displayTitle = computed(() => props.node.data.title || '<span class="placeholder">Untitled</span>')
@@ -317,6 +355,7 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 4px;
   padding: 6px 8px;
+  margin: 0;
   border-radius: 4px;
   border: 1px solid transparent;
   transition: all 0.15s ease;
@@ -329,6 +368,24 @@ onBeforeUnmount(() => {
   &.is-selected {
     border-color: var(--q-primary, #1976d2);
     background-color: rgba(25, 118, 210, 0.05);
+  }
+}
+
+// Indent rainbow styling
+.writer-node {
+  position: relative;
+  
+  // Create indent rainbow background
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 16px; // Cover the indent space
+    background-color: transparent; // Start with transparent
+    z-index: -1;
+    pointer-events: none;
   }
 }
 

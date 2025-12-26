@@ -10,14 +10,17 @@
       :indent="16"
       :triggerClass="TRIGGER_CLASS"
       :rootDroppable="true"
+      treeLine
       @change="onTreeChange"
     >
       <template #default="{ node, stat }">
-        <WriterNodeContent
-          :node="node.node"
-          :stat="stat"
-          :trigger-class="TRIGGER_CLASS"
-        />
+        <div class="tree-node" :data-indent-level="getIndentLevel(stat)">
+          <WriterNodeContent
+            :node="node.node"
+            :stat="stat"
+            :trigger-class="TRIGGER_CLASS"
+          />
+        </div>
       </template>
     </Draggable>
 
@@ -35,6 +38,7 @@ import { Draggable } from '@he-tree/vue'
 import '@he-tree/vue/style/default.css'
 import WriterNodeContent from './WriterNodeContent.vue'
 import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
+import { useWriterSettingsStore } from 'src/dev/WriterSettingsStore'
 import { useViewEvents } from '../../../core/events'
 import { useWriterNavigation, type WriterTreeItem } from '../composables/useWriterNavigation'
 
@@ -42,6 +46,7 @@ const TRIGGER_CLASS = 'drag-handle'
 
 // Unified store
 const unifiedStore = useUnifiedDocumentStore()
+const writerSettings = useWriterSettingsStore()
 
 const { onStoreEvent } = useViewEvents('writer')
 
@@ -246,6 +251,95 @@ watch(() => unifiedStore.activeDocument?.nodes.length || 0, () => {
   treeData.value = buildTreeFromStore()
 })
 
+// Watch for indent rainbow settings changes and update styles
+watch(() => [writerSettings.indentRainbowEnabled, writerSettings.indentColors], () => {
+  updateIndentRainbowStyles()
+}, { deep: true, immediate: true })
+
+/**
+ * Get indent level from stat object
+ */
+function getIndentLevel(stat: unknown): number {
+  if (stat && typeof stat === 'object') {
+    if ('depth' in stat) {
+      return stat.depth as number
+    } else if ('level' in stat) {
+      return stat.level as number
+    } else if ('path' in stat && Array.isArray(stat.path)) {
+      return stat.path.length - 1
+    }
+  }
+  return 0
+}
+
+/**
+ * Update the indent rainbow styles based on current settings
+ */
+function updateIndentRainbowStyles() {
+  console.log('updateIndentRainbowStyles called, enabled:', writerSettings.indentRainbowEnabled)
+  
+  if (!writerSettings.indentRainbowEnabled) {
+    // Remove all indent rainbow styles
+    const styleElement = document.getElementById('indent-rainbow-styles')
+    if (styleElement) {
+      styleElement.remove()
+    }
+    return
+  }
+ 
+  // Create or update the style element
+  let styleElement = document.getElementById('indent-rainbow-styles') as HTMLStyleElement
+  if (!styleElement) {
+    styleElement = document.createElement('style')
+    styleElement.id = 'indent-rainbow-styles'
+    document.head.appendChild(styleElement)
+  }
+ 
+  // Generate CSS for tree line visibility based on toggle setting
+  let css = ''
+  
+  if (writerSettings.indentRainbowEnabled) {
+    // When enabled, make all tree lines visible with gray color
+    css += `
+.tree-line {
+  background-color: #bbb !important;
+}
+`
+  } else {
+    // When disabled, make all tree lines transparent (invisible)
+    css += `
+.tree-line {
+  background-color: transparent !important;
+}
+`
+  }
+ 
+  console.log('Generated CSS:', css)
+  styleElement.textContent = css
+  
+  // Debug: Check if elements exist
+  setTimeout(() => {
+    const rainbowElements = document.querySelectorAll('.tree-node[data-indent-level]')
+    console.log('Found rainbow tree-node elements:', rainbowElements.length)
+    rainbowElements.forEach(el => {
+      console.log('Tree node with indent level:', el.getAttribute('data-indent-level'))
+    })
+    
+    const treeLines = document.querySelectorAll('.tree-line')
+    console.log('Found tree-line elements:', treeLines.length)
+    treeLines.forEach(el => {
+      console.log('Tree line element:', el, 'parent:', el.parentElement)
+    })
+    
+    // Test if our CSS selectors work
+    rainbowElements.forEach(treeNode => {
+      const level = treeNode.getAttribute('data-indent-level')
+      const treeLinesInNode = treeNode.querySelectorAll('.tree-line')
+      console.log(`Tree node level ${level} has ${treeLinesInNode.length} tree lines`)
+    })
+  }, 100)
+}
+
 // Listen for store events from other views
 onStoreEvent('store:node-created', () => {
   treeData.value = buildTreeFromStore()
@@ -340,12 +434,24 @@ onStoreEvent('store:node-selected', ({ nodeId, source, scrollIntoView }) => {
 // Override he-tree default styles for seamless look
 :deep(.he-tree) {
   .tree-node {
-    margin-bottom: 2px;
+    margin-bottom: 0;
+    padding: 0;
   }
 
-  // Hide tree lines - we want a document-like appearance
+  // Show tree lines for indent rainbow (when enabled)
   .tree-line {
-    display: none;
+    display: block !important;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    pointer-events: none;
+    border: none; // Remove default border
+    background-color: transparent; // Start with transparent
   }
 }
 

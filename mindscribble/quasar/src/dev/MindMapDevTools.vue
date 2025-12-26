@@ -1,9 +1,5 @@
 <template>
   <div class="dev-tools-section">
-    <div class="text-subtitle1 q-mb-sm">
-      <q-icon name="graph_1" class="q-mr-sm" />
-      Mindmap
-    </div>
 
     <!-- Branch Settings -->
     <div class="text-caption q-mb-xs">Branch Settings</div>
@@ -87,7 +83,7 @@
         { label: 'ON', value: true },
         { label: 'OFF', value: false }
       ]"
-      class="full-width q-mb-sm"
+      class="q-mb-sm"
       @click="devSettings.toggleSelectNavigate"
     />
     <div class="text-caption text-grey-6 q-mb-sm">
