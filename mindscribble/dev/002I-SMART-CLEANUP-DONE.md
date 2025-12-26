@@ -167,16 +167,16 @@ Added document instance management methods to `unifiedDocumentStore`:
   - Commit: `refactor: migrate MainLayout to unified store only`
 
 ### Phase 6: Update Canvas Components ⏱️ 30 min ✅ COMPLETED
-- [x] **MindmapCore.vue** (30 min)
-  - Added: `useDocumentStore` import for legacy store support
-  - Added: `getStore()` helper function to switch between stores based on mode
-  - Replaced: All direct `documentStore.X` calls with `getStore().X` calls
+- [x] **MindmapCore.vue** (30 min) ✅ COMPLETED
+  - Removed: `useDocumentStore` import for legacy store support
+  - Removed: `useStoreMode` import
+  - Removed: `getStore()` helper function
+  - Replaced: All `getStore().X` calls with `unifiedStore.X` calls
   - Updated: Selection methods (selectNode, selectNodes, clearSelection, addToSelection, removeFromSelection)
   - Updated: Node operations (moveNode, setNodeSide, reorderSiblings)
-  - Fixed: TypeScript errors by adding missing methods to unified store
-  - Added: `addToSelection` and `removeFromSelection` methods to unified store
-  - Test: Mindmap core functionality works in both legacy and unified modes
-  - Commit: `refactor: migrate MindmapCore to use store mode pattern`
+  - Removed: All conditional logic for store mode
+  - Test: Mindmap core functionality works with unified store only
+  - Commit: `refactor: migrate MindmapCore to unified store only`
 
 ---
 

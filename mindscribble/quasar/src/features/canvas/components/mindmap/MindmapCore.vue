@@ -188,11 +188,6 @@ export default defineComponent({
       const currentScale = currentTransform.k
       console.log('🔍 Current zoom transform:', { k: currentScale, x: currentTransform.x, y: currentTransform.y })
 
-      // Calculate the position in SVG coordinates
-      const nodeXSvg = nodeX * currentScale + currentTransform.x
-      const nodeYSvg = nodeY * currentScale + currentTransform.y
-      console.log('📍 Node position in SVG coordinates:', { nodeXSvg, nodeYSvg })
-
       // Get SVG dimensions
       const svgWidth = svgNode.clientWidth
       const svgHeight = svgNode.clientHeight
@@ -204,8 +199,10 @@ export default defineComponent({
       console.log('🎯 SVG viewport center:', { svgCenterX, svgCenterY })
 
       // Calculate target translation to center the node
-      const targetX = svgCenterX - nodeXSvg
-      const targetY = svgCenterY - nodeYSvg
+      // We want: nodeX * k + targetX = svgCenterX
+      // Therefore: targetX = svgCenterX - nodeX * k
+      const targetX = svgCenterX - nodeX * currentScale
+      const targetY = svgCenterY - nodeY * currentScale
       console.log('🎯 Target translation:', { targetX, targetY })
 
       // Create target transform
