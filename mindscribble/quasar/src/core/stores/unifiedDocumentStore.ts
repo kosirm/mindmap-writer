@@ -1,8 +1,7 @@
 /**
  * Unified Document Store - Single source of truth for all document operations
  *
- * This store consolidates DocumentStore and MultiDocumentStore into a single
- * unified store that manages:
+ * Unified store manages:
  * - Multiple documents with file panel mapping
  * - Active document concept
  * - Document instances and layouts
@@ -25,7 +24,6 @@ import type { DriveFileMetadata } from '../services/googleDriveService'
 
 /**
  * Document instance with its associated state
- * (from MultiDocumentStore)
  */
 export interface DocumentInstance {
   /** Unique file panel ID (e.g., 'file-1') */
@@ -54,7 +52,6 @@ export type DockviewLayoutData = Record<string, unknown>
 
 /**
  * Document instance with its associated state
- * (from MultiDocumentStore)
  */
 
 export const useUnifiedDocumentStore = defineStore('documents', () => {
@@ -65,7 +62,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /** All documents by ID */
   const documents = ref<Map<string, MindscribbleDocument>>(new Map())
 
-  /** Document instances (file panels) - from MultiDocumentStore */
+  /** Document instances (file panels)*/
   const documentInstances = ref<Map<string, DocumentInstance>>(new Map())
 
   /** Active document ID - from DocumentStore */
@@ -95,7 +92,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     return documents.value.get(activeDocumentId.value) ?? null
   })
 
-  /** All documents - preserves MultiDocumentStore pattern */
+  /** All documents */
   const allDocuments = computed(() => Array.from(documents.value.values()))
 
   const hasUnsavedChanges = computed(() => dirtyDocuments.value.size > 0)
