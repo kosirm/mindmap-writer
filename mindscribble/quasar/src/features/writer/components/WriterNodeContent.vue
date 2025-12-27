@@ -68,6 +68,7 @@ const props = defineProps<{
   node: MindscribbleNode
   stat: unknown // he-tree stat object
   triggerClass: string
+  indentLevel?: number
 }>()
 
 // Unified store
@@ -371,21 +372,31 @@ onBeforeUnmount(() => {
   }
 }
 
-// Indent rainbow styling
-.writer-node {
-  position: relative;
-  
-  // Create indent rainbow background
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 16px; // Cover the indent space
-    background-color: transparent; // Start with transparent
-    z-index: -1;
-    pointer-events: none;
+// Indent rainbow styling - simple colored left border based on indent level
+.indent-rainbow-enabled .writer-node {
+  // Level 1 - Red
+  &[data-indent-level="1"] {
+    border-left: 3px solid rgba(255, 100, 100, 0.4);
+  }
+
+  // Level 2 - Green
+  &[data-indent-level="2"] {
+    border-left: 3px solid rgba(100, 255, 100, 0.4);
+  }
+
+  // Level 3 - Blue
+  &[data-indent-level="3"] {
+    border-left: 3px solid rgba(100, 100, 255, 0.4);
+  }
+
+  // Level 4 - Yellow
+  &[data-indent-level="4"] {
+    border-left: 3px solid rgba(255, 255, 100, 0.4);
+  }
+
+  // Level 5+ - Cycle back to red
+  &[data-indent-level="5"] {
+    border-left: 3px solid rgba(255, 100, 100, 0.4);
   }
 }
 
