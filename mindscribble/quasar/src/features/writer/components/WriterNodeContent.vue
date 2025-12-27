@@ -7,6 +7,7 @@
     }"
     :data-node-id="node.id"
     :data-indent-level="indentLevel"
+    :style="borderColorStyle"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
     @click="handleNodeClick"
@@ -63,6 +64,7 @@ import type { EventSource } from '../../../core/events'
 import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
 import { createKeyboardHandler } from '../composables/useWriterKeyboardHandlers'
 import type { useWriterNavigation } from '../composables/useWriterNavigation'
+import { useWriterSettingsStore } from 'src/dev/WriterSettingsStore'
 
 const props = defineProps<{
   node: MindscribbleNode
@@ -73,6 +75,9 @@ const props = defineProps<{
 
 // Unified store
 const unifiedStore = useUnifiedDocumentStore()
+
+// Writer settings store for indent colors
+const writerSettings = useWriterSettingsStore()
 
 const navigation = inject<ReturnType<typeof useWriterNavigation>>('writerNavigation')
 
@@ -95,6 +100,19 @@ function updateNode(nodeId: string, updates: Partial<NodeData>, source: EventSou
 const isHovered = ref(false)
 const isTitleEditing = ref(false)
 const isContentEditing = ref(false)
+
+// Dynamic border color and width based on indent level and writer settings
+const borderColorStyle = computed(() => {
+  if (!writerSettings.indentRainbowEnabled || !props.indentLevel) {
+    return ''
+  }
+
+  // Subtract 1 from indent level to make first level (1) use first color (index 0)
+  const adjustedLevel = props.indentLevel - 1
+  const color = writerSettings.getColorForIndentLevel(adjustedLevel)
+  const width = writerSettings.indentationWidth
+  return color ? `border-left: ${width}px solid ${color};` : ''
+})
 
 // Selection state
 const isSelected = computed(() => {
@@ -354,7 +372,7 @@ onBeforeUnmount(() => {
 .writer-node {
   display: flex;
   align-items: flex-start;
-  gap: 2px;
+  gap: 0px;
   padding: 6px 8px;
   margin: 0;
   border-radius: 4px;
@@ -370,33 +388,8 @@ onBeforeUnmount(() => {
   }
 }
 
-// Indent rainbow styling - simple colored left border based on indent level
-.indent-rainbow-enabled .writer-node {
-  // Level 1 - Red
-  &[data-indent-level="1"] {
-    border-left: 3px solid rgba(219, 60, 60, 0.4);
-  }
-
-  // Level 2 - Green
-  &[data-indent-level="2"] {
-    border-left: 3px solid rgba(59, 163, 59, 0.4);
-  }
-
-  // Level 3 - Yellow
-  &[data-indent-level="3"] {
-    border-left: 3px solid rgba(221, 207, 78, 0.79);
-  }
-
-  // Level 4 - Blue
-  &[data-indent-level="4"] {
-    border-left: 3px solid rgba(48, 135, 216, 0.4);
-  }
-
-  // Level 5+ - Cycle back to red
-  &[data-indent-level="5"] {
-    border-left: 3px solid rgba(255, 100, 255, 0.4);
-  }
-}
+// Indent rainbow styling is now handled dynamically via inline styles
+// The border color is computed based on indent level and writer settings
 
 .drag-handle {
   flex-shrink: 0;
