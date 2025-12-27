@@ -385,7 +385,7 @@ onBeforeUnmount(() => {
 .outline-node {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0px;
   padding: 4px 0px;
   border-radius: 4px;
   transition: all 0.15s ease;
@@ -411,7 +411,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   cursor: pointer;
   color: var(--ms-text-secondary);
-  border-radius: 3px;
+  // border-radius: 3px;
   transition: all 0.15s ease;
   margin-right: 2px;
 

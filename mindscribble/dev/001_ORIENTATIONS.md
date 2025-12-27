@@ -28,3 +28,7 @@ CCW (LD-RU) - Left down, Right up
      Root
 | 6 | 5 | 4 |
 
+left-to-right only
+right-to-left only
+top-to-bottom only (siblings left to right)
+bottom-to-top only (siblings left to right)
