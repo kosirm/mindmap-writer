@@ -358,7 +358,6 @@ onBeforeUnmount(() => {
   padding: 6px 8px;
   margin: 0;
   border-radius: 4px;
-  border: 1px solid transparent;
   transition: all 0.15s ease;
   cursor: default;
 
@@ -367,8 +366,7 @@ onBeforeUnmount(() => {
   }
 
   &.is-selected {
-    border-color: var(--q-primary, #1976d2);
-    background-color: rgba(25, 118, 210, 0.05);
+    background-color: rgba(25, 118, 210, 0.08);
   }
 }
 
