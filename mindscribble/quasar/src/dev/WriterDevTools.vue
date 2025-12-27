@@ -25,9 +25,9 @@
     <div class="q-mb-sm">
       <q-slider
         v-model="writerSettings.indentationWidth"
-        :min="8"
-        :max="48"
-        :step="8"
+        :min="1"
+        :max="30"
+        :step="1"
         label
         :label-value="`${writerSettings.indentationWidth}px`"
         color="primary"
