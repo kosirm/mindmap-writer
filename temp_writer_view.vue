@@ -2,26 +2,24 @@
   <div
     class="writer-view"
   >
-    <div v-if="treeData.length > 0" class="writer-tree-wrapper" :class="{ 'indent-rainbow-enabled': writerSettings.indentRainbowEnabled }">
-      <Draggable
-        ref="treeRef"
-        v-model="treeData"
-        class="writer-tree"
-        :indent="16"
-        :triggerClass="TRIGGER_CLASS"
-        :rootDroppable="true"
-        @change="onTreeChange"
-      >
-        <template #default="{ node, stat }">
-          <WriterNodeContent
-            :node="node.node"
-            :stat="stat"
-            :trigger-class="TRIGGER_CLASS"
-            :indent-level="getIndentLevel(stat)"
-          />
-        </template>
-      </Draggable>
-    </div>
+    <Draggable
+      v-if="treeData.length > 0"
+      ref="treeRef"
+      v-model="treeData"
+      class="writer-tree"
+      :indent="16"
+      :triggerClass="TRIGGER_CLASS"
+      :rootDroppable="true"
+      @change="onTreeChange"
+    >
+      <template #default="{ node, stat }">
+        <WriterNodeContent
+          :node="node.node"
+          :stat="stat"
+          :trigger-class="TRIGGER_CLASS"
+        />
+      </template>
+    </Draggable>
 
     <div v-else class="empty-state">
       <q-icon name="description" size="48px" color="grey-5" />
@@ -37,7 +35,6 @@ import { Draggable } from '@he-tree/vue'
 import '@he-tree/vue/style/default.css'
 import WriterNodeContent from './WriterNodeContent.vue'
 import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
-import { useWriterSettingsStore } from 'src/dev/WriterSettingsStore'
 import { useViewEvents } from '../../../core/events'
 import { useWriterNavigation, type WriterTreeItem } from '../composables/useWriterNavigation'
 
@@ -45,7 +42,6 @@ const TRIGGER_CLASS = 'drag-handle'
 
 // Unified store
 const unifiedStore = useUnifiedDocumentStore()
-const writerSettings = useWriterSettingsStore()
 
 const { onStoreEvent } = useViewEvents('writer')
 
@@ -248,121 +244,15 @@ treeData.value = buildTreeFromStore()
 // Watch store for changes
 watch(() => unifiedStore.activeDocument?.nodes.length || 0, () => {
   treeData.value = buildTreeFromStore()
-  // Reapply indent rainbow colors after tree rebuild
-  setTimeout(() => updateIndentRainbowStyles(), 150)
 })
-
-// Watch for indent rainbow settings changes and update styles
-watch(() => [writerSettings.indentRainbowEnabled, writerSettings.indentColors, writerSettings.indentationWidth], () => {
-  updateIndentRainbowStyles()
-}, { deep: true, immediate: true })
-
-/**
- * Get indent level from stat object
- */
-function getIndentLevel(stat: unknown): number {
-  if (stat && typeof stat === 'object') {
-    if ('depth' in stat) {
-      return stat.depth as number
-    } else if ('level' in stat) {
-      return stat.level as number
-    } else if ('path' in stat && Array.isArray(stat.path)) {
-      return stat.path.length - 1
-    }
-  }
-  return 0
-}
-
-/**
- * Update the indent rainbow styles based on current settings
- */
-function updateIndentRainbowStyles() {
-  console.log('updateIndentRainbowStyles called, enabled:', writerSettings.indentRainbowEnabled)
-
-  // Use JavaScript to directly apply colors/visibility to treelines
-  // Each tree-node wrapper can have multiple .tree-line elements (one per ancestor level)
-  // Each tree-line has a 'left' style that indicates which indent level it represents
-  setTimeout(() => {
-    const allTreeLines = document.querySelectorAll('.tree-line')
-
-    if (writerSettings.indentRainbowEnabled && writerSettings.indentColors.length > 0) {
-      // ENABLED: Show only vertical lines with colors, hide horizontal lines to avoid overlap
-      allTreeLines.forEach(line => {
-        if (!(line instanceof HTMLElement)) return
-
-        // Check if this is a horizontal line - if so, hide it to avoid overlap with vertical lines
-        const isHorizontalLine = line.classList.contains('tree-hline')
-
-        if (isHorizontalLine) {
-          // Hide horizontal lines to prevent overlap/darker areas
-          line.style.setProperty('display', 'none', 'important')
-          line.style.setProperty('visibility', 'hidden', 'important')
-        } else {
-          // Show vertical lines with colors
-          line.style.setProperty('display', 'block', 'important')
-          line.style.setProperty('visibility', 'visible', 'important')
-
-          // Get the left position from inline style
-          const leftStyle = line.style.left
-          if (leftStyle) {
-            // Parse the left value (e.g., "8px", "24px", "40px")
-            const leftValue = parseInt(leftStyle)
-
-            // Shift the line 8px to the left to avoid being covered by node padding
-            const adjustedLeftValue = leftValue - 8
-
-            // Calculate the indent level from the ORIGINAL left position
-            // left position = (level - 1) * indentationWidth + (indentationWidth / 2)
-            // For indentationWidth=16: 8px=level1, 24px=level2, 40px=level3, etc.
-            const level = Math.floor((leftValue - (writerSettings.indentationWidth / 2)) / writerSettings.indentationWidth) + 1
-
-            // Get the color for this level (cycling through colors)
-            const colorIndex = (level - 1) % writerSettings.indentColors.length
-            const color = writerSettings.indentColors[colorIndex]?.rgba || 'rgba(187, 187, 187, 0.3)'
-
-            // Apply the adjusted left position
-            line.style.setProperty('left', `${adjustedLeftValue}px`, 'important')
-
-            // Apply the color with full opacity
-            // IMPORTANT: Override ALL possible color properties to ensure consistency
-            line.style.setProperty('background-color', color, 'important')
-            line.style.setProperty('background', color, 'important')
-            line.style.setProperty('border-color', 'transparent', 'important')
-            line.style.setProperty('border-left-color', 'transparent', 'important')
-            line.style.setProperty('border-right-color', 'transparent', 'important')
-            line.style.setProperty('border-top-color', 'transparent', 'important')
-            line.style.setProperty('border-bottom-color', 'transparent', 'important')
-            line.style.setProperty('border-left-width', '0', 'important')
-            line.style.setProperty('border-right-width', '0', 'important')
-            line.style.setProperty('border-top-width', '0', 'important')
-            line.style.setProperty('border-bottom-width', '0', 'important')
-            line.style.setProperty('opacity', '1', 'important')
-            line.style.setProperty('width', `${writerSettings.indentationWidth}px`, 'important')
-          }
-        }
-      })
-    } else {
-      // DISABLED: Hide all lines completely
-      allTreeLines.forEach(line => {
-        if (!(line instanceof HTMLElement)) return
-
-        // Hide the line using both display and visibility
-        line.style.setProperty('display', 'none', 'important')
-        line.style.setProperty('visibility', 'hidden', 'important')
-      })
-    }
-  }, 100)
-}
 
 // Listen for store events from other views
 onStoreEvent('store:node-created', () => {
   treeData.value = buildTreeFromStore()
-  setTimeout(() => updateIndentRainbowStyles(), 150)
 })
 
 onStoreEvent('store:node-deleted', () => {
   treeData.value = buildTreeFromStore()
-  setTimeout(() => updateIndentRainbowStyles(), 150)
 })
 
 onStoreEvent('store:node-updated', ({ nodeId, changes }) => {
@@ -390,12 +280,10 @@ onStoreEvent('store:node-updated', ({ nodeId, changes }) => {
 
 onStoreEvent('store:node-reparented', () => {
   treeData.value = buildTreeFromStore()
-  setTimeout(() => updateIndentRainbowStyles(), 150)
 })
 
 onStoreEvent('store:siblings-reordered', () => {
   treeData.value = buildTreeFromStore()
-  setTimeout(() => updateIndentRainbowStyles(), 150)
 })
 
 // Listen to node selection events from other views
@@ -452,10 +340,10 @@ onStoreEvent('store:node-selected', ({ nodeId, source, scrollIntoView }) => {
 // Override he-tree default styles for seamless look
 :deep(.he-tree) {
   .tree-node {
-    margin-bottom: 0;
+    margin-bottom: 2px;
   }
 
-  // Hide he-tree's default tree lines - we use custom indent rainbow instead
+  // Hide tree lines - we want a document-like appearance
   .tree-line {
     display: none;
   }
