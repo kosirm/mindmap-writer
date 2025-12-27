@@ -10,7 +10,6 @@
       :indent="indentationWidth"
       :triggerClass="TRIGGER_CLASS"
       :rootDroppable="true"
-      treeLine
       @change="onTreeChange"
     >
       <template #default="{ node, stat }">
@@ -280,80 +279,7 @@ function getIndentLevel(stat: unknown): number {
  */
 function updateIndentRainbowStyles() {
   console.log('updateIndentRainbowStyles called, enabled:', writerSettings.indentRainbowEnabled)
-
-  // Use JavaScript to directly apply colors/visibility to treelines
-  // Each tree-node wrapper can have multiple .tree-line elements (one per ancestor level)
-  // Each tree-line has a 'left' style that indicates which indent level it represents
-  setTimeout(() => {
-    const allTreeLines = document.querySelectorAll('.tree-line')
-
-    if (writerSettings.indentRainbowEnabled && writerSettings.indentColors.length > 0) {
-      // ENABLED: Show only vertical lines with colors, hide horizontal lines to avoid overlap
-      allTreeLines.forEach(line => {
-        if (!(line instanceof HTMLElement)) return
-
-        // Check if this is a horizontal line - if so, hide it to avoid overlap with vertical lines
-        const isHorizontalLine = line.classList.contains('tree-hline')
-
-        if (isHorizontalLine) {
-          // Hide horizontal lines to prevent overlap/darker areas
-          line.style.setProperty('display', 'none', 'important')
-          line.style.setProperty('visibility', 'hidden', 'important')
-        } else {
-          // Show vertical lines with colors
-          line.style.setProperty('display', 'block', 'important')
-          line.style.setProperty('visibility', 'visible', 'important')
-
-          // Get the left position from inline style
-          const leftStyle = line.style.left
-          if (leftStyle) {
-            // Parse the left value (e.g., "8px", "24px", "40px")
-            const leftValue = parseInt(leftStyle)
-
-            // Shift the line 8px to the left to avoid being covered by node padding
-            const adjustedLeftValue = leftValue - 8
-
-            // Calculate the indent level from the ORIGINAL left position
-            // left position = (level - 1) * indentationWidth + (indentationWidth / 2)
-            // For indentationWidth=16: 8px=level1, 24px=level2, 40px=level3, etc.
-            const level = Math.floor((leftValue - (writerSettings.indentationWidth / 2)) / writerSettings.indentationWidth) + 1
-
-            // Get the color for this level (cycling through colors)
-            const colorIndex = (level - 1) % writerSettings.indentColors.length
-            const color = writerSettings.indentColors[colorIndex]?.rgba || 'rgba(187, 187, 187, 0.3)'
-
-            // Apply the adjusted left position
-            line.style.setProperty('left', `${adjustedLeftValue}px`, 'important')
-
-            // Apply the color with full opacity
-            // IMPORTANT: Override ALL possible color properties to ensure consistency
-            line.style.setProperty('background-color', color, 'important')
-            line.style.setProperty('background', color, 'important')
-            line.style.setProperty('border-color', 'transparent', 'important')
-            line.style.setProperty('border-left-color', 'transparent', 'important')
-            line.style.setProperty('border-right-color', 'transparent', 'important')
-            line.style.setProperty('border-top-color', 'transparent', 'important')
-            line.style.setProperty('border-bottom-color', 'transparent', 'important')
-            line.style.setProperty('border-left-width', '0', 'important')
-            line.style.setProperty('border-right-width', '0', 'important')
-            line.style.setProperty('border-top-width', '0', 'important')
-            line.style.setProperty('border-bottom-width', '0', 'important')
-            line.style.setProperty('opacity', '1', 'important')
-            line.style.setProperty('width', `${writerSettings.indentationWidth}px`, 'important')
-          }
-        }
-      })
-    } else {
-      // DISABLED: Hide all lines completely
-      allTreeLines.forEach(line => {
-        if (!(line instanceof HTMLElement)) return
-
-        // Hide the line using both display and visibility
-        line.style.setProperty('display', 'none', 'important')
-        line.style.setProperty('visibility', 'hidden', 'important')
-      })
-    }
-  }, 100)
+  // TODO: Implement indent rainbow without breaking drag-and-drop
 }
 
 // Listen for store events from other views
@@ -456,44 +382,6 @@ onStoreEvent('store:node-selected', ({ nodeId, source, scrollIntoView }) => {
   .tree-node {
     margin-bottom: 0;
     padding: 0;
-  }
-
-  // Tree lines for indent rainbow - visibility and colors controlled by JavaScript
-  .tree-line {
-    // Don't set display here - it will be controlled by JavaScript
-    margin: 0 !important;
-    padding: 0 !important;
-    height: 100% !important;
-    position: absolute !important;
-    pointer-events: none !important;
-    // Remove ALL borders - only background-color will be used for coloring
-    border: none !important;
-    border-width: 0 !important;
-    border-left: none !important;
-    border-right: none !important;
-    border-top: none !important;
-    border-bottom: none !important;
-    border-left-width: 0 !important;
-    border-right-width: 0 !important;
-    border-top-width: 0 !important;
-    border-bottom-width: 0 !important;
-  }
-
-  // Ensure both vertical and horizontal lines have the same base styling
-  // Override he-tree's default.css which applies different styles to vline and hline
-  .tree-vline,
-  .tree-hline {
-    border: none !important;
-    border-width: 0 !important;
-    border-left: none !important;
-    border-right: none !important;
-    border-top: none !important;
-    border-bottom: none !important;
-    border-left-width: 0 !important;
-    border-right-width: 0 !important;
-    border-top-width: 0 !important;
-    border-bottom-width: 0 !important;
-    // Don't set background here - JavaScript will handle it
   }
 }
 
