@@ -182,5 +182,5 @@ bun install
 - [Vitest Documentation](https://vitest.dev/)
 - [Vue Test Utils](https://test-utils.vuejs.org/)
 - [Quasar Testing](https://quasar.dev/quasar-cli-vite/testing-and-auditing)
-- [Store Consolidation Plan](../dev/002D-STORE-CONSOLIDATION-IMPLEMENTATION-PLAN.md)
+- [Store Consolidation Plan](../dev/DONE/002D-STORE-CONSOLIDATION-IMPLEMENTATION-PLAN.md)
 

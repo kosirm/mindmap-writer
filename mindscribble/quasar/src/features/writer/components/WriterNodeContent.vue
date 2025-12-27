@@ -108,7 +108,7 @@ const indentLevel = computed(() => {
   // he-tree typically provides depth information in the stat object
   if (props.stat && typeof props.stat === 'object') {
     console.log('Stat object for node', props.node.id, ':', props.stat)
-    
+
     // Check for common depth properties
     if ('depth' in props.stat) {
       const depth = props.stat.depth as number
@@ -354,7 +354,7 @@ onBeforeUnmount(() => {
 .writer-node {
   display: flex;
   align-items: flex-start;
-  gap: 4px;
+  gap: 2px;
   padding: 6px 8px;
   margin: 0;
   border-radius: 4px;
@@ -374,27 +374,27 @@ onBeforeUnmount(() => {
 .indent-rainbow-enabled .writer-node {
   // Level 1 - Red
   &[data-indent-level="1"] {
-    border-left: 3px solid rgba(255, 100, 100, 0.4);
+    border-left: 3px solid rgba(219, 60, 60, 0.4);
   }
 
   // Level 2 - Green
   &[data-indent-level="2"] {
-    border-left: 3px solid rgba(100, 255, 100, 0.4);
+    border-left: 3px solid rgba(59, 163, 59, 0.4);
   }
 
-  // Level 3 - Blue
+  // Level 3 - Yellow
   &[data-indent-level="3"] {
-    border-left: 3px solid rgba(100, 100, 255, 0.4);
+    border-left: 3px solid rgba(221, 207, 78, 0.79);
   }
 
-  // Level 4 - Yellow
+  // Level 4 - Blue
   &[data-indent-level="4"] {
-    border-left: 3px solid rgba(255, 255, 100, 0.4);
+    border-left: 3px solid rgba(48, 135, 216, 0.4);
   }
 
   // Level 5+ - Cycle back to red
   &[data-indent-level="5"] {
-    border-left: 3px solid rgba(255, 100, 100, 0.4);
+    border-left: 3px solid rgba(255, 100, 255, 0.4);
   }
 }
 
