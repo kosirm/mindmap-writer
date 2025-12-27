@@ -15,6 +15,9 @@ export const useWriterSettingsStore = defineStore('writerSettings', () => {
     { color: 'rgba(100, 100, 255, 0.1)', rgba: 'rgba(100, 100, 255, 0.1)' }
   ])
 
+  // Indentation width setting (min 8px, max 48px, step 8px)
+  const indentationWidth = ref(16)
+
   // Add a new color to the rainbow
   function addIndentColor() {
     const defaultColors = [
@@ -73,6 +76,7 @@ export const useWriterSettingsStore = defineStore('writerSettings', () => {
   return {
     indentRainbowEnabled,
     indentColors,
+    indentationWidth,
     addIndentColor,
     removeIndentColor,
     updateIndentColor,

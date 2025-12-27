@@ -20,6 +20,23 @@
 
     <q-separator class="q-my-sm" />
 
+    <!-- Indentation Width Slider -->
+    <div class="text-caption q-mb-xs">Indentation Width</div>
+    <div class="q-mb-sm">
+      <q-slider
+        v-model="writerSettings.indentationWidth"
+        :min="8"
+        :max="48"
+        :step="8"
+        label
+        :label-value="`${writerSettings.indentationWidth}px`"
+        color="primary"
+        class="q-mb-xs"
+      />
+    </div>
+
+    <q-separator class="q-my-sm" />
+
     <!-- Indent Colors Editor -->
     <div class="text-caption q-mb-xs">Indent Colors</div>
     <div class="color-table-container">
