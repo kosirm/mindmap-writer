@@ -24,6 +24,7 @@ import type { DriveFileMetadata } from '../services/googleDriveService'
 import { useDevSettingsStore } from '../../dev/devSettingsStore'
 import { PROP } from '../constants/propertyNames'
 import type { PropertyName } from '../constants/propertyNames'
+import { generateId, generateTimestamp } from '../utils/idGenerator'
 import {
   serializeNode,
   deserializeNode,
@@ -204,7 +205,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     const serializedDoc = serializeDocument(doc)
 
     // Update metadata before returning
-    serializedDoc[PROP.MAP_MODIFIED] = new Date().toISOString()
+    serializedDoc[PROP.MAP_MODIFIED] = generateTimestamp()
     serializedDoc[PROP.MAP_SEARCHABLE_TEXT] = doc.nodes.map((n) => `${n.data.title} ${n.data.content}`).join(' ')
     serializedDoc[PROP.MAP_NODE_COUNT] = doc.nodes.length
     serializedDoc[PROP.MAP_EDGE_COUNT] = doc.edges.length
@@ -217,7 +218,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    * Create a new empty document using new property names
    */
   function createEmptyDocument(name = 'Untitled'): MindscribbleDocument {
-    const documentId = `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
+    const documentId = generateId()
+    const now = generateTimestamp()
 
     // Create document using new property naming system
     const serializedDocument: Partial<Record<PropertyName, unknown>> = {
@@ -225,8 +227,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       [PROP.MAP_ID]: documentId,
       [PROP.MAP_NAME]: name,
       [PROP.MAP_DESCRIPTION]: '',
-      [PROP.MAP_CREATED]: new Date().toISOString(),
-      [PROP.MAP_MODIFIED]: new Date().toISOString(),
+      [PROP.MAP_CREATED]: now,
+      [PROP.MAP_MODIFIED]: now,
       [PROP.MAP_TAGS]: [],
       [PROP.MAP_SEARCHABLE_TEXT]: '',
       [PROP.MAP_NODE_COUNT]: 0,
@@ -259,7 +261,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       const updatedMetadata = {
         ...doc.metadata,
         ...metadataUpdates,
-        modified: new Date().toISOString()
+        modified: generateTimestamp()
       }
 
       // Create a new document object to trigger reactivity
@@ -291,7 +293,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    * Generate a unique node ID
    */
   function generateNodeId(): string {
-    return `node-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    return generateId()
   }
 
   /**
@@ -367,6 +369,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
     const siblings = parentId ? getChildNodes(parentId) : getRootNodes()
     const order = siblings.length
+    const now = generateTimestamp()
 
     // Create node using new property naming system
     const serializedNode: Partial<Record<PropertyName, unknown>> = {
@@ -378,8 +381,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       [PROP.NODE_ORDER]: order,
       [PROP.NODE_TITLE]: title,
       [PROP.NODE_CONTENT]: content,
-      [PROP.NODE_CREATED]: new Date().toISOString(),
-      [PROP.NODE_MODIFIED]: new Date().toISOString()
+      [PROP.NODE_CREATED]: now,
+      [PROP.NODE_MODIFIED]: now
     }
 
     // Convert to standard format
@@ -391,7 +394,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       nodes: [...doc.nodes, newNode],
       metadata: {
         ...doc.metadata,
-        modified: new Date().toISOString(),
+        modified: generateTimestamp(),
         nodeCount: doc.nodes.length + 1
       }
     }
@@ -439,7 +442,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       if (updates.side) serializedNode[PROP.NODE_VIEW_SIDE] = updates.side
 
       // Always update modified timestamp
-      serializedNode[PROP.NODE_MODIFIED] = new Date().toISOString()
+      serializedNode[PROP.NODE_MODIFIED] = generateTimestamp()
 
       // Convert back to standard format
       const updatedNode = deserializeNode(serializedNode) as unknown as MindscribbleNode
@@ -454,7 +457,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         nodes: updatedNodes,
         metadata: {
           ...doc.metadata,
-          modified: new Date().toISOString()
+          modified: generateTimestamp()
         }
       }
       updateDocument(activeDocumentId.value, updatedDoc)
@@ -486,7 +489,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
     const previousPosition = { ...node.position }
     node.position = { ...position }
-    doc.metadata.modified = new Date().toISOString()
+    doc.metadata.modified = generateTimestamp()
     markDirty(activeDocumentId.value)
 
     // Emit event
@@ -553,7 +556,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       edges: updatedEdges,
       metadata: {
         ...doc.metadata,
-        modified: new Date().toISOString(),
+        modified: generateTimestamp(),
         nodeCount: updatedNodes.length,
         edgeCount: updatedEdges.length
       }
@@ -630,7 +633,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       nodes: updatedNodes,
       metadata: {
         ...doc.metadata,
-        modified: new Date().toISOString()
+        modified: generateTimestamp()
       }
     }
     updateDocument(activeDocumentId.value, updatedDoc)
@@ -670,7 +673,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
           data: {
             ...n.data,
             order: newOrder,
-            modified: new Date().toISOString()
+            modified: generateTimestamp()
           }
         }
       }
@@ -684,7 +687,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         nodes: updatedNodes,
         metadata: {
           ...doc.metadata,
-          modified: new Date().toISOString()
+          modified: generateTimestamp()
         }
       }
       updateDocument(activeDocumentId.value, updatedDoc)
@@ -932,7 +935,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         nodes: updatedNodes,
         metadata: {
           ...doc.metadata,
-          modified: new Date().toISOString()
+          modified: generateTimestamp()
         }
       }
       updateDocument(activeDocumentId.value, updatedDoc)
@@ -1127,7 +1130,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
         ...mapDoc,
         metadata: {
           ...mapDoc.metadata,
-          modified: new Date().toISOString()
+          modified: generateTimestamp()
         },
         visualization: {
           nodePositions: {

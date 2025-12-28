@@ -63,15 +63,16 @@ function addFile() {
   const fileName = `Untitled ${fileCounter}`
 
   // Create a new empty document
+  const now = Date.now()
   const newDocument: MindscribbleDocument = {
     version: '1.0',
     metadata: {
-      id: `doc-${Date.now()}-${fileCounter}`,
+      id: `doc-${now}-${fileCounter}`,
       name: fileName,
       description: '',
       tags: [],
-      created: new Date().toISOString(),
-      modified: new Date().toISOString(),
+      created: now,
+      modified: now,
       searchableText: '',
       nodeCount: 0,
       edgeCount: 0,

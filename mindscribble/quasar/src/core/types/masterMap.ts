@@ -45,7 +45,7 @@ export interface MasterMapMapEntry extends MasterMapNodeBase {
   description?: string
 
   // Metadata
-  modified: string                // Last modified timestamp (ISO 8601)
+  modified: number                // Last modified timestamp (Unix timestamp in milliseconds)
   nodeCount: number
   tags: string[]
 
@@ -111,8 +111,8 @@ export interface MasterMapDocument {
   metadata: {
     id: string                    // Unique identifier
     name?: string                 // Optional name for display
-    created: string               // ISO 8601
-    modified: string              // ISO 8601
+    created: number               // Unix timestamp in milliseconds
+    modified: number              // Unix timestamp in milliseconds
     lastSyncedDevice?: string     // Device identifier for conflict resolution
   }
 

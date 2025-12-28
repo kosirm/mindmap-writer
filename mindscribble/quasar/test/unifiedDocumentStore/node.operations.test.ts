@@ -10,12 +10,13 @@ describe('Unified Document Store - Node Operations', () => {
 
   it('should generate unique node IDs', () => {
     const store = useUnifiedDocumentStore()
-    
+
     const nodeId1 = store.generateNodeId()
     const nodeId2 = store.generateNodeId()
-    
-    expect(nodeId1).toMatch(/^node-\d+-[a-z0-9]+$/)
-    expect(nodeId2).toMatch(/^node-\d+-[a-z0-9]+$/)
+
+    // New format: 12-character nanoid (A-Za-z0-9_-)
+    expect(nodeId1).toMatch(/^[A-Za-z0-9_-]{12}$/)
+    expect(nodeId2).toMatch(/^[A-Za-z0-9_-]{12}$/)
     expect(nodeId1).not.toBe(nodeId2)
   })
 
@@ -23,16 +24,16 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const node = store.addNode(null, 'Root Node', 'Content')
-    
+
     expect(node).not.toBeNull()
     expect(node?.id).toBeDefined()
     expect(node?.data.title).toBe('Root Node')
     expect(node?.data.content).toBe('Content')
     expect(node?.data.parentId).toBeNull()
     expect(node?.data.order).toBe(0)
-    
+
     const updatedDoc = store.activeDocument
     expect(updatedDoc?.nodes.length).toBe(1)
     expect(updatedDoc?.nodes[0]).toEqual(node)
@@ -42,10 +43,10 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const position = { x: 100, y: 200 }
     const node = store.addNode(null, 'Positioned Node', 'Content', position)
-    
+
     expect(node?.position).toEqual(position)
   })
 
@@ -53,17 +54,17 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const node = store.addNode(null, 'Default Position Node')
-    
+
     expect(node?.position).toEqual({ x: 0, y: 0 })
   })
 
   it('should handle adding node when no active document', () => {
     const store = useUnifiedDocumentStore()
-    
+
     const node = store.addNode(null, 'Test Node')
-    
+
     expect(node).toBeNull()
   })
 
@@ -71,11 +72,11 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const childNode1 = store.addNode(parentNode?.id || '', 'Child 1')
     const childNode2 = store.addNode(parentNode?.id || '', 'Child 2')
-    
+
     expect(childNode1?.data.parentId).toBe(parentNode?.id)
     expect(childNode1?.data.order).toBe(0)
     expect(childNode2?.data.parentId).toBe(parentNode?.id)
@@ -87,9 +88,9 @@ describe('Unified Document Store - Node Operations', () => {
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
     store.markClean(doc.metadata.id)
-    
+
     store.addNode(null, 'Test Node')
-    
+
     expect(store.isDirty(doc.metadata.id)).toBe(true)
   })
 
@@ -97,10 +98,10 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const spy = vi.spyOn(eventBus, 'emit')
     const node = store.addNode(null, 'Test Node')
-    
+
     expect(spy).toHaveBeenCalledWith('store:node-created', expect.objectContaining({
       nodeId: node?.id,
       parentId: null,
@@ -112,15 +113,15 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const node = store.addNode(null, 'Original Node')
-    
+
     if (node) {
       store.updateNode(node.id, {
         title: 'Updated Node',
         content: 'Updated Content'
       })
-      
+
       const updatedNode = store.getNodeById(node.id)
       expect(updatedNode?.data.title).toBe('Updated Node')
       expect(updatedNode?.data.content).toBe('Updated Content')
@@ -131,7 +132,7 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     expect(() => store.updateNode('non-existent-id', { title: 'Test' })).not.toThrow()
   })
 
@@ -139,13 +140,13 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const node = store.addNode(null, 'Test Node')
     const spy = vi.spyOn(eventBus, 'emit')
-    
+
     if (node) {
       store.updateNode(node.id, { title: 'Updated Node' })
-      
+
       expect(spy).toHaveBeenCalledWith('store:node-updated', expect.objectContaining({
         nodeId: node.id,
         changes: { title: 'Updated Node' },
@@ -159,9 +160,9 @@ describe('Unified Document Store - Node Operations', () => {
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
     store.markClean(doc.metadata.id)
-    
+
     const node = store.addNode(null, 'Test Node')
-    
+
     if (node) {
       store.updateNode(node.id, { title: 'Updated Node' })
       expect(store.isDirty(doc.metadata.id)).toBe(true)
@@ -172,13 +173,13 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const node = store.addNode(null, 'Test Node')
     const newPosition = { x: 150, y: 250 }
-    
+
     if (node) {
       store.updateNodePosition(node.id, newPosition)
-      
+
       const updatedNode = store.getNodeById(node.id)
       expect(updatedNode?.position).toEqual(newPosition)
     }
@@ -188,14 +189,14 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const node = store.addNode(null, 'Test Node')
     const spy = vi.spyOn(eventBus, 'emit')
-    
+
     if (node) {
       const newPosition = { x: 150, y: 250 }
       store.updateNodePosition(node.id, newPosition)
-      
+
       expect(spy).toHaveBeenCalledWith('store:node-moved', expect.objectContaining({
         nodeId: node.id,
         position: newPosition,
@@ -208,14 +209,14 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const childNode1 = store.addNode(parentNode?.id || '', 'Child 1')
     const childNode2 = store.addNode(parentNode?.id || '', 'Child 2')
-    
+
     if (parentNode) {
       store.deleteNode(parentNode.id)
-      
+
       const updatedDoc = store.activeDocument
       expect(updatedDoc?.nodes.length).toBe(0)
       expect(store.getNodeById(parentNode.id)).toBeUndefined()
@@ -228,20 +229,20 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const childNode1 = store.addNode(parentNode?.id || '', 'Child 1')
     const childNode2 = store.addNode(parentNode?.id || '', 'Child 2')
-    
+
     if (parentNode) {
       store.deleteNode(parentNode.id, false)
-      
+
       const updatedDoc = store.activeDocument
       expect(updatedDoc?.nodes.length).toBe(2) // Only children remain
       expect(store.getNodeById(parentNode.id)).toBeUndefined()
       expect(store.getNodeById(childNode1?.id || '')).toBeDefined()
       expect(store.getNodeById(childNode2?.id || '')).toBeDefined()
-      
+
       // Children should be reparented to null
       const child1 = store.getNodeById(childNode1?.id || '')
       const child2 = store.getNodeById(childNode2?.id || '')
@@ -254,14 +255,14 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const childNode = store.addNode(parentNode?.id || '', 'Child Node')
     const spy = vi.spyOn(eventBus, 'emit')
-    
+
     if (parentNode) {
       store.deleteNode(parentNode.id)
-      
+
       expect(spy).toHaveBeenCalledWith('store:node-deleted', expect.objectContaining({
         nodeId: parentNode.id,
         deletedIds: [parentNode.id, childNode?.id],
@@ -275,9 +276,9 @@ describe('Unified Document Store - Node Operations', () => {
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
     store.markClean(doc.metadata.id)
-    
+
     const node = store.addNode(null, 'Test Node')
-    
+
     if (node) {
       store.deleteNode(node.id)
       expect(store.isDirty(doc.metadata.id)).toBe(true)
@@ -288,14 +289,14 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parent1 = store.addNode(null, 'Parent 1')
     const parent2 = store.addNode(null, 'Parent 2')
     const childNode = store.addNode(parent1?.id || '', 'Child Node')
-    
+
     if (childNode && parent1 && parent2) {
       store.moveNode(childNode.id, parent2.id)
-      
+
       const movedNode = store.getNodeById(childNode.id)
       expect(movedNode?.data.parentId).toBe(parent2.id)
       expect(movedNode?.data.order).toBe(0)
@@ -306,15 +307,15 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const childNode = store.addNode(parentNode?.id || '', 'Child Node')
     store.addNode(childNode?.id || '', 'Grandchild Node')
-    
+
     if (parentNode && childNode) {
       // Try to move parent to its own child (should fail)
       store.moveNode(parentNode.id, childNode.id)
-      
+
       const unchangedNode = store.getNodeById(parentNode.id)
       expect(unchangedNode?.data.parentId).toBeNull() // Should remain unchanged
     }
@@ -324,15 +325,15 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parent1 = store.addNode(null, 'Parent 1')
     const parent2 = store.addNode(null, 'Parent 2')
     const childNode = store.addNode(parent1?.id || '', 'Child Node')
     const spy = vi.spyOn(eventBus, 'emit')
-    
+
     if (childNode && parent1 && parent2) {
       store.moveNode(childNode.id, parent2.id)
-      
+
       expect(spy).toHaveBeenCalledWith('store:node-reparented', expect.objectContaining({
         nodeId: childNode.id,
         oldParentId: parent1.id,
@@ -346,25 +347,25 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const child1 = store.addNode(parentNode?.id || '', 'Child 1')
     const child2 = store.addNode(parentNode?.id || '', 'Child 2')
     const child3 = store.addNode(parentNode?.id || '', 'Child 3')
-    
+
     if (child1 && child2 && child3) {
       const newOrders = new Map<string, number>([
         [child1.id, 2],
         [child2.id, 0],
         [child3.id, 1]
       ])
-      
+
       store.reorderSiblings(parentNode?.id || null, newOrders)
-      
+
       const updatedChild1 = store.getNodeById(child1.id)
       const updatedChild2 = store.getNodeById(child2.id)
       const updatedChild3 = store.getNodeById(child3.id)
-      
+
       expect(updatedChild1?.data.order).toBe(2)
       expect(updatedChild2?.data.order).toBe(0)
       expect(updatedChild3?.data.order).toBe(1)
@@ -375,20 +376,20 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const child1 = store.addNode(parentNode?.id || '', 'Child 1')
     const child2 = store.addNode(parentNode?.id || '', 'Child 2')
     const spy = vi.spyOn(eventBus, 'emit')
-    
+
     if (child1 && child2) {
       const newOrders = new Map<string, number>([
         [child1.id, 1],
         [child2.id, 0]
       ])
-      
+
       store.reorderSiblings(parentNode?.id || null, newOrders)
-      
+
       expect(spy).toHaveBeenCalledWith('store:siblings-reordered', expect.objectContaining({
         parentId: parentNode?.id,
         newOrders,
@@ -401,9 +402,9 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const node = store.addNode(null, 'Test Node')
-    
+
     if (node) {
       const retrievedNode = store.getNodeById(node.id)
       expect(retrievedNode).toEqual(node)
@@ -414,7 +415,7 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const retrievedNode = store.getNodeById('non-existent-id')
     expect(retrievedNode).toBeUndefined()
   })
@@ -423,12 +424,12 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const child1 = store.addNode(parentNode?.id || '', 'Child 1')
     const child2 = store.addNode(parentNode?.id || '', 'Child 2')
     const child3 = store.addNode(null, 'Root Child')
-    
+
     if (parentNode) {
       const children = store.getChildNodes(parentNode.id)
       expect(children.length).toBe(2)
@@ -442,13 +443,13 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const parentNode = store.addNode(null, 'Parent Node')
     const child1 = store.addNode(parentNode?.id || '', 'Child 1')
     const child2 = store.addNode(parentNode?.id || '', 'Child 2')
     const grandchild1 = store.addNode(child1?.id || '', 'Grandchild 1')
     const grandchild2 = store.addNode(child1?.id || '', 'Grandchild 2')
-    
+
     if (parentNode) {
       const descendants = store.getAllDescendants(parentNode.id)
       expect(descendants.length).toBe(4)
@@ -463,11 +464,11 @@ describe('Unified Document Store - Node Operations', () => {
     const store = useUnifiedDocumentStore()
     const doc = store.createEmptyDocument('Test')
     store.addDocument(doc)
-    
+
     const root1 = store.addNode(null, 'Root 1')
     const root2 = store.addNode(null, 'Root 2')
     const child = store.addNode(root1?.id || '', 'Child')
-    
+
     const rootNodes = store.getRootNodes()
     expect(rootNodes.length).toBe(2)
     expect(rootNodes).toContainEqual(root1)
