@@ -8,13 +8,13 @@ This document outlines the **progressive property naming strategy** for MindScri
 1. **One Property = One Name**: Each property name (letter/combination) can only be used for ONE property across ALL object types. NO EXCEPTIONS.
 2. **Use ALL Single Letters First**: Must use all 26 single letters (a-z) before moving to 2-letter combinations.
 3. **Priority Order**: Assign based on usage frequency:
-   - **Priority 1**: Basic node properties (most frequently accessed)
-   - **Priority 2**: Edge/Link properties
-   - **Priority 3**: View-specific node properties (e.g. side for mindmap)
-   - **Priority 4**: Document/Map properties
-   - **Priority 5**: Vault properties
-   - **Priority 6**: Optional/metadata properties
-   - **Priority 7**: App/Settings properties
+   - **Priority 1A**: Basic node properties (most frequently accessed)
+   - **Priority 1B**: Hierarchical edge properties (equally frequent - every node has parent edge)
+   - **Priority 2**: View-specific node properties (e.g. side for mindmap)
+   - **Priority 3**: Document/Map properties
+   - **Priority 4**: Inter-map link properties (less frequent than hierarchical edges)
+   - **Priority 5**: Optional/metadata properties
+   - **Priority 6**: Vault/App/Settings properties
 
 ## Core Strategy: Progressive Property Length
 
@@ -59,7 +59,8 @@ This document outlines the **progressive property naming strategy** for MindScri
 
 ### 4. Exhaust Single Letters First
 - Must use ALL 26 single letters (a-z) before using any 2-letter combinations
-- Assign based on priority: nodes → edges → views → maps  → files -> optional properties
+- Assign based on priority: nodes + hierarchical edges (Priority 1) → views → maps → inter-map links → optional properties
+- **Key insight**: In hierarchical structures, edges are as frequent as nodes (every node except root has a parent edge)
 
 ### 5. Maintain Consistency
 - Once assigned, never change property names
@@ -70,9 +71,9 @@ This document outlines the **progressive property naming strategy** for MindScri
 
 ### Single Letter Properties (Level 1) - ALL 26 LETTERS
 
-Priority order: Basic Node Properties → View-Specific Node Properties → Map Properties → Edge/Link Properties
+Priority order: Nodes + Hierarchical Edges (Priority 1) → Views → Maps → Inter-Map Links → Optional
 
-#### Priority 1: Basic Node Properties (Most Frequently Accessed)
+#### Priority 1A: Basic Node Properties (10 letters)
 ```typescript
 // Core node properties - used in EVERY node operation
 PROP.NODE_ID = 'i'              // id (string)
@@ -82,40 +83,47 @@ PROP.NODE_CONTENT = 'c'         // content (string - HTML)
 PROP.NODE_ORDER = 'o'           // order (number - sibling order)
 PROP.NODE_TYPE = 'y'            // type (string - 'custom' | 'lod-badge')
 PROP.NODE_POSITION_X = 'x'      // position.x (number)
-PROP.NODE_POSITION_Y = 'z'      // position.y (number) - using 'z' to avoid confusion
+PROP.NODE_POSITION_Y = 'z'      // position.y (number)
 PROP.NODE_CREATED = 'r'         // created (string - ISO 8601)
 PROP.NODE_MODIFIED = 'm'        // modified (string - ISO 8601)
 ```
 
-#### Priority 2: View-Specific Node Properties
+#### Priority 1B: Hierarchical Edge Properties (4 letters)
+```typescript
+// Hierarchical edges - EVERY node (except root) has a parent edge
+// In a tree with N nodes, there are N-1 hierarchical edges
+// These are as frequently accessed as nodes themselves!
+PROP.EDGE_ID = 'e'              // id (string)
+PROP.EDGE_SOURCE = 'q'          // source node ID (string)
+PROP.EDGE_TARGET = 'w'          // target node ID (string)
+PROP.EDGE_TYPE = 'g'            // edgeType ('hierarchy' | 'reference')
+```
+
+#### Priority 2: View-Specific Node Properties (3 letters)
 ```typescript
 // View-specific data stored per node
 PROP.NODE_VIEW_SIDE = 's'       // views.mindmap.side ('left' | 'right' | null)
 PROP.NODE_VIEW_COLLAPSED = 'l'  // views.mindmap.collapsed (boolean)
-PROP.NODE_VIEW_EXPANDED = 'e'   // views.outline.expanded (boolean)
+PROP.NODE_VIEW_EXPANDED = 'd'   // views.outline.expanded (boolean)
 ```
 
-#### Priority 3: Map/Document Properties
+#### Priority 3: Map/Document Properties (5 letters)
 ```typescript
 // Document metadata and settings
 PROP.MAP_ID = 'f'               // metadata.id (string)
 PROP.MAP_NAME = 'n'             // metadata.name (string)
 PROP.MAP_CREATED = 'a'          // metadata.created (string - ISO 8601)
-PROP.MAP_MODIFIED = 'd'         // metadata.modified (string - ISO 8601)
-PROP.MAP_NODE_COUNT = 'u'       // metadata.nodeCount (number)
+PROP.MAP_MODIFIED = 'u'         // metadata.modified (string - ISO 8601)
 PROP.MAP_VERSION = 'v'          // version (string)
 ```
 
-#### Priority 4: Edge/Link Properties
+#### Priority 4: Inter-Map Link Properties (4 letters)
 ```typescript
-// Inter-map links and edges
+// Inter-map links - cross-document references (less frequent than hierarchical edges)
 PROP.LINK_ID = 'k'              // id (string)
-PROP.LINK_SOURCE = 'q'          // sourceNodeId (string)
-PROP.LINK_TARGET_MAP = 'g'      // targetMapId (string)
-PROP.LINK_TARGET_NODE = 'h'     // targetNodeId (string | null)
-PROP.LINK_LABEL = 'b'           // label (string)
-PROP.LINK_CREATED = 'j'         // created (string - ISO 8601)
-PROP.EDGE_TYPE = 'w'            // data.edgeType ('hierarchy' | 'reference')
+PROP.LINK_SOURCE = 'h'          // sourceNodeId (string)
+PROP.LINK_TARGET_MAP = 'j'      // targetMapId (string)
+PROP.LINK_TARGET_NODE = 'b'     // targetNodeId (string | null)
 ```
 
 ### Two Letter Properties (Level 2)
@@ -135,6 +143,7 @@ PROP.MAP_TAGS = 'ta'                // metadata.tags (string[])
 PROP.MAP_SEARCHABLE_TEXT = 'st'     // metadata.searchableText (string)
 PROP.MAP_EDGE_COUNT = 'ec'          // metadata.edgeCount (number)
 PROP.MAP_MAX_DEPTH = 'md'           // metadata.maxDepth (number)
+PROP.MAP_NODE_COUNT = 'nc'          // metadata.nodeCount (number) - moved to 2-letter
 
 // Layout settings
 PROP.LAYOUT_ACTIVE_VIEW = 'av'      // layout.activeView (ViewType)
@@ -156,15 +165,17 @@ PROP.VIEW_KANBAN_COLUMN = 'kc'      // views.kanban.column (string)
 PROP.VIEW_KANBAN_ORDER = 'ko'       // views.kanban.order (number)
 
 // Edge optional properties
-PROP.EDGE_SOURCE = 'es'             // source (string)
-PROP.EDGE_TARGET = 'et'             // target (string)
 PROP.EDGE_SOURCE_HANDLE = 'sh'      // sourceHandle (string)
 PROP.EDGE_TARGET_HANDLE = 'th'      // targetHandle (string)
-PROP.EDGE_STYLE = 'ey'              // type (EdgeStyle)
+PROP.EDGE_STYLE = 'ey'              // style (EdgeStyle)
 PROP.EDGE_CLASS = 'el'              // class (string)
 PROP.EDGE_LABEL = 'eb'              // data.label (string)
+PROP.EDGE_CREATED = 'er'            // created (string - ISO 8601)
+PROP.EDGE_MODIFIED = 'em'           // modified (string - ISO 8601)
 
 // Link optional properties
+PROP.LINK_LABEL = 'lb'              // label (string)
+PROP.LINK_CREATED = 'lc'            // created (string - ISO 8601)
 PROP.LINK_TARGET_MAP_NAME = 'mn'    // targetMapName (string - cached)
 PROP.LINK_TARGET_NODE_TITLE = 'nt'  // targetNodeTitle (string - cached)
 
@@ -198,7 +209,7 @@ export const PROP = {
   // LEVEL 1: SINGLE LETTER PROPERTIES (26/26 USED)
   // ============================================
 
-  // PRIORITY 1: BASIC NODE PROPERTIES (10 letters)
+  // PRIORITY 1A: BASIC NODE PROPERTIES (10 letters)
   NODE_ID: 'i',              // id
   NODE_PARENT_ID: 'p',       // parentId
   NODE_TITLE: 't',           // title
@@ -210,27 +221,32 @@ export const PROP = {
   NODE_CREATED: 'r',         // created
   NODE_MODIFIED: 'm',        // modified
 
+  // PRIORITY 1B: HIERARCHICAL EDGE PROPERTIES (4 letters)
+  // In hierarchical structures, edges are as frequent as nodes!
+  // Every node (except root) has a parent edge
+  EDGE_ID: 'e',              // id
+  EDGE_SOURCE: 'q',          // source node ID
+  EDGE_TARGET: 'w',          // target node ID
+  EDGE_TYPE: 'g',            // edgeType ('hierarchy' | 'reference')
+
   // PRIORITY 2: VIEW-SPECIFIC NODE PROPERTIES (3 letters)
   NODE_VIEW_SIDE: 's',       // views.mindmap.side
   NODE_VIEW_COLLAPSED: 'l',  // views.mindmap.collapsed
-  NODE_VIEW_EXPANDED: 'e',   // views.outline.expanded
+  NODE_VIEW_EXPANDED: 'd',   // views.outline.expanded
 
-  // PRIORITY 3: MAP/DOCUMENT PROPERTIES (6 letters)
+  // PRIORITY 3: MAP/DOCUMENT PROPERTIES (5 letters)
   MAP_ID: 'f',               // metadata.id
   MAP_NAME: 'n',             // metadata.name
   MAP_CREATED: 'a',          // metadata.created
-  MAP_MODIFIED: 'd',         // metadata.modified
-  MAP_NODE_COUNT: 'u',       // metadata.nodeCount
+  MAP_MODIFIED: 'u',         // metadata.modified
   MAP_VERSION: 'v',          // version
 
-  // PRIORITY 4: EDGE/LINK PROPERTIES (7 letters)
+  // PRIORITY 4: INTER-MAP LINK PROPERTIES (4 letters)
+  // Cross-document references (less frequent than hierarchical edges)
   LINK_ID: 'k',              // id
-  LINK_SOURCE: 'q',          // sourceNodeId
-  LINK_TARGET_MAP: 'g',      // targetMapId
-  LINK_TARGET_NODE: 'h',     // targetNodeId
-  LINK_LABEL: 'b',           // label
-  LINK_CREATED: 'j',         // created
-  EDGE_TYPE: 'w',            // data.edgeType
+  LINK_SOURCE: 'h',          // sourceNodeId
+  LINK_TARGET_MAP: 'j',      // targetMapId
+  LINK_TARGET_NODE: 'b',     // targetNodeId
   
   // ============================================
   // LEVEL 2: TWO LETTER PROPERTIES (676 total)
@@ -249,6 +265,7 @@ export const PROP = {
   MAP_SEARCHABLE_TEXT: 'st',     // metadata.searchableText
   MAP_EDGE_COUNT: 'ec',          // metadata.edgeCount
   MAP_MAX_DEPTH: 'md',           // metadata.maxDepth
+  MAP_NODE_COUNT: 'nc',          // metadata.nodeCount
 
   // Layout settings
   LAYOUT_ACTIVE_VIEW: 'av',      // layout.activeView
@@ -270,15 +287,17 @@ export const PROP = {
   VIEW_KANBAN_ORDER: 'ko',       // views.kanban.order
 
   // Edge optional properties
-  EDGE_SOURCE: 'es',             // source
-  EDGE_TARGET: 'et',             // target
   EDGE_SOURCE_HANDLE: 'sh',      // sourceHandle
   EDGE_TARGET_HANDLE: 'th',      // targetHandle
-  EDGE_STYLE: 'ey',              // type (EdgeStyle)
+  EDGE_STYLE: 'ey',              // style (EdgeStyle)
   EDGE_CLASS: 'el',              // class
   EDGE_LABEL: 'eb',              // data.label
+  EDGE_CREATED: 'er',            // created
+  EDGE_MODIFIED: 'em',           // modified
 
   // Link optional properties
+  LINK_LABEL: 'lb',              // label
+  LINK_CREATED: 'lc',            // created
   LINK_TARGET_MAP_NAME: 'mn',    // targetMapName (cached)
   LINK_TARGET_NODE_TITLE: 'nt',  // targetNodeTitle (cached)
 
@@ -304,13 +323,18 @@ export const PROP = {
 
   // Single letters used: ALL 26 (a-z) ✓
   // a b c d e f g h i j k l m n o p q r s t u v w x y z
+  // Priority 1A (Nodes): i p t c o y x z r m (10)
+  // Priority 1B (Edges): e q w g (4)
+  // Priority 2 (Views): s l d (3)
+  // Priority 3 (Maps): f n a u v (5)
+  // Priority 4 (Links): k h j b (4)
 
-  // Two letter combinations used: 47/676
-  // aa, ag, al, ap, as, at, au, av, ch, co, cw, ds, eb, ec, el, es, et, ey,
-  // hs, ic, kc, ko, le, lt, md, mn, mx, my, nt, or, sh, st, ta, te, th, tl,
-  // ts, vs
+  // Two letter combinations used: 51/676
+  // aa, ag, al, ap, as, at, au, av, ch, co, cw, ds, eb, ec, el, em, er, ey,
+  // hs, ic, kc, ko, lb, lc, le, lt, md, mn, mx, my, nc, nt, or, sh, st, ta,
+  // te, th, tl, ts, vs
 
-  // Two letter combinations available: 629/676
+  // Two letter combinations available: 625/676
 } as const
 
 // Type-safe property access
@@ -328,7 +352,7 @@ type PropertyName = typeof PROP[keyof typeof PROP]
 
 ### Single Letter Properties (Level 1) - ALL 26 LETTERS
 
-**Priority 1: Basic Node Properties (10 letters)**
+**Priority 1A: Basic Node Properties (10 letters)**
 
 | Short | Property | Type | Description |
 |-------|----------|------|-------------|
@@ -343,36 +367,41 @@ type PropertyName = typeof PROP[keyof typeof PROP]
 | `r` | NODE_CREATED | string | Created timestamp (ISO 8601) |
 | `m` | NODE_MODIFIED | string | Modified timestamp (ISO 8601) |
 
+**Priority 1B: Hierarchical Edge Properties (4 letters)**
+
+| Short | Property | Type | Description |
+|-------|----------|------|-------------|
+| `e` | EDGE_ID | string | Edge unique identifier |
+| `q` | EDGE_SOURCE | string | Source node ID |
+| `w` | EDGE_TARGET | string | Target node ID |
+| `g` | EDGE_TYPE | string | Edge type ('hierarchy'\|'reference') |
+
 **Priority 2: View-Specific Node Properties (3 letters)**
 
 | Short | Property | Type | Description |
 |-------|----------|------|-------------|
 | `s` | NODE_VIEW_SIDE | string\|null | Mindmap side ('left'\|'right') |
 | `l` | NODE_VIEW_COLLAPSED | boolean | Mindmap collapsed state |
-| `e` | NODE_VIEW_EXPANDED | boolean | Outline expanded state |
+| `d` | NODE_VIEW_EXPANDED | boolean | Outline expanded state |
 
-**Priority 3: Map/Document Properties (6 letters)**
+**Priority 3: Map/Document Properties (5 letters)**
 
 | Short | Property | Type | Description |
 |-------|----------|------|-------------|
 | `f` | MAP_ID | string | Map/document unique identifier |
 | `n` | MAP_NAME | string | Map name |
 | `a` | MAP_CREATED | string | Map created timestamp |
-| `d` | MAP_MODIFIED | string | Map modified timestamp |
-| `u` | MAP_NODE_COUNT | number | Total node count |
+| `u` | MAP_MODIFIED | string | Map modified timestamp |
 | `v` | MAP_VERSION | string | Schema version |
 
-**Priority 4: Edge/Link Properties (7 letters)**
+**Priority 4: Inter-Map Link Properties (4 letters)**
 
 | Short | Property | Type | Description |
 |-------|----------|------|-------------|
 | `k` | LINK_ID | string | Link unique identifier |
-| `q` | LINK_SOURCE | string | Source node ID |
-| `g` | LINK_TARGET_MAP | string | Target map ID |
-| `h` | LINK_TARGET_NODE | string\|null | Target node ID (optional) |
-| `b` | LINK_LABEL | string | Link label |
-| `j` | LINK_CREATED | string | Link created timestamp |
-| `w` | EDGE_TYPE | string | Edge type ('hierarchy'\|'reference') |
+| `h` | LINK_SOURCE | string | Source node ID |
+| `j` | LINK_TARGET_MAP | string | Target map ID |
+| `b` | LINK_TARGET_NODE | string\|null | Target node ID (optional) |
 
 ### Two Letter Properties (Level 2) - Optional/Metadata Properties
 
@@ -395,6 +424,7 @@ type PropertyName = typeof PROP[keyof typeof PROP]
 | `st` | MAP_SEARCHABLE_TEXT | string | Searchable text cache |
 | `ec` | MAP_EDGE_COUNT | number | Total edge count |
 | `md` | MAP_MAX_DEPTH | number | Maximum tree depth |
+| `nc` | MAP_NODE_COUNT | number | Total node count |
 
 **Layout Settings**
 
@@ -421,22 +451,24 @@ type PropertyName = typeof PROP[keyof typeof PROP]
 | `kc` | VIEW_KANBAN_COLUMN | string | Kanban column |
 | `ko` | VIEW_KANBAN_ORDER | number | Kanban order |
 
-**Edge Properties**
+**Edge Optional Properties**
 
 | Short | Property | Type | Description |
 |-------|----------|------|-------------|
-| `es` | EDGE_SOURCE | string | Edge source node |
-| `et` | EDGE_TARGET | string | Edge target node |
 | `sh` | EDGE_SOURCE_HANDLE | string | Source handle |
 | `th` | EDGE_TARGET_HANDLE | string | Target handle |
 | `ey` | EDGE_STYLE | string | Edge style |
 | `el` | EDGE_CLASS | string | Edge CSS class |
 | `eb` | EDGE_LABEL | string | Edge label |
+| `er` | EDGE_CREATED | string | Created timestamp |
+| `em` | EDGE_MODIFIED | string | Modified timestamp |
 
 **Link Optional Properties**
 
 | Short | Property | Type | Description |
 |-------|----------|------|-------------|
+| `lb` | LINK_LABEL | string | Link label |
+| `lc` | LINK_CREATED | string | Created timestamp |
 | `mn` | LINK_TARGET_MAP_NAME | string | Cached target map name |
 | `nt` | LINK_TARGET_NODE_TITLE | string | Cached target node title |
 
@@ -537,11 +569,14 @@ function getNodePosition(node: any): { x: number; y: number } {
 
 ### 2. Priority-Based Assignment
 Assign letters based on access frequency:
-1. **Priority 1**: Basic node properties (most frequently accessed)
-2. **Priority 2**: View-specific node properties
-3. **Priority 3**: Map/document properties
-4. **Priority 4**: Edge/link properties
-5. **Priority 5**: Optional/metadata properties (use 2-letter combinations)
+1. **Priority 1A**: Basic node properties (10 letters) - most frequently accessed
+2. **Priority 1B**: Hierarchical edge properties (4 letters) - equally frequent (every node has parent edge)
+3. **Priority 2**: View-specific node properties (3 letters)
+4. **Priority 3**: Map/document properties (5 letters)
+5. **Priority 4**: Inter-map link properties (4 letters) - less frequent than hierarchical edges
+6. **Priority 5**: Optional/metadata properties (use 2-letter combinations)
+
+**Key Insight**: In hierarchical structures, edges are as frequent as nodes. With N nodes, there are N-1 hierarchical edges (parent-child relationships). Therefore, hierarchical edge properties deserve single-letter names alongside node properties.
 
 ### 3. One Property = One Name (CRITICAL)
 - **Each letter can only be used for ONE property across ALL object types**
@@ -662,16 +697,22 @@ This progressive property naming strategy provides an optimal balance between:
 ### Key Principles
 
 1. **Exhaust single letters first**: ALL 26 letters must be used before any 2-letter combinations
-2. **Priority-based assignment**: Nodes → Views → Maps → Edges → Optional
-3. **One property = one name**: No reuse across object types, no exceptions
-4. **Type safety**: TypeScript constants ensure correctness
-5. **Documentation**: Comprehensive reference tables and examples
+2. **Priority-based assignment**: Nodes + Hierarchical Edges (Priority 1) → Views → Maps → Inter-Map Links → Optional
+3. **Hierarchical insight**: In tree structures, edges are as frequent as nodes (N nodes = N-1 edges)
+4. **One property = one name**: No reuse across object types, no exceptions
+5. **Type safety**: TypeScript constants ensure correctness
+6. **Documentation**: Comprehensive reference tables and examples
 
 ### Current Status
 
 - ✅ **Single letters**: 26/26 used (100%)
-- ✅ **Two-letter combinations**: 47/676 used (7%)
+  - Priority 1A (Nodes): 10 letters
+  - Priority 1B (Hierarchical Edges): 4 letters
+  - Priority 2 (Views): 3 letters
+  - Priority 3 (Maps): 5 letters
+  - Priority 4 (Inter-Map Links): 4 letters
+- ✅ **Two-letter combinations**: 51/676 used (7.5%)
 - ✅ **Three-letter combinations**: 0/17,576 used (0%)
-- ✅ **Capacity remaining**: 629 two-letter + 17,576 three-letter = 18,205 properties available
+- ✅ **Capacity remaining**: 625 two-letter + 17,576 three-letter = 18,201 properties available
 
-The approach ensures MindScribble can handle massive vaults efficiently while maintaining zero ambiguity and optimal performance for the most frequently accessed properties.
+The approach ensures MindScribble can handle massive vaults efficiently while maintaining zero ambiguity and optimal performance for the most frequently accessed properties (nodes AND hierarchical edges).
