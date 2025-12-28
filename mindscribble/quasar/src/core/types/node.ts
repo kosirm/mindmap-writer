@@ -123,7 +123,7 @@ export interface NodeData {
 
 /**
  * Complete node structure
- * Compatible with VueFlow
+ * Compatible with VueFlow and new property naming system
  */
 export interface MindscribbleNode {
   id: string
@@ -137,6 +137,9 @@ export interface MindscribbleNode {
 
   // View-specific data
   views: NodeViewData
+
+  // Serialized format using new property names (for IndexedDB storage)
+  serialized?: Record<string, unknown>
 }
 
 /**

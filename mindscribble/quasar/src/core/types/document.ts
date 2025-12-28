@@ -103,6 +103,41 @@ export interface MindscribbleDocument {
   layout: LayoutSettings
   dockviewLayout?: unknown        // Child dockview layout state (optional for backward compatibility)
   dockviewLayoutId?: string       // Unique ID for localStorage key (optional for backward compatibility)
+
+  // Serialized format using new property names (for IndexedDB storage)
+  serialized?: Record<string, unknown>
+}
+
+/**
+ * Serialized document format using new property naming system
+ * This is the optimized format for IndexedDB storage
+ */
+export interface SerializedDocument {
+  [key: string]: unknown
+  nodes: SerializedNode[]
+  edges: SerializedEdge[]
+  interMapLinks: SerializedInterMapLink[]
+}
+
+/**
+ * Serialized node using new property names
+ */
+export interface SerializedNode {
+  [key: string]: unknown
+}
+
+/**
+ * Serialized edge using new property names
+ */
+export interface SerializedEdge {
+  [key: string]: unknown
+}
+
+/**
+ * Serialized inter-map link using new property names
+ */
+export interface SerializedInterMapLink {
+  [key: string]: unknown
 }
 
 /**

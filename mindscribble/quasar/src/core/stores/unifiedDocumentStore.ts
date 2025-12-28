@@ -22,6 +22,14 @@ import type {
 } from '../types'
 import type { DriveFileMetadata } from '../services/googleDriveService'
 import { useDevSettingsStore } from '../../dev/devSettingsStore'
+import { PROP } from '../constants/propertyNames'
+import type { PropertyName } from '../constants/propertyNames'
+import {
+  serializeNode,
+  deserializeNode,
+  serializeDocument,
+  deserializeDocument
+} from '../utils/propertySerialization'
 
 /**
  * Document instance with its associated state
@@ -62,7 +70,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
   /** All documents by ID */
   const documents = ref<Map<string, MindscribbleDocument>>(new Map())
-  
+
   // Dev settings store for selectNavigate feature
   const devSettings = useDevSettingsStore()
 
@@ -180,7 +188,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   /**
-   * Convert active document to MindscribbleDocument format
+   * Convert active document to MindscribbleDocument format using new property names
    */
   function toDocument(): MindscribbleDocument | null {
     if (!activeDocumentId.value) {
@@ -192,55 +200,53 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       return null
     }
 
-    // Update metadata before returning
-    const updatedDoc: MindscribbleDocument = {
-      ...doc,
-      metadata: {
-        ...doc.metadata,
-        modified: new Date().toISOString(),
-        searchableText: doc.nodes.map((n) => `${n.data.title} ${n.data.content}`).join(' '),
-        nodeCount: doc.nodes.length,
-        edgeCount: doc.edges.length
-      }
-    }
+    // Serialize the document using new property names
+    const serializedDoc = serializeDocument(doc)
 
-    return updatedDoc
+    // Update metadata before returning
+    serializedDoc[PROP.MAP_MODIFIED] = new Date().toISOString()
+    serializedDoc[PROP.MAP_SEARCHABLE_TEXT] = doc.nodes.map((n) => `${n.data.title} ${n.data.content}`).join(' ')
+    serializedDoc[PROP.MAP_NODE_COUNT] = doc.nodes.length
+    serializedDoc[PROP.MAP_EDGE_COUNT] = doc.edges.length
+
+    // Convert back to standard format
+    return deserializeDocument(serializedDoc) as unknown as MindscribbleDocument
   }
 
   /**
-   * Create a new empty document
+   * Create a new empty document using new property names
    */
   function createEmptyDocument(name = 'Untitled'): MindscribbleDocument {
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
 
-    const newDocument: MindscribbleDocument = {
-      version: '1.0',
-      metadata: {
-        id: documentId,
-        name,
-        description: '',
-        created: new Date().toISOString(),
-        modified: new Date().toISOString(),
-        tags: [],
-        searchableText: '',
-        nodeCount: 0,
-        edgeCount: 0,
-        maxDepth: 0
-      },
-      nodes: [],
-      edges: [],
-      interMapLinks: [],
-      layout: {
-        activeView: 'mindmap',
-        orientationMode: 'anticlockwise',
-        lodEnabled: true,
-        lodThresholds: [10, 30, 50, 70, 90],
-        horizontalSpacing: 50,
-        verticalSpacing: 20
-      }
+    // Create document using new property naming system
+    const serializedDocument: Partial<Record<PropertyName, unknown>> = {
+      [PROP.MAP_VERSION]: '1.0',
+      [PROP.MAP_ID]: documentId,
+      [PROP.MAP_NAME]: name,
+      [PROP.MAP_DESCRIPTION]: '',
+      [PROP.MAP_CREATED]: new Date().toISOString(),
+      [PROP.MAP_MODIFIED]: new Date().toISOString(),
+      [PROP.MAP_TAGS]: [],
+      [PROP.MAP_SEARCHABLE_TEXT]: '',
+      [PROP.MAP_NODE_COUNT]: 0,
+      [PROP.MAP_EDGE_COUNT]: 0,
+      [PROP.MAP_MAX_DEPTH]: 0,
+      [PROP.LAYOUT_ACTIVE_VIEW]: 'mindmap',
+      [PROP.LAYOUT_ORIENTATION]: 'anticlockwise',
+      [PROP.LAYOUT_LOD_ENABLED]: true,
+      [PROP.LAYOUT_LOD_THRESHOLDS]: [10, 30, 50, 70, 90],
+      [PROP.LAYOUT_H_SPACING]: 50,
+      [PROP.LAYOUT_V_SPACING]: 20
     }
 
-    return newDocument
+    // Convert back to standard format for compatibility
+    return deserializeDocument({
+      ...serializedDocument,
+      nodes: [],
+      edges: [],
+      interMapLinks: []
+    }) as unknown as MindscribbleDocument
   }
 
   /**
@@ -346,7 +352,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   /**
-   * Add a new node to the active document
+   * Add a new node to the active document using new property names
    */
   function addNode(
     parentId: string | null,
@@ -362,20 +368,22 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     const siblings = parentId ? getChildNodes(parentId) : getRootNodes()
     const order = siblings.length
 
-    const newNode: MindscribbleNode = {
-      id: generateNodeId(),
-      type: 'custom',
-      position: position ?? { x: 0, y: 0 },
-      data: {
-        parentId,
-        order,
-        title,
-        content,
-        created: new Date().toISOString(),
-        modified: new Date().toISOString()
-      },
-      views: {}
+    // Create node using new property naming system
+    const serializedNode: Partial<Record<PropertyName, unknown>> = {
+      [PROP.NODE_ID]: generateNodeId(),
+      [PROP.NODE_TYPE]: 'custom',
+      [PROP.NODE_POSITION_X]: position?.x || 0,
+      [PROP.NODE_POSITION_Y]: position?.y || 0,
+      [PROP.NODE_PARENT_ID]: parentId,
+      [PROP.NODE_ORDER]: order,
+      [PROP.NODE_TITLE]: title,
+      [PROP.NODE_CONTENT]: content,
+      [PROP.NODE_CREATED]: new Date().toISOString(),
+      [PROP.NODE_MODIFIED]: new Date().toISOString()
     }
+
+    // Convert to standard format
+    const newNode = deserializeNode(serializedNode) as unknown as MindscribbleNode
 
     // Create a new document object to trigger reactivity
     const updatedDoc = {
@@ -402,7 +410,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   /**
-   * Update node data
+   * Update node data using new property names
    */
   function updateNode(
     nodeId: string,
@@ -418,18 +426,23 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       const node = doc.nodes[nodeIndex]
       if (!node) return
 
-      // Create updated node with all required properties
-      const updatedNode: MindscribbleNode = {
-        id: node.id,
-        type: node.type,
-        position: node.position,
-        data: {
-          ...node.data,
-          ...updates,
-          modified: new Date().toISOString()
-        },
-        views: node.views
-      }
+      // Serialize the node to get current state
+      const serializedNode = serializeNode(node)
+
+      // Apply updates using new property names
+      if (updates.title) serializedNode[PROP.NODE_TITLE] = updates.title
+      if (updates.content) serializedNode[PROP.NODE_CONTENT] = updates.content
+      if (updates.parentId) serializedNode[PROP.NODE_PARENT_ID] = updates.parentId
+      if (updates.order) serializedNode[PROP.NODE_ORDER] = updates.order
+      if (updates.color) serializedNode[PROP.NODE_COLOR] = updates.color
+      if (updates.icon) serializedNode[PROP.NODE_ICON] = updates.icon
+      if (updates.side) serializedNode[PROP.NODE_VIEW_SIDE] = updates.side
+
+      // Always update modified timestamp
+      serializedNode[PROP.NODE_MODIFIED] = new Date().toISOString()
+
+      // Convert back to standard format
+      const updatedNode = deserializeNode(serializedNode) as unknown as MindscribbleNode
 
       // Create new nodes array with updated node
       const updatedNodes = [...doc.nodes]
@@ -988,7 +1001,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     // Emit through unified store
     eventBus.emit(eventName, payload as Events[keyof Events])
 
-    
+
         }
   /**
    * Forward node creation event
