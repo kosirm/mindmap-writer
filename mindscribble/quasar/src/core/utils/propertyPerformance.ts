@@ -95,6 +95,61 @@ export function benchmarkNodeDeserialization(nodeCount: number = 1000): Performa
 }
 
 /**
+ * Benchmark full document deserialization (nodes + edges)
+ */
+export function benchmarkDocumentDeserialization(nodeCount: number = 1000): PerformanceMetrics {
+  // Create test serialized document
+  const serializedNodes = Array.from({ length: nodeCount }, (_, i) => ({
+    i: `node-${i}`,
+    y: 'custom',
+    x: i * 100,
+    z: i * 50,
+    p: i > 0 ? `node-${i - 1}` : null,
+    o: i,
+    t: `Node ${i}`,
+    c: `Content for node ${i}`,
+    r: new Date().toISOString(),
+    m: new Date().toISOString()
+  }))
+
+  const serializedEdges = Array.from({ length: nodeCount - 1 }, (_, i) => ({
+    i: `edge-${i}`,
+    s: `node-${i}`,
+    t: `node-${i + 1}`,
+    y: 'hierarchy'
+  }))
+
+  const serializedDocument = {
+    v: '1.0',
+    i: 'test-doc',
+    n: 'Test Document',
+    r: new Date().toISOString(),
+    m: new Date().toISOString(),
+    nodes: serializedNodes,
+    edges: serializedEdges,
+    interMapLinks: []
+  }
+
+  // Benchmark
+  const startTime = performance.now()
+  deserializeDocument(serializedDocument)
+  const endTime = performance.now()
+
+  const totalTimeMs = endTime - startTime
+  const totalItems = nodeCount + serializedEdges.length
+  const avgTimePerItemMs = totalTimeMs / totalItems
+  const itemsPerSecond = (totalItems / totalTimeMs) * 1000
+
+  return {
+    operation: 'Document Deserialization',
+    itemCount: totalItems,
+    totalTimeMs,
+    avgTimePerItemMs,
+    itemsPerSecond
+  }
+}
+
+/**
  * Benchmark full document serialization (nodes + edges)
  */
 export function benchmarkDocumentSerialization(nodeCount: number = 1000): PerformanceMetrics {
@@ -156,11 +211,12 @@ export function benchmarkDocumentSerialization(nodeCount: number = 1000): Perfor
  */
 export function runAllBenchmarks(nodeCount: number = 1000): PerformanceMetrics[] {
   console.log(`🔬 Running performance benchmarks with ${nodeCount} nodes...`)
-  
+
   const results = [
     benchmarkNodeSerialization(nodeCount),
     benchmarkNodeDeserialization(nodeCount),
-    benchmarkDocumentSerialization(nodeCount)
+    benchmarkDocumentSerialization(nodeCount),
+    benchmarkDocumentDeserialization(nodeCount)
   ]
 
   console.table(results)
