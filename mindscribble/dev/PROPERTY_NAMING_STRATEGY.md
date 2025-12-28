@@ -184,6 +184,8 @@ PROP.AI_TOPIC = 'at'                // aiContext.topic (string)
 PROP.AI_PURPOSE = 'au'              // aiContext.purpose (string)
 PROP.AI_AUDIENCE = 'aa'             // aiContext.audience (string)
 PROP.AI_LAST_ACTION = 'al'          // aiContext.lastAIAction (string)
+
+// Total: 41 two-letter properties used, 635 available
 ```
 
 ## Implementation Files

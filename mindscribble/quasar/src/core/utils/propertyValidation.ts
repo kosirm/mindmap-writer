@@ -227,10 +227,7 @@ export function getExpectedPropertyType(propertyName: PropertyName): string {
     [PROP.LAYOUT_LOD_ENABLED]: 'boolean',
     [PROP.LAYOUT_LOD_THRESHOLDS]: 'array',
     [PROP.LAYOUT_H_SPACING]: 'number',
-    [PROP.LAYOUT_V_SPACING]: 'number',
-    [PROP.MAP_CREATED_BY]: 'string',
-    [PROP.NODE_CONTENT_TYPE]: 'string',
-    [PROP.LINK_CONNECTION_TYPE]: 'string'
+    [PROP.LAYOUT_V_SPACING]: 'number'
   }
 
   return propertyTypes[propertyName] || 'unknown'

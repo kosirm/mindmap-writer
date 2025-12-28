@@ -113,16 +113,6 @@ export const PROP = {
   AI_LAST_ACTION: 'al',          // aiContext.lastAIAction
 
   // ============================================
-  // LEVEL 3: THREE LETTER PROPERTIES (17,576 total)
-  // ============================================
-
-  // Use when two-letter properties are exhausted
-  // Example patterns:
-  MAP_CREATED_BY: 'cby', // createdBy
-  NODE_CONTENT_TYPE: 'cty', // contentType
-  LINK_CONNECTION_TYPE: 'cnt', // connectionType
-
-  // ============================================
   // PROPERTY AVAILABILITY TRACKER
   // ============================================
 
@@ -134,97 +124,57 @@ export const PROP = {
   // Priority 3 (Maps): f n a u v (5)
   // Priority 4 (Links): k h j b (4)
 
-  // Two letter combinations used: 51/676
+  // Two letter combinations used: 41/676
   // aa, ag, al, ap, as, at, au, av, ch, co, cw, ds, eb, ec, el, em, er, ey,
   // hs, ic, kc, ko, lb, lc, le, lt, md, mn, mx, my, nc, nt, or, sh, st, ta,
   // te, th, tl, ts, vs
 
-  // Two letter combinations available: 625/676
+  // Two letter combinations available: 635/676
+
+  // Three letter combinations used: 0/17,576
+  // Three letter combinations available: 17,576/17,576
 } as const
 
 // Type-safe property access
 export type PropertyName = typeof PROP[keyof typeof PROP]
 
-export const PROP_REVERSE: Record<PropertyName, string> = {
-  // Nodes
-  'i': 'NODE_ID',
-  'p': 'NODE_PARENT_ID',
-  't': 'NODE_TITLE',
-  'c': 'NODE_CONTENT',
-  'o': 'NODE_ORDER',
-  'y': 'NODE_TYPE',
-  'x': 'NODE_POSITION_X',
-  'z': 'NODE_POSITION_Y',
-  'r': 'NODE_CREATED',
-  'm': 'NODE_MODIFIED',
+// Auto-generate reverse mapping (short name -> standard name)
+// This ensures single source of truth and prevents inconsistencies
+export const PROP_REVERSE: Record<PropertyName, string> = Object.entries(PROP)
+  .filter(([key]) => !key.startsWith('//')) // Filter out comments
+  .reduce(
+    (acc, [key, value]) => {
+      acc[value as PropertyName] = key
+      return acc
+    },
+    {} as Record<PropertyName, string>
+  )
 
-  // Edges
-  'e': 'EDGE_ID',
-  'q': 'EDGE_SOURCE',
-  'w': 'EDGE_TARGET',
-  'g': 'EDGE_TYPE',
+/**
+ * Validate that there are no duplicate property names
+ * This enforces the "one property = one name" rule
+ */
+function validateNoDuplicates(): void {
+  const seen = new Set<string>()
+  const duplicates: string[] = []
 
-  // Views
-  's': 'NODE_VIEW_SIDE',
-  'l': 'NODE_VIEW_COLLAPSED',
-  'd': 'NODE_VIEW_EXPANDED',
+  for (const [key, value] of Object.entries(PROP)) {
+    if (seen.has(value)) {
+      duplicates.push(`${key} = '${value}'`)
+    }
+    seen.add(value)
+  }
 
-  // Maps
-  'f': 'MAP_ID',
-  'n': 'MAP_NAME',
-  'a': 'MAP_CREATED',
-  'u': 'MAP_MODIFIED',
-  'v': 'MAP_VERSION',
+  if (duplicates.length > 0) {
+    throw new Error(
+      `Duplicate property names found! Each property must have a unique short name.\n` +
+      `Duplicates: ${duplicates.join(', ')}\n` +
+      `This violates the "one property = one name" rule.`
+    )
+  }
+}
 
-  // Links
-  'k': 'LINK_ID',
-  'h': 'LINK_SOURCE',
-  'j': 'LINK_TARGET_MAP',
-  'b': 'LINK_TARGET_NODE',
-
-  // Two-letter properties
-  'co': 'NODE_COLOR',
-  'ic': 'NODE_ICON',
-  'ag': 'NODE_AI_GENERATED',
-  'ap': 'NODE_AI_PROMPT',
-  'as': 'NODE_AI_SUGGESTIONS',
-  'ds': 'MAP_DESCRIPTION',
-  'ta': 'MAP_TAGS',
-  'st': 'MAP_SEARCHABLE_TEXT',
-  'ec': 'MAP_EDGE_COUNT',
-  'md': 'MAP_MAX_DEPTH',
-  'nc': 'MAP_NODE_COUNT',
-  'av': 'LAYOUT_ACTIVE_VIEW',
-  'or': 'LAYOUT_ORIENTATION',
-  'le': 'LAYOUT_LOD_ENABLED',
-  'lt': 'LAYOUT_LOD_THRESHOLDS',
-  'hs': 'LAYOUT_H_SPACING',
-  'vs': 'LAYOUT_V_SPACING',
-  'mx': 'VIEW_MINDMAP_POSITION_X',
-  'my': 'VIEW_MINDMAP_POSITION_Y',
-  'cw': 'VIEW_CONCEPT_SIZE_W',
-  'ch': 'VIEW_CONCEPT_SIZE_H',
-  'ts': 'VIEW_TIMELINE_START',
-  'te': 'VIEW_TIMELINE_END',
-  'tl': 'VIEW_TIMELINE_LANE',
-  'kc': 'VIEW_KANBAN_COLUMN',
-  'ko': 'VIEW_KANBAN_ORDER',
-  'sh': 'EDGE_SOURCE_HANDLE',
-  'th': 'EDGE_TARGET_HANDLE',
-  'ey': 'EDGE_STYLE',
-  'el': 'EDGE_CLASS',
-  'eb': 'EDGE_LABEL',
-  'er': 'EDGE_CREATED',
-  'em': 'EDGE_MODIFIED',
-  'lb': 'LINK_LABEL',
-  'lc': 'LINK_CREATED',
-  'mn': 'LINK_TARGET_MAP_NAME',
-  'nt': 'LINK_TARGET_NODE_TITLE',
-  'at': 'AI_TOPIC',
-  'au': 'AI_PURPOSE',
-  'aa': 'AI_AUDIENCE',
-  'al': 'AI_LAST_ACTION',
-  'cby': 'MAP_CREATED_BY',
-  'cty': 'NODE_CONTENT_TYPE',
-  'cnt': 'LINK_CONNECTION_TYPE'
-} as const
+// Run validation on module load (development only)
+if (import.meta.env.DEV) {
+  validateNoDuplicates()
+}

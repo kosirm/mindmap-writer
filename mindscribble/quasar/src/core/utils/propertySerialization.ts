@@ -5,6 +5,45 @@
 
 import { PROP, PROP_REVERSE } from '../constants/propertyNames'
 import type { PropertyName } from '../constants/propertyNames'
+import { validateNode, validateEdge, validateDocument } from './propertyValidation'
+
+/**
+ * Serialization options for controlling validation and error handling
+ */
+export interface SerializationOptions {
+  /** Throw errors instead of warnings for validation failures (default: false) */
+  strict?: boolean
+  /**
+   * Run validation checks on serialized data
+   * Default: true in development (import.meta.env.DEV), false in production
+   * Set explicitly to override the default behavior
+   */
+  validate?: boolean
+}
+
+/**
+ * Get default validation setting based on environment
+ * Development: validation enabled for early error detection
+ * Production: validation disabled for maximum performance
+ */
+function shouldValidate(explicitValidate?: boolean): boolean {
+  // If explicitly set, use that value
+  if (explicitValidate !== undefined) {
+    return explicitValidate
+  }
+  // Otherwise, validate only in development
+  return import.meta.env.DEV
+}
+
+// Create optimized lookup map at module initialization (O(1) instead of O(n))
+// Maps standard property names to short property names
+const STANDARD_TO_SHORT: Record<string, string> = Object.entries(PROP).reduce(
+  (acc, [key, value]) => {
+    acc[key] = value
+    return acc
+  },
+  {} as Record<string, string>
+)
 
 /**
  * Serialize an object using short property names
@@ -52,23 +91,15 @@ export function deserializeProperties(obj: Partial<Record<PropertyName, unknown>
 
 /**
  * Get the short property name for a standard property name
+ * Optimized with O(1) lookup using pre-built map
  */
 export function getShortPropertyName(standardName: string): string | null {
-  // Remove any prefixes like "NODE_" or "MAP_" for lookup
-  const baseName = standardName.replace(/^(NODE_|MAP_|EDGE_|LINK_|VIEW_|LAYOUT_|AI_)/, '')
-
-  // Check all PROP entries for a match
-  for (const [key, shortName] of Object.entries(PROP)) {
-    if (key.endsWith(`_${baseName}`) || key === baseName) {
-      return shortName
-    }
-  }
-
-  return null
+  return STANDARD_TO_SHORT[standardName] || null
 }
 
 /**
  * Get the standard property name for a short property name
+ * O(1) lookup using PROP_REVERSE
  */
 export function getStandardPropertyName(shortName: PropertyName): string | null {
   return PROP_REVERSE[shortName] || null
@@ -77,7 +108,13 @@ export function getStandardPropertyName(shortName: PropertyName): string | null 
 /**
  * Serialize a node object using short property names
  */
-export function serializeNode(node: Record<string, unknown>): Partial<Record<PropertyName, unknown>> {
+export function serializeNode(
+  node: Record<string, unknown>,
+  options: SerializationOptions = {}
+): Partial<Record<PropertyName, unknown>> {
+  const { strict = false } = options
+  const validate = shouldValidate(options.validate)
+
   const serialized: Partial<Record<PropertyName, unknown>> = {
     [PROP.NODE_ID]: (node as { id?: unknown }).id,
     [PROP.NODE_TYPE]: (node as { type?: unknown }).type,
@@ -113,6 +150,16 @@ export function serializeNode(node: Record<string, unknown>): Partial<Record<Pro
     if ((views as { outline?: { expanded?: unknown } }).outline?.expanded) {
       serialized[PROP.NODE_VIEW_EXPANDED] = (views as { outline: { expanded: unknown } }).outline.expanded
     }
+  }
+
+  // Validate if requested
+  if (validate && !validateNode(serialized)) {
+    const nodeId = serialized[PROP.NODE_ID]
+    const message = `Node validation failed for node: ${typeof nodeId === 'string' ? nodeId : 'unknown'}`
+    if (strict) {
+      throw new Error(message)
+    }
+    console.warn(message, node)
   }
 
   return serialized
@@ -162,7 +209,13 @@ export function deserializeNode(serialized: Partial<Record<PropertyName, unknown
 /**
  * Serialize an edge object using short property names
  */
-export function serializeEdge(edge: Record<string, unknown>): Partial<Record<PropertyName, unknown>> {
+export function serializeEdge(
+  edge: Record<string, unknown>,
+  options: SerializationOptions = {}
+): Partial<Record<PropertyName, unknown>> {
+  const { strict = false } = options
+  const validate = shouldValidate(options.validate)
+
   const serialized: Partial<Record<PropertyName, unknown>> = {
     [PROP.EDGE_ID]: (edge as { id?: unknown }).id,
     [PROP.EDGE_SOURCE]: (edge as { source?: unknown }).source,
@@ -178,6 +231,16 @@ export function serializeEdge(edge: Record<string, unknown>): Partial<Record<Pro
   if ((edge as { data?: { label?: unknown } }).data?.label) serialized[PROP.EDGE_LABEL] = (edge as { data: { label: unknown } }).data.label
   if ((edge as { data?: { created?: unknown } }).data?.created) serialized[PROP.EDGE_CREATED] = (edge as { data: { created: unknown } }).data.created
   if ((edge as { data?: { modified?: unknown } }).data?.modified) serialized[PROP.EDGE_MODIFIED] = (edge as { data: { modified: unknown } }).data.modified
+
+  // Validate if requested
+  if (validate && !validateEdge(serialized)) {
+    const edgeId = serialized[PROP.EDGE_ID]
+    const message = `Edge validation failed for edge: ${typeof edgeId === 'string' ? edgeId : 'unknown'}`
+    if (strict) {
+      throw new Error(message)
+    }
+    console.warn(message, edge)
+  }
 
   return serialized
 }
@@ -210,11 +273,17 @@ export function deserializeEdge(serialized: Partial<Record<PropertyName, unknown
 /**
  * Serialize a document using short property names
  */
-export function serializeDocument(document: Record<string, unknown>): Partial<Record<PropertyName, unknown>> & {
+export function serializeDocument(
+  document: Record<string, unknown>,
+  options: SerializationOptions = {}
+): Partial<Record<PropertyName, unknown>> & {
   nodes: Partial<Record<PropertyName, unknown>>[],
   edges: Partial<Record<PropertyName, unknown>>[],
   interMapLinks: Partial<Record<PropertyName, unknown>>[]
 } {
+  const { strict = false } = options
+  const validate = shouldValidate(options.validate)
+
   const serialized: Partial<Record<PropertyName, unknown>> = {
     [PROP.MAP_VERSION]: (document as { version?: unknown }).version || '1.0',
     [PROP.MAP_ID]: (document as { metadata?: { id?: unknown } }).metadata?.id || '',
@@ -259,12 +328,24 @@ export function serializeDocument(document: Record<string, unknown>): Partial<Re
   const edges = (document as { edges?: unknown[] }).edges || []
   const interMapLinks = (document as { interMapLinks?: unknown[] }).interMapLinks || []
 
-  return {
+  const result = {
     ...serialized,
-    nodes: nodes.map(node => serializeNode(node as Record<string, unknown>)),
-    edges: edges.map(edge => serializeEdge(edge as Record<string, unknown>)),
+    nodes: nodes.map(node => serializeNode(node as Record<string, unknown>, options)),
+    edges: edges.map(edge => serializeEdge(edge as Record<string, unknown>, options)),
     interMapLinks: interMapLinks.map(link => serializeProperties(link as Record<string, unknown>))
   }
+
+  // Validate if requested
+  if (validate && !validateDocument(result)) {
+    const docId = serialized[PROP.MAP_ID]
+    const message = `Document validation failed for document: ${typeof docId === 'string' ? docId : 'unknown'}`
+    if (strict) {
+      throw new Error(message)
+    }
+    console.warn(message, document)
+  }
+
+  return result
 }
 
 /**
