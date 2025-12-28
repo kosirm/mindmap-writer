@@ -51,8 +51,8 @@ export interface DocumentMetadata {
   id: string                      // Google Drive file ID (or local UUID before sync)
   name: string
   description?: string
-  created: string                 // ISO 8601 timestamp
-  modified: string                // ISO 8601 timestamp
+  created: number                 // Unix timestamp in milliseconds
+  modified: number                // Unix timestamp in milliseconds
   tags: string[]
   aiContext?: AIContext
 

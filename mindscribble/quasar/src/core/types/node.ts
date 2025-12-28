@@ -105,8 +105,8 @@ export interface NodeData {
   content: string                // Rich text HTML content (from Tiptap)
 
   // Timestamps
-  created?: string               // ISO 8601 timestamp
-  modified?: string              // ISO 8601 timestamp
+  created?: number               // Unix timestamp in milliseconds
+  modified?: number              // Unix timestamp in milliseconds
 
   // AI metadata
   aiGenerated?: boolean

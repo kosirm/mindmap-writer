@@ -79,7 +79,7 @@ export interface InterMapLink {
 
   // Metadata
   label?: string                  // Optional user-defined description
-  created: string                 // ISO 8601 timestamp
+  created: number                 // Unix timestamp in milliseconds
 
   // Cached data (for display without loading target map)
   targetMapName?: string          // Cached name of target map
