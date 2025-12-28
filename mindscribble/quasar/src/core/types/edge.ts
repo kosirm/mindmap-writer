@@ -37,6 +37,9 @@ export interface MindscribbleEdge {
   type: EdgeStyle
   class?: string                  // 'edge-hierarchy' | 'edge-reference'
   data: EdgeData
+
+  // Serialized format using new property names (for IndexedDB storage)
+  serialized?: Record<string, unknown>
 }
 
 /**
@@ -81,5 +84,8 @@ export interface InterMapLink {
   // Cached data (for display without loading target map)
   targetMapName?: string          // Cached name of target map
   targetNodeTitle?: string        // Cached title of target node (if targeting specific node)
+
+  // Serialized format using new property names (for IndexedDB storage)
+  serialized?: Record<string, unknown>
 }
 
