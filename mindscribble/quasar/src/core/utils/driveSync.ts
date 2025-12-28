@@ -1,7 +1,7 @@
 /**
  * Google Drive Sync Utilities
  * Handles synchronization between IndexedDB and Google Drive
- * 
+ *
  * IMPORTANT: All files are stored in SHORT property name format for:
  * - Smaller file sizes (88% reduction in property overhead)
  * - Faster uploads/downloads
@@ -30,48 +30,45 @@ export interface SyncResult {
  * Save document to Google Drive
  * Documents are saved in SHORT property name format
  */
-export async function saveToDrive(
+export function saveToDrive(
   document: Record<string, unknown>,
   driveFileId?: string
 ): Promise<SyncResult> {
   try {
     // Serialize to short names (validation optional, default: dev only)
-    const serialized = serializeDocument(document, {
+    serializeDocument(document, {
       validate: import.meta.env.DEV,  // Validate in dev before upload
       strict: false  // Don't throw, just warn
     })
 
-    // Convert to JSON
-    const jsonContent = JSON.stringify(serialized)
-    
     // Upload to Google Drive (implementation depends on your Drive API wrapper)
-    // const fileId = await googleDriveApi.upload(jsonContent, driveFileId)
+    // const fileId = await googleDriveApi.upload(JSON.stringify(serialized), driveFileId)
 
-    return {
+    return Promise.resolve({
       success: true,
       documentId: driveFileId || 'new-file-id'
-    }
+    })
   } catch (error) {
-    return {
+    return Promise.resolve({
       success: false,
       documentId: driveFileId || '',
       error: error instanceof Error ? error.message : 'Unknown error'
-    }
+    })
   }
 }
 
 /**
  * Load document from Google Drive
- * 
+ *
  * CRITICAL: Always validates loaded data because:
  * - User might have manually edited the JSON file
  * - File corruption during transfer
  * - Version conflicts during sync
  * - Malicious modifications
- * 
+ *
  * Validation is MANDATORY and cannot be disabled.
  */
-export async function loadFromDrive(
+export function loadFromDrive(
   driveFileId: string,
   options: SyncOptions = {}
 ): Promise<SyncResult & { document?: Record<string, unknown> }> {
@@ -79,7 +76,7 @@ export async function loadFromDrive(
     // Download from Google Drive
     // const jsonContent = await googleDriveApi.download(driveFileId)
     const jsonContent = '{}' // Placeholder
-    
+
     // Parse JSON
     const serialized = JSON.parse(jsonContent) as Partial<Record<PropertyName, unknown>> & {
       nodes: Partial<Record<PropertyName, unknown>>[]
@@ -90,30 +87,30 @@ export async function loadFromDrive(
     // MANDATORY VALIDATION - cannot be disabled
     // This protects against corrupted/malicious data from Drive
     const document = deserializeDocument(serialized)
-    
+
     // Additional validation using propertyValidation
     const validationErrors: string[] = []
-    
+
     // Validate document structure
     if (!document.metadata || !document.nodes || !document.edges) {
       validationErrors.push('Invalid document structure: missing required fields')
     }
-    
+
     // Validate all nodes
     if (Array.isArray(document.nodes)) {
       for (let i = 0; i < (document.nodes as unknown[]).length; i++) {
         const node = (document.nodes as Record<string, unknown>[])[i]
-        if (!node.id || !node.data) {
+        if (!node?.id || !node?.data) {
           validationErrors.push(`Invalid node at index ${i}: missing id or data`)
         }
       }
     }
-    
+
     // Validate all edges
     if (Array.isArray(document.edges)) {
       for (let i = 0; i < (document.edges as unknown[]).length; i++) {
         const edge = (document.edges as Record<string, unknown>[])[i]
-        if (!edge.id || !edge.source || !edge.target) {
+        if (!edge?.id || !edge?.source || !edge?.target) {
           validationErrors.push(`Invalid edge at index ${i}: missing id, source, or target`)
         }
       }
@@ -129,18 +126,18 @@ export async function loadFromDrive(
       console.warn('Document validation warnings:', validationErrors)
     }
 
-    return {
+    return Promise.resolve({
       success: true,
       documentId: driveFileId,
       document,
-      validationErrors: validationErrors.length > 0 ? validationErrors : undefined
-    }
+      validationErrors: validationErrors.length > 0 ? validationErrors : []
+    })
   } catch (error) {
-    return {
+    return Promise.resolve({
       success: false,
       documentId: driveFileId,
       error: error instanceof Error ? error.message : 'Unknown error'
-    }
+    })
   }
 }
 
@@ -155,7 +152,7 @@ export async function syncDocument(
   try {
     // Load from Drive with validation
     const driveResult = await loadFromDrive(driveFileId, { strict: true })
-    
+
     if (!driveResult.success || !driveResult.document) {
       throw new Error(driveResult.error || 'Failed to load from Drive')
     }
@@ -188,4 +185,3 @@ export async function syncDocument(
     }
   }
 }
-
