@@ -18,6 +18,7 @@ import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useAppStore } from 'src/core/stores/appStore'
 import { getViewTitle } from 'src/shared/utils/viewIcons'
+import { generateId } from 'src/core/utils/idGenerator'
 
 defineOptions({
   name: 'FilePanelComponent'
@@ -28,7 +29,6 @@ const props = defineProps<{
 }>()
 
 const childDockviewApi = ref<DockviewApi | null>(null)
-let childPanelCounter = 0
 
 // Stores
 const driveStore = useGoogleDriveStore()
@@ -216,14 +216,14 @@ function createDefaultChildLayout() {
 
   // Create default 3-panel layout: Outline | Mindmap | Writer (left to right)
   const outlinePanel = childDockviewApi.value.addPanel({
-    id: `outline-${Date.now()}`,
+    id: `outline-${generateId()}`,
     component: 'outline-panel',
     title: getViewTitle('outline-panel'),
     tabComponent: 'view-tab'
   })
 
   const mindmapPanel = childDockviewApi.value.addPanel({
-    id: `mindmap-${Date.now()}`,
+    id: `mindmap-${generateId()}`,
     component: 'mindmap-panel',
     title: getViewTitle('mindmap-panel'),
     position: { referencePanel: outlinePanel, direction: 'right' },
@@ -231,7 +231,7 @@ function createDefaultChildLayout() {
   })
 
   childDockviewApi.value.addPanel({
-    id: `writer-${Date.now()}`,
+    id: `writer-${generateId()}`,
     component: 'writer-panel',
     title: getViewTitle('writer-panel'),
     position: { referencePanel: mindmapPanel, direction: 'right' },
@@ -245,8 +245,7 @@ function createDefaultChildLayout() {
 function addChildPanel(type: string) {
   if (!childDockviewApi.value) return
 
-  childPanelCounter++
-  const panelId = `${type}-${Date.now()}-${childPanelCounter}`
+  const panelId = `${type}-${generateId()}`
 
   // Get title from viewIcons utility
   const title = getViewTitle(type)
