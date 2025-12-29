@@ -1,0 +1,395 @@
+{
+  "documentName": "indexedDB-workflow",
+  "nodes": [
+    {
+      "id": "node-1766839216815-v9w0kid",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": null,
+        "order": 0,
+        "title": "Workfow",
+        "content": "",
+        "created": "2025-12-27T12:40:16.815Z",
+        "modified": "2025-12-27T12:40:26.237Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839230597-2e7umcw",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839216815-v9w0kid",
+        "order": 0,
+        "title": "Internet",
+        "content": "<p>... is internet available?</p>",
+        "created": "2025-12-27T12:40:30.597Z",
+        "modified": 1766935913830
+      },
+      "views": {
+        "outline": {
+          "expanded": true
+        }
+      }
+    },
+    {
+      "id": "node-1766839266405-2l107bu",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839230597-2e7umcw",
+        "order": 0,
+        "title": "Yes",
+        "content": "",
+        "created": "2025-12-27T12:41:06.405Z",
+        "modified": "2025-12-27T12:41:17.861Z"
+      },
+      "views": {
+        "outline": {
+          "expanded": true
+        }
+      }
+    },
+    {
+      "id": "node-1766839281611-mwezd3l",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839230597-2e7umcw",
+        "order": 1,
+        "title": "NO",
+        "content": "",
+        "created": "2025-12-27T12:41:21.611Z",
+        "modified": "2025-12-27T12:41:31.842Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839301260-5w579t9",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839266405-2l107bu",
+        "order": 0,
+        "title": "Timestamp",
+        "content": "<p>Compare timestamp between google drive and indexedDB</p>",
+        "created": "2025-12-27T12:41:41.260Z",
+        "modified": "2025-12-28T14:17:39.935Z"
+      },
+      "views": {
+        "outline": {
+          "expanded": true
+        }
+      }
+    },
+    {
+      "id": "node-1766839323403-8c08u65",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839301260-5w579t9",
+        "order": 0,
+        "title": "Same",
+        "content": "",
+        "created": "2025-12-27T12:42:03.403Z",
+        "modified": "2025-12-27T14:53:05.906Z"
+      },
+      "views": {
+        "outline": {
+          "expanded": true
+        }
+      }
+    },
+    {
+      "id": "node-1766839333467-gal4mr2",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839301260-5w579t9",
+        "order": 1,
+        "title": "Differ",
+        "content": "",
+        "created": "2025-12-27T12:42:13.467Z",
+        "modified": "2025-12-27T14:53:05.906Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839342468-two8zo6",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839323403-8c08u65",
+        "order": 1,
+        "title": "Keep working",
+        "content": "",
+        "created": "2025-12-27T12:42:22.468Z",
+        "modified": 1766935763847
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839357506-hwd05hr",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839333467-gal4mr2",
+        "order": 0,
+        "title": "Local Newer",
+        "content": "<p>... for example we were working and internet was OFF</p>",
+        "created": "2025-12-27T12:42:37.506Z",
+        "modified": "2025-12-28T14:04:14.545Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839366428-r44fyid",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839333467-gal4mr2",
+        "order": 1,
+        "title": "Local Older",
+        "content": "<p>... for example - we worked on some other device</p>",
+        "created": "2025-12-27T12:42:46.428Z",
+        "modified": "2025-12-28T14:12:14.194Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839390651-6l0yl6l",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839323403-8c08u65",
+        "order": 0,
+        "title": "Open files",
+        "content": "<p>We open files from opened_files</p>",
+        "created": "2025-12-27T12:43:10.651Z",
+        "modified": 1766935763847
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839400445-gsxjwnu",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839323403-8c08u65",
+        "order": 2,
+        "title": "Update Drive",
+        "content": "<p>... as we work, we update vault on drive: drive - db-to-drive (worker)</p>",
+        "created": "2025-12-27T12:43:20.445Z",
+        "modified": "2025-12-28T14:13:52.873Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839445517-7o0djpl",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839357506-hwd05hr",
+        "order": 2,
+        "title": "Update Drive",
+        "content": "<p>... as we work, we update vault on: drive - db-to-drive (worker)</p>",
+        "created": "2025-12-27T12:44:05.517Z",
+        "modified": "2025-12-28T14:13:10.606Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839475413-h80q6gb",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839357506-hwd05hr",
+        "order": 1,
+        "title": "Keep working",
+        "content": "<p>...</p>",
+        "created": "2025-12-27T12:44:35.413Z",
+        "modified": "2025-12-28T14:11:47.360Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839486651-zhu3rb5",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839366428-r44fyid",
+        "order": 0,
+        "title": "Update Local",
+        "content": "<p>... we perform drive-to-db sync (modal, app paused)</p>",
+        "created": "2025-12-27T12:44:46.651Z",
+        "modified": "2025-12-28T14:07:23.594Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766839522229-3oq7pox",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839366428-r44fyid",
+        "order": 2,
+        "title": "Keep working",
+        "content": "",
+        "created": "2025-12-27T12:45:22.229Z",
+        "modified": "2025-12-28T14:15:42.612Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766930664906-x4dpzrv",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839281611-mwezd3l",
+        "order": 1,
+        "title": "Keep working",
+        "content": "<p>... we keep working on a vault as normally.</p>",
+        "created": "2025-12-28T14:04:24.906Z",
+        "modified": "2025-12-28T14:16:24.841Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766930863472-jfywz14",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839366428-r44fyid",
+        "order": 1,
+        "title": "Open files",
+        "content": "<p>... we open files from latest version</p>",
+        "created": "2025-12-28T14:07:43.472Z",
+        "modified": "2025-12-28T14:10:41.234Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766931051256-uup4kdb",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839357506-hwd05hr",
+        "order": 0,
+        "title": "Open files",
+        "content": "<p>We open files from opened_files</p>",
+        "created": "2025-12-28T14:10:51.256Z",
+        "modified": "2025-12-28T14:11:29.869Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766931177633-c5px69q",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839366428-r44fyid",
+        "order": 3,
+        "title": "Update Drive",
+        "content": "<p>... as we work, we update vault on: drive - db-to-drive (worker)</p>",
+        "created": "2025-12-28T14:12:57.633Z",
+        "modified": "2025-12-28T14:13:20.642Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766931242561-0088s22",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839281611-mwezd3l",
+        "order": 2,
+        "title": "Update Drive",
+        "content": "<p>... as we work, we update vault on: drive - db-to-drive (worker)</p>",
+        "created": "2025-12-28T14:14:02.561Z",
+        "modified": "2025-12-28T14:16:24.841Z"
+      },
+      "views": {}
+    },
+    {
+      "id": "node-1766931381408-hroti1r",
+      "type": "custom",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "parentId": "node-1766839281611-mwezd3l",
+        "order": 0,
+        "title": "Open files",
+        "content": "<p>We open files from opened_files</p>",
+        "created": "2025-12-28T14:16:21.408Z",
+        "modified": "2025-12-28T14:16:39.339Z"
+      },
+      "views": {}
+    }
+  ]
+}
