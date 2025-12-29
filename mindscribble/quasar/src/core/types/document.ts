@@ -8,6 +8,27 @@ import type { MindscribbleEdge, MindmapEdge, InterMapLink } from './edge'
 import type { ViewType } from './view'
 
 // ============================================================
+// SUBSCRIPTION & USER
+// ============================================================
+
+export type SubscriptionPlan = 'free' | 'basic' | 'pro' | 'enterprise';
+export type SubscriptionStatus = 'active' | 'expired' | 'cancelled' | 'trial';
+
+export interface Subscription {
+  userId: string;
+  email: string;
+  currentPlan: SubscriptionPlan;
+  planLevel: number;
+  status: SubscriptionStatus;
+  expires: number; // timestamp
+  previousPlans: Array<{
+    plan: SubscriptionPlan;
+    startDate: number;
+    endDate: number;
+  }>;
+}
+
+// ============================================================
 // ORIENTATION & LAYOUT
 // ============================================================
 
@@ -63,6 +84,46 @@ export interface DocumentMetadata {
   nodeCount: number
   edgeCount: number
   maxDepth: number
+
+  // NEW: Multi-provider support (Phase 2 ready)
+  providers?: DocumentProviders;
+
+  // DEPRECATED: Keep for backward compatibility with existing documents
+  // Will be migrated to providers.googleDrive.fileId
+  driveFileId?: string;
+}
+
+/**
+ * Provider-specific metadata for multi-backend support
+ *
+ * Phase 1: Only googleDrive is used
+ * Phase 2: Add github, dropbox, localFileSystem, etc.
+ */
+export interface DocumentProviders {
+  googleDrive?: {
+    fileId: string;
+    folderId: string;
+    webViewLink?: string;
+    sharedDriveId?: string;
+  };
+  github?: {
+    owner: string;
+    repo: string;
+    branch: string;
+    path: string;
+    sha?: string;
+    commitHash?: string;
+  };
+  dropbox?: {
+    path: string;
+    id: string;
+    rev?: string;
+  };
+  localFileSystem?: {
+    path: string;
+    absolutePath: string;
+  };
+  // Add more providers as needed
 }
 
 // ============================================================

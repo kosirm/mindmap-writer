@@ -13,3 +13,5 @@ For indexedDB, we need to store the following data:
 
 
 Plan: make indexedDB first, test locally, then switch file saving from "direct opening/saving from/to google drive" (what we have now) to indexedDB sync.
+
+We are using bun, not npm for package management.

@@ -3,4 +3,8 @@
  */
 
 export * from './googleDriveService'
+export * from './subscriptionService'
+export * from './viewAvailabilityManager'
+export * from './syncManager'
+export * from './indexedDBService'
 
