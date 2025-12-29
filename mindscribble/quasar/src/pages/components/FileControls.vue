@@ -11,8 +11,9 @@
       <q-tooltip>Add View</q-tooltip>
       <q-menu>
         <q-list style="min-width: 150px">
+          <!-- Only show available views based on subscription -->
           <q-item
-            v-for="viewType in availableViews"
+            v-for="viewType in subscriptionAvailableViews"
             :key="viewType"
             clickable
             v-close-popup
@@ -31,12 +32,18 @@
 </template>
 
 <script setup lang="ts">
-import { inject } from 'vue'
+import { inject, ref, onMounted, watch } from 'vue'
 import { getViewIcon, getViewTitle } from 'src/shared/utils/viewIcons'
+import { viewAvailabilityManager } from 'src/core/services/viewAvailabilityManager'
+import { useAppStore } from 'src/core/stores/appStore'
+import { useQuasar } from 'quasar'
+import type { ViewType } from 'src/core/types/view'
 
 defineOptions({
   name: 'FileControlsComponent'
 })
+
+const $q = useQuasar()
 
 // Define available view types in the order they should appear in the menu
 const availableViews = [
@@ -46,6 +53,53 @@ const availableViews = [
   'outline-panel',
   'd3-concept-map-panel'
 ]
+
+// Store available views based on subscription
+const subscriptionAvailableViews = ref<string[]>([])
+
+// Load available views based on subscription
+async function loadAvailableViews() {
+  try {
+    const available = await viewAvailabilityManager.getAvailableViews()
+
+    // Map view types to panel component names
+    const viewTypeToPanelMap: Record<ViewType, string> = {
+      'outline': 'outline-panel',
+      'mindmap': 'mindmap-panel',
+      'writer': 'writer-panel',
+      'kanban': 'kanban-panel',
+      'timeline': 'timeline-panel',
+      'circle-pack': 'circle-pack-panel',
+      'sunburst': 'sunburst-panel',
+      'treemap': 'treemap-panel',
+      'd3-mindmap': 'd3-mindmap-panel',
+      'd3-concept-map': 'd3-concept-map-panel'
+    }
+
+    // Filter available views to only include those that are in our availableViews list
+    subscriptionAvailableViews.value = available
+      .map(viewType => viewTypeToPanelMap[viewType])
+      .filter(panelName => availableViews.includes(panelName))
+
+  } catch (error) {
+    console.error('Failed to load available views:', error)
+    // Fallback: show all views if there's an error
+    subscriptionAvailableViews.value = availableViews
+  }
+}
+
+// Setup appStore and watch for subscription changes
+const appStore = useAppStore()
+
+// Load available views when component mounts
+onMounted(async () => {
+  await loadAvailableViews()
+})
+
+// Watch for subscription plan changes
+watch(() => appStore.currentSubscriptionPlan, async () => {
+  await loadAvailableViews()
+}, { immediate: false })
 
 interface DockviewPanelApi {
   id: string
@@ -107,6 +161,31 @@ function handleAddView(type: string) {
 
   if (openTypes.includes(type)) {
     // View is already open, don't add a duplicate
+    return
+  }
+
+  // Check if the view is available for current subscription
+  const panelName = type
+  const isAvailable = subscriptionAvailableViews.value.includes(panelName)
+
+  if (!isAvailable) {
+    // Show upsell notification for premium views
+    $q.notify({
+      type: 'warning',
+      message: 'This view requires a premium subscription',
+      caption: 'Upgrade to access advanced views',
+      timeout: 3000,
+      actions: [
+        {
+          label: 'Upgrade',
+          color: 'yellow',
+          handler: () => {
+            // TODO: Navigate to subscription page
+            console.log('Navigate to subscription upgrade page')
+          }
+        }
+      ]
+    })
     return
   }
 

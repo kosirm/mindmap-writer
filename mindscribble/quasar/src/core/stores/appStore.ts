@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { Dark, LocalStorage } from 'quasar'
+import type { SubscriptionPlan } from '../types'
 
 export type ActiveContext = 'canvas' | 'writer' | 'outline' | 'none'
 
@@ -28,6 +29,9 @@ export const useAppStore = defineStore('app', () => {
     ? savedDarkMode === true
     : window.matchMedia('(prefers-color-scheme: dark)').matches
   const isDarkMode = ref(initialDarkMode)
+
+  // Subscription state - initialize with enterprise for development
+  const currentSubscriptionPlan = ref<SubscriptionPlan>('enterprise')
 
   // Sync with Quasar Dark mode
   Dark.set(isDarkMode.value)
@@ -76,6 +80,14 @@ export const useAppStore = defineStore('app', () => {
     // console.log('🎨 [AppStore] toggleDarkMode new value:', isDarkMode.value)
   }
 
+  /**
+   * Set subscription plan (for dev testing)
+   */
+  function setSubscriptionPlan(plan: SubscriptionPlan) {
+    currentSubscriptionPlan.value = plan
+    console.log(`[AppStore] Subscription plan set to: ${plan}`)
+  }
+
   // Initialize online status listeners
   function initOnlineListeners() {
     window.addEventListener('online', () => setOnlineStatus(true))
@@ -95,6 +107,7 @@ export const useAppStore = defineStore('app', () => {
     activeContext,
     isOnline,
     isDarkMode,
+    currentSubscriptionPlan,
 
     // Actions
     toggleLeftDrawer,
@@ -105,6 +118,7 @@ export const useAppStore = defineStore('app', () => {
     setActiveContext,
     setOnlineStatus,
     toggleDarkMode,
+    setSubscriptionPlan,
     initOnlineListeners,
     getDockviewThemeClass
   }
