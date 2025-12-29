@@ -212,12 +212,176 @@ export const db = new MindScribbleDB();
 #### 4.1 Sync Manager Implementation
 - **Location**: `mindscribble/quasar/src/core/services/`
 - **Files to Create**:
-  - `syncManager.ts` - Handles IndexedDB ↔ Google Drive synchronization
+  - `syncManager.ts` - Handles IndexedDB ↔ Provider synchronization with partial sync
 
-**Strategy**:
-- Save to IndexedDB first (fast, offline-capable)
-- Queue sync to Google Drive (async, can fail)
-- Load from IndexedDB first, sync from Drive in background
+**Strategy (Partial Sync)**:
+1. **On App Startup**:
+   - Open IndexedDB (always available offline)
+   - If online: Download `.repository.json` from provider (small file with timestamps)
+   - Compare local vs remote repository to find changes
+   - Only sync changed files (efficient, fast)
+
+2. **Conflict Detection**:
+   - Compare timestamps between local and remote files
+   - If both modified since last sync → conflict
+   - Show user dialog: "Keep Server" / "Keep Local" / "Advanced"
+   - Advanced: Per-file resolution
+
+3. **Lock File**:
+   - Create `.lock` file before sync to prevent concurrent syncs from other devices
+   - Remove `.lock` file after sync completes
+   - If `.lock` exists, wait or show warning
+
+4. **Sync Only Changed Files**:
+   - Download: Files newer on server or missing locally
+   - Upload: Files newer locally or missing on server
+   - Delete: Files marked as deleted in `.repository.json`
+
+5. **Update Local Repository**:
+   - After sync, update local `.repository.json` in IndexedDB
+   - Track `lastSynced` timestamp for next sync
+
+**Benefits**:
+- ✅ Fast startup (only download small `.repository.json`)
+- ✅ Efficient sync (only changed files)
+- ✅ Conflict detection before downloading large files
+- ✅ Works with any provider (Google Drive, GitHub, Dropbox, etc.)
+- ✅ Prevents data corruption with `.lock` file
+
+**Partial Sync Flow**:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      App Startup                                 │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+                  ┌──────────────────┐
+                  │ Open IndexedDB   │ (Always available offline)
+                  └────────┬─────────┘
+                           │
+                           ▼
+                  ┌──────────────────┐
+                  │ Check Internet   │
+                  └────────┬─────────┘
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+              ▼                         ▼
+      ┌──────────────┐          ┌──────────────┐
+      │   Offline    │          │   Online     │
+      └──────┬───────┘          └──────┬───────┘
+             │                         │
+             │                         ▼
+             │              ┌──────────────────────┐
+             │              │ Download             │
+             │              │ .repository.json     │ (Small file)
+             │              └──────────┬───────────┘
+             │                         │
+             │                         ▼
+             │              ┌──────────────────────┐
+             │              │ Compare Local vs     │
+             │              │ Remote Repository    │
+             │              └──────────┬───────────┘
+             │                         │
+             │                         ▼
+             │              ┌──────────────────────┐
+             │              │ Conflicts Detected?  │
+             │              └──────────┬───────────┘
+             │                         │
+             │              ┌──────────┴──────────┐
+             │              │                     │
+             │              ▼                     ▼
+             │     ┌────────────────┐    ┌────────────────┐
+             │     │ Yes: Show      │    │ No: Sync Only  │
+             │     │ Conflict Dialog│    │ Changed Files  │
+             │     └────────┬───────┘    └────────┬───────┘
+             │              │                     │
+             │              ▼                     │
+             │     ┌────────────────┐            │
+             │     │ User Chooses:  │            │
+             │     │ - Keep Server  │            │
+             │     │ - Keep Local   │            │
+             │     │ - Advanced     │            │
+             │     └────────┬───────┘            │
+             │              │                     │
+             │              └──────────┬──────────┘
+             │                         │
+             └─────────────────────────┤
+                                       ▼
+                            ┌──────────────────┐
+                            │ Update IndexedDB │
+                            └────────┬─────────┘
+                                     │
+                                     ▼
+                            ┌──────────────────┐
+                            │ Ready for Use    │
+                            └──────────────────┘
+```
+
+**Key Files**:
+- `.repository.json` - Contains file structure with timestamps (downloaded first)
+- `.lock` - Prevents concurrent syncs from multiple devices
+- Individual files - Only synced if changed (efficient)
+
+#### 4.2 Repository File Structure (`.repository.json`)
+
+This file is stored in each vault (on the provider) and contains metadata about all files:
+
+```typescript
+// Example .repository.json
+{
+  "repositoryId": "vault-123",
+  "name": "My Work Vault",
+  "version": "1.0",
+  "lastUpdated": 1735488000000,
+
+  "files": {
+    "doc-1": {
+      "id": "doc-1",
+      "path": "/projects/project-a.mindmap",
+      "name": "project-a.mindmap",
+      "type": "mindmap",
+      "timestamp": 1735487000000,
+      "size": 15234,
+      "checksum": "sha256-abc123..."
+    },
+    "doc-2": {
+      "id": "doc-2",
+      "path": "/notes/meeting-notes.mindmap",
+      "name": "meeting-notes.mindmap",
+      "type": "mindmap",
+      "timestamp": 1735486000000,
+      "size": 8456
+    }
+  },
+
+  "folders": {
+    "folder-1": {
+      "id": "folder-1",
+      "path": "/projects",
+      "name": "projects",
+      "timestamp": 1735487000000,
+      "fileIds": ["doc-1"],
+      "folderIds": []
+    }
+  },
+
+  "deletedFiles": [],
+  "deletedFolders": [],
+
+  "syncSettings": {
+    "conflictResolution": "ask",
+    "lastSynced": 1735488000000
+  }
+}
+```
+
+**Why This Works**:
+- Small file (~1-10 KB for 100 documents)
+- Fast to download and parse
+- Contains all info needed to determine what changed
+- No need to download all files to check timestamps
+- Works with any storage provider
 
 ### Phase 5: Mock Subscription Service (Week 2 - 2 hours)
 
@@ -516,6 +680,7 @@ export interface ProviderMetadata {
  * FUTURE-PROOF DESIGN:
  * - providerMetadata table supports multiple storage backends (Phase 2)
  * - Documents can sync to multiple providers simultaneously
+ * - repositories table stores .repository.json for partial sync
  * - Easy to add GitHub, Dropbox, S3, etc. without schema changes
  */
 export class MindScribbleDB extends Dexie {
@@ -524,17 +689,19 @@ export class MindScribbleDB extends Dexie {
   settings!: Table<DatabaseSettings, string>;
   errorLogs!: Table<ErrorLog, string>;
   providerMetadata!: Table<ProviderMetadata, string>; // NEW: Multi-provider support
+  repositories!: Table<Repository, string>; // NEW: Store .repository.json locally
 
   constructor() {
     super('MindScribbleDB');
 
-    // Version 1 - Initial schema with provider awareness
+    // Version 1 - Initial schema with provider awareness and partial sync
     this.version(1).stores({
       documents: 'metadata.id, metadata.modified, metadata.vaultId',
       nodes: 'id, mapId, vaultId, modified',
       settings: 'id',
       errorLogs: 'id, timestamp',
-      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus' // NEW
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus', // NEW
+      repositories: 'repositoryId, lastUpdated' // NEW: For partial sync
     });
 
     // Future versions can be added here:
@@ -908,7 +1075,182 @@ export class SyncManager {
   }
 
   /**
+   * Perform partial sync using .repository.json file
+   *
+   * This is the main sync strategy:
+   * 1. Download .repository.json from provider (small file with timestamps)
+   * 2. Compare with local repository to find changes
+   * 3. Only sync changed files (efficient)
+   * 4. Handle conflicts with user dialog
+   */
+  async performPartialSync(vaultId: string): Promise<void> {
+    try {
+      // 1. Create .lock file to prevent concurrent syncs
+      await this.createLockFile(vaultId);
+
+      // 2. Download .repository.json from provider
+      const remoteRepo = await this.getRemoteRepository(vaultId);
+      const localRepo = await this.getLocalRepository(vaultId);
+
+      // 3. Compare and identify changes
+      const changes = this.compareRepositories(localRepo, remoteRepo);
+
+      // 4. Detect conflicts
+      if (changes.conflicts.length > 0) {
+        // Show conflict dialog to user
+        const resolution = await this.showConflictDialog(changes.conflicts);
+        this.applyConflictResolution(changes, resolution);
+      }
+
+      // 5. Sync only changed files
+      await this.syncChangedFiles(vaultId, changes);
+
+      // 6. Update local .repository.json
+      await this.updateLocalRepository(vaultId, remoteRepo);
+
+      // 7. Remove .lock file
+      await this.removeLockFile(vaultId);
+    } catch (error) {
+      console.error('Partial sync failed:', error);
+      await this.removeLockFile(vaultId); // Clean up lock
+      throw error;
+    }
+  }
+
+  /**
+   * Get remote .repository.json file from provider
+   */
+  private async getRemoteRepository(vaultId: string): Promise<Repository> {
+    // Download .repository.json from current provider
+    const repoFile = await this.loadFromProvider(`${vaultId}/.repository.json`);
+    return JSON.parse(repoFile);
+  }
+
+  /**
+   * Get local .repository.json from IndexedDB
+   */
+  private async getLocalRepository(vaultId: string): Promise<Repository | null> {
+    const repo = await db.repositories.get(vaultId);
+    return repo || null;
+  }
+
+  /**
+   * Compare local and remote repositories to find changes
+   */
+  private compareRepositories(local: Repository | null, remote: Repository): SyncChanges {
+    const changes: SyncChanges = {
+      toDownload: [],
+      toUpload: [],
+      toDelete: [],
+      conflicts: []
+    };
+
+    // Files to download (remote newer or missing locally)
+    for (const fileId in remote.files) {
+      const remoteFile = remote.files[fileId];
+      const localFile = local?.files?.[fileId];
+
+      if (!localFile) {
+        changes.toDownload.push(fileId);
+      } else if (remoteFile.timestamp > localFile.timestamp) {
+        // Check if local was also modified (conflict)
+        if (localFile.timestamp > (local?.syncSettings?.lastSynced || 0)) {
+          changes.conflicts.push({ fileId, local: localFile, remote: remoteFile });
+        } else {
+          changes.toDownload.push(fileId);
+        }
+      }
+    }
+
+    // Files to upload (local newer or missing remotely)
+    if (local) {
+      for (const fileId in local.files) {
+        const localFile = local.files[fileId];
+        const remoteFile = remote.files[fileId];
+
+        if (!localFile.deleted) {
+          if (!remoteFile) {
+            changes.toUpload.push(fileId);
+          } else if (localFile.timestamp > remoteFile.timestamp) {
+            // Already handled in conflicts above
+            if (!changes.conflicts.find(c => c.fileId === fileId)) {
+              changes.toUpload.push(fileId);
+            }
+          }
+        }
+      }
+    }
+
+    // Files to delete (marked as deleted)
+    changes.toDelete = [...remote.deletedFiles, ...(local?.deletedFiles || [])];
+
+    return changes;
+  }
+
+  /**
+   * Show conflict dialog to user
+   */
+  private async showConflictDialog(conflicts: FileConflict[]): Promise<ConflictResolution> {
+    // This will be implemented in the UI layer
+    // For now, return a default resolution
+    return {
+      strategy: 'ask', // 'server' | 'local' | 'ask'
+      perFileResolutions: new Map()
+    };
+  }
+
+  /**
+   * Sync only changed files (not all files)
+   */
+  private async syncChangedFiles(vaultId: string, changes: SyncChanges): Promise<void> {
+    // Download changed files
+    for (const fileId of changes.toDownload) {
+      const doc = await this.loadFromProvider(fileId);
+      if (doc) {
+        await db.documents.put(doc);
+      }
+    }
+
+    // Upload changed files
+    for (const fileId of changes.toUpload) {
+      const doc = await db.documents.get(fileId);
+      if (doc) {
+        await this.syncToProvider(doc);
+      }
+    }
+
+    // Delete files
+    for (const fileId of changes.toDelete) {
+      await db.documents.delete(fileId);
+    }
+  }
+
+  /**
+   * Create .lock file to prevent concurrent syncs
+   */
+  private async createLockFile(vaultId: string): Promise<void> {
+    const lockFile = {
+      lockedAt: Date.now(),
+      lockedBy: 'device-id', // TODO: Get actual device ID
+      processId: 'sync-process-id'
+    };
+
+    // Upload .lock file to provider
+    await this.uploadToProvider(`${vaultId}/.lock`, JSON.stringify(lockFile));
+  }
+
+  /**
+   * Remove .lock file after sync
+   */
+  private async removeLockFile(vaultId: string): Promise<void> {
+    await this.deleteFromProvider(`${vaultId}/.lock`);
+  }
+
+  /**
    * Sync from provider in background (don't block UI)
+   *
+   * NOTE: This is a fallback for single-document sync.
+   * The main sync strategy is performPartialSync() which syncs only changed files.
    */
   private async syncFromProviderInBackground(documentId: string, providerFileId: string): Promise<void> {
     try {
@@ -939,6 +1281,61 @@ export class SyncManager {
       // Don't throw - this is background operation
     }
   }
+}
+
+// Types for partial sync
+interface Repository {
+  repositoryId: string;
+  name: string;
+  version: string;
+  lastUpdated: number;
+  files: Record<string, RepositoryFile>;
+  folders: Record<string, RepositoryFolder>;
+  deletedFiles: string[];
+  deletedFolders: string[];
+  syncSettings?: {
+    conflictResolution: 'server' | 'local' | 'ask';
+    lastSynced: number;
+  };
+}
+
+interface RepositoryFile {
+  id: string;
+  path: string;
+  name: string;
+  type: 'mindmap' | 'document' | 'folder' | 'other';
+  timestamp: number;
+  size: number;
+  checksum?: string;
+  deleted?: boolean;
+}
+
+interface RepositoryFolder {
+  id: string;
+  path: string;
+  name: string;
+  timestamp: number;
+  parentId?: string;
+  fileIds: string[];
+  folderIds: string[];
+}
+
+interface SyncChanges {
+  toDownload: string[];
+  toUpload: string[];
+  toDelete: string[];
+  conflicts: FileConflict[];
+}
+
+interface FileConflict {
+  fileId: string;
+  local: RepositoryFile;
+  remote: RepositoryFile;
+}
+
+interface ConflictResolution {
+  strategy: 'server' | 'local' | 'ask';
+  perFileResolutions: Map<string, 'server' | 'local'>;
 }
 
 // Singleton instance
@@ -1295,7 +1692,12 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 **Solution**: Create mock subscription with hardcoded dev user (you)
 
 ### Issue #4: Missing Sync Strategy ✅
-**Solution**: Save to IndexedDB first, queue provider sync, load from IndexedDB first
+**Solution**: Partial sync using `.repository.json` file - only sync changed files, not all files
+- Download `.repository.json` (small file with timestamps)
+- Compare with local repository to find changes
+- Sync only changed files (efficient)
+- Use `.lock` file to prevent concurrent syncs
+- Show conflict dialog if both local and remote modified
 
 ### Issue #5: Integration with Unified Store is Too Complex ✅
 **Solution**: Use composables pattern, keep store minimal, separate concerns
