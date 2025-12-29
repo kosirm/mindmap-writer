@@ -12,7 +12,7 @@ Manage Files
 
 All these operations are working directly with the files on google drive.
 From now on we should operate exclusevly with files/folders in indexedDB.
-Currently I cannot see that indexedDB is even created in chrome dev tools - application...
+Currently I cannot see that indexedDB is even created in chrome dev tools - application... (can you check why it is not there?)
 
 For file management of the files in indexedDB I would copletly renew this file management drawer tab.
 I would use almost exactly the same component as we are using in outline for nodes (we can copy/paste this compnent and just make changes to it or we can make a new component - as you wish) - with these differences:
@@ -23,3 +23,9 @@ Drag/drop should also be upgraded, because we cannot drop one file as a child no
 Root node is vault (repository) and there can be only one root node. We will be working with one vault at a time - so if we have one vault in indexedDB, there should be also only one vault in file management.
 What if user wants to move some files/folders from one repository to another repository?
 For this we will add (later) export/import functionality.
+Ok, we would also need some vault operations:
+New Vault
+Open Vault
+Delete Vault
+
+

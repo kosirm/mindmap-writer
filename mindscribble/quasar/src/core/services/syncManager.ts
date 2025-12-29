@@ -1,9 +1,9 @@
 // mindscribble/quasar/src/core/services/syncManager.ts
 import { db } from './indexedDBService';
-import { updateMindmapFile, loadMindmapFile, createMindmapFile, getOrCreateAppFolder } from './googleDriveService';
+import { updateMindmapFile, loadMindmapFile, createMindmapFile, getOrCreateAppFolder, findCentralIndexFile } from './googleDriveService';
 import { NetworkError, StorageError } from '../errors';
 import type { MindscribbleDocument } from '../types';
-import type { ProviderMetadata, Repository, RepositoryFile } from './indexedDBService';
+import type { ProviderMetadata, Repository, RepositoryFile, CentralIndex, VaultMetadata } from './indexedDBService';
 
 /**
  * Manages synchronization between IndexedDB and storage providers
@@ -508,6 +508,215 @@ export class SyncManager {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _resolution = resolution; // Keep parameter for future implementation
     changes.conflicts = [];
+  }
+
+  /**
+   * Download central index from Google Drive and store in IndexedDB
+   */
+  async downloadCentralIndex(): Promise<CentralIndex> {
+    try {
+      const appFolderId = await getOrCreateAppFolder();
+
+      // Check if central index file exists
+      const existingFile = await findCentralIndexFile(appFolderId);
+
+      if (existingFile) {
+        // Download existing central index
+        const centralIndexContent = await loadMindmapFile(existingFile.id);
+        const centralIndex = JSON.parse(centralIndexContent as unknown as string) as CentralIndex;
+
+        // Store in IndexedDB
+        const centralIndexWithId = { ...centralIndex, id: 'central' };
+        await db.centralIndex.put(centralIndexWithId);
+
+        // Store individual vault metadata
+        for (const vaultId in centralIndex.vaults) {
+          const vault = centralIndex.vaults[vaultId];
+          if (vault) {
+            await db.vaultMetadata.put(vault);
+          }
+        }
+
+        console.log('✅ Central index downloaded and stored');
+        return centralIndex;
+      } else {
+        // Create default central index for new users
+        return this.createDefaultCentralIndex();
+      }
+    } catch (error: unknown) {
+      console.error('❌ Failed to download central index:', error);
+
+      // If download fails, try to use cached version or create default
+      const cachedIndex = await db.centralIndex.get('central');
+      if (cachedIndex) {
+        console.log('ℹ️ Using cached central index');
+        return cachedIndex;
+      }
+
+      // Create default central index as fallback
+      return this.createDefaultCentralIndex();
+    }
+  }
+
+  /**
+   * Create default central index for new users
+   */
+  async createDefaultCentralIndex(): Promise<CentralIndex> {
+    const appFolderId = await getOrCreateAppFolder();
+
+    const defaultCentralIndex: CentralIndex = {
+      id: 'central',
+      version: '1.0',
+      lastUpdated: Date.now(),
+      vaults: {
+        'default-vault': {
+          id: 'default-vault',
+          name: 'My Vault',
+          description: 'Default vault',
+          created: Date.now(),
+          modified: Date.now(),
+          folderId: appFolderId,
+          repositoryFileId: '', // Will be set after first sync
+          fileCount: 0,
+          folderCount: 0,
+          size: 0,
+          isActive: true
+        }
+      }
+    };
+
+    // Store in IndexedDB
+    await db.centralIndex.put(defaultCentralIndex);
+    const defaultVault = defaultCentralIndex.vaults['default-vault'];
+    if (defaultVault) {
+      await db.vaultMetadata.put(defaultVault);
+    }
+
+    console.log('✅ Default central index created');
+    return defaultCentralIndex;
+  }
+
+  /**
+   * Sync central index to Google Drive
+   */
+  async syncCentralIndexToDrive(centralIndex: CentralIndex): Promise<void> {
+    try {
+      const appFolderId = await getOrCreateAppFolder();
+
+      // Check if central index file exists
+      const existingFile = await findCentralIndexFile(appFolderId);
+
+      if (existingFile) {
+        // Update existing file
+        await updateMindmapFile(existingFile.id, centralIndex);
+        console.log('✅ Central index updated on Google Drive');
+      } else {
+        // Create new file
+        await createMindmapFile(appFolderId, '.mindscribble', centralIndex);
+        console.log('✅ Central index created on Google Drive');
+      }
+
+      // Update sync status
+      await db.providerMetadata.put({
+        id: 'central:googleDrive',
+        documentId: 'central',
+        providerId: this.currentProvider,
+        lastSyncedAt: Date.now(),
+        syncStatus: 'synced'
+      });
+    } catch (error: unknown) {
+      console.error('❌ Failed to sync central index to Google Drive:', error);
+
+      // Update sync status to error
+      await db.providerMetadata.put({
+        id: 'central:googleDrive',
+        documentId: 'central',
+        providerId: this.currentProvider,
+        lastSyncedAt: Date.now(),
+        syncStatus: 'error',
+        syncError: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      throw new NetworkError('Failed to sync central index', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Update central index when vault metadata changes
+   */
+  async updateCentralIndex(vaultId: string, updates: Partial<VaultMetadata>): Promise<void> {
+    // Get current central index
+    const centralIndex = await db.centralIndex.get('central');
+
+    if (!centralIndex) {
+      throw new StorageError('Central index not found');
+    }
+
+    // Update vault metadata
+    if (centralIndex.vaults[vaultId]) {
+      centralIndex.vaults[vaultId] = { ...centralIndex.vaults[vaultId], ...updates };
+      centralIndex.lastUpdated = Date.now();
+
+      // Update in IndexedDB
+      await db.centralIndex.put(centralIndex);
+      await db.vaultMetadata.update(vaultId, updates);
+
+      // Sync to Google Drive if online
+      if (navigator.onLine) {
+        await this.syncCentralIndexToDrive(centralIndex);
+      }
+    } else {
+      console.warn(`Vault ${vaultId} not found in central index`);
+    }
+  }
+
+  /**
+   * Find active vault ID from central index
+   */
+  async findActiveVaultId(): Promise<string | undefined> {
+    const centralIndex = await db.centralIndex.get('central');
+
+    if (!centralIndex) {
+      return undefined;
+    }
+
+    // Find first vault marked as active
+    for (const vaultId in centralIndex.vaults) {
+      const vault = centralIndex.vaults[vaultId];
+      if (vault?.isActive) {
+        return vaultId;
+      }
+    }
+
+    // If no active vault, return first vault
+    const vaultIds = Object.keys(centralIndex.vaults);
+    return vaultIds.length > 0 ? vaultIds[0] : undefined;
+  }
+
+  /**
+   * Initialize sync with central index support
+   */
+  async initializeSync(): Promise<void> {
+    // 1. Download central index
+    const centralIndex = await this.downloadCentralIndex();
+
+    // 2. Find active vault
+    const activeVaultId = await this.findActiveVaultId();
+
+    if (activeVaultId) {
+      const activeVault = centralIndex.vaults[activeVaultId];
+
+      // 3. Download active vault's repository
+      if (activeVault?.repositoryFileId) {
+        await this.performPartialSync(activeVaultId);
+      } else {
+        console.log('ℹ️ Active vault has no repository file ID yet');
+      }
+    } else {
+      console.log('ℹ️ No active vault found');
+    }
   }
 }
 

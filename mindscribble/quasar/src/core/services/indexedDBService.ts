@@ -43,6 +43,34 @@ export interface ProviderMetadata {
 }
 
 /**
+ * Central index for vault management
+ * Stores metadata about all available vaults
+ */
+export interface CentralIndex {
+  id: string; // Always 'central'
+  version: string; // Schema version "1.0"
+  lastUpdated: number; // Unix timestamp
+  vaults: Record<string, VaultMetadata>;
+}
+
+/**
+ * Metadata for individual vaults
+ */
+export interface VaultMetadata {
+  id: string; // Vault ID (UUID)
+  name: string; // Vault name
+  description?: string; // Optional description
+  created: number; // Creation timestamp
+  modified: number; // Last modification timestamp
+  folderId: string; // Google Drive folder ID
+  repositoryFileId: string; // Google Drive file ID for .repository.json
+  fileCount: number; // Number of files in vault
+  folderCount: number; // Number of folders in vault
+  size: number; // Total size in bytes
+  isActive?: boolean; // Currently active vault
+}
+
+/**
  * Repository metadata for partial sync strategy
  */
 export interface Repository {
@@ -97,8 +125,10 @@ export class MindScribbleDB extends Dexie {
   nodes!: Table<MindscribbleNode, string>;
   settings!: Table<DatabaseSettings, string>;
   errorLogs!: Table<ErrorLog, string>;
-  providerMetadata!: Table<ProviderMetadata, string>; // NEW: Multi-provider support
-  repositories!: Table<Repository, string>; // NEW: Store .repository.json locally
+  providerMetadata!: Table<ProviderMetadata, string>; // Multi-provider support
+  repositories!: Table<Repository, string>; // Store .repository.json locally
+  centralIndex!: Table<CentralIndex, string>; // NEW: Store central vault index
+  vaultMetadata!: Table<VaultMetadata, string>; // NEW: Store individual vault metadata
 
   constructor() {
     super('MindScribbleDB');
@@ -109,12 +139,53 @@ export class MindScribbleDB extends Dexie {
       nodes: 'id, mapId, vaultId, modified',
       settings: 'id',
       errorLogs: 'id, timestamp',
-      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus', // NEW
-      repositories: 'repositoryId, lastUpdated' // NEW: For partial sync
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated'
+    });
+
+    // Version 2 - Add vault management support
+    this.version(2).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id', // NEW: Central vault index
+      vaultMetadata: 'id, folderId, isActive' // NEW: Individual vault metadata
+    }).upgrade(tx => {
+      // Migration logic from v1 to v2
+      // Create default central index for existing users
+      const defaultCentralIndex: CentralIndex = {
+        id: 'central',
+        version: '1.0',
+        lastUpdated: Date.now(),
+        vaults: {
+          'default-vault': {
+            id: 'default-vault',
+            name: 'My Vault',
+            description: 'Default vault created during migration',
+            created: Date.now(),
+            modified: Date.now(),
+            folderId: '', // Will be populated during first sync
+            repositoryFileId: '', // Will be populated during first sync
+            fileCount: 0,
+            folderCount: 0,
+            size: 0,
+            isActive: true
+          }
+        }
+      };
+
+      // Store default central index
+      void tx.table('centralIndex').add(defaultCentralIndex);
+
+      // Store default vault metadata
+      void tx.table('vaultMetadata').add(defaultCentralIndex.vaults['default-vault']);
     });
 
     // Future versions can be added here:
-    // this.version(2).stores({ ... }).upgrade(tx => { ... });
+    // this.version(3).stores({ ... }).upgrade(tx => { ... });
   }
 }
 

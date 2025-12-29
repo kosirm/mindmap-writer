@@ -289,6 +289,34 @@ export async function deleteMindmapFile(fileId: string): Promise<void> {
 }
 
 /**
+ * Find the central index file (.mindscribble) in the app folder
+ */
+export async function findCentralIndexFile(folderId: string): Promise<DriveFileMetadata | null> {
+  try {
+    const response = await gapi.client.drive.files.list({
+      q: `name='.mindscribble' and mimeType='${MIME_TYPE_JSON}' and trashed=false and '${folderId}' in parents`,
+      fields: 'files(id, name)',
+      spaces: 'drive'
+    })
+
+    const files = response.result.files
+    if (files && files.length > 0 && files[0]) {
+      return {
+        id: files[0].id ?? '',
+        name: files[0].name ?? '',
+        mimeType: MIME_TYPE_JSON,
+        createdTime: '',
+        modifiedTime: ''
+      }
+    }
+    return null
+  } catch (error) {
+    console.error('❌ Error finding central index file:', error)
+    throw error
+  }
+}
+
+/**
  * Get file metadata
  */
 export async function getFileMetadata(fileId: string): Promise<DriveFileMetadata> {
