@@ -1,0 +1,2 @@
+App is in active development mode, it is not alive and has no users (except the main developer) so for implementation we don't need any complicated migrations. We do all development in dedicated branch and then merge to main when it is ready for release.
+
