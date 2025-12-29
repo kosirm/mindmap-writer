@@ -232,7 +232,6 @@ import AIChat from 'src/features/ai/components/AIChat.vue'
 import { registerCommands, handleKeyboardEvent, initCommandAPI, updateContext } from 'src/core/commands'
 import { allCommands } from 'src/core/commands/definitions'
 import { signIn, signOut } from 'src/boot/google-api'
-import { useAutosave } from 'src/composables/useAutosave'
 import {
   updateMindmapFile,
   type DriveFileMetadata
@@ -252,7 +251,8 @@ const driveStore = useGoogleDriveStore()
 const panelStore = usePanelStore()
 
 // Initialize autosave (2 second debounce)
-useAutosave(2000)
+// Note: We'll need to implement this properly once we have the document ref
+// useAutosave(unifiedStore.activeDocument, 2000)
 
 // Left drawer state
 const leftDrawerTab = ref('tools')

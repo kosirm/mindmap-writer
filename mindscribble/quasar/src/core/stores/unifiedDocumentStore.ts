@@ -31,6 +31,7 @@ import {
   serializeDocument,
   deserializeDocument
 } from '../utils/propertySerialization'
+import { subscriptionService, viewAvailabilityManager } from '../services'
 
 /**
  * Document instance with its associated state
@@ -1256,6 +1257,52 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   // ============================================================
+  // SUBSCRIPTION-AWARE METHODS
+  // ============================================================
+
+  /**
+   * Check if a view is available for current subscription
+   */
+  function isViewAvailable(viewType: ViewType): Promise<boolean> {
+    return viewAvailabilityManager.isViewAvailable(viewType)
+  }
+
+  /**
+   * Get all available views for current subscription
+   */
+  function getAvailableViews(): Promise<ViewType[]> {
+    return viewAvailabilityManager.getAvailableViews()
+  }
+
+  /**
+   * Get unavailable views (for upsell prompts)
+   */
+  function getUnavailableViews(): Promise<ViewType[]> {
+    return viewAvailabilityManager.getUnavailableViews()
+  }
+
+  /**
+   * Check if user has access to a specific plan level
+   */
+  function hasPlanLevel(requiredLevel: number): Promise<boolean> {
+    return subscriptionService.hasPlanLevel(requiredLevel)
+  }
+
+  /**
+   * Check if subscription is active
+   */
+  function isSubscriptionActive(): Promise<boolean> {
+    return subscriptionService.isActive()
+  }
+
+  /**
+   * Get current subscription information
+   */
+  function getCurrentSubscription() {
+    return subscriptionService.getCurrentSubscription()
+  }
+
+  // ============================================================
   // PUBLIC API
   // ============================================================
 
@@ -1352,6 +1399,14 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     emitNodesSelected,
     emitViewChanged,
     emitNodeLoaded,
-    emitDocumentCleared
+    emitDocumentCleared,
+
+    // Subscription-aware methods
+    isViewAvailable,
+    getAvailableViews,
+    getUnavailableViews,
+    hasPlanLevel,
+    isSubscriptionActive,
+    getCurrentSubscription
   }
 })
