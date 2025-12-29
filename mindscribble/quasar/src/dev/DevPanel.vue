@@ -5,15 +5,37 @@
       Dev Tools
     </div>
 
-    <!-- View-specific sections -->
-    <q-expansion-item
-      default-closed
-      icon="graph_1"
-      label="Mindmap"
-      header-class="text-primary"
-    >
-      <MindmapDevTools />
-    </q-expansion-item>
+    <!-- APP Section (Subscription Level Selector) -->
+      <div class="q-mb-md">
+        <div class="text-subtitle2 q-mb-xs">APP</div>
+        <q-btn-toggle
+          v-model="currentPlan"
+          toggle-color="primary"
+          :options="[
+            { label: 'Free', value: 'free' },
+            { label: 'Basic', value: 'basic' },
+            { label: 'Pro', value: 'pro' },
+            { label: 'Enterprise', value: 'enterprise' }
+          ]"
+          @update:model-value="setSubscriptionPlan"
+          class="full-width"
+          size="sm"
+          no-caps
+          unelevated
+        />
+      </div>
+
+      <q-separator class="q-my-md" />
+
+      <!-- View-specific sections -->
+      <q-expansion-item
+        default-closed
+        icon="graph_1"
+        label="Mindmap"
+        header-class="text-primary"
+      >
+        <MindmapDevTools />
+      </q-expansion-item>
 
     <q-expansion-item
       default-opened
@@ -59,11 +81,27 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
+import { useAppStore } from 'src/core/stores/appStore'
+import type { SubscriptionPlan } from 'src/core/types'
 import MindmapDevTools from './MindMapDevTools.vue'
 import WriterDevTools from './WriterDevTools.vue'
 
 const unifiedStore = useUnifiedDocumentStore()
+const appStore = useAppStore()
+
+// Subscription level selector - use appStore state
+const currentPlan = ref<SubscriptionPlan>(appStore.currentSubscriptionPlan)
+
+// Watch for changes in appStore and update local ref
+watch(() => appStore.currentSubscriptionPlan, (newPlan) => {
+  currentPlan.value = newPlan
+}, { immediate: true })
+
+function setSubscriptionPlan(plan: SubscriptionPlan) {
+  appStore.setSubscriptionPlan(plan)
+}
 
 function logStoreState() {
   console.log('[DevPanel] Store State:')
