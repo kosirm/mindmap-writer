@@ -191,7 +191,7 @@
 
 
     <!-- Main Content - Platform-specific Layout -->
-    <q-page-container>
+    <q-page-container :class="{ 'drawer-pinned': drawerPinned }">
       <div class="main-layout">
         <!-- Dockview layout for desktop -->
         <DockviewLayout v-if="!isMobile" ref="dockviewLayoutRef" />
@@ -735,6 +735,12 @@ onUnmounted(() => {
 // Adjust main content to account for mini sidebar
 .q-page-container {
   padding-left: 48px; // Offset by mini sidebar width
+  transition: padding-left 0.3s ease; // Smooth transition when drawer is pinned
+
+  // When drawer is pinned, add drawer width to the padding
+  &.drawer-pinned {
+    padding-left: 328px; // 48px (mini sidebar) + 280px (expanded drawer)
+  }
 }
 
 </style>
