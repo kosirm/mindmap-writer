@@ -237,6 +237,7 @@ import {
   type DriveFileMetadata
 } from 'src/core/services/googleDriveService'
 import type { MindscribbleDocument } from 'src/core/types'
+import type { FileSystemItem } from 'src/core/services/indexedDBService'
 
 // Dev tools - only imported in development mode (lazy loaded)
 const DevPanel = import.meta.env.DEV
@@ -270,7 +271,7 @@ const fileModalMode = ref<'save' | 'open' | 'manage'>('save')
 // Dockview layout reference (for file operations)
 const dockviewLayoutRef = ref<{
   addFile: () => void
-  openFileFromDrive: (document: MindscribbleDocument, driveFile: DriveFileMetadata) => void
+  openFileFromDrive: (document: MindscribbleDocument, driveFile: DriveFileMetadata | FileSystemItem) => void
 } | null>(null)
 
 // Handle mini sidebar hover - expand drawer temporarily
@@ -492,11 +493,11 @@ function onFileManage() {
 }
 
 // File modal event handlers
-function onFileSaved(file: DriveFileMetadata) {
+function onFileSaved(file: FileSystemItem) {
   console.log('✅ File saved:', file.name)
 }
 
-function onFileOpened(payload: { file: DriveFileMetadata; document: MindscribbleDocument }) {
+function onFileOpened(payload: { file: FileSystemItem; document: MindscribbleDocument }) {
   console.log('✅ File opened:', payload.file.name)
 
   // Open the file in a new dockview panel
