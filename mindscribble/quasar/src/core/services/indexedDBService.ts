@@ -6,6 +6,21 @@
 import Dexie, { type Table } from 'dexie';
 import type { MindscribbleDocument, MindscribbleNode } from '../types';
 
+export type FileSystemItemType = 'file' | 'folder';
+
+export interface FileSystemItem {
+  id: string;
+  vaultId: string;
+  parentId: string | null; // null for root items
+  name: string;
+  type: FileSystemItemType;
+  created: number;
+  modified: number;
+  size?: number; // For files
+  fileId?: string; // For files - reference to document ID
+  children?: string[]; // For folders - list of child IDs
+}
+
 export interface DatabaseSettings {
   id: string;
   compressionLevel: 'none' | 'balanced' | 'aggressive';
@@ -129,6 +144,7 @@ export class MindScribbleDB extends Dexie {
   repositories!: Table<Repository, string>; // Store .repository.json locally
   centralIndex!: Table<CentralIndex, string>; // NEW: Store central vault index
   vaultMetadata!: Table<VaultMetadata, string>; // NEW: Store individual vault metadata
+  fileSystem!: Table<FileSystemItem, string>; // NEW: Store file system items
 
   constructor() {
     super('MindScribbleDB');
@@ -184,8 +200,47 @@ export class MindScribbleDB extends Dexie {
       void tx.table('vaultMetadata').add(defaultCentralIndex.vaults['default-vault']);
     });
 
+    // Version 3 - Add file system support
+    this.version(3).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      fileSystem: 'id, vaultId, parentId, type, name' // NEW: File system items
+    }).upgrade(async (tx) => {
+      // Migration logic from v2 to v3
+      // Create fileSystem table (empty initially)
+      console.log('🗄️ [IndexedDB] Migrated to version 3 with file system support')
+
+      // Ensure the fileSystem store is properly created
+      const fileSystemTable = tx.table('fileSystem')
+      await fileSystemTable.toArray() // This ensures the store is accessible
+    })
+
+    // Version 4 - Ensure fileSystem store exists for databases that might have missed v3 migration
+    this.version(4).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      fileSystem: 'id, vaultId, parentId, type, name'
+    }).upgrade(async (tx) => {
+      // Ensure the fileSystem store is properly created and accessible
+      const fileSystemTable = tx.table('fileSystem')
+      await fileSystemTable.toArray() // This ensures the store is accessible
+      console.log('🗄️ [IndexedDB] Version 4: Ensured fileSystem store exists')
+    })
+
     // Future versions can be added here:
-    // this.version(3).stores({ ... }).upgrade(tx => { ... });
+    // this.version(5).stores({ ... }).upgrade(tx => { ... });
   }
 }
 

@@ -26,78 +26,106 @@
         </q-input>
       </q-card-section>
 
-      <!-- File List -->
+      <!-- Vault/Folder Browser -->
       <q-card-section v-if="mode === 'open' || mode === 'manage'" class="q-pt-sm">
-        <!-- Search -->
-        <q-input
-          ref="searchInput"
-          v-model="searchQuery"
-          placeholder="Search files..."
-          outlined
-          dense
-          class="q-mb-md"
-          @keydown="handleSearchKeydown"
-        >
-          <template #prepend>
-            <q-icon name="search" />
-          </template>
-          <template v-if="searchQuery" #append>
-            <q-icon name="close" class="cursor-pointer" @click="searchQuery = ''" />
-          </template>
-        </q-input>
-
-        <!-- Loading State -->
-        <div v-if="driveStore.isLoadingFiles" class="text-center q-pa-lg">
-          <q-spinner-dots size="40px" color="primary" />
-          <div class="q-mt-sm text-grey-6">Loading files...</div>
+        <!-- Vault Selector -->
+        <div class="q-mb-md">
+          <q-select
+            v-model="selectedVault"
+            :options="vaultOptions"
+            label="Vault"
+            outlined
+            dense
+            emit-value
+            map-options
+            @update:model-value="loadVaultStructure"
+          />
         </div>
 
-        <!-- Empty State -->
-        <div v-else-if="filteredFiles.length === 0" class="text-center q-pa-lg">
-          <q-icon name="folder_open" size="48px" color="grey-5" />
-          <div class="q-mt-sm text-grey-6">
-            {{ searchQuery ? 'No files match your search' : 'No mindmaps saved yet' }}
-          </div>
-        </div>
-
-        <!-- File List -->
-        <q-list v-else bordered separator class="rounded-borders file-list">
-          <q-item
-            v-for="file in filteredFiles"
-            :key="file.id"
-            clickable
-            :active="selectedFileId === file.id"
-            active-class="bg-primary text-white"
-            @click="selectFile(file)"
-          >
-            <q-item-section avatar>
-              <q-icon
-                name="description"
-                :color="selectedFileId === file.id ? 'white' : 'primary'"
-                class="cursor-pointer"
-                @click.stop="handleOpen(file)"
+        <!-- Folder Browser -->
+        <div class="folder-browser">
+          <!-- Navigation Path -->
+          <div class="navigation-path q-mb-sm">
+            <q-breadcrumbs>
+              <q-breadcrumbs-el
+                v-for="(crumb, index) in navigationPath"
+                :key="index"
+                :label="crumb.name"
+                :icon="index === 0 ? 'folder' : ''"
+                @click="navigateTo(crumb)"
+                :class="{ 'text-primary': index < navigationPath.length - 1 }"
               />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>{{ getDisplayName(file.name) }}</q-item-label>
-              <q-item-label caption :class="selectedFileId === file.id ? 'text-white' : ''">
-                Modified: {{ formatDate(file.modifiedTime) }}
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-btn
-                flat
-                round
-                dense
-                icon="delete"
-                :color="selectedFileId === file.id ? 'white' : 'negative'"
-                @click.stop="confirmDelete(file)"
+            </q-breadcrumbs>
+          </div>
+
+          <!-- File List -->
+          <q-list bordered separator class="file-list">
+            <!-- Loading State -->
+            <div v-if="isLoadingFiles" class="text-center q-pa-lg">
+              <q-spinner-dots size="40px" color="primary" />
+              <div class="q-mt-sm text-grey-6">Loading files...</div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else-if="currentItems.length === 0" class="text-center q-pa-lg">
+              <q-icon name="folder_open" size="48px" color="grey-5" />
+              <div class="q-mt-sm text-grey-6">No items in this folder</div>
+            </div>
+
+            <!-- Items -->
+            <template v-else>
+              <!-- Folders -->
+              <q-item
+                v-for="folder in currentFolders"
+                :key="folder.id"
+                clickable
+                @click="openFolder(folder)"
               >
-                <q-tooltip>Delete</q-tooltip>
-              </q-btn>
-            </q-item-section>
-          </q-item>
-        </q-list>
+                <q-item-section avatar>
+                  <q-icon name="folder" color="amber-8" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ folder.name }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round dense icon="chevron_right" />
+                </q-item-section>
+              </q-item>
+
+              <!-- Files -->
+              <q-item
+                v-for="file in currentFiles"
+                :key="file.id"
+                clickable
+                :active="selectedFileId === file.id"
+                active-class="bg-primary text-white"
+                @click="selectFile(file)"
+              >
+                <q-item-section avatar>
+                  <q-icon name="description" color="blue-6" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ getDisplayName(file.name) }}</q-item-label>
+                  <q-item-label caption>
+                    Modified: {{ formatDate(file.modified) }}
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="delete"
+                    color="negative"
+                    @click.stop="confirmDelete(file)"
+                  >
+                    <q-tooltip>Delete</q-tooltip>
+                  </q-btn>
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-list>
+        </div>
       </q-card-section>
 
       <!-- Actions -->
@@ -132,7 +160,7 @@
         <q-card-section>
           Are you sure you want to delete "{{ fileToDelete?.name }}"?
           <br />
-          <span class="text-caption text-grey">This will move the file to Google Drive trash.</span>
+          <span class="text-caption text-grey">This will remove the file from your vault.</span>
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancel" v-close-popup />
@@ -152,17 +180,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useQuasar } from 'quasar'
-import { useGoogleDriveStore, useAuthStore } from 'src/core/stores'
+import { useVault } from 'src/composables/useVault'
+import { useFileSystem } from 'src/composables/useFileSystem'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
-import {
-  getOrCreateAppFolder,
-  listMindmapFiles,
-  createMindmapFile,
-  updateMindmapFile,
-  loadMindmapFile,
-  deleteMindmapFile,
-  type DriveFileMetadata
-} from 'src/core/services/googleDriveService'
+import type { FileSystemItem } from 'src/core/services/indexedDBService'
 import type { MindscribbleDocument } from 'src/core/types'
 
 // Props
@@ -173,29 +194,33 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
-  (e: 'saved', file: DriveFileMetadata): void
-  (e: 'opened', payload: { file: DriveFileMetadata; document: MindscribbleDocument }): void
+  (e: 'saved', file: FileSystemItem): void
+  (e: 'opened', payload: { file: FileSystemItem; document: MindscribbleDocument }): void
   (e: 'deleted', fileId: string): void
 }>()
 
-// Stores
+// Stores and services
 const $q = useQuasar()
-const driveStore = useGoogleDriveStore()
-const authStore = useAuthStore()
+const vaultService = useVault()
+const fileSystemService = useFileSystem()
 const unifiedStore = useUnifiedDocumentStore()
 
 // State
 const fileName = ref('')
-const searchQuery = ref('')
 const selectedFileId = ref<string | null>(null)
 const isSaving = ref(false)
 const isLoading = ref(false)
 const isDeleting = ref(false)
 const showDeleteConfirm = ref(false)
-const fileToDelete = ref<DriveFileMetadata | null>(null)
+const fileToDelete = ref<FileSystemItem | null>(null)
+const isLoadingFiles = ref(false)
 
-// Refs
-const searchInput = ref()
+// Vault and navigation state
+const selectedVault = ref<string | null>(null)
+const vaultOptions = ref<{ label: string; value: string }[]>([])
+const currentFolderId = ref<string | null>(null)
+const currentItems = ref<FileSystemItem[]>([])
+const navigationPath = ref<{ id: string | null; name: string }[]>([])
 
 // Computed
 const isOpen = computed({
@@ -205,7 +230,7 @@ const isOpen = computed({
 
 const modeTitle = computed(() => {
   switch (props.mode) {
-    case 'save': return driveStore.hasOpenFile ? 'Save Mindmap' : 'Save Mindmap As'
+    case 'save': return vaultService.hasActiveVault ? 'Save Mindmap' : 'Save Mindmap As'
     case 'open': return 'Open Mindmap'
     case 'manage': return 'Manage Files'
     default: return 'File Operations'
@@ -221,12 +246,12 @@ const modeIcon = computed(() => {
   }
 })
 
-const filteredFiles = computed(() => {
-  if (!searchQuery.value) return driveStore.fileList
-  const query = searchQuery.value.toLowerCase()
-  return driveStore.fileList.filter(f =>
-    f.name.toLowerCase().includes(query)
-  )
+const currentFolders = computed(() => {
+  return currentItems.value.filter(item => item.type === 'folder')
+})
+
+const currentFiles = computed(() => {
+  return currentItems.value.filter(item => item.type === 'file')
 })
 
 // Watch for dialog open to load files
@@ -234,54 +259,105 @@ watch(() => props.modelValue, async (open) => {
   if (open) {
     // Initialize file name from document name if saving
     if (props.mode === 'save') {
-      fileName.value = driveStore.currentFileName || unifiedStore.activeDocument?.metadata.name || 'Untitled'
+      fileName.value = unifiedStore.activeDocument?.metadata.name || 'Untitled'
     }
-    // Load files if opening or managing
+
+    // Load vaults and structure if opening or managing
     if (props.mode === 'open' || props.mode === 'manage') {
-      await loadFiles()
-      // Auto-focus search input and select first item
+      await loadVaults()
       await nextTick()
-      if (searchInput.value) {
-        searchInput.value.focus()
+      if (vaultOptions.value.length > 0 && vaultOptions.value[0]) {
+        selectedVault.value = vaultOptions.value[0].value
+        await loadVaultStructure()
       }
-      selectFirstItem()
     }
   } else {
     // Reset state on close
-    searchQuery.value = ''
     selectedFileId.value = null
+    fileToDelete.value = null
   }
 })
 
-// Watch for search query changes to update selection
-watch(searchQuery, () => {
-  selectFirstItem()
-})
-
 // Methods
-async function loadFiles() {
-  if (!authStore.isSignedIn) return
-
-  driveStore.setLoadingFiles(true)
+async function loadVaults() {
   try {
-    // Ensure app folder exists
-    let folderId = driveStore.appFolderId
-    if (!folderId) {
-      folderId = await getOrCreateAppFolder()
-      driveStore.setAppFolderId(folderId)
-    }
-
-    // Load files
-    const result = await listMindmapFiles(folderId)
-    driveStore.setFileList(result.files)
+    await vaultService.loadVaults()
+    const vaults = vaultService.vaults.value
+    vaultOptions.value = vaults.map(vault => ({
+      label: vault.name,
+      value: vault.id
+    }))
   } catch (error) {
-    console.error('Failed to load files:', error)
+    console.error('Failed to load vaults:', error)
     $q.notify({
       type: 'negative',
-      message: 'Failed to load files from Google Drive'
+      message: 'Failed to load vaults'
+    })
+  }
+}
+
+async function loadVaultStructure() {
+  if (!selectedVault.value) return
+
+  isLoadingFiles.value = true
+  try {
+    // Reset navigation
+    currentFolderId.value = null
+    navigationPath.value = [{ id: null, name: 'Root' }]
+
+    // Load vault structure
+    await fileSystemService.loadStructure(selectedVault.value)
+    const structure = fileSystemService.vaultStructure.value
+    currentItems.value = structure.filter(item => item.parentId === null)
+
+  } catch (error) {
+    console.error('Failed to load vault structure:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to load vault structure'
+    })
+    currentItems.value = []
+  } finally {
+    isLoadingFiles.value = false
+  }
+}
+
+async function openFolder(folder: FileSystemItem) {
+  isLoadingFiles.value = true
+  try {
+    // Update navigation path
+    navigationPath.value.push({ id: folder.id, name: folder.name })
+    currentFolderId.value = folder.id
+
+    // Load folder contents
+    const structure = await fileSystemService.getVaultStructureById(selectedVault.value || '')
+    currentItems.value = structure.filter((item: FileSystemItem) => item.parentId === folder.id)
+
+  } catch (error) {
+    console.error('Failed to open folder:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to open folder'
     })
   } finally {
-    driveStore.setLoadingFiles(false)
+    isLoadingFiles.value = false
+  }
+}
+
+function navigateTo(crumb: { id: string | null; name: string }) {
+  // Find the index of the crumb in the path
+  const index = navigationPath.value.findIndex(p => p.id === crumb.id)
+  if (index >= 0) {
+    // Truncate path to this point
+    navigationPath.value = navigationPath.value.slice(0, index + 1)
+    currentFolderId.value = crumb.id
+
+    // Reload items for this folder
+    if (selectedVault.value) {
+      void fileSystemService.getVaultStructureById(selectedVault.value).then((structure: FileSystemItem[]) => {
+        currentItems.value = structure.filter((item: FileSystemItem) => item.parentId === crumb.id)
+      })
+    }
   }
 }
 
@@ -289,22 +365,17 @@ async function handleSave() {
   if (!fileName.value.trim()) return
 
   isSaving.value = true
-  driveStore.setSyncStatus('saving')
 
   try {
-    // Ensure app folder exists
-    let folderId = driveStore.appFolderId
-    if (!folderId) {
-      folderId = await getOrCreateAppFolder()
-      driveStore.setAppFolderId(folderId)
+    // Get active vault
+    await vaultService.loadVaults()
+    const activeVault = vaultService.activeVault.value
+    if (!activeVault) {
+      throw new Error('No active vault')
     }
 
     // Get document data from the unified store
     const document = unifiedStore.toDocument()
-    console.log('💾 Getting document from unified store:', {
-      nodeCount: document?.nodes.length,
-      edgeCount: document?.edges.length
-    })
 
     if (!document) {
       throw new Error('No active document to save')
@@ -312,64 +383,16 @@ async function handleSave() {
 
     document.metadata.name = fileName.value.trim()
 
-    // Include child dockview layout from localStorage using document ID
-    const documentId = document.metadata.id
-    const storageKey = `dockview-child-${documentId}-layout`
-    console.log('💾 Document ID:', documentId)
-    console.log('💾 Storage key:', storageKey)
+    // Save to file system
+    const savedFile = await fileSystemService.createNewFile(
+      activeVault.id,
+      currentFolderId.value,
+      fileName.value.trim(),
+      document
+    )
 
-    const savedLayout = localStorage.getItem(storageKey)
-    if (savedLayout) {
-      try {
-        document.dockviewLayout = JSON.parse(savedLayout)
-        document.dockviewLayoutId = documentId
-        console.log('✅ Including dockview layout from localStorage in saved document')
-      } catch (error) {
-        console.error('Failed to parse layout from localStorage:', error)
-      }
-    } else {
-      console.warn('⚠️ No child layout found in localStorage:', storageKey)
-    }
-
-    let savedFile: DriveFileMetadata
-
-    if (driveStore.currentFile) {
-      // Update existing file
-      savedFile = await updateMindmapFile(
-        driveStore.currentFile.id,
-        document,
-        fileName.value.trim()
-      )
-      driveStore.updateFileInList(savedFile)
-    } else {
-      // Create new file
-      savedFile = await createMindmapFile(
-        folderId,
-        fileName.value.trim(),
-        document
-      )
-      driveStore.addFileToList(savedFile)
-    }
-
-    driveStore.setCurrentFile(savedFile)
-
-    // Mark document as clean in the unified store
-    if (unifiedStore.activeDocumentId) {
-      unifiedStore.markClean(unifiedStore.activeDocumentId)
-      // Update document name in unified store
-      unifiedStore.updateDocumentMetadata(unifiedStore.activeDocumentId, {
-        name: fileName.value.trim()
-      })
-      console.log('✅ Marked document as clean in unified store')
-    }
-
-    // Show "synced" status briefly
-    driveStore.setSyncStatus('synced')
-    setTimeout(() => {
-      if (driveStore.syncStatus === 'synced') {
-        driveStore.setSyncStatus('idle')
-      }
-    }, 3000)
+    // Update vault file count
+    await vaultService.incrementFileCount()
 
     $q.notify({
       type: 'positive',
@@ -380,103 +403,54 @@ async function handleSave() {
     isOpen.value = false
   } catch (error) {
     console.error('Failed to save file:', error)
-    driveStore.setSyncError('Failed to save file')
     $q.notify({
       type: 'negative',
-      message: 'Failed to save to Google Drive'
+      message: 'Failed to save file'
     })
   } finally {
     isSaving.value = false
   }
 }
 
-function selectFile(file: DriveFileMetadata) {
+function selectFile(file: FileSystemItem) {
   selectedFileId.value = file.id
-}
-
-function selectFirstItem() {
-  if (filteredFiles.value.length > 0) {
-    selectedFileId.value = filteredFiles.value[0]?.id ?? null
-  } else {
-    selectedFileId.value = null
-  }
-}
-
-function handleSearchKeydown(event: KeyboardEvent) {
-  if (props.mode !== 'open' && props.mode !== 'manage') return
-
-  const files = filteredFiles.value
-  if (files.length === 0) return
-
-  const currentIndex = selectedFileId.value
-    ? files.findIndex(f => f.id === selectedFileId.value)
-    : -1
-
-  switch (event.key) {
-    case 'ArrowDown': {
-      event.preventDefault()
-      const nextIndex = currentIndex < files.length - 1 ? currentIndex + 1 : 0
-      selectedFileId.value = files[nextIndex]?.id ?? null
-      break
-    }
-    case 'ArrowUp': {
-      event.preventDefault()
-      const prevIndex = currentIndex > 0 ? currentIndex - 1 : files.length - 1
-      selectedFileId.value = files[prevIndex]?.id ?? null
-      break
-    }
-    case 'Enter': {
-      event.preventDefault()
-      if (selectedFileId.value) {
-        const selectedFile = files.find(f => f.id === selectedFileId.value)
-        if (selectedFile) {
-          void handleOpen(selectedFile)
-        }
-      }
-      break
-    }
-  }
-}
-
-async function handleOpen(file: DriveFileMetadata) {
-  selectedFileId.value = file.id
-  await handleOpenSelected()
 }
 
 async function handleOpenSelected() {
   if (!selectedFileId.value) return
 
-  const file = driveStore.fileList.find(f => f.id === selectedFileId.value)
-  if (!file) return
+  const file = currentItems.value.find(f => f.id === selectedFileId.value)
+  if (!file || file.type !== 'file') return
 
   isLoading.value = true
-  driveStore.setSyncStatus('loading')
 
   try {
-    const content = await loadMindmapFile(file.id) as MindscribbleDocument
+    // Get file content
+    const content = await fileSystemService.getFileContentFromItem(file.id)
+    if (!content) {
+      throw new Error('Failed to get file content')
+    }
 
     $q.notify({
       type: 'positive',
       message: `Opened "${getDisplayName(file.name)}"`
     })
 
-    // Emit the file and document content to MainLayout
+    // Emit the file and document content
     emit('opened', { file, document: content })
     isOpen.value = false
   } catch (error) {
     console.error('Failed to load file:', error)
-    driveStore.setSyncError('Failed to load file')
     $q.notify({
       type: 'negative',
-      message: 'Failed to load file from Google Drive'
+      message: 'Failed to load file'
     })
   } finally {
     isLoading.value = false
-    driveStore.setSyncStatus('idle')
   }
 }
 
-function confirmDelete(file: DriveFileMetadata) {
+function confirmDelete(file: FileSystemItem) {
   fileToDelete.value = file
   showDeleteConfirm.value = true
 }
@@ -487,12 +461,13 @@ async function handleDelete() {
   isDeleting.value = true
 
   try {
-    await deleteMindmapFile(fileToDelete.value.id)
-    driveStore.removeFileFromList(fileToDelete.value.id)
+    // Delete the file
+    await fileSystemService.deleteExistingItem(fileToDelete.value.id)
 
-    // Clear current file if it was deleted
-    if (driveStore.currentFile?.id === fileToDelete.value.id) {
-      driveStore.clearCurrentFile()
+    // Get active vault and decrement file count
+    const activeVault = vaultService.activeVault.value
+    if (activeVault) {
+      await vaultService.decrementFileCount()
     }
 
     $q.notify({
@@ -503,6 +478,9 @@ async function handleDelete() {
     emit('deleted', fileToDelete.value.id)
     showDeleteConfirm.value = false
     fileToDelete.value = null
+
+    // Refresh the current view
+    await loadVaultStructure()
   } catch (error) {
     console.error('Failed to delete file:', error)
     $q.notify({
@@ -519,7 +497,7 @@ function getDisplayName(name: string): string {
   return name.replace('.mindscribble', '')
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string | number): string {
   const date = new Date(dateStr)
   return date.toLocaleDateString(undefined, {
     year: 'numeric',
@@ -536,6 +514,24 @@ function formatDate(dateStr: string): string {
   .file-list {
     max-height: 400px;
     overflow-y: auto;
+  }
+
+  .folder-browser {
+    display: flex;
+    flex-direction: column;
+    height: 400px;
+  }
+
+  .navigation-path {
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 4px;
+  }
+}
+
+.body--dark {
+  .folder-browser {
+    background: rgba(255, 255, 255, 0.02);
   }
 }
 </style>

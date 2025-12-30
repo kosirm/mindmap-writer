@@ -91,6 +91,9 @@ export interface DocumentMetadata {
   // DEPRECATED: Keep for backward compatibility with existing documents
   // Will be migrated to providers.googleDrive.fileId
   driveFileId?: string;
+
+  // Vault association for IndexedDB storage
+  vaultId?: string;
 }
 
 /**

@@ -33,6 +33,10 @@ export const useAppStore = defineStore('app', () => {
   // Subscription state - initialize with enterprise for development
   const currentSubscriptionPlan = ref<SubscriptionPlan>('enterprise')
 
+  // IndexedDB initialization state
+  const indexedDBInitialized = ref(false)
+  const indexedDBError = ref<string | null>(null)
+
   // Sync with Quasar Dark mode
   Dark.set(isDarkMode.value)
   // console.log('🎨 [AppStore] Initial dark mode:', isDarkMode.value)
@@ -88,6 +92,24 @@ export const useAppStore = defineStore('app', () => {
     console.log(`[AppStore] Subscription plan set to: ${plan}`)
   }
 
+  /**
+   * Set IndexedDB initialization status
+   */
+  function setIndexedDBInitialized(initialized: boolean) {
+    indexedDBInitialized.value = initialized
+    console.log(`[AppStore] IndexedDB initialized: ${initialized}`)
+  }
+
+  /**
+   * Set IndexedDB error
+   */
+  function setIndexedDBError(error: string | null) {
+    indexedDBError.value = error
+    if (error) {
+      console.error(`[AppStore] IndexedDB error: ${error}`)
+    }
+  }
+
   // Initialize online status listeners
   function initOnlineListeners() {
     window.addEventListener('online', () => setOnlineStatus(true))
@@ -108,6 +130,8 @@ export const useAppStore = defineStore('app', () => {
     isOnline,
     isDarkMode,
     currentSubscriptionPlan,
+    indexedDBInitialized,
+    indexedDBError,
 
     // Actions
     toggleLeftDrawer,
@@ -119,6 +143,8 @@ export const useAppStore = defineStore('app', () => {
     setOnlineStatus,
     toggleDarkMode,
     setSubscriptionPlan,
+    setIndexedDBInitialized,
+    setIndexedDBError,
     initOnlineListeners,
     getDockviewThemeClass
   }
