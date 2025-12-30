@@ -4,7 +4,6 @@
  */
 
 import { db } from './indexedDBService'
-import type { VaultMetadata } from './indexedDBService'
 
 export interface SyncVaultResult {
   syncedFiles: number
@@ -17,26 +16,26 @@ export class GoogleDriveSyncService {
    */
   static async syncVault(vaultId: string): Promise<SyncVaultResult> {
     console.log(`🔄 [GoogleDriveSync] Syncing vault: ${vaultId}`)
-    
+
     try {
       // Get vault metadata
       const vault = await db.vaultMetadata.get(vaultId)
       if (!vault) {
         throw new Error(`Vault ${vaultId} not found`)
       }
-      
+
       // Get all files in vault
       const files = await db.fileSystem
         .where('vaultId')
         .equals(vaultId)
         .and(item => item.type === 'file')
         .toArray()
-      
+
       console.log(`🔄 [GoogleDriveSync] Found ${files.length} files to sync`)
-      
+
       let syncedFiles = 0
       const errors: string[] = []
-      
+
       // Sync each file
       for (const file of files) {
         try {
@@ -47,9 +46,9 @@ export class GoogleDriveSyncService {
           errors.push(`Failed to sync ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
       }
-      
+
       console.log(`🔄 [GoogleDriveSync] Synced ${syncedFiles}/${files.length} files`)
-      
+
       return {
         syncedFiles,
         errors
@@ -59,52 +58,52 @@ export class GoogleDriveSyncService {
       throw error
     }
   }
-  
+
   /**
    * Sync a specific file to Google Drive
    */
   static async syncFile(vaultId: string, fileId: string): Promise<void> {
     console.log(`🔄 [GoogleDriveSync] Syncing file: ${fileId}`)
-    
+
     try {
       // Get file system item
       const fileItem = await db.fileSystem.get(fileId)
       if (!fileItem || fileItem.type !== 'file') {
         throw new Error(`File ${fileId} not found`)
       }
-      
+
       // Get document content
       const document = await db.documents.get(fileItem.fileId || fileId)
       if (!document) {
         throw new Error(`Document content not found for file ${fileId}`)
       }
-      
+
       // TODO: Implement actual Google Drive upload
       // For now, just log
       console.log(`🔄 [GoogleDriveSync] Would sync file: ${fileItem.name}`)
-      
+
       // Simulate network delay
       await new Promise(resolve => setTimeout(resolve, 100))
-      
+
     } catch (error) {
       console.error(`🔄 [GoogleDriveSync] File sync failed:`, error)
       throw error
     }
   }
-  
+
   /**
    * Sync all vaults to Google Drive
    */
   static async syncAllVaults(): Promise<SyncVaultResult> {
     console.log('🔄 [GoogleDriveSync] Syncing all vaults')
-    
+
     try {
       // Get all vaults
       const vaults = await db.vaultMetadata.toArray()
-      
+
       let totalSyncedFiles = 0
       const allErrors: string[] = []
-      
+
       // Sync each vault
       for (const vault of vaults) {
         try {
@@ -116,9 +115,9 @@ export class GoogleDriveSyncService {
           allErrors.push(`Failed to sync vault ${vault.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
       }
-      
+
       console.log(`🔄 [GoogleDriveSync] Total synced files: ${totalSyncedFiles}`)
-      
+
       return {
         syncedFiles: totalSyncedFiles,
         errors: allErrors
@@ -128,25 +127,26 @@ export class GoogleDriveSyncService {
       throw error
     }
   }
-  
+
   /**
    * Check if Google Drive is authenticated
    */
-  static async isAuthenticated(): Promise<boolean> {
+  static isAuthenticated(): Promise<boolean> {
     // TODO: Implement actual Google Drive authentication check
-    return false
+    return Promise.resolve(false)
   }
-  
+
   /**
    * Initialize Google Drive sync
    */
-  static async initialize(): Promise<void> {
+  static initialize(): Promise<void> {
     console.log('🔄 [GoogleDriveSync] Initializing')
-    
+
     // TODO: Implement Google Drive initialization
     // - Check authentication
     // - Create Mindscribble folder if needed
     // - Initialize vault structure
+    return Promise.resolve()
   }
 }
 
