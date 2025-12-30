@@ -43,6 +43,13 @@ function onReady(event: { api: DockviewApi }) {
     saveParentLayoutToStorage()
   })
 
+  // Listen for active panel changes to sync with vault
+  dockviewApi.value.onDidActivePanelChange((event) => {
+    if (event) {
+      handlePanelActivated(event.id)
+    }
+  })
+
   // Try to load saved parent layout, otherwise create default
   const loaded = loadParentLayoutFromStorage()
   if (!loaded) {
@@ -164,6 +171,7 @@ async function openFileFromVault(fileSystemItemId: string, fileName: string) {
 
     console.log('📂 Opening file from vault:', fileName)
     console.log('📂 Document ID:', documentId)
+    console.log('📂 Vault file ID:', fileSystemItemId)
 
     // If document has a saved layout, save it to localStorage using document ID
     if (document.dockviewLayout) {
@@ -172,8 +180,19 @@ async function openFileFromVault(fileSystemItemId: string, fileName: string) {
       console.log(`✅ Saved layout to localStorage: ${storageKey}`)
     }
 
-    // Create document instance in unified store (no Drive metadata for vault files)
-    unifiedStore.createDocument(fileId, document, null, null)
+    // Create a minimal DriveFileMetadata-like object to store vault file ID
+    // This allows us to track which vault file is open in which panel
+    const vaultFileMetadata = {
+      id: fileSystemItemId,
+      name: fileName,
+      mimeType: 'application/vnd.mindscribble',
+      createdTime: new Date(document.metadata.created).toISOString(),
+      modifiedTime: new Date(document.metadata.modified).toISOString(),
+      size: '0'
+    }
+
+    // Create document instance in unified store with vault file metadata
+    unifiedStore.createDocument(fileId, document, vaultFileMetadata, null)
 
     // Add panel to dockview
     dockviewApi.value.addPanel({
@@ -359,13 +378,70 @@ function handleFileClose() {
 
 // Handle vault file selection events
 function handleVaultFileSelected(payload: FileSelectedPayload) {
+  // Ignore events that originated from dockview to avoid circular updates
+  if (payload.source === 'dockview') {
+    return
+  }
+
   if (!payload.fileId || !payload.fileName) {
     console.log('No file selected or file deselected')
     return
   }
 
   console.log('Vault file selected:', payload.fileName, payload.fileId)
+
+  // Check if file is already open
+  const existingPanel = findPanelByVaultFileId(payload.fileId)
+  if (existingPanel) {
+    console.log('File already open, activating existing panel:', existingPanel.id)
+    // Activate the existing panel instead of opening a new one
+    existingPanel.api.setActive()
+    return
+  }
+
+  // File not open, open it
   void openFileFromVault(payload.fileId, payload.fileName)
+}
+
+/**
+ * Find a panel that has the given vault file ID open
+ */
+function findPanelByVaultFileId(vaultFileId: string) {
+  if (!dockviewApi.value) return null
+
+  // Search through all panels to find one with matching vault file ID
+  for (const panel of dockviewApi.value.panels) {
+    const docInstance = unifiedStore.getDocumentInstance(panel.id)
+    if (docInstance?.driveFile?.id === vaultFileId) {
+      return panel
+    }
+  }
+
+  return null
+}
+
+/**
+ * Handle panel activation - sync with vault store
+ */
+function handlePanelActivated(panelId: string) {
+  const docInstance = unifiedStore.getDocumentInstance(panelId)
+  if (!docInstance?.driveFile?.id) {
+    // Not a vault file or no file metadata
+    return
+  }
+
+  const vaultFileId = docInstance.driveFile.id
+  const fileName = docInstance.driveFile.name
+
+  console.log('📂 Panel activated, syncing with vault:', fileName, vaultFileId)
+
+  // Emit event to notify vault that this file should be selected
+  eventBus.emit('dockview:file-activated', {
+    source: 'dockview',
+    vaultId: '',
+    fileId: vaultFileId,
+    fileName: fileName
+  })
 }
 
 function handleDocumentLoaded() {
