@@ -1,0 +1,6 @@
+→ Phase 3 (Renaming - Critical) 
+→ Phase 4 (File Opening - Critical) 
+→ Phases 1-2 (UI) 
+→ Phase 7 (Active Vault) 
+→ Phases 5-6 (Sync) 
+→ Phase 8 (Testing)
