@@ -135,7 +135,12 @@
       class="drawer-expanded"
       @mouseleave="handleDrawerMouseLeave"
     >
-      <q-scroll-area class="drawer-scroll-area-full">
+      <!-- Drawer Header with title -->
+      <div class="drawer-header">
+        <div class="drawer-title">{{ getDrawerTitle() }}</div>
+      </div>
+
+      <q-scroll-area class="drawer-scroll-area">
         <transition name="fade-drawer" mode="out-in">
           <q-tab-panels v-model="leftDrawerTab" :key="leftDrawerTab">
             <!-- Files Tab -->
@@ -280,6 +285,22 @@ function handleMiniHover(tab: string) {
     leftDrawerTab.value = tab
     // Always set to true to keep drawer open when hovering between buttons
     drawerExpanded.value = true
+  }
+}
+
+// Get drawer title based on current tab
+function getDrawerTitle() {
+  switch (leftDrawerTab.value) {
+    case 'files':
+      return 'Vault Management'
+    case 'tools':
+      return 'Tools'
+    case 'dev':
+      return 'Developer Tools'
+    case 'ai':
+      return 'AI Assistant'
+    default:
+      return 'Drawer'
   }
 }
 
@@ -703,9 +724,22 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-.drawer-scroll-area-full {
+// Drawer header with blue background matching mini drawer
+.drawer-header {
+  height: 38px; // Match dv-tabs-and-actions-container height
+  background-color: var(--ms-drawer-bg); // Same color as mini drawer
+  color: white;
+  display: flex;
+  align-items: center;
+  padding-left: 16px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.drawer-scroll-area {
   flex: 1;
-  height: 100%;
+  height: calc(100% - 38px); // Subtract header height
   background-color: var(--ms-drawer-expanded-bg);
 }
 
