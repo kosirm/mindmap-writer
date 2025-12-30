@@ -110,10 +110,34 @@ const vaultEmitter = reactive({
 // Provide emitter to children
 provide('vaultEmitter', vaultEmitter)
 
+// Provide method to update local tree data (to avoid prop mutation)
+const updateLocalTreeItemData = (itemId: string, updates: { name?: string }) => {
+  const updateItem = (items: VaultTreeItem[]): boolean => {
+    for (const item of items) {
+      if (item.id === itemId) {
+        if (updates.name !== undefined) {
+          item.text = updates.name
+          item.item.name = updates.name
+        }
+        return true
+      }
+      if (updateItem(item.children)) return true
+    }
+    return false
+  }
+  updateItem(treeData.value)
+}
+provide('updateLocalTreeItemData', updateLocalTreeItemData)
+
 // Handle folder toggle events from children
 vaultEmitter.on('toggle-folder', (payload: unknown) => {
   const { itemId } = payload as { itemId: string }
   toggleFolderInTree(itemId)
+})
+
+// Handle refresh tree events from children (e.g., after rename)
+vaultEmitter.on('refresh-tree', () => {
+  void buildTreeFromVault()
 })
 
 /**

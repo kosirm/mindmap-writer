@@ -66,6 +66,7 @@ import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject, watch } f
 import { EditorContent, Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import { useQuasar } from 'quasar'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
 import { useFileSystem } from 'src/composables/useFileSystem'
 
@@ -82,8 +83,14 @@ const props = defineProps<{
 // File system service
 const fileSystemService = useFileSystem()
 
+// Quasar instance for notifications
+const $q = useQuasar()
+
 // Inject emitter at setup time
 const vaultEmitter = inject<{ emit: (event: string, payload: unknown) => void; on: (event: string, handler: (payload: unknown) => void) => void }>('vaultEmitter')
+
+// Inject method to update local tree data (to avoid prop mutation)
+const updateLocalTreeItemData = inject<(itemId: string, updates: { name?: string }) => void>('updateLocalTreeItemData')
 
 // UI state
 const isHovered = ref(false)
@@ -91,6 +98,9 @@ const isEditing = ref(false)
 
 // Selection state (simplified for now)
 const isSelected = ref(false)
+
+// Rename guard to prevent duplicate renames
+const isRenaming = ref(false)
 
 // Display values
 const displayTitle = computed(() => props.item.name || '<span class="placeholder">Untitled</span>')
@@ -185,6 +195,7 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
   if (titleEditor.value) return
 
   const isUntitled = !props.item.name
+  const originalName = props.item.name || ''
 
   titleEditor.value = new Editor({
     extensions: [
@@ -194,7 +205,7 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
       }),
       Placeholder.configure({ placeholder: 'Item name...' })
     ],
-    content: props.item.name || '',
+    content: originalName,
     autofocus: cursorPosition,
     editorProps: {
       handleKeyDown: (view, event) => {
@@ -204,21 +215,40 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
           titleEditor.value?.commands.insertContent({ type: 'text', text: '\n' })
           return true
         }
-        // Regular Enter: Finish editing
+        // Regular Enter: Finish editing and save
         if (event.key === 'Enter') {
+          event.preventDefault()
+          const html = titleEditor.value?.getHTML() || ''
+          const text = html.replace(/<\/?p>/g, '').trim()
+
+          // Only rename if the name actually changed
+          if (text && text !== originalName) {
+            void renameItem(props.item.id, text)
+          }
+
           destroyTitleEditor()
+          return true
+        }
+        // Escape: Cancel editing without saving
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          destroyTitleEditor()
+          return true
         }
       }
     },
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML()
-      // Strip <p> tags for title
-      const text = html.replace(/<\/?p>/g, '')
+    onBlur: () => {
+      // Save on blur
+      const html = titleEditor.value?.getHTML() || ''
+      const text = html.replace(/<\/?p>/g, '').trim()
 
-      // Update the item name
-      void renameItem(props.item.id, text)
-    },
-    onBlur: () => destroyTitleEditor()
+      // Only rename if the name actually changed
+      if (text && text !== originalName) {
+        void renameItem(props.item.id, text)
+      }
+
+      destroyTitleEditor()
+    }
   })
 
   if (isUntitled) {
@@ -242,12 +272,67 @@ function destroyTitleEditor() {
 
 // Rename item
 async function renameItem(itemId: string, newName: string) {
+  console.log('🔍 [VaultTreeItem] Renaming item:', itemId, 'to:', newName, 'from component for item:', props.item.id)
+
+  // Verify we're renaming the correct item
+  if (itemId !== props.item.id) {
+    console.error('❌ [VaultTreeItem] Item ID mismatch! Trying to rename', itemId, 'but component is for', props.item.id)
+    return
+  }
+
+  // Guard against duplicate renames
+  if (isRenaming.value) {
+    console.warn('⚠️ [VaultTreeItem] Rename already in progress for item:', itemId)
+    return
+  }
+
+  isRenaming.value = true
+
   try {
-    await fileSystemService.renameExistingItem(itemId, newName)
-    // Refresh the tree
-    vaultEmitter?.emit('refresh-tree', {})
+    // Validate new name
+    const trimmedName = newName.trim()
+    if (!trimmedName) {
+      console.warn('⚠️ [VaultTreeItem] Empty name provided, skipping rename')
+      return
+    }
+
+    // Skip if name hasn't changed
+    if (trimmedName === props.item.name) {
+      console.log('ℹ️ [VaultTreeItem] Name unchanged, skipping rename')
+      return
+    }
+
+    console.log('✅ [VaultTreeItem] Proceeding with rename from', props.item.name, 'to', trimmedName)
+
+    // Check for duplicates
+    const parentId = props.item.parentId
+    const exists = await fileSystemService.checkItemExists(parentId, trimmedName)
+    if (exists) {
+      $q.notify({
+        type: 'warning',
+        message: `An item named "${trimmedName}" already exists in this location`,
+        timeout: 3000
+      })
+      return
+    }
+
+    // Perform rename
+    await fileSystemService.renameExistingItem(itemId, trimmedName)
+
+    // Update local tree data immediately to avoid stale data
+    updateLocalTreeItemData?.(itemId, { name: trimmedName })
+
+    console.log('✅ [VaultTreeItem] Rename completed successfully')
+
   } catch (error) {
-    console.error('Failed to rename item:', error)
+    console.error('❌ [VaultTreeItem] Failed to rename item:', error)
+    $q.notify({
+      type: 'error',
+      message: error instanceof Error ? error.message : 'Failed to rename item',
+      timeout: 3000
+    })
+  } finally {
+    isRenaming.value = false
   }
 }
 
