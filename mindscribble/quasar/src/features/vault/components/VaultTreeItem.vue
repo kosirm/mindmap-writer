@@ -9,9 +9,11 @@
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
     @click="handleItemClick"
+    @dblclick="startEditing"
   >
     <!-- Expand/collapse button for folders -->
-    <div v-if="stat.children.length && item.type !== 'file'" class="expand-toggle" @click.stop="() => toggleFolder()">
+    <!-- eslint-disable-next-line vue/no-mutating-props -->
+    <div v-if="stat.children.length && item.type !== 'file'" class="expand-toggle" @click.stop="stat.open = !stat.open">
       <q-icon :name="stat.open ? 'expand_more' : 'chevron_right'" size="18px" />
     </div>
     <div v-else class="expand-spacer"></div>
@@ -32,43 +34,32 @@
 
     <!-- Item title -->
     <div class="item-title-wrapper">
-      <!-- Edit mode ON: Show editor when editing, show title when not editing -->
-      <template v-if="props.isEditMode">
-        <div
-          v-if="!isEditing"
-          class="item-title edit-mode"
-          v-html="displayTitle"
-          @click.stop="handleTitleClick"
-        ></div>
-        <EditorContent
-          v-else-if="titleEditor"
-          :editor="titleEditor"
-          class="item-title editing"
-          @click.stop
-        />
-      </template>
-
-      <!-- Edit mode OFF: Always show title, no editor -->
-      <template v-else>
-        <div
-          class="item-title navigation-mode"
-          v-html="displayTitle"
-          @keydown="handleNavigationKeydown"
-          tabindex="0"
-        ></div>
-      </template>
+      <!-- Show editor when editing, otherwise show title -->
+      <EditorContent
+        v-if="isEditing && titleEditor"
+        :editor="titleEditor"
+        class="item-title editing"
+        @click.stop
+      />
+      <div
+        v-else
+        class="item-title"
+        v-html="displayTitle"
+        tabindex="0"
+        @keydown="handleKeydown"
+      ></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject, watch } from 'vue'
+import { ref, shallowRef, computed, nextTick, onBeforeUnmount, watch, inject } from 'vue'
 import { EditorContent, Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { useQuasar } from 'quasar'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
-import { useFileSystem } from 'src/composables/useFileSystem'
+import { useVaultStore } from 'src/core/stores/vaultStore'
 
 const props = defineProps<{
   item: FileSystemItem
@@ -77,17 +68,14 @@ const props = defineProps<{
     open: boolean
   }
   triggerClass: string
-  isEditMode: boolean
+  isEditMode?: boolean
 }>()
 
-// File system service
-const fileSystemService = useFileSystem()
+// Vault store
+const vaultStore = useVaultStore()
 
 // Quasar instance for notifications
 const $q = useQuasar()
-
-// Inject emitter at setup time
-const vaultEmitter = inject<{ emit: (event: string, payload: unknown) => void; on: (event: string, handler: (payload: unknown) => void) => void }>('vaultEmitter')
 
 // Inject method to update local tree data (to avoid prop mutation)
 const updateLocalTreeItemData = inject<(itemId: string, updates: { name?: string }) => void>('updateLocalTreeItemData')
@@ -96,8 +84,13 @@ const updateLocalTreeItemData = inject<(itemId: string, updates: { name?: string
 const isHovered = ref(false)
 const isEditing = ref(false)
 
-// Selection state (simplified for now)
-const isSelected = ref(false)
+// Selection state - computed from vault store
+const isSelected = computed(() => {
+  if (props.item.type === 'file') {
+    return vaultStore.isFileSelected(props.item.id)
+  }
+  return false // Folders cannot be selected
+})
 
 // Rename guard to prevent duplicate renames
 const isRenaming = ref(false)
@@ -109,60 +102,58 @@ const displayTitle = computed(() => props.item.name || '<span class="placeholder
 const titleEditor = shallowRef<Editor | null>(null)
 
 // Click handlers
-function handleItemClick(event: MouseEvent) {
-  if (event.ctrlKey || event.metaKey) {
-    // Ctrl+click: Select and navigate
-    isSelected.value = true
-  } else {
-    // Regular click: Select
-    isSelected.value = true
-
-    // If in navigation mode (edit mode OFF), focus this item
-    if (!props.isEditMode) {
-      void nextTick(() => {
-        focusItem(props.item.id)
-      })
-    }
+function handleItemClick() {
+  // Only files can be selected
+  if (props.item.type === 'file') {
+    // Select the file in the vault store
+    vaultStore.selectFile(props.item.id, 'vault-tree-item')
   }
+
+  // Focus this item
+  void nextTick(() => {
+    focusItem(props.item.id)
+  })
 }
 
-function handleTitleClick() {
-  // Only open editor if edit mode is ON
-  if (props.isEditMode) {
-    openTitleEditor('end')
+// Keyboard handler
+function handleKeydown(event: KeyboardEvent) {
+  // F2 key: Start editing
+  if (event.key === 'F2') {
+    event.preventDefault()
+    startEditing()
   }
-}
-
-function handleNavigationKeydown(event: KeyboardEvent) {
-  // Only handle navigation in edit mode OFF
-  if (props.isEditMode) return
-
-  // Basic navigation - would need more sophisticated implementation
-  if (event.key === 'Enter') {
-    // Open the item
+  // Enter key: Open the item
+  else if (event.key === 'Enter') {
+    event.preventDefault()
     openItem(props.item)
   }
 }
 
-// Focus a specific item when in navigation mode
+// Start editing (triggered by F2 or double-click)
+function startEditing() {
+  if (!isEditing.value) {
+    openTitleEditor('end')
+  }
+}
+
+// Focus a specific item
 function focusItem(itemId: string) {
   // Find the item element and focus it
   const itemElement = document.querySelector(`[data-item-id="${itemId}"] .item-title`)
   if (itemElement) {
     (itemElement as HTMLElement).focus()
 
-    // For navigation mode, ensure the element is scrollable and visible
-    if (!props.isEditMode) {
-      setTimeout(() => {
-        itemElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      }, 10)
-    }
+    // Ensure the element is scrollable and visible
+    setTimeout(() => {
+      itemElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 10)
   }
 }
 
 // Folder toggle method
 function toggleFolder(): void {
-  vaultEmitter?.emit('toggle-folder', { itemId: props.item.id })
+  // Folder toggle is now handled by the tree component's internal state
+  // The store will automatically handle structure changes
 }
 
 // Open the item (file or folder)
@@ -184,9 +175,9 @@ defineExpose({
 
 // Title editor
 function openTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
-  // Only open editor if edit mode is ON
-  if (!props.isEditMode || isEditing.value) return
-  isSelected.value = true
+  // Don't open if already editing
+  if (isEditing.value) return
+
   isEditing.value = true
   void nextTick(() => createTitleEditor(cursorPosition))
 }
@@ -257,17 +248,14 @@ function createTitleEditor(cursorPosition: 'start' | 'end' = 'end') {
 }
 
 function destroyTitleEditor() {
-  const wasInEditMode = props.isEditMode
   titleEditor.value?.destroy()
   titleEditor.value = null
   isEditing.value = false
 
-  // If we're still in edit mode (just finished editing an item), keep focus on the item
-  if (wasInEditMode || !props.isEditMode) {
-    void nextTick(() => {
-      focusItem(props.item.id)
-    })
-  }
+  // Keep focus on the item after editing
+  void nextTick(() => {
+    focusItem(props.item.id)
+  })
 }
 
 // Rename item
@@ -304,28 +292,20 @@ async function renameItem(itemId: string, newName: string) {
 
     console.log('✅ [VaultTreeItem] Proceeding with rename from', props.item.name, 'to', trimmedName)
 
-    // Check for duplicates
-    const parentId = props.item.parentId
-    const exists = await fileSystemService.checkItemExists(parentId, trimmedName)
-    if (exists) {
-      $q.notify({
-        type: 'warning',
-        message: `An item named "${trimmedName}" already exists in this location`,
-        timeout: 3000
-      })
-      return
-    }
-
-    // Perform rename
-    await fileSystemService.renameExistingItem(itemId, trimmedName)
-
-    // Update local tree data immediately to avoid stale data
+    // Update local tree data immediately (like outline does)
+    // This prevents the tree from reverting to old name while waiting for store update
     updateLocalTreeItemData?.(itemId, { name: trimmedName })
+
+    // Use VaultStore for rename operation with 'vault-tree' as source
+    await vaultStore.renameExistingItem(itemId, trimmedName, 'vault-tree')
 
     console.log('✅ [VaultTreeItem] Rename completed successfully')
 
   } catch (error) {
     console.error('❌ [VaultTreeItem] Failed to rename item:', error)
+
+    // On error, the tree will refresh from store to revert changes
+
     $q.notify({
       type: 'error',
       message: error instanceof Error ? error.message : 'Failed to rename item',
@@ -336,28 +316,6 @@ async function renameItem(itemId: string, newName: string) {
   }
 }
 
-// Listen for title editor open events
-vaultEmitter?.on('open-title-editor', (payload: unknown) => {
-  const { itemId, cursorPosition } = payload as { itemId: string; cursorPosition: 'start' | 'end' }
-  if (itemId === props.item.id) {
-    openTitleEditor(cursorPosition)
-  }
-})
-
-// Listen for focus-and-edit events
-vaultEmitter?.on('focus-and-edit-item', (payload: unknown) => {
-  const { itemId } = payload as { itemId: string }
-  if (itemId === props.item.id) {
-    // Use setTimeout instead of nextTick for more reliable DOM updates
-    setTimeout(() => {
-      if (props.isEditMode) {
-        openTitleEditor('end')
-      } else {
-        focusItem(props.item.id)
-      }
-    }, 50)
-  }
-})
 
 // Watch for edit mode changes - close editor if toggled off
 watch(() => props.isEditMode, (newEditMode) => {

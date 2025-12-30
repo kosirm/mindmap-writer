@@ -24,7 +24,7 @@ import type { DriveFileMetadata } from '../services/googleDriveService'
 import { useDevSettingsStore } from '../../dev/devSettingsStore'
 import { PROP } from '../constants/propertyNames'
 import type { PropertyName } from '../constants/propertyNames'
-import { generateId, generateTimestamp } from '../utils/idGenerator'
+import { generateId, generateTimestamp, generateDocumentId } from '../utils/idGenerator'
 import {
   serializeNode,
   deserializeNode,
@@ -219,7 +219,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    * Create a new empty document using new property names
    */
   function createEmptyDocument(name = 'Untitled'): MindscribbleDocument {
-    const documentId = generateId()
+    const documentId = generateDocumentId()
     const now = generateTimestamp()
 
     // Create document using new property naming system
@@ -720,17 +720,18 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   ) {
     if (nodeId === null) {
       selectedNodeIds.value = []
-      scrollIntoView = false
+      // When clearing selection, never scroll into view
+      eventBus.emit('store:node-selected', { nodeId, source, scrollIntoView: false })
     } else {
       selectedNodeIds.value = [nodeId]
+
+      // Check if selectNavigate is enabled in dev settings
+      // When selectNavigate is ON: always scroll into view (ignore scrollIntoView parameter)
+      // When selectNavigate is OFF: only scroll into view when scrollIntoView is true (explicit clicks)
+      const shouldScrollIntoView = devSettings.selectNavigate || scrollIntoView
+
+      eventBus.emit('store:node-selected', { nodeId, source, scrollIntoView: shouldScrollIntoView })
     }
-
-    // Check if selectNavigate is enabled in dev settings
-    // When selectNavigate is ON: always scroll into view (ignore scrollIntoView parameter)
-    // When selectNavigate is OFF: only scroll into view when scrollIntoView is true (explicit clicks)
-    const shouldScrollIntoView = devSettings.selectNavigate || scrollIntoView
-
-    eventBus.emit('store:node-selected', { nodeId, source, scrollIntoView: shouldScrollIntoView })
   }
 
   /**

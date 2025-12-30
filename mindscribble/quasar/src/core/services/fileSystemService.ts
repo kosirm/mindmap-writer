@@ -21,6 +21,14 @@ export async function createFile(
     // Generate file ID
     const fileId = `file-${Date.now()}`
 
+    // Get the next sortOrder for this parent
+    const siblings = await db.fileSystem
+      .where({ vaultId, parentId })
+      .toArray()
+    const maxSortOrder = siblings.length > 0
+      ? Math.max(...siblings.map(s => s.sortOrder ?? 0))
+      : -1
+
     // Create file system item
     const fileItem: FileSystemItem = {
       id: fileId,
@@ -30,6 +38,7 @@ export async function createFile(
       type: 'file',
       created: Date.now(),
       modified: Date.now(),
+      sortOrder: maxSortOrder + 1,
       size: JSON.stringify(content).length,
       fileId: content.metadata.id
     }
@@ -79,6 +88,14 @@ export async function createFolder(
     // Generate folder ID
     const folderId = `folder-${Date.now()}`
 
+    // Get the next sortOrder for this parent
+    const siblings = await db.fileSystem
+      .where({ vaultId, parentId })
+      .toArray()
+    const maxSortOrder = siblings.length > 0
+      ? Math.max(...siblings.map(s => s.sortOrder ?? 0))
+      : -1
+
     // Create folder item
     const folderItem: FileSystemItem = {
       id: folderId,
@@ -88,6 +105,7 @@ export async function createFolder(
       type: 'folder',
       created: Date.now(),
       modified: Date.now(),
+      sortOrder: maxSortOrder + 1,
       children: []
     }
 
@@ -193,9 +211,13 @@ export async function renameItem(itemId: string, newName: string): Promise<FileS
 }
 
 /**
- * Move a file or folder to a new parent
+ * Move a file or folder to a new parent and update sort order
  */
-export async function moveItem(itemId: string, newParentId: string | null): Promise<void> {
+export async function moveItem(
+  itemId: string,
+  newParentId: string | null,
+  newSortOrder?: number
+): Promise<void> {
   try {
     await db.transaction('rw', db.fileSystem, async () => {
       const item = await db.fileSystem.get(itemId)
@@ -214,9 +236,12 @@ export async function moveItem(itemId: string, newParentId: string | null): Prom
         }
       }
 
-      // Update item's parent
+      // Update item's parent and sort order
       item.parentId = newParentId
       item.modified = Date.now()
+      if (newSortOrder !== undefined) {
+        item.sortOrder = newSortOrder
+      }
 
       // Add to new parent's children list
       if (newParentId) {
@@ -238,32 +263,17 @@ export async function moveItem(itemId: string, newParentId: string | null): Prom
 }
 
 /**
- * Get the complete vault structure
+ * Get the complete vault structure (all items, not just root)
  */
 export async function getVaultStructure(vaultId: string): Promise<FileSystemItem[]> {
   try {
+    // Return all items for the vault - the tree component will build the hierarchy
     const allItems = await db.fileSystem.where('vaultId').equals(vaultId).toArray()
 
-    // Build hierarchy
-    const rootItems: FileSystemItem[] = []
-    const itemMap = new Map<string, FileSystemItem>()
+    // Sort by sortOrder for consistent ordering
+    allItems.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
 
-    // Create map of all items
-    allItems.forEach(item => {
-      itemMap.set(item.id, item)
-    })
-
-    // Find root items (no parent or parent doesn't exist)
-    allItems.forEach(item => {
-      if (!item.parentId || !itemMap.has(item.parentId)) {
-        rootItems.push(item)
-      }
-    })
-
-    // Sort by name for consistent ordering
-    rootItems.sort((a, b) => a.name.localeCompare(b.name))
-
-    return rootItems
+    return allItems
   } catch (error) {
     console.error(`Failed to get vault structure for ${vaultId}:`, error)
     throw new Error(`Failed to get vault structure for ${vaultId}`)

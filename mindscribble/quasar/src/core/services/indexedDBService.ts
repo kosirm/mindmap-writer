@@ -16,6 +16,7 @@ export interface FileSystemItem {
   type: FileSystemItemType;
   created: number;
   modified: number;
+  sortOrder: number; // User-defined sort order within parent
   size?: number; // For files
   fileId?: string; // For files - reference to document ID
   children?: string[]; // For folders - list of child IDs
@@ -239,8 +240,45 @@ export class MindScribbleDB extends Dexie {
       console.log('🗄️ [IndexedDB] Version 4: Ensured fileSystem store exists')
     })
 
+    // Version 5 - Add sortOrder field to fileSystem for user-defined ordering
+    this.version(5).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      fileSystem: 'id, vaultId, parentId, type, name, sortOrder'
+    }).upgrade(async (tx) => {
+      // Add sortOrder to existing items
+      const fileSystemTable = tx.table('fileSystem')
+      const allItems = await fileSystemTable.toArray()
+
+      // Group items by parentId
+      const itemsByParent = new Map<string | null, typeof allItems>()
+      for (const item of allItems) {
+        const parentId = item.parentId
+        if (!itemsByParent.has(parentId)) {
+          itemsByParent.set(parentId, [])
+        }
+        itemsByParent.get(parentId)!.push(item)
+      }
+
+      // Assign sortOrder to each group
+      for (const [, items] of itemsByParent) {
+        items.sort((a, b) => a.name.localeCompare(b.name)) // Initial sort by name
+        for (let i = 0; i < items.length; i++) {
+          await fileSystemTable.update(items[i]!.id, { sortOrder: i })
+        }
+      }
+
+      console.log('🗄️ [IndexedDB] Version 5: Added sortOrder to fileSystem items')
+    })
+
     // Future versions can be added here:
-    // this.version(5).stores({ ... }).upgrade(tx => { ... });
+    // this.version(6).stores({ ... }).upgrade(tx => { ... });
   }
 }
 

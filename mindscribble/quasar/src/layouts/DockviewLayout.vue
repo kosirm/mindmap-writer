@@ -18,8 +18,10 @@ import { type DockviewApi } from 'dockview-core'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useAppStore } from 'src/core/stores/appStore'
+import { eventBus, type FileSelectedPayload } from 'src/core/events'
 import type { MindscribbleDocument } from 'src/core/types'
 import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
+import { getFileContent } from 'src/core/services/fileSystemService'
 
 // const $q = useQuasar() // Commented out - unused after removing toast notifications
 const dockviewApi = ref<DockviewApi | null>(null)
@@ -142,6 +144,49 @@ function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileM
   })
 
   console.log(`✅ Opened file "${fileName}" in new panel ${fileId}`, document.dockviewLayout ? 'with saved layout' : 'without layout')
+}
+
+async function openFileFromVault(fileSystemItemId: string, fileName: string) {
+  if (!dockviewApi.value) return
+
+  try {
+    // Load the document from IndexedDB
+    const document = await getFileContent(fileSystemItemId)
+
+    if (!document) {
+      console.error(`Failed to load document for file ${fileSystemItemId}`)
+      return
+    }
+
+    fileCounter++
+    const fileId = `file-${fileCounter}`
+    const documentId = document.dockviewLayoutId || document.metadata.id
+
+    console.log('📂 Opening file from vault:', fileName)
+    console.log('📂 Document ID:', documentId)
+
+    // If document has a saved layout, save it to localStorage using document ID
+    if (document.dockviewLayout) {
+      const storageKey = `dockview-child-${documentId}-layout`
+      localStorage.setItem(storageKey, JSON.stringify(document.dockviewLayout))
+      console.log(`✅ Saved layout to localStorage: ${storageKey}`)
+    }
+
+    // Create document instance in unified store (no Drive metadata for vault files)
+    unifiedStore.createDocument(fileId, document, null, null)
+
+    // Add panel to dockview
+    dockviewApi.value.addPanel({
+      id: fileId,
+      component: 'file-panel',
+      title: fileName,
+      tabComponent: 'file-tab'
+    })
+
+    console.log(`✅ Opened vault file "${fileName}" in new panel ${fileId}`)
+  } catch (error) {
+    console.error(`Failed to open vault file ${fileSystemItemId}:`, error)
+  }
 }
 
 function saveParentLayoutToStorage() {
@@ -287,6 +332,9 @@ onMounted(() => {
   window.addEventListener('beforeunload', clearParentLayoutOnUnload)
   window.addEventListener('file:close', handleFileClose)
 
+  // Listen for vault file selection events
+  eventBus.on('vault:file-selected', handleVaultFileSelected)
+
   // Log initial state
   console.log('Drive store state:', {
     hasOpenFile: driveStore.hasOpenFile,
@@ -298,12 +346,26 @@ onUnmounted(() => {
   window.removeEventListener('store:document-loaded', handleDocumentLoaded)
   window.removeEventListener('beforeunload', clearParentLayoutOnUnload)
   window.removeEventListener('file:close', handleFileClose)
+
+  // Remove vault event listener
+  eventBus.off('vault:file-selected', handleVaultFileSelected)
 })
 
 // Handle file close events
 function handleFileClose() {
   console.log('File close event received in DockviewLayout')
   closeCurrentFile()
+}
+
+// Handle vault file selection events
+function handleVaultFileSelected(payload: FileSelectedPayload) {
+  if (!payload.fileId || !payload.fileName) {
+    console.log('No file selected or file deselected')
+    return
+  }
+
+  console.log('Vault file selected:', payload.fileName, payload.fileId)
+  void openFileFromVault(payload.fileId, payload.fileName)
 }
 
 function handleDocumentLoaded() {

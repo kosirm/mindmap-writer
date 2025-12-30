@@ -38,42 +38,10 @@
     </div>
 
     <q-space />
-
-    <!-- Edit Mode Toggle -->
-    <q-btn
-      flat
-      dense
-      :icon="isEditMode ? 'edit' : 'edit_note'"
-      :color="isEditMode ? 'primary' : 'grey-6'"
-      size="sm"
-      @click="toggleEditMode"
-    >
-      <q-tooltip>{{ isEditMode ? 'Edit mode (ON) - Press F2 to toggle' : 'Edit mode (OFF) - Press F2 to toggle' }}</q-tooltip>
-    </q-btn>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useQuasar } from 'quasar'
-
-const $q = useQuasar()
-
-const isEditMode = ref(false)
-
-function toggleEditMode() {
-  isEditMode.value = !isEditMode.value
-
-  // Show brief notification
-  $q.notify({
-    message: `Edit mode ${isEditMode.value ? 'ON' : 'OFF'}`,
-    icon: isEditMode.value ? 'edit' : 'edit_note',
-    color: isEditMode.value ? 'primary' : 'grey',
-    timeout: 1000,
-    position: 'bottom'
-  })
-}
-
 defineEmits([
   'new-vault',
   'open-vault',
