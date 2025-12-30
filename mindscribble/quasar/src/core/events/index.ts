@@ -56,6 +56,7 @@ export type EventSource =
   | 'vault-tree'       // Vault tree component
   | 'vault-tree-item'  // Vault tree item component
   | 'vault-toolbar'    // Vault toolbar component
+  | 'dockview'         // Dockview component
 
 // ============================================================
 // STORE EVENT PAYLOADS
@@ -389,8 +390,17 @@ export type VaultEvents = {
   'vault:error': VaultErrorPayload
 }
 
+// ============================================================
+// DOCKVIEW EVENT TYPE DEFINITIONS
+// ============================================================
+
+export type DockviewEvents = {
+  // File activation in dockview (to sync with vault)
+  'dockview:file-activated': FileSelectedPayload
+}
+
 /** All events */
-export type Events = StoreEvents & UIEvents & VaultEvents
+export type Events = StoreEvents & UIEvents & VaultEvents & DockviewEvents
 
 // ============================================================
 // EVENT BUS INSTANCE

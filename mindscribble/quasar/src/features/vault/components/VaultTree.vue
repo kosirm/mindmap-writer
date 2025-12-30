@@ -63,7 +63,7 @@ import { useVaultStore } from 'src/core/stores/vaultStore'
 import { eventBus } from 'src/core/events'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
 import type { MindscribbleDocument } from 'src/core/types'
-import type { VaultStructureRefreshedPayload, ItemRenamedPayload, ItemDeletedPayload, ItemMovedPayload } from 'src/core/events'
+import type { VaultStructureRefreshedPayload, ItemRenamedPayload, ItemDeletedPayload, ItemMovedPayload, FileSelectedPayload } from 'src/core/events'
 
 const TRIGGER_CLASS = 'drag-handle'
 const $q = useQuasar()
@@ -497,6 +497,18 @@ function handleItemMoved(payload: ItemMovedPayload) {
   }
 }
 
+function handleDockviewFileActivated(payload: FileSelectedPayload) {
+  // When a file is activated in dockview, select it in the vault tree
+  if (payload.fileId) {
+    console.log('📂 Dockview file activated, selecting in vault:', payload.fileName, payload.fileId)
+    // Use the selectItem function to highlight the file in the tree
+    selectItem(payload.fileId)
+    // Also update the vault store selection (but don't emit event to avoid loop)
+    // The 'dockview' source will prevent the vault store from emitting another event
+    vaultStore.selectFile(payload.fileId, 'dockview')
+  }
+}
+
 // Mount and unmount event listeners
 onMounted(() => {
   // Add vault event listeners
@@ -504,6 +516,9 @@ onMounted(() => {
   eventBus.on('vault:item-renamed', handleItemRenamed)
   eventBus.on('vault:item-deleted', handleItemDeleted)
   eventBus.on('vault:item-moved', handleItemMoved)
+
+  // Add dockview event listener
+  eventBus.on('dockview:file-activated', handleDockviewFileActivated)
 
   // Initial load - force reload from database
   void buildTreeFromVault(true)
@@ -515,6 +530,9 @@ onUnmounted(() => {
   eventBus.off('vault:item-renamed', handleItemRenamed)
   eventBus.off('vault:item-deleted', handleItemDeleted)
   eventBus.off('vault:item-moved', handleItemMoved)
+
+  // Clean up dockview event listener
+  eventBus.off('dockview:file-activated', handleDockviewFileActivated)
 })
 
 // Note: We removed the watchers for vaultStructure and activeVault
