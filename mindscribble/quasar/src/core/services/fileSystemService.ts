@@ -167,20 +167,27 @@ export async function deleteItem(itemId: string): Promise<void> {
  */
 export async function renameItem(itemId: string, newName: string): Promise<FileSystemItem> {
   try {
+    console.log('📝 [fileSystemService] Renaming item in IndexedDB:', itemId, 'to:', newName)
+
     const item = await db.fileSystem.get(itemId)
 
     if (!item) {
       throw new Error('Item not found')
     }
 
+    console.log('📋 [fileSystemService] Current item:', item)
+
     item.name = newName
     item.modified = Date.now()
 
+    console.log('💾 [fileSystemService] Saving updated item to IndexedDB')
     await db.fileSystem.put(item)
+
+    console.log('✅ [fileSystemService] Rename completed successfully')
 
     return item
   } catch (error) {
-    console.error(`Failed to rename item ${itemId}:`, error)
+    console.error(`❌ [fileSystemService] Failed to rename item ${itemId}:`, error)
     throw new Error(`Failed to rename item ${itemId}`)
   }
 }

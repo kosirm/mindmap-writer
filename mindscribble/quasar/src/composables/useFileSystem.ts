@@ -177,28 +177,42 @@ export function useFileSystem() {
       isLoading.value = true
       error.value = null
 
-      const updatedItem = await renameItem(itemId, newName)
+      console.log('🔍 Starting rename operation for item:', itemId, 'to:', newName)
 
-      // Update local state
-      const updateItemInStructure = (items: FileSystemItem[]): boolean => {
-        for (const item of items) {
-          if (item.id === itemId) {
-            item.name = newName
-            item.modified = Date.now()
-            return true
-          }
-          if (item.children && item.children.length > 0) {
-            const children = item.children.map(childId => {
-              const child = vaultStructure.value.find(i => i.id === childId)
-              return child || null
-            }).filter(Boolean) as FileSystemItem[]
-            if (updateItemInStructure(children)) return true
-          }
-        }
-        return false
+      // Get current item directly from database instead of relying on vaultStructure
+      const currentItem = await getItem(itemId)
+
+      if (!currentItem) {
+        console.error('❌ Item not found in database!')
+        throw new Error('Item not found')
       }
 
-      updateItemInStructure(vaultStructure.value)
+      console.log('📋 Current item found:', currentItem)
+
+      // Validate
+      if (!newName || newName.trim() === '') {
+        throw new Error('Item name cannot be empty')
+      }
+
+      // Check duplicates
+      const parentId = currentItem.parentId
+      const exists = await itemExists(parentId, newName)
+      if (exists && newName !== currentItem.name) {
+        throw new Error(`An item named "${newName}" already exists in this location`)
+      }
+
+      console.log('✅ Validation passed, calling renameItem function')
+
+      // Perform rename
+      const updatedItem = await renameItem(itemId, newName)
+
+      console.log('📝 Rename completed, updated item:', updatedItem)
+
+      // Refresh the entire vault structure to get the latest data from IndexedDB
+      // This ensures we have the most up-to-date data after the rename operation
+      await loadStructure(currentItem.vaultId)
+
+      console.log('🔄 Vault structure reloaded')
 
       $q.notify({
         type: 'positive',
@@ -208,6 +222,7 @@ export function useFileSystem() {
       return updatedItem
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to rename item'
+      console.error('❌ Rename failed:', err)
       $q.notify({
         type: 'negative',
         message: error.value
