@@ -30,7 +30,6 @@
             :item="node.item"
             :stat="stat"
             :trigger-class="TRIGGER_CLASS"
-            :is-edit-mode="isEditMode"
           />
         </template>
       </Draggable>
@@ -53,27 +52,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, provide, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, provide } from 'vue'
 import { Draggable } from '@he-tree/vue'
 import { useQuasar } from 'quasar'
 import '@he-tree/vue/style/default.css'
 import '@he-tree/vue/style/material-design.css'
 import VaultTreeItem from './VaultTreeItem.vue'
 import VaultToolbar from './VaultToolbar.vue'
-import { useVault } from 'src/composables/useVault'
-import { useFileSystem } from 'src/composables/useFileSystem'
+import { useVaultStore } from 'src/core/stores/vaultStore'
+import { eventBus } from 'src/core/events'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
 import type { MindscribbleDocument } from 'src/core/types'
+import type { VaultStructureRefreshedPayload, ItemRenamedPayload, ItemDeletedPayload, ItemMovedPayload } from 'src/core/events'
 
 const TRIGGER_CLASS = 'drag-handle'
 const $q = useQuasar()
 
-// Vault and file system services
-const vaultService = useVault()
-const fileSystemService = useFileSystem()
-
-// Edit mode state (default: OFF)
-const isEditMode = ref(false)
+// Vault store
+const vaultStore = useVaultStore()
 
 // Tree reference
 const treeRef = ref<InstanceType<typeof Draggable> | null>(null)
@@ -85,30 +81,22 @@ interface VaultTreeItem {
   item: FileSystemItem
   children: VaultTreeItem[]
   type: 'vault' | 'folder' | 'file'
-  stat: {
-    children: { length: number }
-    open: boolean
-  }
 }
 
 const treeData = ref<VaultTreeItem[]>([])
 
-// Simple event emitter for child components
-const vaultEmitter = reactive({
-  handlers: new Map<string, Set<(payload: unknown) => void>>(),
-  emit(event: string, payload: unknown) {
-    this.handlers.get(event)?.forEach(handler => handler(payload))
-  },
-  on(event: string, handler: (payload: unknown) => void) {
-    if (!this.handlers.has(event)) {
-      this.handlers.set(event, new Set())
-    }
-    this.handlers.get(event)!.add(handler)
-  }
-})
+// Guard to prevent infinite loops during initialization
+const isInitializing = ref(false)
 
-// Provide emitter to children
-provide('vaultEmitter', vaultEmitter)
+// Centralized selection state
+const selectedItemId = ref<string | null>(null)
+
+// Provide method to select an item (deselects all others)
+const selectItem = (itemId: string | null) => {
+  selectedItemId.value = itemId
+}
+provide('selectedItemId', selectedItemId)
+provide('selectItem', selectItem)
 
 // Provide method to update local tree data (to avoid prop mutation)
 const updateLocalTreeItemData = (itemId: string, updates: { name?: string }) => {
@@ -118,6 +106,7 @@ const updateLocalTreeItemData = (itemId: string, updates: { name?: string }) => 
         if (updates.name !== undefined) {
           item.text = updates.name
           item.item.name = updates.name
+          item.item.modified = Date.now()
         }
         return true
       }
@@ -129,27 +118,26 @@ const updateLocalTreeItemData = (itemId: string, updates: { name?: string }) => 
 }
 provide('updateLocalTreeItemData', updateLocalTreeItemData)
 
-// Handle folder toggle events from children
-vaultEmitter.on('toggle-folder', (payload: unknown) => {
-  const { itemId } = payload as { itemId: string }
-  toggleFolderInTree(itemId)
-})
-
-// Handle refresh tree events from children (e.g., after rename)
-vaultEmitter.on('refresh-tree', () => {
-  void buildTreeFromVault()
-})
-
 /**
- * Build tree structure from vault and file system
+ * Build tree structure from vault store
  */
-async function buildTreeFromVault() {
-  try {
-    // Load vaults first
-    await vaultService.loadVaults()
+async function buildTreeFromVault(forceReload = false) {
+  // Prevent infinite loops during initialization
+  if (isInitializing.value && !forceReload) {
+    console.log('⚠️ [VaultTree] Skipping buildTreeFromVault - already initializing')
+    return
+  }
 
-    const vaults = vaultService.vaults.value
-    const activeVault = vaultService.activeVault.value
+  try {
+    isInitializing.value = true
+
+    // Only load vaults if not already loaded or if forced
+    if (forceReload || vaultStore.vaults.length === 0) {
+      await vaultStore.loadAllVaults()
+    }
+
+    const vaults = vaultStore.vaults
+    const activeVault = vaultStore.activeVault
 
     // If no vaults exist, show empty state
     if (vaults.length === 0) {
@@ -163,7 +151,7 @@ async function buildTreeFromVault() {
       const firstVault = vaults[0]
       if (firstVault) {
         vaultToUse = firstVault
-        await vaultService.setCurrentVault(firstVault.id)
+        await vaultStore.activateVault(firstVault.id)
       }
     }
 
@@ -172,31 +160,57 @@ async function buildTreeFromVault() {
       return
     }
 
-    // Get the complete vault structure
-    await fileSystemService.loadStructure(vaultToUse.id)
-    const vaultStructure = fileSystemService.vaultStructure.value
+    // Get the complete vault structure from store
+    // Only reload from database if forced or if structure is empty
+    if (forceReload || vaultStore.vaultStructure.length === 0) {
+      await vaultStore.loadVaultStructure()
+    }
+    const vaultStructure = vaultStore.vaultStructure
 
-    // Build tree items
-    const buildTreeItems = (items: FileSystemItem[]): VaultTreeItem[] => {
-      return items.map(item => ({
-        id: item.id,
-        text: item.name,
-        item: item,
-        type: item.type === 'file' ? 'file' : 'folder',
-        children: item.children ? buildTreeItems(item.children.map(childId =>
-          vaultStructure.find(i => i.id === childId)!
-        ).filter(Boolean)) : [],
-        stat: {
-          children: { length: item.children ? item.children.length : 0 },
-          open: false
+    // Build tree structure from vault items
+    const buildTreeFromVaultStructure = (): VaultTreeItem[] => {
+      const itemMap = new Map<string, VaultTreeItem>()
+
+      // First pass: Create tree items for all items
+      vaultStructure.forEach(item => {
+        itemMap.set(item.id, {
+          id: item.id,
+          text: item.name,
+          item: item,
+          type: item.type === 'file' ? 'file' : 'folder',
+          children: []
+        })
+      })
+
+      // Second pass: Build hierarchy
+      const rootItems: VaultTreeItem[] = []
+      itemMap.forEach(treeItem => {
+        const parentId = treeItem.item.parentId
+        if (parentId) {
+          const parent = itemMap.get(parentId)
+          if (parent) {
+            parent.children.push(treeItem)
+          }
+        } else {
+          rootItems.push(treeItem)
         }
-      }))
+      })
+
+      // Third pass: Sort children by sortOrder
+      const sortChildren = (items: VaultTreeItem[]) => {
+        items.sort((a, b) => (a.item.sortOrder ?? 0) - (b.item.sortOrder ?? 0))
+        items.forEach(item => {
+          if (item.children.length > 0) {
+            sortChildren(item.children)
+          }
+        })
+      }
+      sortChildren(rootItems)
+
+      return rootItems
     }
 
-    // Find root items (items with null parentId)
-    const rootItems = vaultStructure.filter(item => item.parentId === null)
-
-    treeData.value = buildTreeItems(rootItems)
+    treeData.value = buildTreeFromVaultStructure()
 
   } catch (error) {
     console.error('Failed to build vault tree:', error)
@@ -206,27 +220,9 @@ async function buildTreeFromVault() {
       timeout: 3000
     })
     treeData.value = []
+  } finally {
+    isInitializing.value = false
   }
-}
-
-/**
- * Toggle folder expansion in tree
- */
-function toggleFolderInTree(itemId: string) {
-  const findAndToggleItem = (items: VaultTreeItem[]): boolean => {
-    for (const item of items) {
-      if (item.id === itemId) {
-        item.stat.open = !item.stat.open
-        return true
-      }
-      if (item.children.length > 0) {
-        if (findAndToggleItem(item.children)) return true
-      }
-    }
-    return false
-  }
-
-  findAndToggleItem(treeData.value)
 }
 
 /**
@@ -299,13 +295,13 @@ async function onTreeChange() {
   const newHierarchy = extractHierarchy(treeData.value)
 
   // Apply changes to file system
-  for (const { itemId, parentId } of newHierarchy) {
+  for (const { itemId, parentId, order } of newHierarchy) {
     try {
-      await fileSystemService.moveExistingItem(itemId, parentId)
+      await vaultStore.moveExistingItem(itemId, parentId, order)
     } catch (error) {
       console.error(`Failed to move item ${itemId}:`, error)
-      // Rebuild tree to revert changes
-      await buildTreeFromVault()
+      // Rebuild tree to revert changes - reload from database
+      await buildTreeFromVault(true)
       break
     }
   }
@@ -314,8 +310,8 @@ async function onTreeChange() {
 // Actions
 async function addFileToRoot() {
   try {
-    await vaultService.loadVaults()
-    const activeVault = vaultService.activeVault.value
+    await vaultStore.loadAllVaults()
+    const activeVault = vaultStore.activeVault
     if (!activeVault) {
       $q.notify({ type: 'warning', message: 'No active vault', timeout: 2000 })
       return
@@ -349,8 +345,8 @@ async function addFileToRoot() {
       }
     }
 
-    await fileSystemService.createNewFile(activeVault.id, null, 'New File', newDocument)
-    await buildTreeFromVault()
+    await vaultStore.createNewFile(null, 'New File', newDocument)
+    await buildTreeFromVault(true)
 
     $q.notify({ type: 'positive', message: 'File created', timeout: 2000 })
   } catch (error) {
@@ -361,15 +357,15 @@ async function addFileToRoot() {
 
 async function addFolderToRoot() {
   try {
-    await vaultService.loadVaults()
-    const activeVault = vaultService.activeVault.value
+    await vaultStore.loadAllVaults()
+    const activeVault = vaultStore.activeVault
     if (!activeVault) {
       $q.notify({ type: 'warning', message: 'No active vault', timeout: 2000 })
       return
     }
 
-    await fileSystemService.createNewFolder(activeVault.id, null, 'New Folder')
-    await buildTreeFromVault()
+    await vaultStore.createNewFolder(null, 'New Folder')
+    await buildTreeFromVault(true)
 
     $q.notify({ type: 'positive', message: 'Folder created', timeout: 2000 })
   } catch (error) {
@@ -383,8 +379,8 @@ async function handleNewVault() {
     const vaultName = prompt('Enter vault name:', 'My Vault')
     if (!vaultName) return
 
-    await vaultService.createNewVault(vaultName, 'New vault')
-    await buildTreeFromVault()
+    await vaultStore.createNewVault(vaultName, 'New vault')
+    await buildTreeFromVault(true)
 
     $q.notify({ type: 'positive', message: 'Vault created', timeout: 2000 })
   } catch (error) {
@@ -395,8 +391,8 @@ async function handleNewVault() {
 
 async function handleOpenVault() {
   try {
-    await vaultService.loadVaults()
-    const vaults = vaultService.vaults.value
+    await vaultStore.loadAllVaults()
+    const vaults = vaultStore.vaults
     if (vaults.length === 0) {
       $q.notify({ type: 'warning', message: 'No vaults available', timeout: 2000 })
       return
@@ -404,9 +400,9 @@ async function handleOpenVault() {
 
     // For now, just open the first vault
     if (vaults.length > 0 && vaults[0]) {
-      await vaultService.setCurrentVault(vaults[0].id)
+      await vaultStore.activateVault(vaults[0].id)
     }
-    await buildTreeFromVault()
+    await buildTreeFromVault(true)
 
     $q.notify({ type: 'positive', message: 'Vault opened', timeout: 2000 })
   } catch (error) {
@@ -417,8 +413,8 @@ async function handleOpenVault() {
 
 async function handleDeleteVault() {
   try {
-    await vaultService.loadVaults()
-    const activeVault = vaultService.activeVault.value
+    await vaultStore.loadAllVaults()
+    const activeVault = vaultStore.activeVault
     if (!activeVault) {
       $q.notify({ type: 'warning', message: 'No active vault', timeout: 2000 })
       return
@@ -427,8 +423,8 @@ async function handleDeleteVault() {
     const confirm = window.confirm(`Delete vault "${activeVault.name}"? This cannot be undone.`)
     if (!confirm) return
 
-    await vaultService.deleteExistingVault(activeVault.id)
-    await buildTreeFromVault()
+    await vaultStore.deleteExistingVault(activeVault.id)
+    await buildTreeFromVault(true)
 
     $q.notify({ type: 'positive', message: 'Vault deleted', timeout: 2000 })
   } catch (error) {
@@ -463,41 +459,68 @@ function collapseAll() {
   collapseAllNodes(treeData.value)
 }
 
-function toggleEditMode() {
-  isEditMode.value = !isEditMode.value
 
-  // Show brief notification
-  $q.notify({
-    message: `Edit mode ${isEditMode.value ? 'ON' : 'OFF'}`,
-    icon: isEditMode.value ? 'edit' : 'edit_note',
-    color: isEditMode.value ? 'primary' : 'grey',
-    timeout: 1000,
-    position: 'bottom'
-  })
+
+// Event handlers for vault events
+function handleStructureRefresh(payload: VaultStructureRefreshedPayload) {
+  // Ignore events from vault-tree source (this view)
+  if (payload.source === 'vault-tree') {
+    return
+  }
+
+  // For events from store, just rebuild from the already-loaded store data
+  // Don't reload from database to avoid circular dependency
+  void buildTreeFromVault(false)
 }
 
-// Global keyboard handler for F2 toggle
-function handleGlobalKeydown(event: KeyboardEvent) {
-  if (event.key === 'F2') {
-    event.preventDefault()
-    toggleEditMode()
+function handleItemRenamed(payload: ItemRenamedPayload) {
+  // Ignore events from vault-tree source (this view)
+  if (payload.source === 'vault-tree') {
+    return
+  }
+
+  // For events from other sources, update the local tree item
+  updateLocalTreeItemData(payload.itemId, { name: payload.newName })
+}
+
+function handleItemDeleted(payload: ItemDeletedPayload) {
+  if (payload.source !== 'vault-tree') {
+    // Don't reload from database - use the already updated store data
+    void buildTreeFromVault(false)
   }
 }
 
-// Mount and unmount global keyboard listener
+function handleItemMoved(payload: ItemMovedPayload) {
+  if (payload.source !== 'vault-tree') {
+    // Don't reload from database - use the already updated store data
+    void buildTreeFromVault(false)
+  }
+}
+
+// Mount and unmount event listeners
 onMounted(() => {
-  document.addEventListener('keydown', handleGlobalKeydown)
-  void buildTreeFromVault()
+  // Add vault event listeners
+  eventBus.on('vault:structure-refreshed', handleStructureRefresh)
+  eventBus.on('vault:item-renamed', handleItemRenamed)
+  eventBus.on('vault:item-deleted', handleItemDeleted)
+  eventBus.on('vault:item-moved', handleItemMoved)
+
+  // Initial load - force reload from database
+  void buildTreeFromVault(true)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleGlobalKeydown)
+  // Clean up vault event listeners
+  eventBus.off('vault:structure-refreshed', handleStructureRefresh)
+  eventBus.off('vault:item-renamed', handleItemRenamed)
+  eventBus.off('vault:item-deleted', handleItemDeleted)
+  eventBus.off('vault:item-moved', handleItemMoved)
 })
 
-// Watch for file system changes
-watch(() => fileSystemService.vaultStructure, () => {
-  void buildTreeFromVault()
-}, { deep: true })
+// Note: We removed the watchers for vaultStructure and activeVault
+// because they were causing circular dependencies.
+// We rely on events (vault:structure-refreshed, vault:item-renamed, etc.)
+// and the initial load in onMounted() instead.
 </script>
 
 <style scoped lang="scss">

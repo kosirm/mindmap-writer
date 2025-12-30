@@ -10,4 +10,5 @@ export { useContextStore } from './contextStore'
 export { useGoogleDriveStore } from './googleDriveStore'
 export { usePanelStore } from './panelStore'
 export { useUnifiedDocumentStore } from './unifiedDocumentStore'
+export { useVaultStore } from './vaultStore'
 

@@ -36,6 +36,7 @@
 import mitt, { type Handler } from 'mitt'
 import { onBeforeUnmount } from 'vue'
 import type { ViewType, Position } from '../types'
+import type { VaultMetadata } from '../services/indexedDBService'
 
 // ============================================================
 // EVENT SOURCE TYPES
@@ -52,6 +53,9 @@ export type EventSource =
   | 'command'          // Command palette
   | 'api'              // External API calls
   | 'undo-redo'        // Undo/redo system
+  | 'vault-tree'       // Vault tree component
+  | 'vault-tree-item'  // Vault tree item component
+  | 'vault-toolbar'    // Vault toolbar component
 
 // ============================================================
 // STORE EVENT PAYLOADS
@@ -174,6 +178,95 @@ export interface DocumentSavedPayload extends BasePayload {
 }
 
 // ============================================================
+// VAULT EVENT PAYLOADS
+// ============================================================
+
+/** Vault loaded payload */
+export interface VaultLoadedPayload extends BasePayload {
+  vaultId: string
+  vaultName: string
+  vaultMetadata: VaultMetadata
+}
+
+/** Vault created payload */
+export interface VaultCreatedPayload extends BasePayload {
+  vaultId: string
+  vaultName: string
+  vaultMetadata: VaultMetadata
+}
+
+/** Vault activated payload */
+export interface VaultActivatedPayload extends BasePayload {
+  vaultId: string
+  vaultName: string
+  vaultMetadata: VaultMetadata
+}
+
+/** File created in vault */
+export interface FileCreatedPayload extends BasePayload {
+  vaultId: string
+  fileId: string
+  fileName: string
+  parentId: string | null
+}
+
+/** Folder created in vault */
+export interface FolderCreatedPayload extends BasePayload {
+  vaultId: string
+  folderId: string
+  folderName: string
+  parentId: string | null
+}
+
+/** Item renamed in vault */
+export interface ItemRenamedPayload extends BasePayload {
+  vaultId: string
+  itemId: string
+  oldName: string
+  newName: string
+  itemType: 'file' | 'folder'
+}
+
+/** Item deleted from vault */
+export interface ItemDeletedPayload extends BasePayload {
+  vaultId: string
+  itemId: string
+  itemType: 'file' | 'folder'
+  /** IDs of all deleted items (including descendants) */
+  deletedIds: string[]
+}
+
+/** Item moved in vault */
+export interface ItemMovedPayload extends BasePayload {
+  vaultId: string
+  itemId: string
+  oldParentId: string | null
+  newParentId: string | null
+  newOrder: number
+}
+
+/** Vault structure refreshed */
+export interface VaultStructureRefreshedPayload extends BasePayload {
+  vaultId: string
+  /** Full structure or just metadata */
+  fullStructure: boolean
+}
+
+/** File selected in vault */
+export interface FileSelectedPayload extends BasePayload {
+  vaultId: string
+  fileId: string | null
+  fileName: string | undefined
+}
+
+/** Vault error payload */
+export interface VaultErrorPayload extends BasePayload {
+  vaultId: string | null
+  error: Error
+  operation: string
+}
+
+// ============================================================
 // UI EVENT PAYLOADS (non-store)
 // ============================================================
 
@@ -269,8 +362,35 @@ export type UIEvents = {
   'context:changed': ContextChangedPayload
 }
 
+// ============================================================
+// VAULT EVENT TYPE DEFINITIONS
+// ============================================================
+
+export type VaultEvents = {
+  // Vault lifecycle events
+  'vault:loaded': VaultLoadedPayload
+  'vault:created': VaultCreatedPayload
+  'vault:activated': VaultActivatedPayload
+
+  // File/folder lifecycle events
+  'vault:file-created': FileCreatedPayload
+  'vault:folder-created': FolderCreatedPayload
+  'vault:item-renamed': ItemRenamedPayload
+  'vault:item-deleted': ItemDeletedPayload
+  'vault:item-moved': ItemMovedPayload
+
+  // Selection events
+  'vault:file-selected': FileSelectedPayload
+
+  // Structure events
+  'vault:structure-refreshed': VaultStructureRefreshedPayload
+
+  // Error events
+  'vault:error': VaultErrorPayload
+}
+
 /** All events */
-export type Events = StoreEvents & UIEvents
+export type Events = StoreEvents & UIEvents & VaultEvents
 
 // ============================================================
 // EVENT BUS INSTANCE
