@@ -2,11 +2,6 @@
   <div class="vault-tree">
     <!-- Vault Toolbar -->
     <VaultToolbar
-      @add-file="addFileToRoot"
-      @add-folder="addFolderToRoot"
-      @new-vault="handleNewVault"
-      @open-vault="handleOpenVault"
-      @delete-vault="handleDeleteVault"
       @expand-all="expandAll"
       @collapse-all="collapseAll"
     />
@@ -44,7 +39,7 @@
           label="Create Vault"
           icon="add"
           class="q-mt-sm"
-          @click="handleNewVault"
+          @click="createNewVault"
         />
       </div>
     </div>
@@ -62,7 +57,6 @@ import VaultToolbar from './VaultToolbar.vue'
 import { useVaultStore } from 'src/core/stores/vaultStore'
 import { eventBus } from 'src/core/events'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
-import type { MindscribbleDocument } from 'src/core/types'
 import type { VaultStructureRefreshedPayload, ItemRenamedPayload, ItemDeletedPayload, ItemMovedPayload, FileSelectedPayload } from 'src/core/events'
 
 const TRIGGER_CLASS = 'drag-handle'
@@ -307,74 +301,10 @@ async function onTreeChange() {
   }
 }
 
-// Actions
-async function addFileToRoot() {
-  try {
-    await vaultStore.loadAllVaults()
-    const activeVault = vaultStore.activeVault
-    if (!activeVault) {
-      $q.notify({ type: 'warning', message: 'No active vault', timeout: 2000 })
-      return
-    }
-
-    // Create a minimal document for the new file
-    const newDocument: MindscribbleDocument = {
-      version: '1.0',
-      metadata: {
-        id: `file-${Date.now()}`,
-        name: 'New File',
-        created: Date.now(),
-        modified: Date.now(),
-        vaultId: activeVault.id,
-        tags: [],
-        nodeCount: 0,
-        edgeCount: 0,
-        maxDepth: 0,
-        searchableText: ''
-      },
-      nodes: [],
-      edges: [],
-      interMapLinks: [],
-      layout: {
-        activeView: 'mindmap' as const,
-        orientationMode: 'clockwise' as const,
-        lodEnabled: true,
-        lodThresholds: [10, 30, 50, 70, 90],
-        horizontalSpacing: 200,
-        verticalSpacing: 150
-      }
-    }
-
-    await vaultStore.createNewFile(null, 'New File', newDocument)
-    await buildTreeFromVault(true)
-
-    $q.notify({ type: 'positive', message: 'File created', timeout: 2000 })
-  } catch (error) {
-    console.error('Failed to create file:', error)
-    $q.notify({ type: 'error', message: 'Failed to create file', timeout: 3000 })
-  }
-}
-
-async function addFolderToRoot() {
-  try {
-    await vaultStore.loadAllVaults()
-    const activeVault = vaultStore.activeVault
-    if (!activeVault) {
-      $q.notify({ type: 'warning', message: 'No active vault', timeout: 2000 })
-      return
-    }
-
-    await vaultStore.createNewFolder(null, 'New Folder')
-    await buildTreeFromVault(true)
-
-    $q.notify({ type: 'positive', message: 'Folder created', timeout: 2000 })
-  } catch (error) {
-    console.error('Failed to create folder:', error)
-    $q.notify({ type: 'error', message: 'Failed to create folder', timeout: 3000 })
-  }
-}
-
-async function handleNewVault() {
+/**
+ * Create a new vault
+ */
+async function createNewVault() {
   try {
     const vaultName = prompt('Enter vault name:', 'My Vault')
     if (!vaultName) return
@@ -389,74 +319,18 @@ async function handleNewVault() {
   }
 }
 
-async function handleOpenVault() {
-  try {
-    await vaultStore.loadAllVaults()
-    const vaults = vaultStore.vaults
-    if (vaults.length === 0) {
-      $q.notify({ type: 'warning', message: 'No vaults available', timeout: 2000 })
-      return
-    }
-
-    // For now, just open the first vault
-    if (vaults.length > 0 && vaults[0]) {
-      await vaultStore.activateVault(vaults[0].id)
-    }
-    await buildTreeFromVault(true)
-
-    $q.notify({ type: 'positive', message: 'Vault opened', timeout: 2000 })
-  } catch (error) {
-    console.error('Failed to open vault:', error)
-    $q.notify({ type: 'error', message: 'Failed to open vault', timeout: 3000 })
-  }
-}
-
-async function handleDeleteVault() {
-  try {
-    await vaultStore.loadAllVaults()
-    const activeVault = vaultStore.activeVault
-    if (!activeVault) {
-      $q.notify({ type: 'warning', message: 'No active vault', timeout: 2000 })
-      return
-    }
-
-    const confirm = window.confirm(`Delete vault "${activeVault.name}"? This cannot be undone.`)
-    if (!confirm) return
-
-    await vaultStore.deleteExistingVault(activeVault.id)
-    await buildTreeFromVault(true)
-
-    $q.notify({ type: 'positive', message: 'Vault deleted', timeout: 2000 })
-  } catch (error) {
-    console.error('Failed to delete vault:', error)
-    $q.notify({ type: 'error', message: 'Failed to delete vault', timeout: 3000 })
-  }
-}
-
 function expandAll() {
-  // Expand all nodes
-  const expandAllNodes = (items: VaultTreeItem[]) => {
-    items.forEach(item => {
-      if (item.children.length > 0) {
-        // This would be handled by the tree component's internal state
-      }
-      expandAllNodes(item.children)
-    })
-  }
-  expandAllNodes(treeData.value)
+  // Expand all nodes in the tree
+  // The tree component (he-tree) handles expansion state internally
+  // This is a placeholder for future implementation if needed
+  console.log('Expand all functionality - tree component manages its own state')
 }
 
 function collapseAll() {
-  // Collapse all nodes
-  const collapseAllNodes = (items: VaultTreeItem[]) => {
-    items.forEach(item => {
-      if (item.children.length > 0) {
-        // This would be handled by the tree component's internal state
-      }
-      collapseAllNodes(item.children)
-    })
-  }
-  collapseAllNodes(treeData.value)
+  // Collapse all nodes in the tree
+  // The tree component (he-tree) handles collapse state internally
+  // This is a placeholder for future implementation if needed
+  console.log('Collapse all functionality - tree component manages its own state')
 }
 
 

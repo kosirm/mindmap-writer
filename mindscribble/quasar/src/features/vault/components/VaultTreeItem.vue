@@ -150,21 +150,30 @@ function focusItem(itemId: string) {
   }
 }
 
-// Folder toggle method
+/**
+ * Toggle folder expansion state
+ * Folder expansion is handled by the tree component's internal state
+ * No store interaction needed for UI state changes
+ */
 function toggleFolder(): void {
-  // Folder toggle is now handled by the tree component's internal state
-  // The store will automatically handle structure changes
+  // The tree component (he-tree) handles folder expansion internally
+  // through its stat.open property and @click.stop on the expand toggle
+  // No action needed here - the tree component manages its own state
 }
 
-// Open the item (file or folder)
+/**
+ * Open the item (file or folder)
+ * Files would integrate with document store, folders use tree component UI state
+ */
 function openItem(item: FileSystemItem) {
   if (item.type === 'file') {
-    // Open file - would integrate with document store
+    // Open file - would integrate with unified document store
     console.log('Opening file:', item.name)
     // TODO: Integrate with unified document store
+    // vaultStore.openFile(item.id) - would be added to store
   } else if (item.type === 'folder') {
-    // Toggle folder expansion
-    toggleFolder()
+    // Folder toggle is handled by tree component UI
+    // No store interaction needed for UI state
   }
 
 // Add toggleFolder to the component's exposed methods
