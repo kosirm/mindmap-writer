@@ -133,6 +133,7 @@
     <div
       v-if="drawerExpanded"
       class="drawer-expanded"
+      :class="{ 'drawer-pinned': drawerPinned }"
       @mouseleave="handleDrawerMouseLeave"
     >
       <!-- Drawer Header with title -->
@@ -719,9 +720,19 @@ onUnmounted(() => {
   width: 280px;
   background-color: var(--ms-drawer-expanded-bg);
   z-index: 2500; // Below mini sidebar, above content
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
+}
+
+// Apply box shadow only when drawer is NOT pinned (overlay mode)
+.drawer-expanded.drawer-pinned {
+  // border-right: 4px solid #E0E0E0;
+  box-shadow: 2px 0 2px rgba(0, 0, 0, 0.2);
+}
+
+// Apply box shadow only when drawer is NOT pinned (overlay mode)
+.drawer-expanded:not(.drawer-pinned) {
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
 }
 
 // Drawer header with blue background matching mini drawer
