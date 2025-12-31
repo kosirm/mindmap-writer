@@ -1,5 +1,6 @@
 <template>
   <div class="dockview-page">
+    <div class="resize-bridge"></div>
     <div class="dockview-container">
       <DockviewVue
         :class="['parent-dockview', appStore.getDockviewThemeClass()]"
@@ -473,6 +474,16 @@ function handleDocumentLoaded() {
   overflow: hidden;
   padding: 0;
   margin: 0;
+}
+
+.resize-bridge {
+  height: 38px;
+  width: 100%;
+  background-color: var(--ms-drawer-bg);
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
 }
 
 .dockview-container {
