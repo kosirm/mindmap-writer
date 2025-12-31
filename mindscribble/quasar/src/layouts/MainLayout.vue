@@ -134,6 +134,7 @@
       v-if="drawerExpanded"
       class="drawer-expanded"
       :class="{ 'drawer-pinned': drawerPinned }"
+      :style="{ width: drawerWidth + 'px' }"
       @mouseleave="handleDrawerMouseLeave"
     >
       <!-- Drawer Header with title -->
@@ -193,11 +194,17 @@
           </q-tab-panels>
         </transition>
       </q-scroll-area>
+      <!-- Resizer - only visible when drawer is pinned -->
+      <div
+        v-if="drawerPinned"
+        class="drawer-resizer"
+        @mousedown="startResize"
+      />
     </div>
 
 
     <!-- Main Content - Platform-specific Layout -->
-    <q-page-container :class="{ 'drawer-pinned': drawerPinned }">
+    <q-page-container :class="{ 'drawer-pinned': drawerPinned }" :style="{ '--drawer-width': drawerWidth + 'px' }">
       <div class="main-layout">
         <!-- Dockview layout for desktop -->
         <DockviewLayout v-if="!isMobile" ref="dockviewLayoutRef" />
@@ -265,10 +272,14 @@ const panelStore = usePanelStore()
 const leftDrawerTab = ref('tools')
 const drawerExpanded = ref(false)
 const drawerPinned = ref(false)
+const drawerWidth = ref(280) // Default drawer width
 const isDev = import.meta.env.DEV
 const isMobile = Platform.is.mobile
 const mouseOverMiniDrawer = ref(false)
 let closeDrawerTimeout: ReturnType<typeof setTimeout> | null = null
+const isResizing = ref(false)
+let startX = 0
+let startWidth = 0
 
 // File operations modal state
 const showFileModal = ref(false)
@@ -339,6 +350,43 @@ function handleDrawerMouseLeave() {
       }
     }, 100)
   }
+}
+
+// Resize functionality for drawer
+function startResize(e: MouseEvent) {
+  isResizing.value = true
+  startX = e.clientX
+  startWidth = drawerWidth.value
+
+  // Add event listeners for mousemove and mouseup
+  window.addEventListener('mousemove', resizeDrawer)
+  window.addEventListener('mouseup', stopResize)
+
+  // Prevent text selection during resize
+  document.body.style.userSelect = 'none'
+}
+
+function resizeDrawer(e: MouseEvent) {
+  if (!isResizing.value) return
+
+  const newWidth = startWidth + (e.clientX - startX)
+
+  // Set reasonable min and max widths
+  const minWidth = 200
+  const maxWidth = 500
+
+  drawerWidth.value = Math.max(minWidth, Math.min(maxWidth, newWidth))
+}
+
+function stopResize() {
+  isResizing.value = false
+
+  // Remove event listeners
+  window.removeEventListener('mousemove', resizeDrawer)
+  window.removeEventListener('mouseup', stopResize)
+
+  // Restore text selection
+  document.body.style.userSelect = ''
 }
 
 // Global keyboard event handler
@@ -725,15 +773,52 @@ onUnmounted(() => {
 }
 
 // Apply box shadow only when drawer is NOT pinned (overlay mode)
-.drawer-expanded.drawer-pinned {
-  // border-right: 4px solid #E0E0E0;
-  box-shadow: 2px 0 2px rgba(0, 0, 0, 0.2);
-}
-
-// Apply box shadow only when drawer is NOT pinned (overlay mode)
 .drawer-expanded:not(.drawer-pinned) {
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
 }
+
+// Drawer resizer
+.drawer-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -2px;
+  width: 4px;
+  background-color: #E0E0E0;
+  cursor: ew-resize;
+  z-index: 2501; // Above drawer content, below mini sidebar
+}
+
+// Dark mode resizer color
+.body--dark {
+  .drawer-resizer {
+    background-color: #3E3E42;
+  }
+}
+
+// Top part of resizer that blends with drawer header (4px x 38px)
+.drawer-resizer:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px; // Match drawer header height
+  background-color: var(--ms-drawer-bg); // Same as drawer header
+}
+
+// Resizer handle in the middle
+// .drawer-resizer:after {
+//   content: '';
+//   position: absolute;
+//   top: 50%;
+//   height: 30px;
+//   left: -5px;
+//   right: -5px;
+//   transform: translateY(-50%);
+//   background-color: inherit;
+//   border-radius: 4px;
+// }
 
 // Drawer header with blue background matching mini drawer
 .drawer-header {
@@ -784,7 +869,7 @@ onUnmounted(() => {
 
   // When drawer is pinned, add drawer width to the padding
   &.drawer-pinned {
-    padding-left: 328px; // 48px (mini sidebar) + 280px (expanded drawer)
+    padding-left: calc(48px + var(--drawer-width));
   }
 }
 
