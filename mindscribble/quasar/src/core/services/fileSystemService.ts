@@ -4,8 +4,9 @@
  */
 
 import { db } from './indexedDBService'
-import type { MindpadDocument } from '../types'
 import type { FileSystemItem } from './indexedDBService'
+import { getChangeTracker } from './syncStrategy'
+import type { MindpadDocument } from '../types'
 
 
 /**
@@ -71,6 +72,11 @@ export async function createFile(
         }
       }
     })
+
+    // NEW: Track as modified for sync
+    const changeTracker = getChangeTracker()
+    changeTracker.modifiedFiles.add(fileItem.id)
+    console.log('🔄 [FileSystemService] Tracked file creation for sync:', fileItem.id)
 
     return fileItem
   } catch (error) {
@@ -176,6 +182,11 @@ export async function deleteItem(itemId: string): Promise<void> {
 
       // Delete the item itself
       await db.fileSystem.delete(itemId)
+
+      // NEW: Track deletion for sync
+      const changeTracker = getChangeTracker()
+      changeTracker.deletedItems.add(itemId)
+      console.log('🔄 [fileSystemService] Tracked deletion for sync:', itemId)
     })
   } catch (error) {
     console.error(`Failed to delete item ${itemId}:`, error)
@@ -203,6 +214,11 @@ export async function renameItem(itemId: string, newName: string): Promise<FileS
 
     console.log('💾 [fileSystemService] Saving updated item to IndexedDB')
     await db.fileSystem.put(item)
+
+    // NEW: Track rename for sync
+    const changeTracker = getChangeTracker()
+    changeTracker.renamedItems.set(item.id, newName)
+    console.log('🔄 [fileSystemService] Tracked rename for sync:', item.id, '->', newName)
 
     console.log('✅ [fileSystemService] Rename completed successfully')
 
@@ -258,6 +274,11 @@ export async function moveItem(
       }
 
       await db.fileSystem.put(item)
+
+      // NEW: Track move for sync
+      const changeTracker = getChangeTracker()
+      changeTracker.movedItems.set(itemId, newParentId)
+      console.log('🔄 [fileSystemService] Tracked move for sync:', itemId, '->', newParentId)
     })
   } catch (error) {
     console.error(`Failed to move item ${itemId}:`, error)
@@ -344,6 +365,11 @@ export async function updateFileContent(fileId: string, content: MindpadDocument
       fileItem.fileId = content.metadata.id
 
       await db.fileSystem.put(fileItem)
+
+      // NEW: Track as modified for sync
+      const changeTracker = getChangeTracker()
+      changeTracker.modifiedFiles.add(fileItem.id)
+      console.log('🔄 [fileSystemService] Tracked content update for sync:', fileItem.id)
     })
   } catch (error) {
     console.error(`Failed to update file content for ${fileId}:`, error)

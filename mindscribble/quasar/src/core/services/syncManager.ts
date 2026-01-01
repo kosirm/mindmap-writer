@@ -1,6 +1,6 @@
 // mindpad/quasar/src/core/services/syncManager.ts
 import { db } from './indexedDBService';
-import { updateMindmapFile, loadMindmapFile, createMindmapFile, getOrCreateAppFolder, findCentralIndexFile } from './googleDriveService';
+import { updateMindmapFile, loadMindmapFile, createMindmapFile, getOrCreateAppFolder, findCentralIndexFile, loadJsonFile } from './googleDriveService';
 import { NetworkError, StorageError } from '../errors';
 import type { MindpadDocument } from '../types';
 import type { ProviderMetadata, Repository, RepositoryFile, CentralIndex, VaultMetadata } from './indexedDBService';
@@ -234,7 +234,7 @@ export class SyncManager {
     try {
       // For now, only Google Drive is implemented
       if (this.currentProvider === 'googleDrive') {
-        return await loadMindmapFile(providerFileId) as MindpadDocument;
+        return await loadMindmapFile(providerFileId);
       }
       // Phase 2: Add other providers
 
@@ -513,8 +513,7 @@ export class SyncManager {
 
       if (existingFile) {
         // Download existing central index
-        const centralIndexContent = await loadMindmapFile(existingFile.id);
-        const centralIndex = JSON.parse(centralIndexContent as unknown as string) as CentralIndex;
+        const centralIndex = await loadJsonFile<CentralIndex>(existingFile.id);
 
         // Store in IndexedDB
         const centralIndexWithId = { ...centralIndex, id: 'central' };

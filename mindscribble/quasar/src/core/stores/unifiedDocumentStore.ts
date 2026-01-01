@@ -32,6 +32,8 @@ import {
   deserializeDocument
 } from '../utils/propertySerialization'
 import { subscriptionService, viewAvailabilityManager } from '../services'
+import { UIStateService } from '../services/uiStateService'
+import { getItem, getFileContent } from '../services/fileSystemService'
 
 /**
  * Document instance with its associated state
@@ -1304,6 +1306,71 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   }
 
   // ============================================================
+  // NEW: UI STATE PERSISTENCE METHODS FOR PHASE 5
+  // ============================================================
+
+  /**
+   * Save dockview layout for a document
+   */
+  async function saveDockviewLayout(documentId: string, layoutData: DockviewLayoutData) {
+    await UIStateService.saveFileLayout(documentId, layoutData)
+    console.log('💾 [UnifiedDocumentStore] Saved layout for document:', documentId)
+  }
+
+  /**
+   * Get dockview layout for a document
+   */
+  async function getDockviewLayout(documentId: string): Promise<Record<string, unknown> | null> {
+    return await UIStateService.getFileLayout(documentId)
+  }
+
+  /**
+   * Restore UI state on app start (open files and layouts)
+   */
+  async function restoreUIState() {
+    try {
+      console.log('🔄 [UnifiedDocumentStore] Restoring UI state...')
+
+      const { fileIds, activeFileId } = await UIStateService.getOpenFiles()
+      console.log('🔄 [UnifiedDocumentStore] Found open files:', fileIds)
+
+      // Load each file from IndexedDB
+      for (const fileId of fileIds) {
+        try {
+          const item = await getItem(fileId)
+          if (item && item.type === 'file') {
+            const document = await getFileContent(item.fileId!)
+            if (document) {
+              // Load document into store
+              addDocument(document)
+              console.log('🔄 [UnifiedDocumentStore] Loaded document:', document.metadata.name)
+
+              // Restore dockview layout
+              const layout = await getDockviewLayout(fileId)
+              if (layout) {
+                saveLayout(fileId, layout)
+                console.log('🔄 [UnifiedDocumentStore] Restored layout for:', fileId)
+              }
+            }
+          }
+        } catch (error) {
+          console.error('🔄 [UnifiedDocumentStore] Failed to restore file:', fileId, error)
+        }
+      }
+
+      // Set active file
+      if (activeFileId) {
+        setActiveDocument(activeFileId)
+        console.log('🔄 [UnifiedDocumentStore] Set active document:', activeFileId)
+      }
+
+      console.log('✅ [UnifiedDocumentStore] UI state restored successfully')
+    } catch (error) {
+      console.error('❌ [UnifiedDocumentStore] Failed to restore UI state:', error)
+    }
+  }
+
+  // ============================================================
   // PUBLIC API
   // ============================================================
 
@@ -1408,6 +1475,11 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     getUnavailableViews,
     hasPlanLevel,
     isSubscriptionActive,
-    getCurrentSubscription
+    getCurrentSubscription,
+
+    // NEW: UI State Persistence methods for Phase 5
+    saveDockviewLayout,
+    getDockviewLayout,
+    restoreUIState
   }
 })

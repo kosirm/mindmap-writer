@@ -8,6 +8,20 @@ import type { MindpadDocument, MindpadNode } from '../types';
 
 export type FileSystemItemType = 'file' | 'folder';
 
+// NEW: UI State interfaces for Phase 5
+export interface UIState {
+  id: string // 'ui-state'
+  openFiles: string[] // Array of file IDs that are open
+  activeFileId: string | null // Currently active file
+  lastUpdated: number
+}
+
+export interface FileLayout {
+  fileId: string // Primary key
+  layout: unknown // Dockview layout JSON
+  lastUpdated: number
+}
+
 export interface FileSystemItem {
   id: string;
   vaultId: string;
@@ -158,6 +172,8 @@ export class MindPadDB extends Dexie {
   vaultMetadata!: Table<VaultMetadata, string>; // NEW: Store individual vault metadata
   vaultsIndex!: Table<VaultsIndex, string>; // NEW: Store vaults index (.vaults file)
   fileSystem!: Table<FileSystemItem, string>; // NEW: Store file system items
+  uiState!: Table<UIState, string>; // NEW: Store UI state for Phase 5
+  fileLayouts!: Table<FileLayout, string>; // NEW: Store file layouts for Phase 5
 
   constructor() {
     super('MindPadDB');
@@ -341,8 +357,36 @@ export class MindPadDB extends Dexie {
       }
     })
 
+    // Version 7 - Add UI state persistence tables for Phase 5
+    this.version(7).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
+      fileSystem: 'id, vaultId, parentId, type, name, sortOrder',
+      uiState: 'id', // NEW: UI state persistence
+      fileLayouts: 'fileId' // NEW: File layouts persistence
+    }).upgrade(async (tx) => {
+      console.log('🗄️ [IndexedDB] Version 7: Adding UI state persistence tables')
+
+      // Create empty UI state table
+      const uiStateTable = tx.table('uiState')
+      await uiStateTable.toArray() // Ensure table is accessible
+      console.log('🗄️ [IndexedDB] uiState table created')
+
+      // Create empty file layouts table
+      const fileLayoutsTable = tx.table('fileLayouts')
+      await fileLayoutsTable.toArray() // Ensure table is accessible
+      console.log('🗄️ [IndexedDB] fileLayouts table created')
+    })
+
     // Future versions can be added here:
-    // this.version(7).stores({ ... }).upgrade(tx => { ... });
+    // this.version(8).stores({ ... }).upgrade(tx => { ... });
   }
 }
 

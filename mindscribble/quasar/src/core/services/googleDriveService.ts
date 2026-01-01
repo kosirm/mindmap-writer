@@ -9,6 +9,8 @@
  * Uses the gapi.client.drive API after authentication.
  */
 
+import type { MindpadDocument } from '../types'
+
 // App folder name in Google Drive
 const APP_FOLDER_NAME = 'MindPad'
 
@@ -255,9 +257,9 @@ export async function updateMindmapFile(
 }
 
 /**
- * Load a mindmap file from Google Drive
+ * Load a JSON file from Google Drive (generic)
  */
-export async function loadMindmapFile(fileId: string): Promise<object> {
+export async function loadJsonFile<T = object>(fileId: string): Promise<T> {
   try {
     const response = await gapi.client.drive.files.get({
       fileId,
@@ -265,11 +267,18 @@ export async function loadMindmapFile(fileId: string): Promise<object> {
     })
 
     console.log('✅ File loaded:', fileId)
-    return response.result as object
+    return response.result as T
   } catch (error) {
     console.error('❌ Error loading file:', error)
     throw error
   }
+}
+
+/**
+ * Load a mindmap file from Google Drive
+ */
+export async function loadMindmapFile(fileId: string): Promise<MindpadDocument> {
+  return loadJsonFile<MindpadDocument>(fileId)
 }
 
 /**
