@@ -2,7 +2,7 @@
 
 ## 🔒 Overview
 
-MindScribble handles sensitive user data (thoughts, notes, ideas) that requires robust security and privacy protection. This document outlines the security architecture across all storage providers.
+MindPad handles sensitive user data (thoughts, notes, ideas) that requires robust security and privacy protection. This document outlines the security architecture across all storage providers.
 
 ## 🎯 Security Principles
 
@@ -261,7 +261,7 @@ class SecureTokenStorage {
 ```typescript
 class DataValidator {
   // Validate document structure
-  validateDocument(doc: unknown): doc is MindscribbleDocument {
+  validateDocument(doc: unknown): doc is MindpadDocument {
     if (!doc || typeof doc !== 'object') return false;
 
     const d = doc as any;

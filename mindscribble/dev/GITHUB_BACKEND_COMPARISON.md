@@ -1,8 +1,8 @@
-# GitHub Backend Comparison for MindScribble
+# GitHub Backend Comparison for MindPad
 
 ## Executive Summary
 
-This document compares the current Google Drive backend with a potential GitHub backend using Octokit.js, focusing on file search-ability and speed for MindScribble's storage architecture.
+This document compares the current Google Drive backend with a potential GitHub backend using Octokit.js, focusing on file search-ability and speed for MindPad's storage architecture.
 
 ## Current Google Drive Architecture Analysis
 
@@ -41,21 +41,21 @@ const octokit = new Octokit({ auth: 'github_token' })
 // List repository contents
 const { data: files } = await octokit.rest.repos.getContent({
   owner: 'username',
-  repo: 'mindscribble-vault',
+  repo: 'mindpad-vault',
   path: ''
 })
 
 // Read file content
 const { data: file } = await octokit.rest.repos.getContent({
   owner: 'username',
-  repo: 'mindscribble-vault',
+  repo: 'mindpad-vault',
   path: 'map-abc123.json'
 })
 
 // Create/update file
 await octokit.rest.repos.createOrUpdateFileContents({
   owner: 'username',
-  repo: 'mindscribble-vault',
+  repo: 'mindpad-vault',
   path: 'map-abc123.json',
   message: 'Update mindmap',
   content: btoa(JSON.stringify(mapData)),
@@ -68,7 +68,7 @@ await octokit.rest.repos.createOrUpdateFileContents({
 ```typescript
 // GitHub Search API
 const { data: searchResults } = await octokit.rest.search.code({
-  q: 'query in:file extension:json repo:username/mindscribble-vault',
+  q: 'query in:file extension:json repo:username/mindpad-vault',
   per_page: 100
 })
 ```
@@ -98,7 +98,7 @@ const { data: searchResults } = await octokit.rest.search.code({
 #### Google Drive
 ```
 Google Drive/
-└─ MindScribble/
+└─ MindPad/
    ├─ vault-1/
    │  ├─ .vault-metadata.json
    │  ├─ map-abc123.json
@@ -111,11 +111,11 @@ Google Drive/
 ```
 GitHub Repositories:
 └─ username/
-   ├─ mindscribble-vault-1/ (private repo)
+   ├─ mindpad-vault-1/ (private repo)
    │  ├─ .vault-metadata.json
    │  ├─ map-abc123.json
    │  └─ ...
-   └─ mindscribble-vault-2/ (private repo)
+   └─ mindpad-vault-2/ (private repo)
       └─ ...
 ```
 
@@ -171,14 +171,14 @@ Both architectures would use the same IndexedDB caching mechanism:
 - ✅ User owns all data
 - ✅ Files stored in user's Google Drive
 - ✅ Can revoke access anytime
-- ✅ No data on MindScribble servers
+- ✅ No data on MindPad servers
 - ✅ GDPR compliant
 
 #### GitHub
 - ✅ User owns all data (private repositories)
 - ✅ Files stored in user's GitHub account
 - ✅ Can revoke access anytime
-- ✅ No data on MindScribble servers
+- ✅ No data on MindPad servers
 - ✅ GDPR compliant
 - ⚠️ Private repositories require paid plan for organizations
 
@@ -278,7 +278,7 @@ Both architectures support offline work through IndexedDB caching:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    MindScribble App                          │
+│                    MindPad App                          │
 ├─────────────────────────────────────────────────────────────┤
 │  IndexedDB Cache (Primary for performance)                  │
 │  └─ Current vault data (fast local access)                  │
@@ -309,8 +309,8 @@ Both architectures support offline work through IndexedDB caching:
 ```typescript
 interface StorageBackend {
   listFiles(vaultId: string): Promise<FileMetadata[]>
-  readFile(vaultId: string, fileId: string): Promise<MindScribbleDocument>
-  writeFile(vaultId: string, fileId: string, content: MindScribbleDocument): Promise<void>
+  readFile(vaultId: string, fileId: string): Promise<MindPadDocument>
+  writeFile(vaultId: string, fileId: string, content: MindPadDocument): Promise<void>
   deleteFile(vaultId: string, fileId: string): Promise<void>
   searchContent(vaultId: string, query: string): Promise<SearchResult[]>
   getFileHistory(vaultId: string, fileId: string): Promise<FileVersion[]>
@@ -465,7 +465,7 @@ async function optimizedGitHubSearch(vaultId: string, query: string) {
 
 ## Recommendation
 
-### For MindScribble's Current Needs
+### For MindPad's Current Needs
 
 **Stick with Google Drive as primary backend** because:
 1. ✅ Better performance for file operations
@@ -503,6 +503,6 @@ async function optimizedGitHubSearch(vaultId: string, query: string) {
 
 ## Conclusion
 
-The current Google Drive architecture is well-suited for MindScribble's primary use case and target audience. GitHub offers compelling advantages for search and version control, but comes with significant drawbacks in performance, complexity, and rate limits.
+The current Google Drive architecture is well-suited for MindPad's primary use case and target audience. GitHub offers compelling advantages for search and version control, but comes with significant drawbacks in performance, complexity, and rate limits.
 
 **Recommendation**: Continue with Google Drive as the primary backend, but design the architecture to support GitHub as an optional secondary backend for users who need advanced features. This hybrid approach provides the best balance between usability and functionality.

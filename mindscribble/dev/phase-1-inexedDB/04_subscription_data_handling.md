@@ -974,4 +974,4 @@ class SubscriptionNotificationManager {
 5. **Upgrade Paths**: Make it easy for users to upgrade and restore access
 6. **Support Resources**: Provide documentation about data preservation policies
 
-This strategy ensures that MindScribble honors the "user owns data" principle while supporting a sustainable subscription business model.
+This strategy ensures that MindPad honors the "user owns data" principle while supporting a sustainable subscription business model.

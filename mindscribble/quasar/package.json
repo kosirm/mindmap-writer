@@ -2,7 +2,7 @@
   "name": "quasar-project",
   "version": "0.0.1",
   "description": "A Quasar Project",
-  "productName": "MindScribble",
+  "productName": "MindPad",
   "author": "Milan Košir <kosir.milan@gmail.com>",
   "type": "module",
   "private": true,

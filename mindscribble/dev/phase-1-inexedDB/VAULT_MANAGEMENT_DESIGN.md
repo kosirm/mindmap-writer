@@ -4,9 +4,9 @@
 
 ### Single Vault Structure
 The current implementation works with a single vault:
-- **App Folder**: One Google Drive folder called "MindScribble"
+- **App Folder**: One Google Drive folder called "MindPad"
 - **Repository File**: One `.repository.json` file that tracks all mindmap files
-- **Mindmap Files**: Individual `.mindscribble` files stored in the app folder
+- **Mindmap Files**: Individual `.mindpad` files stored in the app folder
 
 ### Current Sync Flow
 1. **App Start**: Download `.repository.json` from Google Drive
@@ -19,19 +19,19 @@ The current implementation works with a single vault:
 ### Multiple Vaults Structure
 ```
 Google Drive Root
-└── MindScribble (App Folder)
-    ├── .mindscribble (Central Index) ← NEW
+└── MindPad (App Folder)
+    ├── .mindpad (Central Index) ← NEW
     ├── Vault 1 (Folder)
     │   ├── .repository.json (Vault Repository)
-    │   ├── file1.mindscribble
-    │   └── file2.mindscribble
+    │   ├── file1.mindpad
+    │   └── file2.mindpad
     ├── Vault 2 (Folder)
     │   ├── .repository.json (Vault Repository)
-    │   └── file3.mindscribble
+    │   └── file3.mindpad
     └── ...
 ```
 
-### Central Index File (`.mindscribble`)
+### Central Index File (`.mindpad`)
 A JSON file that contains metadata about all vaults:
 
 ```typescript
@@ -82,7 +82,7 @@ interface VaultMetadata {
              │                         ▼
              │              ┌──────────────────────┐
              │              │ Download             │
-             │              │ .mindscribble        │ (Central Index)
+             │              │ .mindpad        │ (Central Index)
              │              └──────────┬───────────┘
              │                         │
              │                         ▼
@@ -113,14 +113,14 @@ interface VaultMetadata {
 
 ### New Tables for Central Index
 ```typescript
-// Add to MindScribbleDB class
-export class MindScribbleDB extends Dexie {
+// Add to MindPadDB class
+export class MindPadDB extends Dexie {
   // ... existing tables ...
   centralIndex!: Table<CentralIndex, string>; // NEW: Store central index
   vaultMetadata!: Table<VaultMetadata, string>; // NEW: Store vault metadata
 
   constructor() {
-    super('MindScribbleDB');
+    super('MindPadDB');
 
     this.version(2).stores({
       // ... existing stores ...
@@ -139,8 +139,8 @@ export class MindScribbleDB extends Dexie {
 ```typescript
 async function downloadCentralIndex(): Promise<CentralIndex> {
   try {
-    // Download .mindscribble file from Google Drive
-    const centralIndexContent = await loadMindmapFile('.mindscribble');
+    // Download .mindpad file from Google Drive
+    const centralIndexContent = await loadMindmapFile('.mindpad');
     const centralIndex = JSON.parse(centralIndexContent as string) as CentralIndex;
     
     // Store in IndexedDB
@@ -192,10 +192,10 @@ async function updateCentralIndex(vaultId: string, updates: Partial<VaultMetadat
 ```typescript
 async function syncCentralIndexToDrive(centralIndex: CentralIndex): Promise<void> {
   try {
-    // Upload .mindscribble file to Google Drive
+    // Upload .mindpad file to Google Drive
     const appFolderId = await getOrCreateAppFolder();
     
-    // Check if .mindscribble file exists
+    // Check if .mindpad file exists
     const existingFile = await findCentralIndexFile(appFolderId);
     
     if (existingFile) {
@@ -203,7 +203,7 @@ async function syncCentralIndexToDrive(centralIndex: CentralIndex): Promise<void
       await updateMindmapFile(existingFile.id, centralIndex);
     } else {
       // Create new file
-      await createMindmapFile(appFolderId, '.mindscribble', centralIndex);
+      await createMindmapFile(appFolderId, '.mindpad', centralIndex);
     }
     
     // Update sync status

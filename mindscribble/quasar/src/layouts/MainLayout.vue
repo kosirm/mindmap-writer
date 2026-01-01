@@ -249,7 +249,7 @@ import {
   updateMindmapFile,
   type DriveFileMetadata
 } from 'src/core/services/googleDriveService'
-import type { MindscribbleDocument } from 'src/core/types'
+import type { MindpadDocument } from 'src/core/types'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
 
 // Dev tools - only imported in development mode (lazy loaded)
@@ -288,7 +288,7 @@ const fileModalMode = ref<'save' | 'open' | 'manage'>('save')
 // Dockview layout reference (for file operations)
 const dockviewLayoutRef = ref<{
   addFile: () => void
-  openFileFromDrive: (document: MindscribbleDocument, driveFile: DriveFileMetadata | FileSystemItem) => void
+  openFileFromDrive: (document: MindpadDocument, driveFile: DriveFileMetadata | FileSystemItem) => void
 } | null>(null)
 
 // Handle mini sidebar hover - expand drawer temporarily
@@ -567,7 +567,7 @@ function onFileSaved(file: FileSystemItem) {
   console.log('✅ File saved:', file.name)
 }
 
-function onFileOpened(payload: { file: FileSystemItem; document: MindscribbleDocument }) {
+function onFileOpened(payload: { file: FileSystemItem; document: MindpadDocument }) {
   console.log('✅ File opened:', payload.file.name)
 
   // Open the file in a new dockview panel

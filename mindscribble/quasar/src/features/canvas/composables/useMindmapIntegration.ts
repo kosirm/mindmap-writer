@@ -2,7 +2,7 @@ import { computed } from 'vue'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useViewEvents } from 'src/core/events'
 import type { Data } from '../components/mindmap/types/mindmap-types'
-import type { MindscribbleNode } from 'src/core/types/node'
+import type { MindpadNode } from 'src/core/types/node'
 
 export function useMindmapIntegration() {
   // Unified store
@@ -11,7 +11,7 @@ export function useMindmapIntegration() {
   const { onStoreEvent } = useViewEvents('mindmap')
 
   /**
-   * Transform MindScribble nodes to mindmap format
+   * Transform MindPad nodes to mindmap format
    */
   const mindmapData = computed<Data[]>(() => {
     // Access the nodes array to ensure reactivity
@@ -92,7 +92,7 @@ export function useMindmapIntegration() {
   }
 }
 
-function transformNodesToMindmapFormat(nodes: MindscribbleNode[]): Data[] {
+function transformNodesToMindmapFormat(nodes: MindpadNode[]): Data[] {
   const rootNodes = nodes.filter(node => !node.data.parentId)
 
   // If no root nodes exist, create a default root node
@@ -105,7 +105,7 @@ function transformNodesToMindmapFormat(nodes: MindscribbleNode[]): Data[] {
     }]
   }
 
-  function convertNode(node: MindscribbleNode, inheritedSide?: 'left' | 'right'): Data {
+  function convertNode(node: MindpadNode, inheritedSide?: 'left' | 'right'): Data {
     const children = nodes.filter(n => n.data.parentId === node.id)
       .sort((a, b) => a.data.order - b.data.order)
 

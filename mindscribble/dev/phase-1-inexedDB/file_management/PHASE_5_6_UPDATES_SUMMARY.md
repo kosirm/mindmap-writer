@@ -90,7 +90,7 @@ MindPad/                    (App folder)
 - Stores Google Drive file IDs in IndexedDB
 
 #### 3. **File Extension Change**
-- **Changed from `.mindscribble` to `.json`**
+- **Changed from `.mindpad` to `.json`**
 - All files saved with `.json` extension
 - Simpler, more standard format
 
@@ -137,7 +137,7 @@ MindPad/                    (App folder)
 - ✅ **Index file** - `.vaults` file tracks all vaults
 - ✅ **Lock file** - `.lock` file for concurrent access control
 - ✅ **Repository files** - `.repository.json` per vault for efficient sync
-- ✅ **Standard format** - Uses `.json` extension instead of `.mindscribble`
+- ✅ **Standard format** - Uses `.json` extension instead of `.mindpad`
 - ✅ **OAuth management** - Automatic token refresh
 - ✅ **Offline support** - Works without internet
 - ✅ **Partial sync ready** - Drive IDs and timestamps enable efficient sync

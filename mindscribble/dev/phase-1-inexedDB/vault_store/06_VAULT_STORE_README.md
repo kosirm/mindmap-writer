@@ -2,7 +2,7 @@
 
 ## 📚 Overview
 
-This directory contains comprehensive documentation for implementing a centralized **VaultStore** to manage vault state and operations in the Mindscribble application.
+This directory contains comprehensive documentation for implementing a centralized **VaultStore** to manage vault state and operations in the Mindpad application.
 
 The VaultStore follows the same architectural pattern as `unifiedDocumentStore`, providing a single source of truth for vault management with reactive state updates and type-safe event emission.
 

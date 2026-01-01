@@ -8,9 +8,9 @@
 // The app uses Quasar's Dark mode plugin which adds .body--dark class to <body>
 // when dark mode is enabled. All components should respect this class.
 
-// MindScribble custom theme variables - Light mode (default)
+// MindPad custom theme variables - Light mode (default)
 :root {
-  // MindScribble custom theme variables
+  // MindPad custom theme variables
   --ms-bg-primary: #ffffff;
   --ms-bg-secondary: #f5f5f5;
   --ms-text-primary: #1d1d1d;
@@ -25,9 +25,9 @@
   --ms-drawer-expanded-text: #1d1d1d; // Dark text on light background
 }
 
-// MindScribble custom theme variables - Dark mode
+// MindPad custom theme variables - Dark mode
 .body--dark {
-  // MindScribble custom theme variables - dark mode
+  // MindPad custom theme variables - dark mode
   --ms-bg-primary: #1d1d1d;
   --ms-bg-secondary: #2d3748;
   --ms-text-primary: #e2e8f0;

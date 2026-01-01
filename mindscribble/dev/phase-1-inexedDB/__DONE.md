@@ -8,7 +8,7 @@
 
 ### 2. Error Handling System
 - **Created core error classes** (`src/core/errors/index.ts`):
-  - `MindScribbleError` - Base error class
+  - `MindPadError` - Base error class
   - `StorageError` - IndexedDB and storage-related errors
   - `NetworkError` - Network and sync-related errors
   - `AuthError` - Authentication-related errors
@@ -39,7 +39,7 @@
 
 ### 4. IndexedDB Service Layer
 - **Created IndexedDB service** (`src/core/services/indexedDBService.ts`):
-  - `MindScribbleDB` class extending Dexie
+  - `MindPadDB` class extending Dexie
   - Schema version 1 with all required tables:
     - `documents` - Main document storage
     - `nodes` - Node storage with indexing
@@ -234,7 +234,7 @@
 
 ```bash
 # Start where we left off
-cd mindscribble/quasar
+cd mindpad/quasar
 bun dev
 
 # Test subscription service in browser console
@@ -315,7 +315,7 @@ db.documents.toArray().then(console.log)
 
 ```bash
 # Start where we left off
-cd mindscribble/quasar
+cd mindpad/quasar
 bun dev
 
 # Test subscription service in browser console
@@ -412,7 +412,7 @@ store.isViewAvailable('kanban').then(console.log)
 
 ```bash
 # Start where we left off
-cd mindscribble/quasar
+cd mindpad/quasar
 bun dev
 
 # Test view access control in browser console

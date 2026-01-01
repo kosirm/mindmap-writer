@@ -2,14 +2,14 @@
 
 ## 🎯 Overview
 
-This guide covers migrating from the current MindScribble architecture to the new provider-based system with repository files and optional binary format.
+This guide covers migrating from the current MindPad architecture to the new provider-based system with repository files and optional binary format.
 
 ## 📊 Current State Analysis
 
 ### Current Architecture:
 ```
 IndexedDB (Primary Storage)
-├─ documents: Map<documentId, MindscribbleDocument>
+├─ documents: Map<documentId, MindpadDocument>
 ├─ metadata: Document metadata
 └─ syncState: Last sync timestamps
 
@@ -22,7 +22,7 @@ Google Drive (Cloud Sync)
 ### Target Architecture:
 ```
 IndexedDB (Primary Storage)
-├─ documents: Map<documentId, MindscribbleDocument>
+├─ documents: Map<documentId, MindpadDocument>
 ├─ repositories: Map<repositoryId, Repository>
 └─ syncState: Enhanced sync tracking
 
@@ -412,7 +412,7 @@ class MigrationExecutor {
     }
   }
 
-  private estimateDocumentSize(doc: MindscribbleDocument): number {
+  private estimateDocumentSize(doc: MindpadDocument): number {
     return JSON.stringify(doc).length;
   }
 
@@ -491,7 +491,7 @@ class MigrationRollback {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `mindscribble-backup-${backup.timestamp}.json`;
+    a.download = `mindpad-backup-${backup.timestamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -509,7 +509,7 @@ class MigrationRollback {
       <q-card-section>
         <div class="text-h6">Data Migration Required</div>
         <div class="text-caption">
-          MindScribble needs to update your data to the new format
+          MindPad needs to update your data to the new format
         </div>
       </q-card-section>
 

@@ -1,4 +1,4 @@
-# MindScribble Testing Guide
+# Mindpad Testing Guide
 
 ## Overview
 

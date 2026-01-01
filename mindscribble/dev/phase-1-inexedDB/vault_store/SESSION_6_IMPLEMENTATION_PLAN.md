@@ -43,7 +43,7 @@ async function testFullVaultWorkflow() {
   await vaultStore.createNewVault('Test Vault', 'Test description')
   
   // Create file
-  const fileDoc: MindscribbleDocument = { /* minimal doc */ }
+  const fileDoc: MindpadDocument = { /* minimal doc */ }
   await vaultStore.createNewFile(null, 'Test File', fileDoc)
   
   // Create folder
@@ -157,7 +157,7 @@ function testMemoryUsage() {
 
 ### Step 5: Create Session 4 Summary
 
-**Location**: `mindscribble/dev/phase-1-inexedDB/vault_store/SESSION_4_IMPLEMENTATION_SUMMARY.md`
+**Location**: `mindpad/dev/phase-1-inexedDB/vault_store/SESSION_4_IMPLEMENTATION_SUMMARY.md`
 
 **Content**:
 
@@ -234,7 +234,7 @@ After Session 4:
 
 ### Step 7: Create Final Summary
 
-**Location**: `mindscribble/dev/phase-1-inexedDB/vault_store/VAULT_STORE_MIGRATION_SUMMARY.md`
+**Location**: `mindpad/dev/phase-1-inexedDB/vault_store/VAULT_STORE_MIGRATION_SUMMARY.md`
 
 **Content**:
 

@@ -206,7 +206,7 @@ Just delete these blocks entirely.
 
 ```typescript
 // Getting document
-let document: MindscribbleDocument | null = null
+let document: MindpadDocument | null = null
 if (isUnifiedMode.value || isDualWriteMode.value) {
   document = unifiedStore.toDocument()
 } else {

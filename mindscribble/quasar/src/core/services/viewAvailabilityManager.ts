@@ -1,4 +1,4 @@
-// mindscribble/quasar/src/core/services/viewAvailabilityManager.ts
+// mindpad/quasar/src/core/services/viewAvailabilityManager.ts
 import { subscriptionService } from './subscriptionService';
 import type { ViewType } from '../types';
 

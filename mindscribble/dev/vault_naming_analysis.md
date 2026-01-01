@@ -96,7 +96,7 @@
 ### Alternative: **Library**
 If you want something slightly more elegant:
 - "Create a new Library"
-- "Your MindScribble Library"
+- "Your MindPad Library"
 - "Library synchronization"
 
 ### Implementation Recommendations:
@@ -141,4 +141,4 @@ type KnowledgeBase = Vault;
 
 **Keep "Vault" internally** during transition for code consistency, but migrate to "KnowledgeBase" in the codebase over time.
 
-This change will make MindScribble feel more approachable and clearly communicate its purpose as a knowledge management tool rather than a security-focused application.
+This change will make MindPad feel more approachable and clearly communicate its purpose as a knowledge management tool rather than a security-focused application.

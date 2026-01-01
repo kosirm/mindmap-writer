@@ -7,7 +7,7 @@ This guide helps you start implementing Phase 2 features immediately.
 ## 📁 Project Structure
 
 ```
-mindscribble/
+mindpad/
 ├── src/
 │   ├── services/
 │   │   ├── storage/
@@ -50,7 +50,7 @@ mindscribble/
 
 ```typescript
 // src/services/errors/ErrorClasses.ts
-export class MindScribbleError extends Error {
+export class MindPadError extends Error {
   constructor(
     message: string,
     public code: string,
@@ -59,11 +59,11 @@ export class MindScribbleError extends Error {
     public context?: Record<string, any>
   ) {
     super(message);
-    this.name = 'MindScribbleError';
+    this.name = 'MindPadError';
   }
 }
 
-export class StorageError extends MindScribbleError {
+export class StorageError extends MindPadError {
   constructor(message: string, code: string, context?: Record<string, any>) {
     super(message, code, 'error', true, context);
     this.name = 'StorageError';
@@ -136,8 +136,8 @@ export interface StorageProvider {
   deleteRepository(repositoryId: string): Promise<void>;
   
   // File operations
-  getFile(repositoryId: string, fileId: string): Promise<MindscribbleDocument>;
-  saveFile(repositoryId: string, file: MindscribbleDocument): Promise<void>;
+  getFile(repositoryId: string, fileId: string): Promise<MindpadDocument>;
+  saveFile(repositoryId: string, file: MindpadDocument): Promise<void>;
   deleteFile(repositoryId: string, fileId: string): Promise<void>;
 }
 
@@ -399,5 +399,5 @@ After completing the foundation:
 
 Start with Day 1 and work through systematically. Don't rush - a solid foundation is critical for Phase 2 success!
 
-**Questions?** Check the detailed planning documents in `mindscribble/dev/phase-2/`
+**Questions?** Check the detailed planning documents in `mindpad/dev/phase-2/`
 

@@ -3,8 +3,8 @@
  * Enhanced for multi-view support and inter-map links
  */
 
-import type { MindscribbleNode, MindmapNode } from './node'
-import type { MindscribbleEdge, MindmapEdge, InterMapLink } from './edge'
+import type { MindpadNode, MindmapNode } from './node'
+import type { MindpadEdge, MindmapEdge, InterMapLink } from './edge'
 import type { ViewType } from './view'
 
 // ============================================================
@@ -156,13 +156,13 @@ export interface LayoutSettings {
 
 /**
  * Complete document structure
- * This is what gets saved to Google Drive as .mindscribble file
+ * This is what gets saved to Google Drive as .mindpad file
  */
-export interface MindscribbleDocument {
+export interface MindpadDocument {
   version: string                 // Schema version "1.0"
   metadata: DocumentMetadata
-  nodes: MindscribbleNode[]
-  edges: MindscribbleEdge[]
+  nodes: MindpadNode[]
+  edges: MindpadEdge[]
   interMapLinks: InterMapLink[]   // Links to other maps/nodes
   layout: LayoutSettings
   dockviewLayout?: unknown        // Child dockview layout state (optional for backward compatibility)
@@ -205,7 +205,7 @@ export interface SerializedInterMapLink {
 }
 
 /**
- * @deprecated Use MindscribbleDocument instead
+ * @deprecated Use MindpadDocument instead
  * Kept for backward compatibility during migration
  */
 export interface MindmapDocument {

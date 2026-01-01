@@ -1,7 +1,7 @@
-# Dockview Migration Guide for MindScribble
+# Dockview Migration Guide for MindPad
 
 ## Overview
-This document provides a comprehensive guide for integrating the quasar-dockview functionality into MindScribble, including platform-specific implementations for desktop and mobile.
+This document provides a comprehensive guide for integrating the quasar-dockview functionality into MindPad, including platform-specific implementations for desktop and mobile.
 
 ## Migration Phases
 
@@ -174,7 +174,7 @@ Action: Modify to include platform detection and conditional rendering:
   <q-layout view="lHh Lpr lFf">
     <q-header elevated v-if="!isMobile">
       <q-toolbar>
-        <q-toolbar-title>MindScribble</q-toolbar-title>
+        <q-toolbar-title>MindPad</q-toolbar-title>
         <q-btn flat dense icon="add" label="Add File" @click="handleAddFile" />
       </q-toolbar>
     </q-header>

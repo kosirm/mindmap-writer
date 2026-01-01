@@ -1,8 +1,8 @@
-# PWA vs Capacitor Comparison for MindScribble
+# PWA vs Capacitor Comparison for MindPad
 
 ## 🎯 Quick Decision Guide
 
-This document provides a concise comparison to help decide between PWA and Capacitor approaches for MindScribble's mobile strategy.
+This document provides a concise comparison to help decide between PWA and Capacitor approaches for MindPad's mobile strategy.
 
 ## 📊 Feature Comparison Matrix
 
@@ -121,7 +121,7 @@ graph TD
 | **Maintenance** | 5% | 8/10 | 6/10 |
 | **Total** | 100% | **4.8/10** | **7.9/10** |
 
-**Conclusion**: Capacitor scores significantly higher (7.9 vs 4.8) for MindScribble's needs.
+**Conclusion**: Capacitor scores significantly higher (7.9 vs 4.8) for MindPad's needs.
 
 ## 🚀 Final Recommendation
 

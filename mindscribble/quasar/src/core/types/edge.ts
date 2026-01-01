@@ -28,7 +28,7 @@ export interface EdgeData {
 /**
  * Complete edge structure (VueFlow compatible)
  */
-export interface MindscribbleEdge {
+export interface MindpadEdge {
   id: string
   source: string
   target: string
@@ -43,7 +43,7 @@ export interface MindscribbleEdge {
 }
 
 /**
- * @deprecated Use MindscribbleEdge instead
+ * @deprecated Use MindpadEdge instead
  * Kept for backward compatibility during migration
  */
 export interface MindmapEdge {

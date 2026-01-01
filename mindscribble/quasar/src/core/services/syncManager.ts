@@ -1,8 +1,8 @@
-// mindscribble/quasar/src/core/services/syncManager.ts
+// mindpad/quasar/src/core/services/syncManager.ts
 import { db } from './indexedDBService';
 import { updateMindmapFile, loadMindmapFile, createMindmapFile, getOrCreateAppFolder, findCentralIndexFile } from './googleDriveService';
 import { NetworkError, StorageError } from '../errors';
-import type { MindscribbleDocument } from '../types';
+import type { MindpadDocument } from '../types';
 import type { ProviderMetadata, Repository, RepositoryFile, CentralIndex, VaultMetadata } from './indexedDBService';
 
 /**
@@ -29,7 +29,7 @@ export class SyncManager {
   /**
    * Save document to IndexedDB and queue provider sync
    */
-  async saveDocument(doc: MindscribbleDocument): Promise<void> {
+  async saveDocument(doc: MindpadDocument): Promise<void> {
     // 1. Save to IndexedDB first (fast, always works offline)
     try {
       await db.documents.put(doc);
@@ -67,7 +67,7 @@ export class SyncManager {
    *
    * Phase 2: This will support multiple providers
    */
-  private getProviderFileId(doc: MindscribbleDocument): string | undefined {
+  private getProviderFileId(doc: MindpadDocument): string | undefined {
     switch (this.currentProvider) {
       case 'googleDrive':
         // Support both new and legacy metadata formats
@@ -84,7 +84,7 @@ export class SyncManager {
   /**
    * Load document from IndexedDB, sync from provider in background
    */
-  async loadDocument(documentId: string, providerFileId?: string): Promise<MindscribbleDocument | undefined> {
+  async loadDocument(documentId: string, providerFileId?: string): Promise<MindpadDocument> {
     // 1. Try IndexedDB first (fast)
     let doc = await db.documents.get(documentId);
 
@@ -99,23 +99,21 @@ export class SyncManager {
     // 3. If not in IndexedDB, load from provider
     if (providerFileId) {
       doc = await this.loadFromProvider(providerFileId);
-      if (doc) {
-        await db.documents.put(doc);
+      await db.documents.put(doc);
 
-        // Track provider metadata
-        await db.providerMetadata.put({
-          id: `${documentId}:${this.currentProvider}`,
-          documentId,
-          providerId: this.currentProvider,
-          providerFileId,
-          lastSyncedAt: Date.now(),
-          syncStatus: 'synced'
-        });
-      }
+      // Track provider metadata
+      await db.providerMetadata.put({
+        id: `${documentId}:${this.currentProvider}`,
+        documentId,
+        providerId: this.currentProvider,
+        providerFileId,
+        lastSyncedAt: Date.now(),
+        syncStatus: 'synced'
+      });
       return doc;
     }
 
-    return undefined;
+    throw new StorageError('Document not found', { documentId });
   }
 
   /**
@@ -175,7 +173,7 @@ export class SyncManager {
    *
    * Phase 2: This will support multiple providers
    */
-  private async syncToProvider(doc: MindscribbleDocument): Promise<void> {
+  private async syncToProvider(doc: MindpadDocument): Promise<void> {
     if (!navigator.onLine) {
       throw new NetworkError('Cannot sync while offline');
     }
@@ -218,7 +216,7 @@ export class SyncManager {
   /**
    * Sync to Google Drive (current implementation)
    */
-  private async syncToGoogleDrive(doc: MindscribbleDocument): Promise<void> {
+  private async syncToGoogleDrive(doc: MindpadDocument): Promise<void> {
     const fileId = this.getProviderFileId(doc);
     if (fileId) {
       await updateMindmapFile(fileId, doc);
@@ -232,15 +230,15 @@ export class SyncManager {
   /**
    * Load document from current provider
    */
-  private async loadFromProvider(providerFileId: string): Promise<MindscribbleDocument | undefined> {
+  private async loadFromProvider(providerFileId: string): Promise<MindpadDocument> {
     try {
       // For now, only Google Drive is implemented
       if (this.currentProvider === 'googleDrive') {
-        return await loadMindmapFile(providerFileId) as MindscribbleDocument;
+        return await loadMindmapFile(providerFileId) as MindpadDocument;
       }
       // Phase 2: Add other providers
 
-      return undefined;
+      throw new NetworkError('Provider not implemented', { providerId: this.currentProvider });
     } catch (error: unknown) {
       throw new NetworkError('Failed to load from provider', {
         providerId: this.currentProvider,
@@ -299,9 +297,6 @@ export class SyncManager {
   private async getRemoteRepository(vaultId: string): Promise<Repository> {
     // Download .repository.json from current provider
     const repoFile = await this.loadFromProvider(`${vaultId}/.repository.json`);
-    if (!repoFile) {
-      throw new NetworkError('Repository file not found', { providerId: this.currentProvider });
-    }
     return JSON.parse(repoFile as unknown as string);
   }
 
@@ -387,9 +382,7 @@ export class SyncManager {
     // Download changed files
     for (const fileId of changes.toDownload) {
       const doc = await this.loadFromProvider(fileId);
-      if (doc) {
-        await db.documents.put(doc);
-      }
+      await db.documents.put(doc);
     }
 
     // Upload changed files
@@ -436,19 +429,17 @@ export class SyncManager {
   private async syncFromProviderInBackground(documentId: string, providerFileId: string): Promise<void> {
     try {
       const providerDoc = await this.loadFromProvider(providerFileId);
-      if (providerDoc) {
-        const localDoc = await db.documents.get(documentId);
+      const localDoc = await db.documents.get(documentId);
 
-        // Simple conflict resolution: use newer document
-        if (!localDoc || providerDoc.metadata.modified > localDoc.metadata.modified) {
-          await db.documents.put(providerDoc);
+      // Simple conflict resolution: use newer document
+      if (!localDoc || providerDoc.metadata.modified > localDoc.metadata.modified) {
+        await db.documents.put(providerDoc);
 
-          // Update sync status
-          await db.providerMetadata.update(`${documentId}:${this.currentProvider}`, {
-            lastSyncedAt: Date.now(),
-            syncStatus: 'synced'
-          });
-        }
+        // Update sync status
+        await db.providerMetadata.update(`${documentId}:${this.currentProvider}`, {
+          lastSyncedAt: Date.now(),
+          syncStatus: 'synced'
+        });
       }
     } catch (error) {
       console.error('Background sync failed:', error);
@@ -612,7 +603,7 @@ export class SyncManager {
         console.log('✅ Central index updated on Google Drive');
       } else {
         // Create new file
-        await createMindmapFile(appFolderId, '.mindscribble', centralIndex);
+        await createMindmapFile(appFolderId, '.mindpad', centralIndex);
         console.log('✅ Central index created on Google Drive');
       }
 

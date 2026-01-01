@@ -24,7 +24,7 @@
 
 ### Week 1: Error Handling & Logging
 - [ ] Create error class hierarchy
-  - [ ] MindScribbleError base class
+  - [ ] MindPadError base class
   - [ ] StorageError class
   - [ ] NetworkError class
   - [ ] AuthError class

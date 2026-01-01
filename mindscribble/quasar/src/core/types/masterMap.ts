@@ -3,7 +3,7 @@
  * For cross-document connections and the master map visualization
  *
  * The master map shows all documents (maps) and their interconnections.
- * It is stored in Google Drive as _mindscribble_master.json and cached in IndexedDB.
+ * It is stored in Google Drive as _mindpad_master.json and cached in IndexedDB.
  */
 
 import type { Position } from './node'
@@ -41,7 +41,7 @@ export interface MasterMapMapEntry extends MasterMapNodeBase {
   // Map identification
   mapId: string                   // Google Drive file ID
   mapName: string
-  folderPath?: string             // e.g., "MindScribble/Ideas"
+  folderPath?: string             // e.g., "MindPad/Ideas"
   description?: string
 
   // Metadata
@@ -101,7 +101,7 @@ export interface MasterMapLink extends InterMapLink {
 // ============================================================
 
 /**
- * Master map document - stored as _mindscribble_master.json
+ * Master map document - stored as _mindpad_master.json
  * This is the SOURCE OF TRUTH for all inter-map connections
  */
 export interface MasterMapDocument {

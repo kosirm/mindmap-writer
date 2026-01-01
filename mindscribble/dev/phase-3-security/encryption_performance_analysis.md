@@ -1,8 +1,8 @@
-# Encryption Performance & Searchability Analysis for MindScribble
+# Encryption Performance & Searchability Analysis for MindPad
 
 ## 🎯 Executive Summary
 
-This document analyzes the performance impact and searchability implications of implementing client-side encryption in MindScribble, particularly focusing on IndexedDB operations. The analysis provides data-driven recommendations for balancing security with usability.
+This document analyzes the performance impact and searchability implications of implementing client-side encryption in MindPad, particularly focusing on IndexedDB operations. The analysis provides data-driven recommendations for balancing security with usability.
 
 ## 🔐 Current Security Architecture Overview
 
@@ -84,7 +84,7 @@ console.log(`Encrypted operation: ${end - start}ms`);
 **Current Search Approach (without encryption):**
 ```typescript
 // Search in unencrypted documents
-async function searchDocuments(query: string): Promise<MindscribbleDocument[]> {
+async function searchDocuments(query: string): Promise<MindpadDocument[]> {
   const allDocs = await db.documents.toArray();
   return allDocs.filter(doc => 
     doc.nodes.some(node => 
@@ -97,7 +97,7 @@ async function searchDocuments(query: string): Promise<MindscribbleDocument[]> {
 **With Encryption (Problematic):**
 ```typescript
 // Cannot search encrypted content directly
-async function searchDocuments(query: string): Promise<MindscribbleDocument[]> {
+async function searchDocuments(query: string): Promise<MindpadDocument[]> {
   const allDocs = await db.documents.toArray();
   
   const results = [];
@@ -195,7 +195,7 @@ class SearchIndexManager {
   private index: Map<string, Set<string>> = new Map(); // term -> documentIds
   
   // Update index when documents change
-  async updateIndex(doc: MindscribbleDocument) {
+  async updateIndex(doc: MindpadDocument) {
     // Extract search terms
     const terms = this.extractSearchTerms(doc);
     
@@ -233,7 +233,7 @@ class SearchIndexManager {
 | **Hybrid**          | ✅ High        | ⚠️ Good          | ⚠️ Medium               | **Best balance**        |
 | **Client Index**    | ✅ High        | ✅ Excellent       | ✅ High                   | Performance-critical    |
 
-## 🎯 Recommendations for MindScribble
+## 🎯 Recommendations for MindPad
 
 ### 1. **Phased Implementation**
 
@@ -307,9 +307,9 @@ encryptionWorker.onmessage = (e) => {
 **Lazy Decryption:**
 ```typescript
 class LazyDocumentLoader {
-  private cache: Map<string, Promise<MindscribbleDocument>> = new Map();
+  private cache: Map<string, Promise<MindpadDocument>> = new Map();
   
-  async getDocument(id: string): Promise<MindscribbleDocument> {
+  async getDocument(id: string): Promise<MindpadDocument> {
     if (!this.cache.has(id)) {
       this.cache.set(id, this.loadAndDecrypt(id));
     }
@@ -317,7 +317,7 @@ class LazyDocumentLoader {
     return await this.cache.get(id);
   }
   
-  private async loadAndDecrypt(id: string): Promise<MindscribbleDocument> {
+  private async loadAndDecrypt(id: string): Promise<MindpadDocument> {
     const encrypted = await db.documents.get(id);
     return await encryptionService.decrypt(encrypted);
   }
@@ -326,7 +326,7 @@ class LazyDocumentLoader {
 
 **Batch Operations:**
 ```typescript
-async function batchEncrypt(documents: MindscribbleDocument[]): Promise<EncryptedFile[]> {
+async function batchEncrypt(documents: MindpadDocument[]): Promise<EncryptedFile[]> {
   // Process in batches to avoid UI freezing
   const batchSize = 10;
   const results = [];
@@ -415,7 +415,7 @@ async function batchEncrypt(documents: MindscribbleDocument[]): Promise<Encrypte
 
 ## 🎯 Final Recommendations
 
-### For MindScribble's Use Case:
+### For MindPad's Use Case:
 
 1. **Start with no encryption** for MVP to ensure good performance
 2. **Add optional encryption** in Phase 2 with clear warnings about search limitations
@@ -436,4 +436,4 @@ async function batchEncrypt(documents: MindscribbleDocument[]): Promise<Encrypte
 - **Hybrid approach**: Limited content search with warnings
 - **Search index**: Near-full search capability with complexity
 
-**Conclusion:** The hybrid approach with optional encryption provides the best balance between security and usability for MindScribble, allowing users to choose based on their specific needs while maintaining good performance for typical use cases.
+**Conclusion:** The hybrid approach with optional encryption provides the best balance between security and usability for MindPad, allowing users to choose based on their specific needs while maintaining good performance for typical use cases.

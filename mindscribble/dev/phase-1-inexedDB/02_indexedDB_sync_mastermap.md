@@ -7,7 +7,7 @@
 ## 🏗️ Core Architecture
 
 ### 1. IndexedDB Schema Design
-- Database structure for MindScribble
+- Database structure for MindPad
 - Object stores: maps, nodes, backlinks, vaults, settings, mastermap
 - Indexes and constraints
 

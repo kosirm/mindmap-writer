@@ -120,7 +120,7 @@ function exportJson() {
   }
 
   const data = {
-    documentName: activeDoc.metadata?.name || 'mindscribble',
+    documentName: activeDoc.metadata?.name || 'mindpad',
     nodes: activeDoc.nodes
   }
   const json = JSON.stringify(data, null, 2)

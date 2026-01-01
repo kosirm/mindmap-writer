@@ -59,7 +59,7 @@ import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject, watch } f
 import { EditorContent, Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import type { MindscribbleNode, NodeData } from '../../../core/types'
+import type { MindpadNode, NodeData } from '../../../core/types'
 import type { EventSource } from '../../../core/events'
 import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
 import { createKeyboardHandler } from '../composables/useWriterKeyboardHandlers'
@@ -67,7 +67,7 @@ import type { useWriterNavigation } from '../composables/useWriterNavigation'
 import { useWriterSettingsStore } from 'src/dev/WriterSettingsStore'
 
 const props = defineProps<{
-  node: MindscribbleNode
+  node: MindpadNode
   stat: unknown // he-tree stat object
   triggerClass: string
   indentLevel?: number

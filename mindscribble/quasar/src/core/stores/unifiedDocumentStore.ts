@@ -13,12 +13,12 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { eventBus, type Events, type EventSource } from '../events'
 import type {
-  MindscribbleDocument,
+  MindpadDocument,
   Position,
   NodeData,
   MasterMapDocument,
   ViewType,
-  MindscribbleNode
+  MindpadNode
 } from '../types'
 import type { DriveFileMetadata } from '../services/googleDriveService'
 import { useDevSettingsStore } from '../../dev/devSettingsStore'
@@ -41,7 +41,7 @@ export interface DocumentInstance {
   filePanelId: string
 
   /** Document data */
-  document: MindscribbleDocument
+  document: MindpadDocument
 
   /** Google Drive file metadata (null for unsaved documents) */
   driveFile: DriveFileMetadata | null
@@ -71,7 +71,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   // ============================================================
 
   /** All documents by ID */
-  const documents = ref<Map<string, MindscribbleDocument>>(new Map())
+  const documents = ref<Map<string, MindpadDocument>>(new Map())
 
   // Dev settings store for selectNavigate feature
   const devSettings = useDevSettingsStore()
@@ -128,7 +128,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /**
    * Add a new document to the unified store
    */
-  function addDocument(document: MindscribbleDocument) {
+  function addDocument(document: MindpadDocument) {
     updateDocument(document.metadata.id, document)
 
     // If this is the first document, set it as active
@@ -185,14 +185,14 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /**
    * Get document by ID
    */
-  function getDocumentById(documentId: string): MindscribbleDocument | null {
+  function getDocumentById(documentId: string): MindpadDocument | null {
     return documents.value.get(documentId) ?? null
   }
 
   /**
-   * Convert active document to MindscribbleDocument format using new property names
+   * Convert active document to MindpadDocument format using new property names
    */
-  function toDocument(): MindscribbleDocument | null {
+  function toDocument(): MindpadDocument | null {
     if (!activeDocumentId.value) {
       return null
     }
@@ -212,13 +212,13 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     serializedDoc[PROP.MAP_EDGE_COUNT] = doc.edges.length
 
     // Convert back to standard format
-    return deserializeDocument(serializedDoc) as unknown as MindscribbleDocument
+    return deserializeDocument(serializedDoc) as unknown as MindpadDocument
   }
 
   /**
    * Create a new empty document using new property names
    */
-  function createEmptyDocument(name = 'Untitled'): MindscribbleDocument {
+  function createEmptyDocument(name = 'Untitled'): MindpadDocument {
     const documentId = generateDocumentId()
     const now = generateTimestamp()
 
@@ -249,13 +249,13 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       nodes: [],
       edges: [],
       interMapLinks: []
-    }) as unknown as MindscribbleDocument
+    }) as unknown as MindpadDocument
   }
 
   /**
    * Update document metadata
    */
-  function updateDocumentMetadata(documentId: string, metadataUpdates: Partial<MindscribbleDocument['metadata']>) {
+  function updateDocumentMetadata(documentId: string, metadataUpdates: Partial<MindpadDocument['metadata']>) {
     const doc = documents.value.get(documentId)
     if (doc) {
       // Create a new metadata object to ensure proper reactivity and timestamp update
@@ -266,7 +266,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       }
 
       // Create a new document object to trigger reactivity
-      const updatedDoc: MindscribbleDocument = {
+      const updatedDoc: MindpadDocument = {
         ...doc,
         metadata: updatedMetadata
       }
@@ -278,7 +278,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /**
    * Update document layout settings
    */
-  function updateDocumentLayoutSettings(documentId: string, layoutUpdates: Partial<MindscribbleDocument['layout']>) {
+  function updateDocumentLayoutSettings(documentId: string, layoutUpdates: Partial<MindpadDocument['layout']>) {
     const doc = documents.value.get(documentId)
     if (doc) {
       Object.assign(doc.layout, layoutUpdates)
@@ -301,7 +301,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    * Update a document in the store and increment revision counter
    * This ensures Vue's reactivity system detects the change
    */
-  function updateDocument(docId: string, updatedDoc: MindscribbleDocument) {
+  function updateDocument(docId: string, updatedDoc: MindpadDocument) {
     documents.value.set(docId, updatedDoc)
     documentRevision.value++
     // Mark document as dirty when updated
@@ -311,7 +311,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /**
    * Get node by ID from active document
    */
-  function getNodeById(nodeId: string): MindscribbleNode | undefined {
+  function getNodeById(nodeId: string): MindpadNode | undefined {
     if (!activeDocumentId.value) return undefined
     const doc = documents.value.get(activeDocumentId.value)
     return doc?.nodes.find((n) => n.id === nodeId)
@@ -320,7 +320,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /**
    * Get child nodes of a parent
    */
-  function getChildNodes(parentId: string): MindscribbleNode[] {
+  function getChildNodes(parentId: string): MindpadNode[] {
     if (!activeDocumentId.value) return []
     const doc = documents.value.get(activeDocumentId.value)
     if (!doc) return []
@@ -332,8 +332,8 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /**
    * Get all descendants of a node
    */
-  function getAllDescendants(nodeId: string): MindscribbleNode[] {
-    const descendants: MindscribbleNode[] = []
+  function getAllDescendants(nodeId: string): MindpadNode[] {
+    const descendants: MindpadNode[] = []
     const children = getChildNodes(nodeId)
     for (const child of children) {
       descendants.push(child)
@@ -345,7 +345,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   /**
    * Get root nodes from active document
    */
-  function getRootNodes(): MindscribbleNode[] {
+  function getRootNodes(): MindpadNode[] {
     if (!activeDocumentId.value) return []
     const doc = documents.value.get(activeDocumentId.value)
     if (!doc) return []
@@ -363,7 +363,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     content = '',
     position?: Position,
     source: EventSource = 'store'
-  ): MindscribbleNode | null {
+  ): MindpadNode | null {
     if (!activeDocumentId.value) return null
     const doc = documents.value.get(activeDocumentId.value)
     if (!doc) return null
@@ -387,7 +387,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     }
 
     // Convert to standard format
-    const newNode = deserializeNode(serializedNode) as unknown as MindscribbleNode
+    const newNode = deserializeNode(serializedNode) as unknown as MindpadNode
 
     // Create a new document object to trigger reactivity
     const updatedDoc = {
@@ -446,14 +446,14 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       serializedNode[PROP.NODE_MODIFIED] = generateTimestamp()
 
       // Convert back to standard format
-      const updatedNode = deserializeNode(serializedNode) as unknown as MindscribbleNode
+      const updatedNode = deserializeNode(serializedNode) as unknown as MindpadNode
 
       // Create new nodes array with updated node
       const updatedNodes = [...doc.nodes]
       updatedNodes[nodeIndex] = updatedNode
 
       // Create new document object to trigger reactivity
-      const updatedDoc: MindscribbleDocument = {
+      const updatedDoc: MindpadDocument = {
         ...doc,
         nodes: updatedNodes,
         metadata: {
@@ -551,7 +551,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     )
 
     // Create new document object to trigger reactivity
-    const updatedDoc: MindscribbleDocument = {
+    const updatedDoc: MindpadDocument = {
       ...doc,
       nodes: updatedNodes,
       edges: updatedEdges,
@@ -629,7 +629,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     updatedNode.data.order = targetOrder
 
     // Create new document object to trigger reactivity
-    const updatedDoc: MindscribbleDocument = {
+    const updatedDoc: MindpadDocument = {
       ...doc,
       nodes: updatedNodes,
       metadata: {
@@ -683,7 +683,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
     if (anyChanged) {
       // Create new document object to trigger reactivity
-      const updatedDoc: MindscribbleDocument = {
+      const updatedDoc: MindpadDocument = {
         ...doc,
         nodes: updatedNodes,
         metadata: {
@@ -785,7 +785,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       const node = doc.nodes[nodeIndex]
       if (!node) return
 
-      const updatedNode: MindscribbleNode = {
+      const updatedNode: MindpadNode = {
         id: node.id,
         type: node.type,
         position: node.position,
@@ -802,7 +802,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       const updatedNodes = [...doc.nodes]
       updatedNodes[nodeIndex] = updatedNode
 
-      const updatedDoc: MindscribbleDocument = {
+      const updatedDoc: MindpadDocument = {
         ...doc,
         nodes: updatedNodes
       }
@@ -826,7 +826,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       const node = doc.nodes[nodeIndex]
       if (!node) return
 
-      const updatedNode: MindscribbleNode = {
+      const updatedNode: MindpadNode = {
         id: node.id,
         type: node.type,
         position: node.position,
@@ -843,7 +843,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       const updatedNodes = [...doc.nodes]
       updatedNodes[nodeIndex] = updatedNode
 
-      const updatedDoc: MindscribbleDocument = {
+      const updatedDoc: MindpadDocument = {
         ...doc,
         nodes: updatedNodes
       }
@@ -911,7 +911,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 
     if (isDepth1) {
       // Create updated node
-      const updatedNode: MindscribbleNode = {
+      const updatedNode: MindpadNode = {
         id: node.id,
         type: node.type,
         position: node.position,
@@ -932,7 +932,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       updatedNodes[nodeIndex] = updatedNode
 
       // Create new document object to trigger reactivity
-      const updatedDoc: MindscribbleDocument = {
+      const updatedDoc: MindpadDocument = {
         ...doc,
         nodes: updatedNodes,
         metadata: {
@@ -1180,7 +1180,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   function createDocument(
     filePanelId: string,
-    document: MindscribbleDocument,
+    document: MindpadDocument,
     driveFile: DriveFileMetadata | null = null,
     childLayoutState: unknown = null
   ): DocumentInstance {

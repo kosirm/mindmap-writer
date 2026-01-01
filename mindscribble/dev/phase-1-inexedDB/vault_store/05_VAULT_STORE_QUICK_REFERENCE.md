@@ -71,7 +71,7 @@ await vaultStore.renameExistingVault('vault-id', 'New Name', 'my-component')
 const file = await vaultStore.createNewFile(
   parentId,           // string | null
   'File Name',        // string
-  documentContent,    // MindscribbleDocument
+  documentContent,    // MindpadDocument
   'my-component'      // EventSource
 )
 

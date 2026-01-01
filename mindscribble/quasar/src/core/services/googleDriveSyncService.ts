@@ -144,7 +144,7 @@ export class GoogleDriveSyncService {
 
     // TODO: Implement Google Drive initialization
     // - Check authentication
-    // - Create Mindscribble folder if needed
+    // - Create Mindpad folder if needed
     // - Initialize vault structure
     return Promise.resolve()
   }

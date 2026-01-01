@@ -70,7 +70,7 @@ Let me suggest a few more that fit your criteria perfectly:
 
 **Usage Examples:**
 - "Create a new Atlas"
-- "Your MindScribble Atlas"
+- "Your MindPad Atlas"
 - "Atlas synchronization"
 - "Open Atlas settings"
 

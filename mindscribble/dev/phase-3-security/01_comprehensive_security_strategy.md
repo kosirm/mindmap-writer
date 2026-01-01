@@ -1,8 +1,8 @@
-# Comprehensive Security Strategy for MindScribble
+# Comprehensive Security Strategy for MindPad
 
 ## 🎯 Executive Summary
 
-This document presents the complete security strategy for MindScribble, combining bulk encryption (for local security) and sync encryption (for cloud security) with a tiered approach for different user types. This provides excellent security for corporate users while maintaining simplicity for casual users.
+This document presents the complete security strategy for MindPad, combining bulk encryption (for local security) and sync encryption (for cloud security) with a tiered approach for different user types. This provides excellent security for corporate users while maintaining simplicity for casual users.
 
 ## 🔐 Security Architecture Overview
 
@@ -147,7 +147,7 @@ class SecurityService {
   }
   
   // Encrypt document for sync
-  async encryptForSync(doc: MindscribbleDocument): Promise<EncryptedFile> {
+  async encryptForSync(doc: MindpadDocument): Promise<EncryptedFile> {
     if (this.settings.encryption.cloud === 'sync') {
       return await this.syncEncryption.encrypt(doc);
     }
@@ -155,7 +155,7 @@ class SecurityService {
   }
   
   // Decrypt document from sync
-  async decryptFromSync(encrypted: EncryptedFile): Promise<MindscribbleDocument> {
+  async decryptFromSync(encrypted: EncryptedFile): Promise<MindpadDocument> {
     if (this.settings.encryption.cloud === 'sync') {
       return await this.syncEncryption.decrypt(encrypted);
     }
@@ -210,7 +210,7 @@ class AppLifecycleManager {
 class SecureSyncManager {
   private securityService: SecurityService;
   
-  async syncDocument(doc: MindscribbleDocument): Promise<void> {
+  async syncDocument(doc: MindpadDocument): Promise<void> {
     // Encrypt for sync if needed
     const encryptedDoc = await this.securityService.encryptForSync(doc);
     
@@ -218,7 +218,7 @@ class SecureSyncManager {
     await cloudStorage.upload(encryptedDoc);
   }
   
-  async loadDocument(docId: string): Promise<MindscribbleDocument> {
+  async loadDocument(docId: string): Promise<MindpadDocument> {
     // Download from cloud
     const encryptedDoc = await cloudStorage.download(docId);
     
@@ -348,7 +348,7 @@ class SecureSyncManager {
   <q-dialog v-model="showLogin" persistent>
     <q-card style="min-width: 350px">
       <q-card-section>
-        <div class="text-h6">Unlock MindScribble</div>
+        <div class="text-h6">Unlock MindPad</div>
       </q-card-section>
       
       <q-card-section>
@@ -570,4 +570,4 @@ class AuditLogger {
 4. Performance optimization
 5. Advanced features
 
-This strategy gives MindScribble enterprise-grade security capabilities while maintaining simplicity for casual users - the perfect balance!
+This strategy gives MindPad enterprise-grade security capabilities while maintaining simplicity for casual users - the perfect balance!

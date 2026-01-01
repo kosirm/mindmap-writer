@@ -328,7 +328,7 @@ git push
 
 # For debugging, export to JSON
 git clone https://github.com/user/mindspace-project.git
-mindscribble space export --all --format json
+mindpad space export --all --format json
 # Now you have .json files for debugging
 ```
 

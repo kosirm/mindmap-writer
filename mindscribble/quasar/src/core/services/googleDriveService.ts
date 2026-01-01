@@ -10,10 +10,10 @@
  */
 
 // App folder name in Google Drive
-const APP_FOLDER_NAME = 'MindScribble'
+const APP_FOLDER_NAME = 'MindPad'
 
 // File extension for mindmap files
-const FILE_EXTENSION = '.mindscribble'
+const FILE_EXTENSION = '.mindpad'
 
 // MIME types
 const MIME_TYPE_FOLDER = 'application/vnd.google-apps.folder'
@@ -45,7 +45,7 @@ export interface DriveFileListResult {
 // ============================================================
 
 /**
- * Find the MindScribble app folder in Google Drive
+ * Find the MindPad app folder in Google Drive
  */
 export async function findAppFolder(): Promise<string | null> {
   try {
@@ -67,7 +67,7 @@ export async function findAppFolder(): Promise<string | null> {
 }
 
 /**
- * Create the MindScribble app folder in Google Drive
+ * Create the MindPad app folder in Google Drive
  */
 export async function createAppFolder(): Promise<string> {
   try {
@@ -163,7 +163,7 @@ export async function createMindmapFile(
     }
 
     // Create multipart request body
-    const boundary = '-------mindscribble_boundary'
+    const boundary = '-------mindpad_boundary'
     const delimiter = `\r\n--${boundary}\r\n`
     const closeDelimiter = `\r\n--${boundary}--`
 
@@ -217,7 +217,7 @@ export async function updateMindmapFile(
     }
 
     // Create multipart request body
-    const boundary = '-------mindscribble_boundary'
+    const boundary = '-------mindpad_boundary'
     const delimiter = `\r\n--${boundary}\r\n`
     const closeDelimiter = `\r\n--${boundary}--`
 
@@ -289,12 +289,12 @@ export async function deleteMindmapFile(fileId: string): Promise<void> {
 }
 
 /**
- * Find the central index file (.mindscribble) in the app folder
+ * Find the central index file (.mindpad) in the app folder
  */
 export async function findCentralIndexFile(folderId: string): Promise<DriveFileMetadata | null> {
   try {
     const response = await gapi.client.drive.files.list({
-      q: `name='.mindscribble' and mimeType='${MIME_TYPE_JSON}' and trashed=false and '${folderId}' in parents`,
+      q: `name='.mindpad' and mimeType='${MIME_TYPE_JSON}' and trashed=false and '${folderId}' in parents`,
       fields: 'files(id, name)',
       spaces: 'drive'
     })

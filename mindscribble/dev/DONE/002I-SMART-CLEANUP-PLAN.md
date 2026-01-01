@@ -38,7 +38,7 @@ git checkout -b smart-cleanup-legacy-stores
 Since we're always using unified store now, we can remove the toggle UI first.
 
 ### Step 2.1: Update DevPanel.vue
-**File:** `mindscribble/quasar/src/dev/DevPanel.vue`
+**File:** `mindpad/quasar/src/dev/DevPanel.vue`
 
 **Changes:**
 - Remove store mode toggle UI (radio buttons)
@@ -56,7 +56,7 @@ Since we're always using unified store now, we can remove the toggle UI first.
 Update components from simplest to most complex.
 
 ### Step 3.1: Update D3ConceptMapPanel.vue (10 min)
-**File:** `mindscribble/quasar/src/pages/components/D3ConceptMapPanel.vue`
+**File:** `mindpad/quasar/src/pages/components/D3ConceptMapPanel.vue`
 
 **Remove:**
 ```typescript
@@ -75,7 +75,7 @@ const { isUnifiedMode } = useStoreMode()
 **Commit:** `refactor: migrate D3ConceptMapPanel to unified store only`
 
 ### Step 3.2: Update useMindmapIntegration.ts (10 min)
-**File:** `mindscribble/quasar/src/features/canvas/composables/useMindmapIntegration.ts`
+**File:** `mindpad/quasar/src/features/canvas/composables/useMindmapIntegration.ts`
 
 **Changes:** Same pattern as above
 
@@ -84,7 +84,7 @@ const { isUnifiedMode } = useStoreMode()
 **Commit:** `refactor: migrate useMindmapIntegration to unified store only`
 
 ### Step 3.3: Update OutlineNodeContent.vue (15 min)
-**File:** `mindscribble/quasar/src/features/tree/components/OutlineNodeContent.vue`
+**File:** `mindpad/quasar/src/features/tree/components/OutlineNodeContent.vue`
 
 **Remove:**
 ```typescript
@@ -116,7 +116,7 @@ function selectNode(nodeId: string, source: EventSource, scrollIntoView: boolean
 **Commit:** `refactor: migrate OutlineNodeContent to unified store only`
 
 ### Step 3.4: Update OutlineView.vue (15 min)
-**File:** `mindscribble/quasar/src/features/tree/components/OutlineView.vue`
+**File:** `mindpad/quasar/src/features/tree/components/OutlineView.vue`
 
 **Remove:**
 ```typescript
@@ -138,7 +138,7 @@ const { isUnifiedMode, isDualWriteMode } = useStoreMode()
 **Commit:** `refactor: migrate OutlineView to unified store only`
 
 ### Step 3.5: Update WriterNodeContent.vue (15 min)
-**File:** `mindscribble/quasar/src/features/writer/components/WriterNodeContent.vue`
+**File:** `mindpad/quasar/src/features/writer/components/WriterNodeContent.vue`
 
 **Changes:** Same pattern as OutlineNodeContent
 
@@ -147,7 +147,7 @@ const { isUnifiedMode, isDualWriteMode } = useStoreMode()
 **Commit:** `refactor: migrate WriterNodeContent to unified store only`
 
 ### Step 3.6: Update WriterView.vue (15 min)
-**File:** `mindscribble/quasar/src/features/writer/components/WriterView.vue`
+**File:** `mindpad/quasar/src/features/writer/components/WriterView.vue`
 
 **Changes:** Same pattern as OutlineView
 
@@ -160,7 +160,7 @@ const { isUnifiedMode, isDualWriteMode } = useStoreMode()
 ## Phase 4: Update File Operations (45 minutes)
 
 ### Step 4.1: Update FileOperationsModal.vue (20 min)
-**File:** `mindscribble/quasar/src/shared/components/FileOperationsModal.vue`
+**File:** `mindpad/quasar/src/shared/components/FileOperationsModal.vue`
 
 **Remove:**
 ```typescript
@@ -190,7 +190,7 @@ document = unifiedStore.toDocument()
 **Commit:** `refactor: migrate FileOperationsModal to unified store only`
 
 ### Step 4.2: Update useAutosave.ts (15 min)
-**File:** `mindscribble/quasar/src/composables/useAutosave.ts`
+**File:** `mindpad/quasar/src/composables/useAutosave.ts`
 
 **Changes:** Same pattern - remove conditionals, use unified store only
 
@@ -203,7 +203,7 @@ document = unifiedStore.toDocument()
 ## Phase 5: Update Layout Components (45 minutes)
 
 ### Step 5.1: Update FilePanel.vue (15 min)
-**File:** `mindscribble/quasar/src/pages/components/FilePanel.vue`
+**File:** `mindpad/quasar/src/pages/components/FilePanel.vue`
 
 **Remove:**
 ```typescript
@@ -222,7 +222,7 @@ const multiDocStore = useMultiDocumentStore()
 **Commit:** `refactor: migrate FilePanel to unified store only`
 
 ### Step 5.2: Update DockviewLayout.vue (15 min)
-**File:** `mindscribble/quasar/src/layouts/DockviewLayout.vue`
+**File:** `mindpad/quasar/src/layouts/DockviewLayout.vue`
 
 **Changes:** Same pattern
 
@@ -231,7 +231,7 @@ const multiDocStore = useMultiDocumentStore()
 **Commit:** `refactor: migrate DockviewLayout to unified store only`
 
 ### Step 5.3: Update MainLayout.vue (15 min)
-**File:** `mindscribble/quasar/src/layouts/MainLayout.vue`
+**File:** `mindpad/quasar/src/layouts/MainLayout.vue`
 
 **Remove:**
 ```typescript
@@ -254,7 +254,7 @@ const multiDocStore = useMultiDocumentStore()
 ## Phase 6: Clean Up Core Stores (30 minutes)
 
 ### Step 6.1: Update unifiedDocumentStore.ts (15 min)
-**File:** `mindscribble/quasar/src/core/stores/unifiedDocumentStore.ts`
+**File:** `mindpad/quasar/src/core/stores/unifiedDocumentStore.ts`
 
 **Remove:**
 - Import of `useDocumentStore` and `useMultiDocumentStore`
@@ -269,7 +269,7 @@ const multiDocStore = useMultiDocumentStore()
 **Commit:** `refactor: remove migration code from unifiedDocumentStore`
 
 ### Step 6.2: Update index.ts (5 min)
-**File:** `mindscribble/quasar/src/core/stores/index.ts`
+**File:** `mindpad/quasar/src/core/stores/index.ts`
 
 **Remove:**
 ```typescript
@@ -288,10 +288,10 @@ export { useStoreSynchronizer } from './storeSynchronizer'
 
 ### Step 7.1: Delete Legacy Store Files
 ```bash
-git rm mindscribble/quasar/src/core/stores/documentStore.ts
-git rm mindscribble/quasar/src/core/stores/multiDocumentStore.ts
-git rm mindscribble/quasar/src/core/stores/storeSynchronizer.ts
-git rm mindscribble/quasar/src/composables/useStoreMode.ts
+git rm mindpad/quasar/src/core/stores/documentStore.ts
+git rm mindpad/quasar/src/core/stores/multiDocumentStore.ts
+git rm mindpad/quasar/src/core/stores/storeSynchronizer.ts
+git rm mindpad/quasar/src/composables/useStoreMode.ts
 ```
 
 **Test:**
@@ -318,18 +318,18 @@ git rm mindscribble/quasar/src/composables/useStoreMode.ts
 ### Step 8.2: Search for Remaining References
 ```bash
 # Search for any remaining legacy store references
-grep -r "useDocumentStore" mindscribble/quasar/src/
-grep -r "useMultiDocumentStore" mindscribble/quasar/src/
-grep -r "useStoreSynchronizer" mindscribble/quasar/src/
-grep -r "useStoreMode" mindscribble/quasar/src/
-grep -r "isUnifiedMode" mindscribble/quasar/src/
-grep -r "isDualWriteMode" mindscribble/quasar/src/
+grep -r "useDocumentStore" mindpad/quasar/src/
+grep -r "useMultiDocumentStore" mindpad/quasar/src/
+grep -r "useStoreSynchronizer" mindpad/quasar/src/
+grep -r "useStoreMode" mindpad/quasar/src/
+grep -r "isUnifiedMode" mindpad/quasar/src/
+grep -r "isDualWriteMode" mindpad/quasar/src/
 ```
 
 ### Step 8.3: Clean Up localStorage
 ```javascript
 // In browser console
-localStorage.removeItem('mindscribble-store-mode')
+localStorage.removeItem('mindpad-store-mode')
 ```
 
 ### Step 8.4: Final Commit

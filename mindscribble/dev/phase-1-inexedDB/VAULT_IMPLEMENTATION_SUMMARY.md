@@ -17,7 +17,7 @@ The vault management system has been successfully implemented with IndexedDB sup
 
 ### 2. Central Index File Structure
 
-**File Name:** `.mindscribble`
+**File Name:** `.mindpad`
 
 **Structure:**
 ```typescript
@@ -47,7 +47,7 @@ interface VaultMetadata {
 
 **New Functions Added:**
 
-1. **`downloadCentralIndex()`**: Downloads `.mindscribble` file from Google Drive and stores in IndexedDB
+1. **`downloadCentralIndex()`**: Downloads `.mindpad` file from Google Drive and stores in IndexedDB
 2. **`createDefaultCentralIndex()`**: Creates default central index for new users
 3. **`syncCentralIndexToDrive()`**: Syncs central index changes back to Google Drive
 4. **`updateCentralIndex()`**: Updates central index when vault metadata changes
@@ -63,7 +63,7 @@ interface VaultMetadata {
 ### 4. Google Drive Service Updates
 
 **New Function Added:**
-- **`findCentralIndexFile()`**: Finds the `.mindscribble` file in the app folder
+- **`findCentralIndexFile()`**: Finds the `.mindpad` file in the app folder
 
 ### 5. Files Modified
 

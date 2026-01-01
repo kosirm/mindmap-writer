@@ -52,12 +52,12 @@ Now that the unified store is fully functional and all views have been migrated,
 ## Files to Delete
 
 ### 1. Legacy Store Files
-- `mindscribble/quasar/src/core/stores/documentStore.ts` (entire file)
-- `mindscribble/quasar/src/core/stores/multiDocumentStore.ts` (entire file)
-- `mindscribble/quasar/src/core/stores/storeSynchronizer.ts` (entire file)
+- `mindpad/quasar/src/core/stores/documentStore.ts` (entire file)
+- `mindpad/quasar/src/core/stores/multiDocumentStore.ts` (entire file)
+- `mindpad/quasar/src/core/stores/storeSynchronizer.ts` (entire file)
 
 ### 2. Store Mode Toggle System
-- `mindscribble/quasar/src/composables/useStoreMode.ts` (entire file)
+- `mindpad/quasar/src/composables/useStoreMode.ts` (entire file)
 
 ## Files to Update
 
@@ -332,5 +332,5 @@ If issues are discovered after cleanup:
 - Consider creating a backup branch before cleanup
 - Update documentation to reflect new architecture
 - Remove migration-related documentation files after cleanup
-- Clean up localStorage (remove 'mindscribble-store-mode' key)
+- Clean up localStorage (remove 'mindpad-store-mode' key)
 

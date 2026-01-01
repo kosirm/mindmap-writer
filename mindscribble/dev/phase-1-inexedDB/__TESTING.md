@@ -1,5 +1,5 @@
-We just finished with this implementation: mindscribble\dev\phase-1-inexedDB\IMPLEMENTATION_PLAN.md
-All work which was done is documented here: mindscribble\dev\phase-1-inexedDB\__DONE.md
+We just finished with this implementation: mindpad\dev\phase-1-inexedDB\IMPLEMENTATION_PLAN.md
+All work which was done is documented here: mindpad\dev\phase-1-inexedDB\__DONE.md
 
 Now I would like to make some manual testing before we start making test cases.
 For this we would need first to create file management component - it should be placed in left drawer - File Management tab.

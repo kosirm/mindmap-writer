@@ -4,7 +4,7 @@
 
 import { db } from '../core/services/indexedDBService';
 import { StorageError } from '../core/errors';
-import type { MindscribbleDocument, MindscribbleNode } from '../core/types';
+import type { MindpadDocument, MindpadNode } from '../core/types';
 
 /**
  * Composable for IndexedDB operations with error handling
@@ -13,7 +13,7 @@ export function useIndexedDB() {
   /**
    * Save document to IndexedDB
    */
-  async function saveDocument(doc: MindscribbleDocument): Promise<void> {
+  async function saveDocument(doc: MindpadDocument): Promise<void> {
     try {
       await db.documents.put(doc);
     } catch (error: unknown) {
@@ -28,7 +28,7 @@ export function useIndexedDB() {
   /**
    * Load document from IndexedDB
    */
-  async function loadDocument(documentId: string): Promise<MindscribbleDocument | undefined> {
+  async function loadDocument(documentId: string): Promise<MindpadDocument | undefined> {
     try {
       return await db.documents.get(documentId);
     } catch (error: unknown) {
@@ -58,7 +58,7 @@ export function useIndexedDB() {
   /**
    * Get all documents
    */
-  async function getAllDocuments(): Promise<MindscribbleDocument[]> {
+  async function getAllDocuments(): Promise<MindpadDocument[]> {
     try {
       return await db.documents.toArray();
     } catch (error: unknown) {
@@ -72,7 +72,7 @@ export function useIndexedDB() {
   /**
    * Get nodes for a specific map
    */
-  async function getNodesByMapId(mapId: string): Promise<MindscribbleNode[]> {
+  async function getNodesByMapId(mapId: string): Promise<MindpadNode[]> {
     try {
       return await db.nodes.where('mapId').equals(mapId).toArray();
     } catch (error: unknown) {

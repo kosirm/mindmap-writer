@@ -264,7 +264,7 @@ export function serializeNode(
 
 ```typescript
 // migrationUtils.ts
-export function migrateOldDocument(oldDoc: any): MindscribbleDocument {
+export function migrateOldDocument(oldDoc: any): MindpadDocument {
   // Detect old format
   if (oldDoc.metadata?.id && !oldDoc[PROP.MAP_ID]) {
     // Old format - convert to new
@@ -335,7 +335,7 @@ export type PropertyName = typeof PROP[keyof typeof PROP]
 
 ```typescript
 // propertyAnalytics.ts
-export function analyzeDocumentPropertyUsage(doc: MindscribbleDocument): {
+export function analyzeDocumentPropertyUsage(doc: MindpadDocument): {
   singleLetterCount: number
   twoLetterCount: number
   totalProperties: number

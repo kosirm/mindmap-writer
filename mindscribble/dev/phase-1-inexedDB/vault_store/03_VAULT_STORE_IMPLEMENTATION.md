@@ -242,7 +242,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { eventBus, type EventSource } from '../events'
 import type { VaultMetadata, FileSystemItem } from '../services/indexedDBService'
-import type { MindscribbleDocument } from '../types'
+import type { MindpadDocument } from '../types'
 import {
   getAllVaults,
   getVault,
@@ -580,7 +580,7 @@ export const useVaultStore = defineStore('vault', () => {
   async function createNewFile(
     parentId: string | null,
     name: string,
-    content: MindscribbleDocument,
+    content: MindpadDocument,
     source: EventSource = 'store'
   ) {
     if (!activeVault.value) {

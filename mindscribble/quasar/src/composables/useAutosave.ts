@@ -1,13 +1,13 @@
-// mindscribble/quasar/src/composables/useAutosave.ts
+// mindpad/quasar/src/composables/useAutosave.ts
 import { ref, watch } from 'vue';
 import { syncManager } from '../core/services/syncManager';
-import type { MindscribbleDocument } from '../core/types';
+import type { MindpadDocument } from '../core/types';
 import type { Ref } from 'vue';
 
 /**
  * Auto-save composable with debouncing
  */
-export function useAutosave(document: Ref<MindscribbleDocument>, delay = 2000) {
+export function useAutosave(document: Ref<MindpadDocument>, delay = 2000) {
   const isSaving = ref(false);
   const lastSaved = ref<number | null>(null);
   let saveTimeout: NodeJS.Timeout | null = null;

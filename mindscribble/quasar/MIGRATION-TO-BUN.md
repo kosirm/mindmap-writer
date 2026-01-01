@@ -2,7 +2,7 @@
 
 ## Overview
 
-The MindScribble Quasar project has been successfully migrated from npm to Bun for faster development and testing.
+The MindPad Quasar project has been successfully migrated from npm to Bun for faster development and testing.
 
 ## What Changed
 

@@ -20,7 +20,7 @@ import {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getVaultStructureById // Used by external components via the composable
 } from '../core/services/fileSystemService'
-import type { MindscribbleDocument } from '../core/types'
+import type { MindpadDocument } from '../core/types'
 import type { FileSystemItem } from '../core/services/indexedDBService'
 
 export function useFileSystem() {
@@ -62,7 +62,7 @@ export function useFileSystem() {
     vaultId: string,
     parentId: string | null,
     name: string,
-    content: MindscribbleDocument
+    content: MindpadDocument
   ) {
     try {
       isLoading.value = true
@@ -268,7 +268,7 @@ export function useFileSystem() {
   /**
    * Get file content
    */
-  async function getFileContentById(fileId: string): Promise<MindscribbleDocument | null> {
+  async function getFileContentById(fileId: string): Promise<MindpadDocument | null> {
     try {
       return await getFileContent(fileId)
     } catch (err) {
@@ -277,7 +277,7 @@ export function useFileSystem() {
     }
   }
 
-  async function getFileContentFromItem(itemId: string): Promise<MindscribbleDocument | null> {
+  async function getFileContentFromItem(itemId: string): Promise<MindpadDocument | null> {
     try {
       return await getFileContentFromItem(itemId)
     } catch (err) {
@@ -289,7 +289,7 @@ export function useFileSystem() {
   /**
    * Update file content
    */
-  async function updateExistingFileContent(fileId: string, content: MindscribbleDocument) {
+  async function updateExistingFileContent(fileId: string, content: MindpadDocument) {
     try {
       isLoading.value = true
       error.value = null

@@ -1,4 +1,4 @@
-# Selective Compression Strategy for MindScribble
+# Selective Compression Strategy for MindPad
 
 ## Executive Summary
 
@@ -167,7 +167,7 @@ export class HybridStorageManager {
   private dbPromise: Promise<any>
   
   constructor() {
-    this.dbPromise = openDB('mindscribble', 1, {
+    this.dbPromise = openDB('mindpad', 1, {
       upgrade(db) {
         // Create nodes store
         const nodeStore = db.createObjectStore('nodes', { keyPath: PROP.ID })

@@ -1,4 +1,4 @@
-mindscribble is a quasar app - builded as PWA, Electron and Mobile app.
+mindpad is a quasar app - builded as PWA, Electron and Mobile app.
 
 UI consist of 3 main panels:
 1. Left panel (Outline view by default)

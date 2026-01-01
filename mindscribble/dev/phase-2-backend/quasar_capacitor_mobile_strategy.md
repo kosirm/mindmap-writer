@@ -1,8 +1,8 @@
-# Quasar Capacitor Mobile Strategy for MindScribble
+# Quasar Capacitor Mobile Strategy for MindPad
 
 ## 🎯 Executive Summary
 
-Switching from PWA to Quasar Capacitor build for mobile offers significant advantages for MindScribble, particularly in addressing the critical iOS limitations and providing a more native-like experience. This document outlines the comprehensive strategy for implementing Capacitor and how it improves upon the current PWA approach.
+Switching from PWA to Quasar Capacitor build for mobile offers significant advantages for MindPad, particularly in addressing the critical iOS limitations and providing a more native-like experience. This document outlines the comprehensive strategy for implementing Capacitor and how it improves upon the current PWA approach.
 
 ## 🔄 Current PWA Limitations vs Capacitor Solutions
 
@@ -24,7 +24,7 @@ Switching from PWA to Quasar Capacitor build for mobile offers significant advan
 // Capacitor Filesystem Example
 import { Filesystem, Directory } from '@capacitor/filesystem';
 
-async function saveDocument(doc: MindscribbleDocument): Promise<void> {
+async function saveDocument(doc: MindpadDocument): Promise<void> {
   try {
     await Filesystem.writeFile({
       path: `documents/${doc.metadata.id}.json`,
@@ -144,8 +144,8 @@ npm install @capacitor/filesystem @capacitor/preferences @capacitor/app @capacit
 capacitor: {
   hideSplashscreen: true,
   androidMinSdkVersion: 23,
-  iosBundleId: 'com.mindscribble.app',
-  androidBundleId: 'com.mindscribble.app',
+  iosBundleId: 'com.mindpad.app',
+  androidBundleId: 'com.mindpad.app',
   webDir: 'dist/spa',
   server: {
     url: 'http://localhost:9000',
@@ -171,7 +171,7 @@ capacitor: {
 class HybridStorage {
   private isNative = Capacitor.isNativePlatform();
   
-  async saveDocument(doc: MindscribbleDocument): Promise<void> {
+  async saveDocument(doc: MindpadDocument): Promise<void> {
     if (this.isNative) {
       // Use native filesystem
       await Filesystem.writeFile({
@@ -223,7 +223,7 @@ class HybridStorage {
 
 ## 📊 Comparison: PWA vs Capacitor
 
-| Feature | PWA | Capacitor | Impact on MindScribble |
+| Feature | PWA | Capacitor | Impact on MindPad |
 |---------|-----|-----------|----------------------|
 | **Storage** | Limited (50MB iOS) | Full device access | ✅ Solves iOS storage issues |
 | **Background Sync** | Limited (no iOS) | Full background tasks | ✅ Reliable document sync |
@@ -234,7 +234,7 @@ class HybridStorage {
 | **Offline** | Service Worker | Native + Service Worker | ✅ More reliable offline |
 | **Discovery** | URL-based | App Store | ⚠️ Less discoverable |
 
-## 🎯 Benefits for MindScribble
+## 🎯 Benefits for MindPad
 
 ### 1. **Solves Critical iOS Problems**
 - No more 50MB storage limit
@@ -306,7 +306,7 @@ class HybridStorage {
 ### Step 1: Setup Capacitor Project
 ```bash
 # Initialize Capacitor
-npx cap init MindScribble com.mindscribble.app
+npx cap init MindPad com.mindpad.app
 
 # Add platforms
 npx cap add ios
@@ -327,7 +327,7 @@ class StorageService {
     this.platform = platform;
   }
   
-  async saveDocument(doc: MindscribbleDocument): Promise<void> {
+  async saveDocument(doc: MindpadDocument): Promise<void> {
     if (this.platform.isNative()) {
       return this.saveToNative(doc);
     } else {
@@ -335,11 +335,11 @@ class StorageService {
     }
   }
   
-  private async saveToNative(doc: MindscribbleDocument): Promise<void> {
+  private async saveToNative(doc: MindpadDocument): Promise<void> {
     // Use Capacitor Filesystem
   }
   
-  private async saveToWeb(doc: MindscribbleDocument): Promise<void> {
+  private async saveToWeb(doc: MindpadDocument): Promise<void> {
     // Use IndexedDB
   }
 }
@@ -368,6 +368,6 @@ class StorageService {
 
 ## 🎯 Conclusion
 
-Switching to Quasar Capacitor provides a compelling solution to MindScribble's mobile challenges, particularly the critical iOS limitations that plague the PWA approach. While it requires more setup and maintenance, the benefits in terms of reliability, performance, and user experience are substantial.
+Switching to Quasar Capacitor provides a compelling solution to MindPad's mobile challenges, particularly the critical iOS limitations that plague the PWA approach. While it requires more setup and maintenance, the benefits in terms of reliability, performance, and user experience are substantial.
 
 **Recommendation**: Proceed with Capacitor implementation using a hybrid approach that maintains the web version while adding native capabilities for mobile users. Start with storage and lifecycle improvements, then gradually add more native features as needed.

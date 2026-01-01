@@ -25,10 +25,10 @@ Added a new method to `unifiedDocumentStore.ts` that returns the active document
 
 ```typescript
 /**
- * Convert active document to MindscribbleDocument format
+ * Convert active document to MindpadDocument format
  * This is compatible with the legacy documentStore.toDocument() method
  */
-function toDocument(): MindscribbleDocument | null {
+function toDocument(): MindpadDocument | null {
   if (!activeDocumentId.value) {
     logMigrationOperation('toDocument', { error: 'No active document' })
     return null
@@ -41,7 +41,7 @@ function toDocument(): MindscribbleDocument | null {
   }
 
   // Update metadata before returning
-  const updatedDoc: MindscribbleDocument = {
+  const updatedDoc: MindpadDocument = {
     ...doc,
     metadata: {
       ...doc.metadata,
@@ -68,7 +68,7 @@ Modified the `handleSave()` function to use the appropriate store based on the c
 
 ```typescript
 // Get document data from the appropriate store
-let document: MindscribbleDocument | null = null
+let document: MindpadDocument | null = null
 
 if (isUnifiedMode.value || isDualWriteMode.value) {
   // Use unified store (primary source in unified/dual-write mode)
@@ -103,21 +103,21 @@ Updated the `saveCurrentFile()` function to use the appropriate store based on t
 
 ## Files Modified
 
-1. `mindscribble/quasar/src/core/stores/unifiedDocumentStore.ts`
+1. `mindpad/quasar/src/core/stores/unifiedDocumentStore.ts`
    - Added `toDocument()` method
    - Exported `toDocument` in the return statement
 
-2. `mindscribble/quasar/src/shared/components/FileOperationsModal.vue`
+2. `mindpad/quasar/src/shared/components/FileOperationsModal.vue`
    - Added imports for `useUnifiedDocumentStore` and `useStoreMode`
    - Updated `handleSave()` to use appropriate store
    - Updated mark clean logic for both stores
 
-3. `mindscribble/quasar/src/composables/useAutosave.ts`
+3. `mindpad/quasar/src/composables/useAutosave.ts`
    - Added imports for `useUnifiedDocumentStore` and `useStoreMode`
    - Updated `performAutosave()` to use appropriate store
    - Updated mark clean logic for both stores
 
-4. `mindscribble/quasar/src/layouts/MainLayout.vue`
+4. `mindpad/quasar/src/layouts/MainLayout.vue`
    - Added imports for `useUnifiedDocumentStore` and `useStoreMode`
    - Updated `saveCurrentFile()` to use appropriate store
    - Updated mark clean logic for both stores

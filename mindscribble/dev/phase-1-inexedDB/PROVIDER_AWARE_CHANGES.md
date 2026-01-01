@@ -16,7 +16,7 @@ export interface DocumentProviders {
   localFileSystem?: { path: string; absolutePath: string; };
 }
 
-export interface MindscribbleDocument {
+export interface MindpadDocument {
   metadata: {
     // ... existing fields
     providers?: DocumentProviders;  // NEW: Multi-provider support
@@ -39,7 +39,7 @@ export interface ProviderMetadata {
   providerSpecific?: Record<string, any>;
 }
 
-export class MindScribbleDB extends Dexie {
+export class MindPadDB extends Dexie {
   // ... existing tables
   providerMetadata!: Table<ProviderMetadata, string>; // NEW
 }
@@ -51,7 +51,7 @@ export class MindScribbleDB extends Dexie {
 export class SyncManager {
   private currentProvider: 'googleDrive' | 'github' | 'dropbox' = 'googleDrive';
   
-  private getProviderFileId(doc: MindscribbleDocument): string | undefined {
+  private getProviderFileId(doc: MindpadDocument): string | undefined {
     switch (this.currentProvider) {
       case 'googleDrive': return doc.metadata.providers?.googleDrive?.fileId;
       case 'github': return doc.metadata.providers?.github?.path;
@@ -97,6 +97,6 @@ export class SyncManager {
 
 ## 📚 Related Documents
 
-- **Implementation Plan**: `mindscribble/dev/phase-1-inexedDB/IMPLEMENTATION_PLAN.md`
-- **Phase 2 Architecture**: `mindscribble/dev/phase-2-backend/01_backend_architecture.md`
+- **Implementation Plan**: `mindpad/dev/phase-1-inexedDB/IMPLEMENTATION_PLAN.md`
+- **Phase 2 Architecture**: `mindpad/dev/phase-2-backend/01_backend_architecture.md`
 

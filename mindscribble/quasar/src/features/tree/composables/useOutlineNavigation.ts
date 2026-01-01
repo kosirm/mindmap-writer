@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue'
-import type { MindscribbleNode } from '../../../core/types'
+import type { MindpadNode } from '../../../core/types'
 
 /**
  * Represents a node in the flattened outline structure
@@ -7,7 +7,7 @@ import type { MindscribbleNode } from '../../../core/types'
 export interface OutlineTreeItem {
   id: string
   text: string
-  node: MindscribbleNode
+  node: MindpadNode
   children: OutlineTreeItem[]
 }
 
@@ -18,7 +18,7 @@ export interface OutlineTreeItem {
  * IMPORTANT: This function directly accesses node.views.outline.expanded to ensure
  * Vue's reactivity system tracks these reads and triggers recomputation when they change
  */
-function flattenVisibleTree(items: OutlineTreeItem[], result: MindscribbleNode[] = []): MindscribbleNode[] {
+function flattenVisibleTree(items: OutlineTreeItem[], result: MindpadNode[] = []): MindpadNode[] {
   for (const item of items) {
     // Add the current node (always visible)
     result.push(item.node)
@@ -48,7 +48,7 @@ export function useOutlineNavigation(treeData: Ref<OutlineTreeItem[]>) {
    * This computed is reactive to both treeData changes AND expansion state changes
    * because flattenVisibleTree directly accesses node.views.outline.expanded
    */
-  const flattenedNodes = computed<MindscribbleNode[]>(() => {
+  const flattenedNodes = computed<MindpadNode[]>(() => {
     return flattenVisibleTree(treeData.value)
   })
 
@@ -64,7 +64,7 @@ export function useOutlineNavigation(treeData: Ref<OutlineTreeItem[]>) {
   /**
    * Get the next visible node (for Down arrow navigation)
    */
-  function getNextNode(nodeId: string): MindscribbleNode | null {
+  function getNextNode(nodeId: string): MindpadNode | null {
     const currentIndex = findNodeIndex(nodeId)
 
     if (currentIndex === -1 || currentIndex === flattenedNodes.value.length - 1) {
@@ -77,7 +77,7 @@ export function useOutlineNavigation(treeData: Ref<OutlineTreeItem[]>) {
   /**
    * Get the previous visible node (for Up arrow navigation)
    */
-  function getPreviousNode(nodeId: string): MindscribbleNode | null {
+  function getPreviousNode(nodeId: string): MindpadNode | null {
     const currentIndex = findNodeIndex(nodeId)
 
     if (currentIndex === -1 || currentIndex === 0) {

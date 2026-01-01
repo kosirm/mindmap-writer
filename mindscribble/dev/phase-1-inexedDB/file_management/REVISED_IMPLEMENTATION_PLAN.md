@@ -218,7 +218,7 @@ function openItem(item: FileSystemItem) {
 #### 2. Update unifiedDocumentStore.ts
 
 ```typescript
-async function loadDocument(document: MindscribbleDocument, fileName?: string) {
+async function loadDocument(document: MindpadDocument, fileName?: string) {
   try {
     // Set document name from file if provided
     if (fileName && document.metadata) {
@@ -660,14 +660,14 @@ export interface FileLayout {
   lastUpdated: number
 }
 
-// Update MindScribbleDB class
-class MindScribbleDB extends Dexie {
+// Update MindPadDB class
+class MindPadDB extends Dexie {
   // ... existing tables
   uiState!: Table<UIState, string>
   fileLayouts!: Table<FileLayout, string>
 
   constructor() {
-    super('MindScribbleDB')
+    super('MindPadDB')
 
     // ... existing versions
 
@@ -1101,7 +1101,7 @@ export class DirectAsyncStrategy implements SyncStrategy {
 import { getChangeTracker } from './syncStrategy'
 
 // Update createFile to track new files
-export async function createFile(vaultId: string, parentId: string | null, name: string, content: MindscribbleDocument): Promise<FileSystemItem> {
+export async function createFile(vaultId: string, parentId: string | null, name: string, content: MindpadDocument): Promise<FileSystemItem> {
   // ... existing code ...
 
   // Track as modified for sync
@@ -1139,7 +1139,7 @@ export async function deleteItem(itemId: string): Promise<void> {
 }
 
 // Update updateFileContent to track content changes
-export async function updateFileContent(fileId: string, content: MindscribbleDocument): Promise<void> {
+export async function updateFileContent(fileId: string, content: MindpadDocument): Promise<void> {
   // ... existing code ...
 
   // Track as modified for sync
@@ -1280,12 +1280,12 @@ boot: [
 
 **Google Drive Structure**:
 ```
-MindScribble/                    (App folder)
+MindPad/                    (App folder)
 ├── .vaults                      (Index of all vaults)
 ├── .lock                        (Lock file for concurrent access)
 ├── Vault 1/                     (Vault folder)
 │   ├── .repository.json         (Vault structure snapshot for sync)
-│   ├── file1.json               (File - changed from .mindscribble)
+│   ├── file1.json               (File - changed from .mindpad)
 │   ├── folder1/                 (Folder)
 │   │   ├── file2.json
 │   │   └── file3.json
@@ -1298,11 +1298,11 @@ MindScribble/                    (App folder)
 
 **Key Requirements**:
 - ✅ **First-time setup** - Create default vault "My Vault" on first app launch
-- ✅ **Google Drive folder** - Create "MindScribble" app folder on Google Drive
+- ✅ **Google Drive folder** - Create "MindPad" app folder on Google Drive
 - ✅ **Vaults index file** - Create and maintain `.vaults` index file
 - ✅ **Lock file** - Create `.lock` file for concurrent access control
 - ✅ **Repository files** - Create `.repository.json` per vault for efficient sync
-- ✅ **File extension** - Use `.json` instead of `.mindscribble`
+- ✅ **File extension** - Use `.json` instead of `.mindpad`
 - ✅ **Vault sync** - Sync vault structure and files to Google Drive
 - ✅ **OAuth management** - Handle token refresh automatically
 - ✅ **Offline support** - Work offline, sync when online
@@ -1390,11 +1390,11 @@ import { GoogleAuthService } from './googleAuthService'
 import { googleDriveService } from './googleDriveService'
 
 export class GoogleDriveInitializationService {
-  private static MINDSCRIBBLE_FOLDER_NAME = 'MindScribble'
+  private static MINDPAD_FOLDER_NAME = 'MindPad'
   private static VAULTS_INDEX_FILE_NAME = '.vaults'
   private static LOCK_FILE_NAME = '.lock'
   private static REPOSITORY_FILE_NAME = '.repository.json'
-  private static FILE_EXTENSION = '.json' // Changed from .mindscribble
+  private static FILE_EXTENSION = '.json' // Changed from .mindpad
 
   /**
    * Initialize Google Drive on first-time use
@@ -1414,7 +1414,7 @@ export class GoogleDriveInitializationService {
       // Start token refresh timer
       GoogleAuthService.startTokenRefreshTimer()
 
-      // 1. Create MindScribble app folder on Google Drive
+      // 1. Create MindPad app folder on Google Drive
       const appFolder = await this.createAppFolder()
       console.log('📁 [GoogleDriveInit] App folder created:', appFolder.id)
 
@@ -1467,18 +1467,18 @@ export class GoogleDriveInitializationService {
   }
 
   /**
-   * Create Mindscribble app folder on Google Drive
+   * Create Mindpad app folder on Google Drive
    */
   private static async createAppFolder(): Promise<{ id: string, name: string }> {
     // Check if folder already exists
-    const existingFolder = await googleDriveService.findFolder(this.MINDSCRIBBLE_FOLDER_NAME)
+    const existingFolder = await googleDriveService.findFolder(this.MINDPAD_FOLDER_NAME)
     if (existingFolder) {
       console.log('📁 [GoogleDriveInit] App folder already exists')
       return existingFolder
     }
 
     // Create new folder
-    const folder = await googleDriveService.createFolder(this.MINDSCRIBBLE_FOLDER_NAME, null)
+    const folder = await googleDriveService.createFolder(this.MINDPAD_FOLDER_NAME, null)
     return folder
   }
 
@@ -1567,7 +1567,7 @@ export class GoogleDriveInitializationService {
             ? (await db.fileSystem.get(item.parentId))?.driveFileId || vaultFolder.id
             : vaultFolder.id
 
-          // Use .json extension instead of .mindscribble
+          // Use .json extension instead of .mindpad
           const fileName = item.name.endsWith('.json') ? item.name : `${item.name}.json`
           const driveFile = await googleDriveService.createFile(parentDriveId, fileName, document)
 
@@ -1621,7 +1621,7 @@ export class GoogleDriveInitializationService {
       }
 
       // Get app folder
-      const appFolder = await googleDriveService.findFolder(this.MINDSCRIBBLE_FOLDER_NAME)
+      const appFolder = await googleDriveService.findFolder(this.MINDPAD_FOLDER_NAME)
       if (!appFolder) {
         console.log('🗄️ [GoogleDriveInit] App folder not found, skipping index update')
         return
@@ -1790,10 +1790,10 @@ describe('Vault Management', () => {
       
       // Check if database exists
       const databases = await indexedDB.databases()
-      const mindscribbleDB = databases.find(db => db.name === 'MindScribbleDB')
+      const mindpadDB = databases.find(db => db.name === 'MindPadDB')
       
-      expect(mindscribbleDB).toBeDefined()
-      expect(mindscribbleDB?.version).toBeGreaterThan(0)
+      expect(mindpadDB).toBeDefined()
+      expect(mindpadDB?.version).toBeGreaterThan(0)
     })
   })
   

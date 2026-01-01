@@ -28,7 +28,7 @@ This document presents an optimized storage architecture that treats **IndexedDB
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    MindScribble App                          │
+│                    MindPad App                          │
 ├─────────────────────────────────────────────────────────────┤
 │  IndexedDB (PRIMARY - Full Vault Content)                    │
 │  ├─ maps (full metadata)                                    │
@@ -66,7 +66,7 @@ This document presents an optimized storage architecture that treats **IndexedDB
 ### IndexedDB Schema (Full Content Storage)
 
 ```typescript
-interface OptimizedMindScribbleDB {
+interface OptimizedMindPadDB {
   // Store 1: Maps (full metadata)
   maps: {
     id: string              // Primary key
@@ -129,7 +129,7 @@ interface OptimizedMindScribbleDB {
 
 ```
 Google Drive/
-└─ MindScribble/
+└─ MindPad/
    ├─ vault-1/
    │  ├─ .vault-metadata.json
    │  │  {
@@ -152,7 +152,7 @@ Google Drive/
 ```typescript
 async function initializeApp() {
   // 1. Open IndexedDB (immediate)
-  const db = await openDB('mindscribble', 1)
+  const db = await openDB('mindpad', 1)
   
   // 2. Get current vault
   const currentVault = await getCurrentVault()
@@ -189,8 +189,8 @@ class LocalStorageManager {
   /**
    * Create new map - INSTANT (5-10ms)
    */
-  async createMap(vaultId: string, mapData: MindScribbleDocument) {
-    const db = await openDB('mindscribble', 1)
+  async createMap(vaultId: string, mapData: MindPadDocument) {
+    const db = await openDB('mindpad', 1)
     const tx = db.transaction(['maps', 'nodes', 'backlinks'], 'readwrite')
     
     // Store map metadata
@@ -240,7 +240,7 @@ class LocalStorageManager {
    * Update node - INSTANT (2-5ms)
    */
   async updateNode(nodeId: string, updates: Partial<Node>) {
-    const db = await openDB('mindscribble', 1)
+    const db = await openDB('mindpad', 1)
     const node = await db.get('nodes', nodeId)
     
     const updatedNode = { ...node, ...updates, modified: Date.now() }
@@ -262,7 +262,7 @@ class LocalStorageManager {
    * Delete map - INSTANT (8-15ms)
    */
   async deleteMap(mapId: string) {
-    const db = await openDB('mindscribble', 1)
+    const db = await openDB('mindpad', 1)
     const tx = db.transaction(['maps', 'nodes', 'backlinks'], 'readwrite')
     
     // Get all nodes in this map
@@ -438,7 +438,7 @@ class ConflictResolver {
    * Merge changes from Drive to local
    */
   async mergeDriveChanges(vaultId: string, driveTimestamp: number) {
-    const db = await openDB('mindscribble', 1)
+    const db = await openDB('mindpad', 1)
     const vault = await db.get('vaults', vaultId)
     
     // Get all Drive files
@@ -590,7 +590,7 @@ class VaultManager {
     const oldVaultId = this.currentVaultId
     
     // 1. Check if new vault is already cached
-    const db = await openDB('mindscribble', 1)
+    const db = await openDB('mindpad', 1)
     const vault = await db.get('vaults', newVaultId)
     
     if (vault) {
@@ -816,4 +816,4 @@ The approach aligns perfectly with your feedback and provides:
 - ✅ **Smart conflict resolution** (handles multi-device editing)
 - ✅ **Offline-first design** (full functionality without internet)
 
-This architecture will make MindScribble feel like a native desktop app in terms of speed and responsiveness, while still providing the benefits of cloud synchronization.
+This architecture will make MindPad feel like a native desktop app in terms of speed and responsiveness, while still providing the benefits of cloud synchronization.

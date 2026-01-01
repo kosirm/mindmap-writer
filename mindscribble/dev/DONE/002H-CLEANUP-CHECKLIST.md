@@ -4,38 +4,38 @@
 
 ## Files to Delete (4 files)
 
-- [ ] `mindscribble/quasar/src/core/stores/documentStore.ts`
-- [ ] `mindscribble/quasar/src/core/stores/multiDocumentStore.ts`
-- [ ] `mindscribble/quasar/src/core/stores/storeSynchronizer.ts`
-- [ ] `mindscribble/quasar/src/composables/useStoreMode.ts`
+- [ ] `mindpad/quasar/src/core/stores/documentStore.ts`
+- [ ] `mindpad/quasar/src/core/stores/multiDocumentStore.ts`
+- [ ] `mindpad/quasar/src/core/stores/storeSynchronizer.ts`
+- [ ] `mindpad/quasar/src/composables/useStoreMode.ts`
 
 ## Files to Update (13 files)
 
 ### Core Stores (2 files)
-- [ ] `mindscribble/quasar/src/core/stores/index.ts` - Remove legacy store exports
-- [ ] `mindscribble/quasar/src/core/stores/unifiedDocumentStore.ts` - Remove migration code
+- [ ] `mindpad/quasar/src/core/stores/index.ts` - Remove legacy store exports
+- [ ] `mindpad/quasar/src/core/stores/unifiedDocumentStore.ts` - Remove migration code
 
 ### View Components (5 files)
-- [ ] `mindscribble/quasar/src/features/tree/components/OutlineView.vue`
-- [ ] `mindscribble/quasar/src/features/tree/components/OutlineNodeContent.vue`
-- [ ] `mindscribble/quasar/src/features/writer/components/WriterView.vue`
-- [ ] `mindscribble/quasar/src/features/writer/components/WriterNodeContent.vue`
-- [ ] `mindscribble/quasar/src/features/canvas/composables/useMindmapIntegration.ts`
+- [ ] `mindpad/quasar/src/features/tree/components/OutlineView.vue`
+- [ ] `mindpad/quasar/src/features/tree/components/OutlineNodeContent.vue`
+- [ ] `mindpad/quasar/src/features/writer/components/WriterView.vue`
+- [ ] `mindpad/quasar/src/features/writer/components/WriterNodeContent.vue`
+- [ ] `mindpad/quasar/src/features/canvas/composables/useMindmapIntegration.ts`
 
 ### File Operations (2 files)
-- [ ] `mindscribble/quasar/src/shared/components/FileOperationsModal.vue`
-- [ ] `mindscribble/quasar/src/composables/useAutosave.ts`
+- [ ] `mindpad/quasar/src/shared/components/FileOperationsModal.vue`
+- [ ] `mindpad/quasar/src/composables/useAutosave.ts`
 
 ### Layout Components (3 files)
-- [ ] `mindscribble/quasar/src/layouts/MainLayout.vue`
-- [ ] `mindscribble/quasar/src/layouts/DockviewLayout.vue`
-- [ ] `mindscribble/quasar/src/pages/components/FilePanel.vue`
+- [ ] `mindpad/quasar/src/layouts/MainLayout.vue`
+- [ ] `mindpad/quasar/src/layouts/DockviewLayout.vue`
+- [ ] `mindpad/quasar/src/pages/components/FilePanel.vue`
 
 ### Other Components (1 file)
-- [ ] `mindscribble/quasar/src/pages/components/D3ConceptMapPanel.vue`
+- [ ] `mindpad/quasar/src/pages/components/D3ConceptMapPanel.vue`
 
 ### Dev Tools (1 file - optional)
-- [ ] `mindscribble/quasar/src/dev/DevPanel.vue` - Remove store mode toggle UI
+- [ ] `mindpad/quasar/src/dev/DevPanel.vue` - Remove store mode toggle UI
 
 ## Testing Checklist
 
@@ -94,7 +94,7 @@
   - `isLegacyMode`
 - [ ] Update documentation
 - [ ] Remove migration-related dev docs (optional)
-- [ ] Clean up localStorage key: `mindscribble-store-mode`
+- [ ] Clean up localStorage key: `mindpad-store-mode`
 - [ ] Commit changes with clear message
 - [ ] Create PR for review
 

@@ -76,7 +76,7 @@ import OutlineNodeContent from './OutlineNodeContent.vue'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useViewEvents } from 'src/core/events'
 import { useOutlineNavigation } from '../composables/useOutlineNavigation'
-import type { MindscribbleNode } from 'src/core/types'
+import type { MindpadNode } from 'src/core/types'
 
 const TRIGGER_CLASS = 'drag-handle'
 const $q = useQuasar()
@@ -97,7 +97,7 @@ const treeRef = ref<InstanceType<typeof Draggable> | null>(null)
 interface OutlineTreeItem {
   id: string
   text: string
-  node: MindscribbleNode
+  node: MindpadNode
   children: OutlineTreeItem[]
 }
 

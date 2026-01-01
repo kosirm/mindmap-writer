@@ -100,12 +100,12 @@ export const usePanelStore = defineStore('panel', () => {
       center: centerPanel.value,
       right: rightPanel.value
     }
-    localStorage.setItem('mindscribble-panel-layout', JSON.stringify(layout))
+    localStorage.setItem('mindpad-panel-layout', JSON.stringify(layout))
   }
 
   // Load layout from localStorage
   function loadLayout() {
-    const saved = localStorage.getItem('mindscribble-panel-layout')
+    const saved = localStorage.getItem('mindpad-panel-layout')
     if (saved) {
       try {
         const layout = JSON.parse(saved)

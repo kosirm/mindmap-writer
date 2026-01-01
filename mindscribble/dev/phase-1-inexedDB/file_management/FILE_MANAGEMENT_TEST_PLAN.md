@@ -8,14 +8,14 @@ This document outlines the manual testing plan for the new file management compo
 
 ### Prerequisites
 - Chrome browser with DevTools
-- MindScribble application running in development mode
+- MindPad application running in development mode
 - Clean browser profile (no existing IndexedDB data)
 
 ### Test Setup Steps
 1. Clear all existing IndexedDB data in Chrome DevTools
-2. Start MindScribble application
+2. Start MindPad application
 3. Open Chrome DevTools → Application → IndexedDB
-4. Verify MindScribbleDB appears and is initialized
+4. Verify MindPadDB appears and is initialized
 
 ## 📋 Test Cases
 
@@ -23,7 +23,7 @@ This document outlines the manual testing plan for the new file management compo
 
 **Test 1.1: IndexedDB Initialization on App Start**
 - **Steps**: Start the application
-- **Expected**: MindScribbleDB appears in Chrome DevTools IndexedDB section
+- **Expected**: MindPadDB appears in Chrome DevTools IndexedDB section
 - **Verification**: Check that database version is correct (v2)
 - **Pass Criteria**: Database is visible and initialized
 

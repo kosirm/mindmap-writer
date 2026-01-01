@@ -1,4 +1,4 @@
-# Future-Proof IndexedDB Schema Design for MindScribble
+# Future-Proof IndexedDB Schema Design for MindPad
 
 ## 🎯 Core Problem & Solution
 
@@ -16,7 +16,7 @@
 ### 1. Versioned Database Structure
 
 ```typescript
-interface MindScribbleDB {
+interface MindPadDB {
   version: number;                    // Current schema version
   created: number;                    // Database creation timestamp
   lastMigrated: number;              // Last migration timestamp
@@ -577,4 +577,4 @@ async function updateNodeStatus(nodeId: string, newStatus: string) {
 5. **Document schema versions** thoroughly for future maintenance
 6. **Test migrations extensively** to ensure data integrity
 
-This design ensures MindScribble can evolve with new views and features while maintaining compatibility with existing user data.
+This design ensures MindPad can evolve with new views and features while maintaining compatibility with existing user data.

@@ -68,7 +68,7 @@
 <script setup lang="ts">
 import { useQuasar } from 'quasar'
 import { useVaultStore } from 'src/core/stores/vaultStore'
-import type { MindscribbleDocument } from 'src/core/types'
+import type { MindpadDocument } from 'src/core/types'
 import VaultCreationDialog from './VaultCreationDialog.vue'
 import VaultSelectionDialog from './VaultSelectionDialog.vue'
 
@@ -265,7 +265,7 @@ async function handleAddFile() {
     }
 
     // Create a minimal document for the new file
-    const newDocument: MindscribbleDocument = {
+    const newDocument: MindpadDocument = {
       version: '1.0',
       metadata: {
         id: `file-${Date.now()}`,

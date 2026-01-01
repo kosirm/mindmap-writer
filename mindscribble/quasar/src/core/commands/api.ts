@@ -2,7 +2,7 @@
  * Command API Bridge
  *
  * Exposes the command system to external agents (n8n, browser automation, AI assistants).
- * This creates a global `window.mindscribble` API that can be called from:
+ * This creates a global `window.mindpad` API that can be called from:
  * - n8n Execute JavaScript nodes
  * - Browser automation (Puppeteer/Playwright)
  * - Browser DevTools console
@@ -40,9 +40,9 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
- * The public API exposed on window.mindscribble
+ * The public API exposed on window.mindpad
  */
-export interface MindscribbleAPI {
+export interface MindpadAPI {
   /**
    * Get API version
    */
@@ -50,50 +50,50 @@ export interface MindscribbleAPI {
 
   /**
    * List all available commands
-   * @example window.mindscribble.listCommands()
+   * @example window.mindpad.listCommands()
    */
   listCommands: () => CommandInfo[]
 
   /**
    * Search commands by query
-   * @example window.mindscribble.searchCommands('dark mode')
+   * @example window.mindpad.searchCommands('dark mode')
    */
   searchCommands: (query: string) => CommandInfo[]
 
   /**
    * Get a specific command by ID
-   * @example window.mindscribble.getCommand('view.theme.toggle')
+   * @example window.mindpad.getCommand('view.theme.toggle')
    */
   getCommand: (id: string) => CommandInfo | null
 
   /**
    * Execute a command by ID
-   * @example window.mindscribble.execute('view.theme.toggle')
-   * @example window.mindscribble.execute('node.add.child')
+   * @example window.mindpad.execute('view.theme.toggle')
+   * @example window.mindpad.execute('node.add.child')
    */
   execute: (commandId: string) => Promise<ApiResponse>
 
   /**
    * Execute multiple commands in sequence
-   * @example window.mindscribble.executeSequence(['node.add.child', 'node.edit'])
+   * @example window.mindpad.executeSequence(['node.add.child', 'node.edit'])
    */
   executeSequence: (commandIds: string[], delayMs?: number) => Promise<ApiResponse>
 
   /**
    * Check if a command is currently available
-   * @example window.mindscribble.isAvailable('node.delete')
+   * @example window.mindpad.isAvailable('node.delete')
    */
   isAvailable: (commandId: string) => boolean
 
   /**
    * Get commands by category
-   * @example window.mindscribble.getByCategory('node')
+   * @example window.mindpad.getByCategory('node')
    */
   getByCategory: (category: string) => CommandInfo[]
 
   /**
    * Subscribe to command execution events
-   * @example window.mindscribble.onCommandExecuted((cmd) => console.log('Executed:', cmd))
+   * @example window.mindpad.onCommandExecuted((cmd) => console.log('Executed:', cmd))
    */
   onCommandExecuted: (callback: (commandId: string) => void) => () => void
 }
@@ -125,7 +125,7 @@ export function notifyCommandExecuted(commandId: string): void {
 /**
  * Create the public API object
  */
-function createAPI(): MindscribbleAPI {
+function createAPI(): MindpadAPI {
   return {
     version: '1.0.0',
 
@@ -191,7 +191,7 @@ function createAPI(): MindscribbleAPI {
 // Extend Window interface
 declare global {
   interface Window {
-    mindscribble: MindscribbleAPI
+    mindpad: MindpadAPI
   }
 }
 
@@ -201,8 +201,8 @@ declare global {
  */
 export function initCommandAPI(): void {
   if (typeof window !== 'undefined') {
-    window.mindscribble = createAPI()
-    // console.log('[MindScribble] Command API initialized. Try: window.mindscribble.listCommands()')
+    window.mindpad = createAPI()
+    // console.log('[MindPad] Command API initialized. Try: window.mindpad.listCommands()')
   }
 }
 

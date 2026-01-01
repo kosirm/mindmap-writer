@@ -1,8 +1,8 @@
-# Web Worker Architecture for MindScribble
+# Web Worker Architecture for MindPad
 
 ## Overview
 
-This document outlines the comprehensive Web Worker architecture for MindScribble, designed to offload CPU-intensive tasks from the main thread and improve application responsiveness. The architecture follows the existing patterns established in the [Architecture Document](01_ARCHITECTURE.md) and integrates with the [Storage and Indexing System](04_STORAGE_AND_INDEXING.md).
+This document outlines the comprehensive Web Worker architecture for MindPad, designed to offload CPU-intensive tasks from the main thread and improve application responsiveness. The architecture follows the existing patterns established in the [Architecture Document](01_ARCHITECTURE.md) and integrates with the [Storage and Indexing System](04_STORAGE_AND_INDEXING.md).
 
 ## Architecture Diagram
 
@@ -33,7 +33,7 @@ classDiagram
     }
 
     class DocumentStore {
-        +nodes: MindscribbleNode[]
+        +nodes: MindpadNode[]
         +emitChanges()
     }
 
@@ -57,7 +57,7 @@ classDiagram
 ### WorkerManager Class
 
 ```typescript
-// mindscribble/quasar/src/core/workers/WorkerManager.ts
+// mindpad/quasar/src/core/workers/WorkerManager.ts
 export class WorkerManager {
   private positioningWorker: Worker;
   private storageWorker: Worker;
@@ -102,7 +102,7 @@ export class WorkerManager {
     viewType: 'conceptmap' | 'boxed-conceptmap',
     nodeId: string,
     parentId: string | null,
-    nodes: MindscribbleNode[]
+    nodes: MindpadNode[]
   ): Promise<{x: number, y: number}> {
     if (!this.isInitialized) {
       return this.fallbackCalculatePosition(viewType, nodeId, parentId, nodes);
@@ -142,7 +142,7 @@ export class WorkerManager {
     });
   }
 
-  public async autosaveDocument(document: MindscribbleDocument): Promise<boolean> {
+  public async autosaveDocument(document: MindpadDocument): Promise<boolean> {
     if (!this.isInitialized) {
       return this.fallbackAutosave(document);
     }
@@ -173,7 +173,7 @@ export class WorkerManager {
     return {x: 200, y: 200}; // Simplified
   }
 
-  private fallbackAutosave(document: MindscribbleDocument): Promise<boolean> {
+  private fallbackAutosave(document: MindpadDocument): Promise<boolean> {
     // Main thread autosave implementation
     return Promise.resolve(true);
   }
@@ -183,7 +183,7 @@ export class WorkerManager {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  private serializeNodesForPositioning(nodes: MindscribbleNode[]): any[] {
+  private serializeNodesForPositioning(nodes: MindpadNode[]): any[] {
     return nodes.map(node => ({
       id: node.id,
       pid: node.parentId,
@@ -194,7 +194,7 @@ export class WorkerManager {
     }));
   }
 
-  private serializeDocumentForStorage(document: MindscribbleDocument): any {
+  private serializeDocumentForStorage(document: MindpadDocument): any {
     return {
       version: document.version,
       nodes: document.nodes.map(this.serializeNodeForStorage),
@@ -210,7 +210,7 @@ export class WorkerManager {
 ### Positioning Worker
 
 ```typescript
-// mindscribble/quasar/src/workers/positioningWorker.ts
+// mindpad/quasar/src/workers/positioningWorker.ts
 interface PositionMessage {
   messageId: string;
   type: 'CALCULATE_POSITION';
@@ -299,7 +299,7 @@ function isPositionAvailable(x: number, y: number, size: any, nodes: any[], spac
 ### Storage Worker
 
 ```typescript
-// mindscribble/quasar/src/workers/storageWorker.ts
+// mindpad/quasar/src/workers/storageWorker.ts
 interface StorageMessage {
   messageId: string;
   type: 'AUTOSAVE_DOCUMENT' | 'SYNC_TO_GOOGLE_DRIVE';
@@ -364,7 +364,7 @@ function compressDocument(document: any): any {
 
 async function openIndexedDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('MindScribbleAutosave', 1);
+    const request = indexedDB.open('MindPadAutosave', 1);
 
     request.onupgradeneeded = (event) => {
       const db = request.result;
@@ -384,16 +384,16 @@ async function openIndexedDB(): Promise<IDBDatabase> {
 ### Document Store Integration
 
 ```typescript
-// mindscribble/quasar/src/core/stores/documentStore.ts
+// mindpad/quasar/src/core/stores/documentStore.ts
 export const useDocumentStore = defineStore('document', () => {
   const workerManager = new WorkerManager();
-  const nodes = ref<MindscribbleNode[]>([]);
+  const nodes = ref<MindpadNode[]>([]);
   const isAutosaving = ref(false);
   const lastAutosave = ref<Date | null>(null);
 
   // ... existing store methods ...
 
-  function addNode(node: Partial<MindscribbleNode>) {
+  function addNode(node: Partial<MindpadNode>) {
     const newNode = createNode(node);
     nodes.value.push(newNode);
 
@@ -406,7 +406,7 @@ export const useDocumentStore = defineStore('document', () => {
     return newNode;
   }
 
-  async function calculateViewPositions(node: MindscribbleNode) {
+  async function calculateViewPositions(node: MindpadNode) {
     try {
       const [conceptMapPos, boxedPos] = await Promise.all([
         workerManager.calculatePosition('conceptmap', node.id, node.parentId, nodes.value),
@@ -459,7 +459,7 @@ export const useDocumentStore = defineStore('document', () => {
 ### Smart Positioning Strategy
 
 ```typescript
-// mindscribble/quasar/src/features/canvas/composables/conceptmap/useSmartPositioning.ts
+// mindpad/quasar/src/features/canvas/composables/conceptmap/useSmartPositioning.ts
 export function useSmartPositioning() {
   const worker = ref<Worker | null>(null);
   const MIN_NODES_FOR_WORKER = 50; // Empirical threshold
@@ -509,7 +509,7 @@ export function useSmartPositioning() {
 ### Worker Lifecycle Integration
 
 ```typescript
-// mindscribble/quasar/src/core/workers/WorkerLifecycle.ts
+// mindpad/quasar/src/core/workers/WorkerLifecycle.ts
 export function setupWorkerLifecycle() {
   const workerManager = inject<WorkerManager>('workerManager');
 
@@ -536,7 +536,7 @@ export function setupWorkerLifecycle() {
 ### Event Bus Integration
 
 ```typescript
-// mindscribble/quasar/src/core/events/index.ts
+// mindpad/quasar/src/core/events/index.ts
 import { eventBus } from './eventBus';
 
 // Worker manager listens to document changes
@@ -554,7 +554,7 @@ eventBus.on('store:document-saved', (document) => {
 ### Command System Integration
 
 ```typescript
-// mindscribble/quasar/src/core/commands/definitions/fileCommands.ts
+// mindpad/quasar/src/core/commands/definitions/fileCommands.ts
 registerCommand({
   id: 'file.autosave',
   label: 'Autosave',
@@ -630,6 +630,6 @@ registerCommand({
 
 ## Conclusion
 
-This Web Worker architecture provides a robust foundation for offloading CPU-intensive tasks from the main thread while maintaining the architectural principles established in the MindScribble project. The implementation follows the existing patterns for state management, event communication, and command execution, ensuring seamless integration with the current codebase.
+This Web Worker architecture provides a robust foundation for offloading CPU-intensive tasks from the main thread while maintaining the architectural principles established in the MindPad project. The implementation follows the existing patterns for state management, event communication, and command execution, ensuring seamless integration with the current codebase.
 
-The architecture is designed to be implemented incrementally, starting with the most critical positioning calculations and expanding to storage operations, providing immediate benefits while allowing for future enhancements. This approach ensures that MindScribble remains responsive and performant even with complex mind maps and large datasets.
+The architecture is designed to be implemented incrementally, starting with the most critical positioning calculations and expanding to storage operations, providing immediate benefits while allowing for future enhancements. This approach ensures that MindPad remains responsive and performant even with complex mind maps and large datasets.

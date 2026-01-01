@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue'
-import type { MindscribbleNode } from '../../../core/types'
+import type { MindpadNode } from '../../../core/types'
 
 /**
  * Represents an editable field in the flattened document
@@ -7,7 +7,7 @@ import type { MindscribbleNode } from '../../../core/types'
 export interface EditableField {
   nodeId: string
   field: 'title' | 'content'
-  node: MindscribbleNode
+  node: MindpadNode
 }
 
 /**
@@ -16,7 +16,7 @@ export interface EditableField {
 export interface WriterTreeItem {
   id: string
   text: string
-  node: MindscribbleNode
+  node: MindpadNode
   children: WriterTreeItem[]
 }
 

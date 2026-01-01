@@ -1,4 +1,4 @@
-# Google Drive File Management Analysis for MindScribble Vaults
+# Google Drive File Management Analysis for MindPad Vaults
 
 ## Executive Summary
 
@@ -52,7 +52,7 @@
 ### Folder Structure
 ```
 Google Drive/
-└─ MindScribble/
+└─ MindPad/
    ├─ vault-1/
    │  ├─ .vault-metadata.json
    │  ├─ map-abc123.json
@@ -163,7 +163,7 @@ async function deleteFolderRecursive(folderId: string): Promise<void>
 ## Security Considerations
 
 - **Scopes required:** `https://www.googleapis.com/auth/drive.file`
-- **User data:** All operations limited to MindScribble folder
+- **User data:** All operations limited to MindPad folder
 - **Permission model:** User grants access during OAuth
 - **Data ownership:** All files remain user-owned
 

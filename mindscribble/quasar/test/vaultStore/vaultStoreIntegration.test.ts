@@ -5,7 +5,7 @@ import { useVaultStore } from 'src/core/stores/vaultStore'
 import VaultTree from 'src/features/vault/components/VaultTree.vue'
 import VaultToolbar from 'src/features/vault/components/VaultToolbar.vue'
 import VaultTreeItem from 'src/features/vault/components/VaultTreeItem.vue'
-import type { MindscribbleDocument } from 'src/core/types'
+import type { MindpadDocument } from 'src/core/types'
 
 // Type definition for VaultTree component methods
 type VaultTreeComponent = {
@@ -205,7 +205,7 @@ describe('Vault Store Integration Tests', () => {
           await vaultStore.createNewFolder(null, 'Test Folder')
 
           // Create a file
-          const newDocument: MindscribbleDocument = {
+          const newDocument: MindpadDocument = {
             version: '1.0',
             metadata: {
               id: `file-${Date.now()}`,
