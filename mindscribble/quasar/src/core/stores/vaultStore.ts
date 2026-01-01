@@ -535,7 +535,7 @@ export const useVaultStore = defineStore('vaults', () => {
   /**
    * Delete an existing item
    */
-  async function deleteExistingItem(itemId: string) {
+  async function deleteExistingItem(itemId: string, source: EventSource = 'store') {
     if (!activeVault.value) {
       throw new Error('No active vault')
     }
@@ -562,7 +562,7 @@ export const useVaultStore = defineStore('vaults', () => {
       vaultRevision.value++
 
       eventBus.emit('vault:item-deleted', {
-        source: 'store',
+        source: source,
         vaultId: activeVault.value.id,
         itemId: itemId,
         itemType: itemType,
@@ -588,7 +588,8 @@ export const useVaultStore = defineStore('vaults', () => {
   async function moveExistingItem(
     itemId: string,
     newParentId: string | null,
-    newSortOrder?: number
+    newSortOrder?: number,
+    source: EventSource = 'store'
   ) {
     if (!activeVault.value) {
       throw new Error('No active vault')
@@ -620,7 +621,7 @@ export const useVaultStore = defineStore('vaults', () => {
       vaultRevision.value++
 
       eventBus.emit('vault:item-moved', {
-        source: 'store',
+        source: source,
         vaultId: activeVault.value.id,
         itemId: itemId,
         oldParentId: oldParentId,
