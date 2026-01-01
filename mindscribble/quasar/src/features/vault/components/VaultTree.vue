@@ -65,7 +65,7 @@ import { eventBus } from 'src/core/events'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
 import type { VaultStructureRefreshedPayload, ItemRenamedPayload, ItemDeletedPayload, ItemMovedPayload, FileSelectedPayload } from 'src/core/events'
 
-const TRIGGER_CLASS = 'drag-handle'
+const TRIGGER_CLASS = 'item-title-wrapper'
 const $q = useQuasar()
 
 // Vault store
