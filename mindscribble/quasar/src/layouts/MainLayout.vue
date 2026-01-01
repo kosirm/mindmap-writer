@@ -137,8 +137,9 @@
       :style="{ width: drawerWidth + 'px' }"
       @mouseleave="handleDrawerMouseLeave"
     >
-      <!-- Drawer Header with title -->
+      <!-- Drawer Header with title and icon -->
       <div class="drawer-header">
+        <q-icon :name="getDrawerIcon()" class="drawer-icon q-mr-sm" />
         <div class="drawer-title">{{ getDrawerTitle() }}</div>
       </div>
 
@@ -251,6 +252,7 @@ import {
 } from 'src/core/services/googleDriveService'
 import type { MindpadDocument } from 'src/core/types'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
+import { getVaultIcon } from 'src/shared/utils/vaultIcons'
 
 // Dev tools - only imported in development mode (lazy loaded)
 const DevPanel = import.meta.env.DEV
@@ -316,6 +318,22 @@ function getDrawerTitle() {
   }
 }
 
+// Get drawer icon based on current tab
+function getDrawerIcon() {
+  switch (leftDrawerTab.value) {
+    case 'files':
+      return getVaultIcon('vault-management')
+    case 'tools':
+      return 'build'
+    case 'dev':
+      return 'code'
+    case 'ai':
+      return 'smart_toy'
+    default:
+      return 'menu'
+  }
+}
+
 // Handle mini sidebar click - toggle pin/unpin
 function handleMiniClick(tab: string) {
   // If clicking the same tab that's already pinned, unpin it
@@ -372,7 +390,7 @@ function resizeDrawer(e: MouseEvent) {
   const newWidth = startWidth + (e.clientX - startX)
 
   // Set reasonable min and max widths
-  const minWidth = 200
+  const minWidth = 240
   const maxWidth = 500
 
   drawerWidth.value = Math.max(minWidth, Math.min(maxWidth, newWidth))
@@ -827,10 +845,16 @@ onUnmounted(() => {
   color: white;
   display: flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   padding-left: 16px;
   font-weight: 500;
   font-size: 0.9rem;
   flex-shrink: 0;
+}
+
+.drawer-icon {
+  font-size: 1.2rem;
 }
 
 .drawer-scroll-area {
