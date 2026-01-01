@@ -372,6 +372,7 @@ export type VaultEvents = {
   'vault:loaded': VaultLoadedPayload
   'vault:created': VaultCreatedPayload
   'vault:activated': VaultActivatedPayload
+  'vault:deleted': { vaultId: string; source: EventSource }
 
   // File/folder lifecycle events
   'vault:file-created': FileCreatedPayload
@@ -390,6 +391,11 @@ export type VaultEvents = {
   'vault:error': VaultErrorPayload
 }
 
+export type VaultsIndexEvents = {
+  'vaults:index-updated': { index: unknown }
+  'vaults:index-cleared': object
+}
+
 // ============================================================
 // DOCKVIEW EVENT TYPE DEFINITIONS
 // ============================================================
@@ -400,7 +406,7 @@ export type DockviewEvents = {
 }
 
 /** All events */
-export type Events = StoreEvents & UIEvents & VaultEvents & DockviewEvents
+export type Events = StoreEvents & UIEvents & VaultEvents & DockviewEvents & VaultsIndexEvents
 
 // ============================================================
 // EVENT BUS INSTANCE

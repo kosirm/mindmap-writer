@@ -13,8 +13,9 @@ import { ref, computed } from 'vue'
 import { eventBus, type EventSource } from '../events'
 import type { VaultMetadata, FileSystemItem } from '../services/indexedDBService'
 import type { MindscribbleDocument } from '../types'
-import * as vaultService from '../services/vaultService'
+import { VaultMetadataService } from '../services/vaultMetadataService'
 import * as fileSystemService from '../services/fileSystemService'
+import { db } from '../services/indexedDBService'
 
 export const useVaultStore = defineStore('vaults', () => {
   // ============================================================
@@ -84,41 +85,38 @@ export const useVaultStore = defineStore('vaults', () => {
   // ============================================================
 
   /**
-   * Load all vaults from database
+   * Load all vaults metadata from .vaults index
    */
-  async function loadAllVaults() {
+  async function loadAllVaults(source: EventSource = 'store') {
     try {
       isLoading.value = true
       error.value = null
 
-      const loadedVaults = await vaultService.getAllVaults()
-      vaults.value = loadedVaults
+      console.log('🗄️ [VaultStore] Loading all vaults from vaultsIndex...')
+      const vaultsIndex = await VaultMetadataService.getVaultsIndex()
+      vaults.value = vaultsIndex.vaults
+      console.log('🗄️ [VaultStore] Loaded', vaults.value.length, 'vaults:', vaults.value.map(v => v.name))
 
-      // Set active vault if available
-      const active = await vaultService.getActiveVault()
-      if (active) {
-        activeVault.value = active
-      } else if (loadedVaults.length > 0) {
-        // Set first vault as active if no active vault
-        await activateVault(loadedVaults[0]!.id)
+      // Load active vault if not already loaded
+      if (!activeVault.value && vaultsIndex.vaults.length > 0) {
+        // For Phase 7: Use first vault as default
+        // In Phase 8: Load last used vault from preferences
+        const firstVault = vaultsIndex.vaults[0]
+        if (firstVault?.id) {
+          console.log('🗄️ [VaultStore] No active vault, activating first vault:', firstVault.name)
+          await activateVault(firstVault.id, source)
+        }
+      } else if (activeVault.value) {
+        console.log('🗄️ [VaultStore] Active vault already set:', activeVault.value.name)
       }
 
       vaultRevision.value++
-
-      eventBus.emit('vault:loaded', {
-        source: 'store',
-        vaultId: active?.id || loadedVaults[0]?.id || '',
-        vaultName: active?.name || loadedVaults[0]?.name || '',
-        vaultMetadata: active || loadedVaults[0] || { id: '', name: '', created: 0, modified: 0, folderId: '', repositoryFileId: '', fileCount: 0, folderCount: 0, size: 0 }
-      })
+      return vaultsIndex.vaults
     } catch (err) {
-      error.value = `Failed to load vaults: ${err instanceof Error ? err.message : String(err)}`
-      eventBus.emit('vault:error', {
-        source: 'store',
-        vaultId: null,
-        error: err instanceof Error ? err : new Error(String(err)),
-        operation: 'loadAllVaults'
-      })
+      console.error('🗄️ [VaultStore] Failed to load vaults:', err)
+      error.value = err instanceof Error ? err.message : 'Failed to load vaults'
+      eventBus.emit('vault:error', { error: err as Error, operation: 'loadAllVaults', source, vaultId: null })
+      throw err
     } finally {
       isLoading.value = false
     }
@@ -158,79 +156,63 @@ export const useVaultStore = defineStore('vaults', () => {
   }
 
   /**
-   * Activate a vault
+   * Clear current vault data from IndexedDB
    */
-  async function activateVault(vaultId: string) {
-    try {
-      isLoading.value = true
-      error.value = null
-
-      await vaultService.setActiveVault(vaultId)
-
-      // Update local state
-      const vault = vaults.value.find(v => v.id === vaultId)
-      if (vault) {
-        activeVault.value = vault
-
-        // Load structure for new active vault
-        await loadVaultStructure()
-
-        eventBus.emit('vault:activated', {
-          source: 'store',
-          vaultId: vault.id,
-          vaultName: vault.name,
-          vaultMetadata: vault
-        })
-      }
-    } catch (err) {
-      error.value = `Failed to activate vault: ${err instanceof Error ? err.message : String(err)}`
-      eventBus.emit('vault:error', {
-        source: 'store',
-        vaultId: vaultId,
-        error: err instanceof Error ? err : new Error(String(err)),
-        operation: 'activateVault'
-      })
-    } finally {
-      isLoading.value = false
-    }
+  async function clearCurrentVaultData() {
+    // Clear file system
+    await db.fileSystem.clear()
+    // Clear documents
+    await db.documents.clear()
+    // Clear any other vault-specific data
   }
 
   /**
-   * Create a new vault
+   * Activate vault - REPLACES current vault in IndexedDB with selected vault
    */
-  async function createNewVault(name: string, description: string = '') {
+  async function activateVault(vaultId: string, source: EventSource = 'store') {
     try {
       isLoading.value = true
       error.value = null
 
-      const newVault = await vaultService.createVault(name, description)
+      // For Phase 7: We get vault metadata from .vaults index
+      // In Phase 8: We will download the actual vault content from Google Drive
+      const vaultsIndex = await VaultMetadataService.getVaultsIndex()
+      const vaultMetadata = vaultsIndex.vaults.find(v => v.id === vaultId)
 
-      // Add to local state
-      vaults.value = [...vaults.value, newVault]
-
-      // If this is the first vault, activate it
-      if (vaults.value.length === 1) {
-        await activateVault(newVault.id)
+      if (!vaultMetadata) {
+        throw new Error(`Vault ${vaultId} not found in vaults index`)
       }
 
+      // Only clear vault data if we're switching to a DIFFERENT vault
+      // This prevents data loss when reloading the same vault
+      const isVaultSwitch = activeVault.value && activeVault.value.id !== vaultId
+      if (isVaultSwitch) {
+        console.log('🗄️ [VaultStore] Switching vaults, clearing current vault data')
+        await clearCurrentVaultData()
+      } else {
+        console.log('🗄️ [VaultStore] Activating same vault, keeping existing data')
+      }
+
+      // Set as active vault (for Phase 7, we create empty structure)
+      activeVault.value = vaultMetadata
+
+      // Only clear structure if we're switching vaults
+      if (isVaultSwitch) {
+        vaultStructure.value = [] // Empty structure, will be populated when files are created
+      }
+
+      // Set active vault in metadata service
+      await VaultMetadataService.setActiveVault(vaultId)
+
+      // Emit events
+      eventBus.emit('vault:activated', { vaultId, vaultName: vaultMetadata.name, vaultMetadata, source })
+      eventBus.emit('vault:loaded', { vaultId, vaultName: vaultMetadata.name, vaultMetadata, source })
+
       vaultRevision.value++
-
-      eventBus.emit('vault:created', {
-        source: 'store',
-        vaultId: newVault.id,
-        vaultName: newVault.name,
-        vaultMetadata: newVault
-      })
-
-      return newVault
+      return vaultMetadata
     } catch (err) {
-      error.value = `Failed to create vault: ${err instanceof Error ? err.message : String(err)}`
-      eventBus.emit('vault:error', {
-        source: 'store',
-        vaultId: null,
-        error: err instanceof Error ? err : new Error(String(err)),
-        operation: 'createNewVault'
-      })
+      error.value = err instanceof Error ? err.message : 'Failed to activate vault'
+      eventBus.emit('vault:error', { error: err as Error, operation: 'activateVault', source, vaultId: vaultId })
       throw err
     } finally {
       isLoading.value = false
@@ -238,44 +220,97 @@ export const useVaultStore = defineStore('vaults', () => {
   }
 
   /**
-   * Delete an existing vault
+   * Create a new vault - REPLACES current vault in IndexedDB
    */
-  async function deleteExistingVault(vaultId: string) {
+  async function createNewVault(name: string, description: string = '', source: EventSource = 'store') {
     try {
       isLoading.value = true
       error.value = null
 
-      await vaultService.deleteVault(vaultId)
+      // Generate unique vault name if needed
+      const uniqueName = await VaultMetadataService.generateUniqueVaultName(name)
 
-      // Remove from local state
-      vaults.value = vaults.value.filter(v => v.id !== vaultId)
+      // Create new vault metadata
+      const newVault: VaultMetadata = {
+        id: `vault-${Date.now()}`,
+        name: uniqueName,
+        description,
+        created: Date.now(),
+        modified: Date.now(),
+        folderId: '',
+        repositoryFileId: '',
+        fileCount: 0,
+        folderCount: 0,
+        size: 0,
+        isActive: true
+      }
 
-      // If we deleted the active vault, activate another one
+      // Add to vaults index
+      await VaultMetadataService.addVaultToIndex(newVault)
+
+      // Clear current vault data from IndexedDB
+      await clearCurrentVaultData()
+
+      // Set as active vault
+      activeVault.value = newVault
+      vaultStructure.value = [] // Empty structure for new vault
+
+      // Update local state
+      await loadAllVaults(source)
+
+      // Emit events
+      eventBus.emit('vault:created', { vaultId: newVault.id, vaultName: newVault.name, vaultMetadata: newVault, source })
+      eventBus.emit('vault:activated', { vaultId: newVault.id, vaultName: newVault.name, vaultMetadata: newVault, source })
+
+      vaultRevision.value++
+      return newVault
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to create vault'
+      eventBus.emit('vault:error', { error: err as Error, operation: 'createNewVault', source, vaultId: null })
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Delete a vault - removes from vaults index but doesn't delete actual vault data
+   * (Actual vault deletion will be implemented in Phase 8 with Google Drive integration)
+   */
+  async function deleteExistingVault(vaultId: string, source: EventSource = 'store') {
+    try {
+      isLoading.value = true
+      error.value = null
+
+      // Remove from vaults index
+      await VaultMetadataService.removeVaultFromIndex(vaultId)
+
+      // If this was the active vault, we need to handle it
       if (activeVault.value?.id === vaultId) {
-        const remainingVaults = vaults.value
-        if (remainingVaults.length > 0) {
-          await activateVault(remainingVaults[0]!.id)
-        } else {
-          activeVault.value = null
-          vaultStructure.value = []
+        // Clear active vault
+        activeVault.value = null
+        vaultStructure.value = []
+
+        // If there are other vaults, activate the first one
+        const vaultsIndex = await VaultMetadataService.getVaultsIndex()
+        if (vaultsIndex.vaults.length > 0) {
+          const firstVault = vaultsIndex.vaults[0]
+          if (firstVault?.id) {
+            await activateVault(firstVault.id, source)
+          }
         }
       }
 
+      // Update local state
+      await loadAllVaults(source)
+
       vaultRevision.value++
 
-      eventBus.emit('vault:structure-refreshed', {
-        source: 'store',
-        vaultId: vaultId,
-        fullStructure: false
-      })
+      // Emit event
+      eventBus.emit('vault:deleted', { vaultId, source })
     } catch (err) {
-      error.value = `Failed to delete vault: ${err instanceof Error ? err.message : String(err)}`
-      eventBus.emit('vault:error', {
-        source: 'store',
-        vaultId: vaultId,
-        error: err instanceof Error ? err : new Error(String(err)),
-        operation: 'deleteExistingVault'
-      })
+      error.value = err instanceof Error ? err.message : 'Failed to delete vault'
+      eventBus.emit('vault:error', { error: err as Error, operation: 'deleteExistingVault', source, vaultId: vaultId })
       throw err
     } finally {
       isLoading.value = false
@@ -294,7 +329,7 @@ export const useVaultStore = defineStore('vaults', () => {
       const index = vaults.value.findIndex(v => v.id === vaultId)
       const oldName = index !== -1 ? vaults.value[index]?.name || '' : ''
 
-      const updatedVault = await vaultService.renameVault(vaultId, newName)
+      const updatedVault = await VaultMetadataService.updateVaultMetadata(vaultId, { name: newName })
 
       // Update local state
       if (index !== -1) {

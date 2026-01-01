@@ -44,6 +44,7 @@ export async function createFile(
     }
 
     // Store the file system item
+    console.log('📁 [FileSystemService] Creating file:', fileItem.name, 'in vault:', vaultId)
     await db.transaction('rw', db.fileSystem, db.documents, async () => {
       // Ensure fileSystem store exists
       if (!db.fileSystem) {
@@ -51,10 +52,12 @@ export async function createFile(
       }
 
       await db.fileSystem.add(fileItem)
+      console.log('📁 [FileSystemService] File added to fileSystem store')
 
       // If this is a file with content, store the document
       if (content) {
         await db.documents.put(content)
+        console.log('📁 [FileSystemService] Document saved to documents store')
       }
 
       // If parent exists, add this file to parent's children
@@ -267,8 +270,16 @@ export async function moveItem(
  */
 export async function getVaultStructure(vaultId: string): Promise<FileSystemItem[]> {
   try {
+    console.log('📁 [FileSystemService] Getting vault structure for:', vaultId)
+
+    // Debug: Check all items in fileSystem table
+    const allItemsInDB = await db.fileSystem.toArray()
+    console.log('📁 [FileSystemService] Total items in fileSystem table:', allItemsInDB.length, allItemsInDB.map(i => ({ id: i.id, vaultId: i.vaultId, name: i.name, type: i.type })))
+
     // Return all items for the vault - the tree component will build the hierarchy
     const allItems = await db.fileSystem.where('vaultId').equals(vaultId).toArray()
+
+    console.log('📁 [FileSystemService] Found items for vault:', allItems.length, allItems.map(i => ({ name: i.name, type: i.type })))
 
     // Sort by sortOrder for consistent ordering
     allItems.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
