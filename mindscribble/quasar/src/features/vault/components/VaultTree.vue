@@ -318,7 +318,7 @@ async function onTreeChange() {
   for (const { itemId, parentId, order } of newHierarchy) {
     try {
       console.log(`🔍 [onTreeChange] Moving item ${itemId} to parent ${parentId || 'root'}, order ${order}`)
-      await vaultStore.moveExistingItem(itemId, parentId, order)
+      await vaultStore.moveExistingItem(itemId, parentId, order, 'vault-tree')
     } catch (error) {
       console.error(`Failed to move item ${itemId}:`, error)
       // Rebuild tree to revert changes - reload from database
