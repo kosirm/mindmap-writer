@@ -12,10 +12,10 @@ The unified store migration is complete and fully functional. All views (Outline
 ### 1. Delete 4 Files (~2000+ lines of code)
 
 ```
-mindscribble/quasar/src/core/stores/documentStore.ts
-mindscribble/quasar/src/core/stores/multiDocumentStore.ts
-mindscribble/quasar/src/core/stores/storeSynchronizer.ts
-mindscribble/quasar/src/composables/useStoreMode.ts
+mindpad/quasar/src/core/stores/documentStore.ts
+mindpad/quasar/src/core/stores/multiDocumentStore.ts
+mindpad/quasar/src/core/stores/storeSynchronizer.ts
+mindpad/quasar/src/composables/useStoreMode.ts
 ```
 
 ### 2. Update 13 Files

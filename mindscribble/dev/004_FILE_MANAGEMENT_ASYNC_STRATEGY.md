@@ -618,4 +618,4 @@ defineExpose({
 5. **Reliability:** Robust error handling
 6. **Scalability:** Handles large vaults efficiently
 
-This async/worker strategy ensures that MindScribble remains responsive even during complex file operations, providing a professional user experience while maintaining all the benefits of Google Drive integration.
+This async/worker strategy ensures that MindPad remains responsive even during complex file operations, providing a professional user experience while maintaining all the benefits of Google Drive integration.

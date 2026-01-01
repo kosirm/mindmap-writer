@@ -20,7 +20,7 @@ import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useAppStore } from 'src/core/stores/appStore'
 import { eventBus, type FileSelectedPayload } from 'src/core/events'
-import type { MindscribbleDocument } from 'src/core/types'
+import type { MindpadDocument } from 'src/core/types'
 import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
 import { getFileContent } from 'src/core/services/fileSystemService'
 
@@ -74,7 +74,7 @@ function addFile() {
 
   // Create a new empty document
   const now = Date.now()
-  const newDocument: MindscribbleDocument = {
+  const newDocument: MindpadDocument = {
     version: '1.0',
     metadata: {
       id: `doc-${now}-${fileCounter}`,
@@ -120,12 +120,12 @@ function addFile() {
   }) */
 }
 
-function openFileFromDrive(document: MindscribbleDocument, driveFile: DriveFileMetadata) {
+function openFileFromDrive(document: MindpadDocument, driveFile: DriveFileMetadata) {
   if (!dockviewApi.value) return
 
   fileCounter++
   const fileId = `file-${fileCounter}`
-  const fileName = document.metadata.name || driveFile.name.replace('.mindscribble', '')
+  const fileName = document.metadata.name || driveFile.name.replace('.mindpad', '')
   const documentId = document.dockviewLayoutId || document.metadata.id
 
   console.log('📂 Opening file from Drive:', fileName)
@@ -186,7 +186,7 @@ async function openFileFromVault(fileSystemItemId: string, fileName: string) {
     const vaultFileMetadata = {
       id: fileSystemItemId,
       name: fileName,
-      mimeType: 'application/vnd.mindscribble',
+      mimeType: 'application/vnd.mindpad',
       createdTime: new Date(document.metadata.created).toISOString(),
       modifiedTime: new Date(document.metadata.modified).toISOString(),
       size: '0'

@@ -189,28 +189,28 @@ Added document instance management methods to `unifiedDocumentStore`:
 
 ## 🔍 Files Updated So Far
 
-1. ✅ `mindscribble/quasar/src/dev/DevPanel.vue`
-2. ✅ `mindscribble/quasar/src/pages/components/D3ConceptMapPanel.vue`
-3. ✅ `mindscribble/quasar/src/features/canvas/composables/useMindmapIntegration.ts`
-4. ✅ `mindscribble/quasar/src/features/tree/components/OutlineNodeContent.vue`
-5. ✅ `mindscribble/quasar/src/features/tree/components/OutlineView.vue`
-6. ✅ `mindscribble/quasar/src/core/stores/unifiedDocumentStore.ts` (added document instance management)
-7. ✅ `mindscribble/quasar/src/layouts/DockviewLayout.vue` (migrated to unified store)
-8. ✅ `mindscribble/quasar/src/pages/components/FilePanel.vue` (migrated to unified store)
-9. ✅ `mindscribble/quasar/src/features/writer/components/WriterNodeContent.vue`
-10. ✅ `mindscribble/quasar/src/features/writer/components/WriterView.vue`
-11. ✅ `mindscribble/quasar/src/shared/components/FileOperationsModal.vue`
-12. ✅ `mindscribble/quasar/src/composables/useAutosave.ts`
-13. ✅ `mindscribble/quasar/src/layouts/MainLayout.vue`
-14. ✅ `mindscribble/quasar/src/features/canvas/components/mindmap/MindmapCore.vue`
+1. ✅ `mindpad/quasar/src/dev/DevPanel.vue`
+2. ✅ `mindpad/quasar/src/pages/components/D3ConceptMapPanel.vue`
+3. ✅ `mindpad/quasar/src/features/canvas/composables/useMindmapIntegration.ts`
+4. ✅ `mindpad/quasar/src/features/tree/components/OutlineNodeContent.vue`
+5. ✅ `mindpad/quasar/src/features/tree/components/OutlineView.vue`
+6. ✅ `mindpad/quasar/src/core/stores/unifiedDocumentStore.ts` (added document instance management)
+7. ✅ `mindpad/quasar/src/layouts/DockviewLayout.vue` (migrated to unified store)
+8. ✅ `mindpad/quasar/src/pages/components/FilePanel.vue` (migrated to unified store)
+9. ✅ `mindpad/quasar/src/features/writer/components/WriterNodeContent.vue`
+10. ✅ `mindpad/quasar/src/features/writer/components/WriterView.vue`
+11. ✅ `mindpad/quasar/src/shared/components/FileOperationsModal.vue`
+12. ✅ `mindpad/quasar/src/composables/useAutosave.ts`
+13. ✅ `mindpad/quasar/src/layouts/MainLayout.vue`
+14. ✅ `mindpad/quasar/src/features/canvas/components/mindmap/MindmapCore.vue`
 
 ---
 
 ## 🔧 Files Updated in This Session
 
-15. ✅ `mindscribble/quasar/src/features/canvas/components/mindmap/MindmapContextMenu.vue`
-16. ✅ `mindscribble/quasar/src/features/canvas/components/D3MindmapView.vue`
-17. ✅ `mindscribble/quasar/src/features/canvas/components/D3ConceptMapView.vue`
+15. ✅ `mindpad/quasar/src/features/canvas/components/mindmap/MindmapContextMenu.vue`
+16. ✅ `mindpad/quasar/src/features/canvas/components/D3MindmapView.vue`
+17. ✅ `mindpad/quasar/src/features/canvas/components/D3ConceptMapView.vue`
 
 ##  Notes
 - Following the incremental approach: one file at a time

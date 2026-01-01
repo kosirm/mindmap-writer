@@ -1,8 +1,8 @@
-# MindScribble Architecture
+# MindPad Architecture
 
 ## Overview
 
-MindScribble is a professional mindmap application built with Vue 3, Quasar, and VueFlow. This document outlines the architecture designed to avoid the performance and maintainability issues encountered in the vueflow prototype.
+MindPad is a professional mindmap application built with Vue 3, Quasar, and VueFlow. This document outlines the architecture designed to avoid the performance and maintainability issues encountered in the vueflow prototype.
 :
 ## Core Principles
 
@@ -45,7 +45,7 @@ MindScribble is a professional mindmap application built with Vue 3, Quasar, and
 ## Folder Structure
 
 ```
-mindscribble/
+mindpad/
 ├── src/
 │   ├── features/              # Feature modules
 │   │   ├── canvas/           # Mindmap canvas (VueFlow integration)
@@ -899,7 +899,7 @@ export const useMasterMapStore = defineStore('masterMap', () => {
 │                        USER'S GOOGLE DRIVE                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  MindScribble/                                                   │
+│  MindPad/                                                   │
 │  ├── Project Planning.json ──┐                                  │
 │  │   └── nodes: [            │                                  │
 │  │       { id: "uuid-1",     │                                  │
@@ -1108,7 +1108,7 @@ CREATE TABLE feature_flags (
 **File Structure:**
 ```
 Google Drive
-└── MindScribble/                    # App folder (created on first login)
+└── MindPad/                    # App folder (created on first login)
     ├── My Project Plan.json         # Mindmap file
     ├── Meeting Notes.json
     └── Brainstorming Session.json
@@ -1167,7 +1167,7 @@ export function useGoogleDrive() {
   async function createAppFolder(): Promise<string> {
     const response = await gapi.client.drive.files.create({
       resource: {
-        name: 'MindScribble',
+        name: 'MindPad',
         mimeType: 'application/vnd.google-apps.folder'
       },
       fields: 'id'
@@ -1678,7 +1678,7 @@ See `vueflow-design/DOC/NESTED_LAYOUT.md` for detailed documentation.
 ```
 User Input (Chat/Command)
     ↓
-MindScribble Frontend
+MindPad Frontend
     ↓
 n8n Webhook
     ↓
@@ -1689,7 +1689,7 @@ n8n Agent Workflow
     ├─ Generate operations
     └─ Return structured response
     ↓
-MindScribble Frontend
+MindPad Frontend
     ↓
 Apply operations to mindmap
     ↓
@@ -1984,7 +1984,7 @@ VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
 3. ✅ Document architecture with backend integration
 4. [ ] Create DATA_FORMAT.md with detailed JSON schema
 5. [ ] Create AI_INTEGRATION.md with n8n workflow details
-6. [ ] Initialize MindScribble Quasar project
+6. [ ] Initialize MindPad Quasar project
 7. [ ] Setup project structure (folders, stores, composables)
 8. [ ] Setup Supabase project and database schema
 9. [ ] Setup Google Cloud project and OAuth credentials
@@ -1994,7 +1994,7 @@ VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
 
 ## Summary
 
-MindScribble is a feature-rich mindmap application that combines:
+MindPad is a feature-rich mindmap application that combines:
 - **VueFlow** for canvas rendering
 - **AABB nested layout** from vueflow-design (with LOD system)
 - **Inter-map linking** for networked knowledge management

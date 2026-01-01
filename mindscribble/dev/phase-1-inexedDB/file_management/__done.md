@@ -117,7 +117,7 @@
 ## 🔧 Error Fixes Applied in This Session
 
 ### TypeScript and ESLint Fixes
-1. **Fixed MindscribbleDocument type mismatch** in VaultTree.vue
+1. **Fixed MindpadDocument type mismatch** in VaultTree.vue
    - Added complete document structure with all required fields
    - Fixed layout.activeView type to use 'mindmap' as const
 

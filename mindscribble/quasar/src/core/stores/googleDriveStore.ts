@@ -22,7 +22,7 @@ export const useGoogleDriveStore = defineStore('googleDrive', () => {
   // STATE
   // ============================================================
 
-  /** MindScribble app folder ID in Google Drive */
+  /** MindPad app folder ID in Google Drive */
   const appFolderId = ref<string | null>(null)
 
   /** Currently open file metadata */
@@ -59,7 +59,7 @@ export const useGoogleDriveStore = defineStore('googleDrive', () => {
   /** Current file name without extension */
   const currentFileName = computed(() => {
     if (!currentFile.value) return null
-    return currentFile.value.name.replace('.mindscribble', '')
+    return currentFile.value.name.replace('.mindpad', '')
   })
 
   /** Whether the app folder is initialized */

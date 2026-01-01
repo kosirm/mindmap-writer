@@ -1,4 +1,4 @@
-# MindScribble Phase 2: Complete Implementation Roadmap
+# MindPad Phase 2: Complete Implementation Roadmap
 
 ## 🎯 Overview
 
@@ -6,7 +6,7 @@ This roadmap consolidates all Phase 2 planning documents into a practical, prior
 
 ## 📚 Reference Documents
 
-All detailed specifications are in `mindscribble/dev/phase-2/`:
+All detailed specifications are in `mindpad/dev/phase-2/`:
 
 1. **backend_architecture.md** - Multi-provider storage system
 2. **binary_format_implementation.md** - Binary format (optional optimization)

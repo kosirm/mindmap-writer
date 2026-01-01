@@ -1,11 +1,11 @@
 /**
- * Global error handler for MindScribble
+ * Global error handler for MindPad
  * Handles unhandled promise rejections and uncaught errors
  */
 
 import { boot } from 'quasar/wrappers';
 import { Notify } from 'quasar';
-import { MindScribbleError } from '../core/errors';
+import { MindPadError } from '../core/errors';
 
 export default boot(() => {
   // Handle unhandled promise rejections
@@ -13,7 +13,7 @@ export default boot(() => {
     console.error('Unhandled rejection:', event.reason);
 
     const error = event.reason;
-    const message = error instanceof MindScribbleError
+    const message = error instanceof MindPadError
       ? error.message
       : error?.message || 'An unexpected error occurred';
 

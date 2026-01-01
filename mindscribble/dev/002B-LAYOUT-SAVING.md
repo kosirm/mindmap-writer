@@ -1,8 +1,8 @@
-# MindScribble Layout Saving Architecture
+# MindPad Layout Saving Architecture
 
 ## Overview
 
-This document outlines the architecture for saving and restoring dockview layouts with view information in MindScribble. The system needs to handle:
+This document outlines the architecture for saving and restoring dockview layouts with view information in MindPad. The system needs to handle:
 
 1. **User Preferences**: Default layout settings that persist across sessions
 2. **Document Layouts**: Layout information saved with each document
@@ -43,11 +43,11 @@ graph TD
 ### 1. Enhanced Document Structure
 
 ```typescript
-interface MindscribbleDocument {
+interface MindpadDocument {
   version: string;
   metadata: DocumentMetadata;
-  nodes: MindscribbleNode[];
-  edges: MindscribbleEdge[];
+  nodes: MindpadNode[];
+  edges: MindpadEdge[];
   interMapLinks: InterMapLink[];
   layout: LayoutSettings;
   dockviewLayout?: DockviewLayoutData; // NEW: Save dockview layout with document
@@ -104,7 +104,7 @@ interface DefaultPanelConfig {
 ```typescript
 interface DocumentInstance {
   filePanelId: string;
-  document: MindscribbleDocument;
+  document: MindpadDocument;
   driveFile: DriveFileMetadata | null;
   childLayoutState: DockviewLayoutData; // Enhanced with view info
   isDirty: boolean;
@@ -165,7 +165,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // Load from localStorage
   function loadSettings() {
-    const saved = localStorage.getItem('mindscribble-settings')
+    const saved = localStorage.getItem('mindpad-settings')
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
@@ -178,7 +178,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // Save to localStorage
   function saveSettings() {
-    localStorage.setItem('mindscribble-settings', JSON.stringify(settings.value))
+    localStorage.setItem('mindpad-settings', JSON.stringify(settings.value))
   }
 
   // Save to Google Drive (for logged-in users)
@@ -211,8 +211,8 @@ export interface DockviewPanelData {
   viewState?: Record<string, unknown>;
 }
 
-// Update MindscribbleDocument interface
-export interface MindscribbleDocument {
+// Update MindpadDocument interface
+export interface MindpadDocument {
   // ... existing fields
   dockviewLayout?: DockviewLayoutData;
 }
@@ -311,9 +311,9 @@ function updateDocumentLayout(
 
 ```typescript
 // Save strategy
-function saveDocumentWithLayout(doc: MindscribbleDocument) {
+function saveDocumentWithLayout(doc: MindpadDocument) {
   // Save to localStorage
-  const storageKey = `mindscribble-doc-${doc.metadata.id}`
+  const storageKey = `mindpad-doc-${doc.metadata.id}`
   localStorage.setItem(storageKey, JSON.stringify(doc))
   
   // Also save layout separately for quick access
@@ -324,8 +324,8 @@ function saveDocumentWithLayout(doc: MindscribbleDocument) {
 }
 
 // Load strategy
-function loadDocumentFromLocalStorage(docId: string): MindscribbleDocument | null {
-  const storageKey = `mindscribble-doc-${docId}`
+function loadDocumentFromLocalStorage(docId: string): MindpadDocument | null {
+  const storageKey = `mindpad-doc-${docId}`
   const saved = localStorage.getItem(storageKey)
   
   if (saved) {
@@ -357,7 +357,7 @@ function loadDocumentFromLocalStorage(docId: string): MindscribbleDocument | nul
 
 async function saveDocumentWithLayout(
   fileId: string,
-  document: MindscribbleDocument,
+  document: MindpadDocument,
   layout: DockviewLayoutData
 ) {
   // Ensure document has layout
@@ -371,9 +371,9 @@ async function saveDocumentWithLayout(
   await updateFileContent(fileId, blob)
 }
 
-async function loadDocumentWithLayout(fileId: string): Promise<MindscribbleDocument> {
+async function loadDocumentWithLayout(fileId: string): Promise<MindpadDocument> {
   const content = await downloadFileContent(fileId)
-  const document = JSON.parse(content) as MindscribbleDocument
+  const document = JSON.parse(content) as MindpadDocument
   
   // Ensure layout exists
   if (!document.dockviewLayout) {
@@ -638,9 +638,9 @@ graph LR
 
 ```typescript
 // Migration function for existing documents
-function migrateDocumentToNewFormat(oldDoc: any): MindscribbleDocument {
+function migrateDocumentToNewFormat(oldDoc: any): MindpadDocument {
   // Copy existing fields
-  const newDoc: MindscribbleDocument = {
+  const newDoc: MindpadDocument = {
     version: oldDoc.version || '1.0',
     metadata: oldDoc.metadata,
     nodes: oldDoc.nodes || [],
@@ -742,7 +742,7 @@ function migrateLayout(layout: any): DockviewLayoutData {
 
 ## Conclusion
 
-This architecture provides a comprehensive solution for saving and restoring dockview layouts with view information in MindScribble. The design:
+This architecture provides a comprehensive solution for saving and restoring dockview layouts with view information in MindPad. The design:
 
 1. **Preserves user preferences** through settings store
 2. **Maintains document-specific layouts** with proper persistence

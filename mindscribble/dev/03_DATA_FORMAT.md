@@ -1,8 +1,8 @@
-# MindScribble Data Format Specification
+# MindPad Data Format Specification
 
 ## Overview
 
-The MindScribble data format is designed to be:
+The MindPad data format is designed to be:
 - **VueFlow-compatible** - Direct mapping to VueFlow nodes/edges for rendering
 - **AI-friendly** - Easy for LLMs to understand and manipulate
 - **Search-optimized** - Flattened text for Google Drive full-text search
@@ -504,7 +504,7 @@ function migrateFrom_0_9_to_1_0(doc: any): MindmapDocument {
 
 ## Summary
 
-The MindScribble data format is:
+The MindPad data format is:
 - ✅ **VueFlow-native** - No conversion needed for rendering
 - ✅ **AI-friendly** - Clear structure for LLM manipulation
 - ✅ **Search-optimized** - Flattened searchableText field

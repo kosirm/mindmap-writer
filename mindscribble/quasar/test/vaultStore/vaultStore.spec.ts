@@ -10,7 +10,7 @@ import { eventBus } from '../../src/core/events'
 import * as vaultService from '../../src/core/services/vaultService'
 import * as fileSystemService from '../../src/core/services/fileSystemService'
 import type { VaultMetadata, FileSystemItem } from '../../src/core/services/indexedDBService'
-import type { MindscribbleDocument } from '../../src/core/types'
+import type { MindpadDocument } from '../../src/core/types'
 
 // Mock data
 const mockVault: VaultMetadata = {
@@ -52,7 +52,7 @@ const mockFolder: FileSystemItem = {
   sortOrder: 0
 }
 
-const mockDocument: MindscribbleDocument = {
+const mockDocument: MindpadDocument = {
   version: '1.0',
   metadata: {
     id: 'doc-1',

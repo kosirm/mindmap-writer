@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-Robust error handling is critical for a reliable application. This document outlines comprehensive error handling strategies for MindScribble across all layers.
+Robust error handling is critical for a reliable application. This document outlines comprehensive error handling strategies for MindPad across all layers.
 
 ## 🏗️ Error Handling Architecture
 
@@ -10,7 +10,7 @@ Robust error handling is critical for a reliable application. This document outl
 
 ```typescript
 // Base error class
-class MindScribbleError extends Error {
+class MindPadError extends Error {
   constructor(
     message: string,
     public code: string,
@@ -19,12 +19,12 @@ class MindScribbleError extends Error {
     public context?: Record<string, any>
   ) {
     super(message);
-    this.name = 'MindScribbleError';
+    this.name = 'MindPadError';
   }
 }
 
 // Storage errors
-class StorageError extends MindScribbleError {
+class StorageError extends MindPadError {
   constructor(message: string, code: string, context?: Record<string, any>) {
     super(message, code, 'error', true, context);
     this.name = 'StorageError';
@@ -43,7 +43,7 @@ class QuotaExceededError extends StorageError {
 }
 
 // Network errors
-class NetworkError extends MindScribbleError {
+class NetworkError extends MindPadError {
   constructor(message: string, code: string, context?: Record<string, any>) {
     super(message, code, 'warning', true, context);
     this.name = 'NetworkError';
@@ -58,7 +58,7 @@ class SyncError extends NetworkError {
 }
 
 // Authentication errors
-class AuthError extends MindScribbleError {
+class AuthError extends MindPadError {
   constructor(message: string, code: string, provider: string) {
     super(message, code, 'error', true, { provider });
     this.name = 'AuthError';
@@ -66,7 +66,7 @@ class AuthError extends MindScribbleError {
 }
 
 // Validation errors
-class ValidationError extends MindScribbleError {
+class ValidationError extends MindPadError {
   constructor(message: string, field: string, value: any) {
     super(message, 'VALIDATION_FAILED', 'warning', true, { field, value });
     this.name = 'ValidationError';
@@ -74,7 +74,7 @@ class ValidationError extends MindScribbleError {
 }
 
 // Data corruption errors
-class CorruptionError extends MindScribbleError {
+class CorruptionError extends MindPadError {
   constructor(message: string, context?: Record<string, any>) {
     super(message, 'DATA_CORRUPTED', 'critical', false, context);
     this.name = 'CorruptionError';
@@ -88,7 +88,7 @@ class CorruptionError extends MindScribbleError {
 
 ```typescript
 class DocumentService {
-  async loadDocument(documentId: string): Promise<MindscribbleDocument> {
+  async loadDocument(documentId: string): Promise<MindpadDocument> {
     try {
       // Attempt to load from IndexedDB
       const doc = await db.documents.get(documentId);
@@ -112,8 +112,8 @@ class DocumentService {
 
       return doc;
     } catch (error) {
-      // Re-throw MindScribble errors
-      if (error instanceof MindScribbleError) {
+      // Re-throw MindPad errors
+      if (error instanceof MindPadError) {
         throw error;
       }
 
@@ -199,27 +199,27 @@ class GlobalErrorHandler {
   }
 
   private handleError(error: any, source: string, context?: Record<string, any>): void {
-    // Convert to MindScribbleError if needed
-    const mindscribbleError = this.normalizeError(error);
+    // Convert to MindPadError if needed
+    const mindpadError = this.normalizeError(error);
 
     // Log error
-    errorLogger.log(mindscribbleError, { source, ...context });
+    errorLogger.log(mindpadError, { source, ...context });
 
     // Show user notification based on severity
-    this.notifyUser(mindscribbleError);
+    this.notifyUser(mindpadError);
 
     // Report to analytics (if critical)
-    if (mindscribbleError.severity === 'critical') {
-      errorReporter.report(mindscribbleError);
+    if (mindpadError.severity === 'critical') {
+      errorReporter.report(mindpadError);
     }
   }
 
-  private normalizeError(error: any): MindScribbleError {
-    if (error instanceof MindScribbleError) {
+  private normalizeError(error: any): MindPadError {
+    if (error instanceof MindPadError) {
       return error;
     }
 
-    return new MindScribbleError(
+    return new MindPadError(
       error.message || 'Unknown error',
       'UNKNOWN_ERROR',
       'error',
@@ -228,7 +228,7 @@ class GlobalErrorHandler {
     );
   }
 
-  private notifyUser(error: MindScribbleError): void {
+  private notifyUser(error: MindPadError): void {
     const notifyConfig = {
       message: error.message,
       type: this.getSeverityType(error.severity),
@@ -405,7 +405,7 @@ interface ErrorLog {
 }
 
 class ErrorLogger {
-  async log(error: MindScribbleError, context: Record<string, any> = {}): Promise<void> {
+  async log(error: MindPadError, context: Record<string, any> = {}): Promise<void> {
     const log: ErrorLog = {
       id: generateId(),
       timestamp: Date.now(),
@@ -467,10 +467,10 @@ class ErrorLogger {
 
 ```typescript
 class ErrorReporter {
-  private endpoint = 'https://api.mindscribble.app/errors';
+  private endpoint = 'https://api.mindpad.app/errors';
   private enabled = true;
 
-  async report(error: MindScribbleError): Promise<void> {
+  async report(error: MindPadError): Promise<void> {
     if (!this.enabled) return;
 
     // Anonymize error data
@@ -488,7 +488,7 @@ class ErrorReporter {
     }
   }
 
-  private anonymize(error: MindScribbleError): any {
+  private anonymize(error: MindPadError): any {
     return {
       name: error.name,
       message: error.message,
@@ -805,7 +805,7 @@ class CorruptionHandler {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `mindscribble-recovery-${Date.now()}.json`;
+    a.download = `mindpad-recovery-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }

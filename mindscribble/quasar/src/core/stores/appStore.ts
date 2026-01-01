@@ -9,7 +9,7 @@ import type { SubscriptionPlan } from '../types'
 
 export type ActiveContext = 'canvas' | 'writer' | 'outline' | 'none'
 
-const DARK_MODE_KEY = 'mindscribble-dark-mode'
+const DARK_MODE_KEY = 'mindpad-dark-mode'
 
 export const useAppStore = defineStore('app', () => {
   // UI State

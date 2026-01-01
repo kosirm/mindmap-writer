@@ -58,7 +58,7 @@ import { ref, shallowRef, computed, nextTick, onBeforeUnmount, inject, watch } f
 import { EditorContent, Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import type { MindscribbleNode } from '../../../core/types'
+import type { MindpadNode } from '../../../core/types'
 import { useUnifiedDocumentStore } from '../../../core/stores/unifiedDocumentStore'
 import { createKeyboardHandler, createNavigationHandler } from '../composables/useOutlineKeyboardHandlers'
 import type { useOutlineNavigation } from '../composables/useOutlineNavigation'
@@ -66,7 +66,7 @@ import type { EventSource } from '../../../core/events'
 import type { NodeData } from '../../../core/types'
 
 const props = defineProps<{
-  node: MindscribbleNode
+  node: MindpadNode
   stat: {
     children: { length: number }
     open: boolean

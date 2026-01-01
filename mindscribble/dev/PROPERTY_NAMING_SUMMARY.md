@@ -132,7 +132,7 @@ Optional properties use 2-letter combinations:
 
 ## Files Updated
 
-- ✅ `mindscribble/dev/PROPERTY_NAMING_STRATEGY.md` - Complete strategy document
-- ✅ `mindscribble/dev/PROPERTY_NAMING_CHANGES.md` - Detailed change log
-- ✅ `mindscribble/dev/PROPERTY_NAMING_SUMMARY.md` - This executive summary
+- ✅ `mindpad/dev/PROPERTY_NAMING_STRATEGY.md` - Complete strategy document
+- ✅ `mindpad/dev/PROPERTY_NAMING_CHANGES.md` - Detailed change log
+- ✅ `mindpad/dev/PROPERTY_NAMING_SUMMARY.md` - This executive summary
 

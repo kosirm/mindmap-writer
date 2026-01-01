@@ -4,7 +4,7 @@
  */
 
 import { db } from './indexedDBService'
-import type { MindscribbleDocument } from '../types'
+import type { MindpadDocument } from '../types'
 import type { FileSystemItem } from './indexedDBService'
 
 
@@ -15,7 +15,7 @@ export async function createFile(
   vaultId: string,
   parentId: string | null,
   name: string,
-  content: MindscribbleDocument
+  content: MindpadDocument
 ): Promise<FileSystemItem> {
   try {
     // Generate file ID
@@ -307,7 +307,7 @@ export async function getItem(itemId: string): Promise<FileSystemItem | null> {
 /**
  * Get file content (document)
  */
-export async function getFileContent(fileId: string): Promise<MindscribbleDocument | null> {
+export async function getFileContent(fileId: string): Promise<MindpadDocument | null> {
   try {
     const fileItem = await db.fileSystem.get(fileId)
 
@@ -326,7 +326,7 @@ export async function getFileContent(fileId: string): Promise<MindscribbleDocume
 /**
  * Update file content
  */
-export async function updateFileContent(fileId: string, content: MindscribbleDocument): Promise<void> {
+export async function updateFileContent(fileId: string, content: MindpadDocument): Promise<void> {
   try {
     await db.transaction('rw', db.fileSystem, db.documents, async () => {
       const fileItem = await db.fileSystem.get(fileId)
@@ -399,7 +399,7 @@ export async function itemExists(parentId: string | null, name: string): Promise
 /**
  * Get file content by file ID (not file system item ID)
  */
-export async function getFileContentById(fileId: string): Promise<MindscribbleDocument | null> {
+export async function getFileContentById(fileId: string): Promise<MindpadDocument | null> {
   try {
     const document = await db.documents.get(fileId)
     return document || null
@@ -412,7 +412,7 @@ export async function getFileContentById(fileId: string): Promise<MindscribbleDo
 /**
  * Get file content from file system item
  */
-export async function getFileContentFromItem(itemId: string): Promise<MindscribbleDocument | null> {
+export async function getFileContentFromItem(itemId: string): Promise<MindpadDocument | null> {
   try {
     const fileItem = await db.fileSystem.get(itemId)
 
@@ -435,7 +435,7 @@ export async function createNewFile(
   vaultId: string,
   parentId: string | null,
   name: string,
-  content: MindscribbleDocument
+  content: MindpadDocument
 ): Promise<FileSystemItem> {
   return createFile(vaultId, parentId, name, content)
 }

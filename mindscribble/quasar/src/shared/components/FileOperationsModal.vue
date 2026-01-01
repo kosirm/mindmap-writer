@@ -21,7 +21,7 @@
           @keydown.enter="handleSave"
         >
           <template #append>
-            <span class="text-grey-6">.mindscribble</span>
+            <span class="text-grey-6">.mindpad</span>
           </template>
         </q-input>
       </q-card-section>
@@ -184,7 +184,7 @@ import { useVault } from 'src/composables/useVault'
 import { useFileSystem } from 'src/composables/useFileSystem'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
-import type { MindscribbleDocument } from 'src/core/types'
+import type { MindpadDocument } from 'src/core/types'
 
 // Props
 const props = defineProps<{
@@ -195,7 +195,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
   (e: 'saved', file: FileSystemItem): void
-  (e: 'opened', payload: { file: FileSystemItem; document: MindscribbleDocument }): void
+  (e: 'opened', payload: { file: FileSystemItem; document: MindpadDocument }): void
   (e: 'deleted', fileId: string): void
 }>()
 
@@ -494,7 +494,7 @@ async function handleDelete() {
 
 // Helpers
 function getDisplayName(name: string): string {
-  return name.replace('.mindscribble', '')
+  return name.replace('.mindpad', '')
 }
 
 function formatDate(dateStr: string | number): string {

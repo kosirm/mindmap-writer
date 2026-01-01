@@ -125,7 +125,7 @@ export interface NodeData {
  * Complete node structure
  * Compatible with VueFlow and new property naming system
  */
-export interface MindscribbleNode {
+export interface MindpadNode {
   id: string
   type: string                   // 'custom' | 'lod-badge' | future types
 
@@ -143,7 +143,7 @@ export interface MindscribbleNode {
 }
 
 /**
- * @deprecated Use MindscribbleNode instead
+ * @deprecated Use MindpadNode instead
  * Kept for backward compatibility during migration
  */
 export interface MindmapNode {

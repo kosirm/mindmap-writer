@@ -1,4 +1,4 @@
-# Sync-Based Encryption Strategy for MindScribble
+# Sync-Based Encryption Strategy for MindPad
 
 ## 🎯 Executive Summary
 
@@ -53,7 +53,7 @@ class SecureSyncManager {
   }
   
   // Sync document to cloud (with encryption)
-  async syncDocument(doc: MindscribbleDocument): Promise<SyncResult> {
+  async syncDocument(doc: MindpadDocument): Promise<SyncResult> {
     return new Promise((resolve, reject) => {
       // Send encryption request to worker
       this.worker.postMessage({
@@ -69,7 +69,7 @@ class SecureSyncManager {
   }
   
   // Load document from cloud (with decryption)
-  async loadFromCloud(encryptedDoc: EncryptedFile): Promise<MindscribbleDocument> {
+  async loadFromCloud(encryptedDoc: EncryptedFile): Promise<MindpadDocument> {
     return new Promise((resolve, reject) => {
       // Send decryption request to worker
       this.worker.postMessage({
@@ -229,9 +229,9 @@ async function decryptDocument(encryptedDoc, key) {
 
 ```typescript
 // Encrypted Protobuf workflow
-async function syncWithEncryption(doc: MindscribbleDocument): Promise<void> {
+async function syncWithEncryption(doc: MindpadDocument): Promise<void> {
   // 1. Serialize to Protobuf (smaller payload)
-  const protobufData = MindscribbleDocument.toBinary(doc);
+  const protobufData = MindpadDocument.toBinary(doc);
   
   // 2. Encrypt the binary data
   const encrypted = await encryptionService.encrypt(protobufData);
@@ -295,7 +295,7 @@ class EncryptionService {
 class GoogleDriveSyncManager {
   private encryptionService: EncryptionService;
   
-  async syncDocument(doc: MindscribbleDocument): Promise<void> {
+  async syncDocument(doc: MindpadDocument): Promise<void> {
     // Check if encryption is enabled
     if (this.encryptionService.isEnabled()) {
       // Encrypt in background

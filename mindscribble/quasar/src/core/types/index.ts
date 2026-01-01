@@ -1,5 +1,5 @@
 /**
- * Core type definitions for MindScribble
+ * Core type definitions for MindPad
  */
 
 // Re-export all types

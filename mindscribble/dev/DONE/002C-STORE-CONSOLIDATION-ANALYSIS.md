@@ -1,4 +1,4 @@
-# MindScribble Store Consolidation Analysis
+# MindPad Store Consolidation Analysis
 
 ## Current Architecture Overview
 
@@ -74,7 +74,7 @@ interface UnifiedDocumentStoreState {
   activeDocumentId: string | null;
   
   // All documents (for multi-document management)
-  documents: Map<string, MindscribbleDocument>;
+  documents: Map<string, MindpadDocument>;
   
   // Document instances (file panel state)
   documentInstances: Map<string, DocumentInstance>;
@@ -95,7 +95,7 @@ const useUnifiedDocumentStore = defineStore('documents', () => {
     return state.value.documents.get(state.value.activeDocumentId) ?? null;
   });
   
-  function updateActiveDocument(updates: Partial<MindscribbleDocument>) {
+  function updateActiveDocument(updates: Partial<MindpadDocument>) {
     if (!state.value.activeDocumentId) return;
     
     const doc = state.value.documents.get(state.value.activeDocumentId);
@@ -107,7 +107,7 @@ const useUnifiedDocumentStore = defineStore('documents', () => {
   }
   
   // Multi-document methods (replace MultiDocumentStore)
-  function createDocument(filePanelId: string, document: MindscribbleDocument) {
+  function createDocument(filePanelId: string, document: MindpadDocument) {
     state.value.documents.set(document.metadata.id, document);
     state.value.documentInstances.set(filePanelId, {
       filePanelId,
@@ -406,7 +406,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { eventBus } from '../events'
 import type { 
-  MindscribbleDocument, 
+  MindpadDocument, 
   DockviewLayoutData,
   MasterMapDocument 
 } from '../types'
@@ -418,7 +418,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   // ============================================================
   
   /** All documents by ID */
-  const documents = ref<Map<string, MindscribbleDocument>>(new Map())
+  const documents = ref<Map<string, MindpadDocument>>(new Map())
   
   /** Document instances (file panels) */
   const documentInstances = ref<Map<string, DocumentInstance>>(new Map())
@@ -459,7 +459,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     }
   }
   
-  function updateDocument(updates: Partial<MindscribbleDocument>) {
+  function updateDocument(updates: Partial<MindpadDocument>) {
     if (!activeDocumentId.value) return
     
     const doc = documents.value.get(activeDocumentId.value)
@@ -474,7 +474,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   // MULTI-DOCUMENT METHODS (replaces MultiDocumentStore)
   // ============================================================
   
-  function createDocument(filePanelId: string, document: MindscribbleDocument) {
+  function createDocument(filePanelId: string, document: MindpadDocument) {
     // Add to documents
     documents.value.set(document.metadata.id, document)
     
@@ -559,11 +559,11 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       dirtyDocuments: Array.from(dirtyDocuments.value)
     }
     
-    localStorage.setItem('mindscribble-unified-documents', JSON.stringify(persistData))
+    localStorage.setItem('mindpad-unified-documents', JSON.stringify(persistData))
   }
   
   function loadFromLocalStorage() {
-    const saved = localStorage.getItem('mindscribble-unified-documents')
+    const saved = localStorage.getItem('mindpad-unified-documents')
     if (saved) {
       try {
         const data = JSON.parse(saved)
@@ -749,4 +749,4 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
 | Event System Breaking | Comprehensive event testing |
 | Migration Complexity | Phased approach, clear documentation |
 
-The consolidation is worth the effort and will provide significant long-term benefits for MindScribble's architecture.
+The consolidation is worth the effort and will provide significant long-term benefits for MindPad's architecture.

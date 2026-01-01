@@ -2,7 +2,7 @@
 
 ## Overview
 
-MindScribble uses a **hybrid storage architecture** combining Google Drive (source of truth) with IndexedDB (local cache/index) for optimal performance and user data ownership.
+MindPad uses a **hybrid storage architecture** combining Google Drive (source of truth) with IndexedDB (local cache/index) for optimal performance and user data ownership.
 
 ## Core Principles
 
@@ -46,7 +46,7 @@ MindScribble uses a **hybrid storage architecture** combining Google Drive (sour
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    MindScribble App                          │
+│                    MindPad App                          │
 ├─────────────────────────────────────────────────────────────┤
 │  Pinia Store (in-memory state)                              │
 │  ↕                                                           │
@@ -91,10 +91,10 @@ Vault Switching Flow:
 ### IndexedDB Schema (Single Database for Entire App)
 
 ```typescript
-// Database name: 'mindscribble'
+// Database name: 'mindpad'
 // Only ONE vault is cached at a time
 
-interface MindScribbleDB {
+interface MindPadDB {
   // Store 1: Maps metadata (filtered by vaultId)
   maps: {
     id: string              // Primary key
@@ -148,7 +148,7 @@ interface MindScribbleDB {
 }
 
 // IndexedDB initialization
-const db = await openDB('mindscribble', 1, {
+const db = await openDB('mindpad', 1, {
   upgrade(db) {
     // Maps store
     const mapsStore = db.createObjectStore('maps', { keyPath: 'id' })
@@ -176,7 +176,7 @@ const db = await openDB('mindscribble', 1, {
 
 ```
 Google Drive/
-└─ MindScribble/
+└─ MindPad/
    ├─ vault-1/
    │  ├─ .vault-metadata.json
    │  ├─ map-abc123.json
@@ -443,7 +443,7 @@ class VaultManager {
 /**
  * Save map and update cache immediately
  */
-async function saveMap(mapData: MindScribbleDocument) {
+async function saveMap(mapData: MindPadDocument) {
   // 1. Save to Drive/local (source of truth)
   await storageAdapter.writeFile(mapData.vaultId, mapData.id, mapData)
 
@@ -456,7 +456,7 @@ async function saveMap(mapData: MindScribbleDocument) {
 /**
  * Update a single map in the index (incremental)
  */
-async function updateMapIndex(mapData: MindScribbleDocument) {
+async function updateMapIndex(mapData: MindPadDocument) {
   const tx = this.db.transaction(['maps', 'nodes', 'backlinks'], 'readwrite')
 
   // 1. Update map metadata
@@ -529,7 +529,7 @@ self.addEventListener('message', async (event) => {
     const driveFiles = await driveAdapter.listFiles(vaultId)
 
     // Get indexed maps
-    const db = await openDB('mindscribble', 1)
+    const db = await openDB('mindpad', 1)
     const tx = db.transaction('maps', 'readonly')
     const index = tx.objectStore('maps').index('vaultId')
     const indexedMaps = await index.getAll(IDBKeyRange.only(vaultId))
@@ -670,7 +670,7 @@ class VaultIndexer {
   /**
    * Index a single map (with batch operations)
    */
-  private async indexMap(mapData: MindScribbleDocument) {
+  private async indexMap(mapData: MindPadDocument) {
     const tx = this.db.transaction(['maps', 'nodes', 'backlinks'], 'readwrite')
 
     // 1. Store map metadata
@@ -1040,8 +1040,8 @@ class VaultManager {
 ```typescript
 interface StorageAdapter {
   listFiles(vaultId: string): Promise<FileMetadata[]>
-  readFile(vaultId: string, fileId: string): Promise<MindScribbleDocument>
-  writeFile(vaultId: string, fileId: string, content: MindScribbleDocument): Promise<void>
+  readFile(vaultId: string, fileId: string): Promise<MindPadDocument>
+  writeFile(vaultId: string, fileId: string, content: MindPadDocument): Promise<void>
   deleteFile(vaultId: string, fileId: string): Promise<void>
   watchChanges(vaultId: string, callback: (event: FileChangeEvent) => void): void
 }

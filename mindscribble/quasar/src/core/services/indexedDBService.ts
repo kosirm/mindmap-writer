@@ -4,7 +4,7 @@
  */
 
 import Dexie, { type Table } from 'dexie';
-import type { MindscribbleDocument, MindscribbleNode } from '../types';
+import type { MindpadDocument, MindpadNode } from '../types';
 
 export type FileSystemItemType = 'file' | 'folder';
 
@@ -137,7 +137,7 @@ export interface RepositoryFolder {
 }
 
 /**
- * MindScribble IndexedDB using Dexie.js
+ * MindPad IndexedDB using Dexie.js
  *
  * Dexie handles schema versioning, migrations, and provides a clean API.
  *
@@ -147,9 +147,9 @@ export interface RepositoryFolder {
  * - repositories table stores .repository.json for partial sync
  * - Easy to add GitHub, Dropbox, S3, etc. without schema changes
  */
-export class MindScribbleDB extends Dexie {
-  documents!: Table<MindscribbleDocument, string>;
-  nodes!: Table<MindscribbleNode, string>;
+export class MindPadDB extends Dexie {
+  documents!: Table<MindpadDocument, string>;
+  nodes!: Table<MindpadNode, string>;
   settings!: Table<DatabaseSettings, string>;
   errorLogs!: Table<ErrorLog, string>;
   providerMetadata!: Table<ProviderMetadata, string>; // Multi-provider support
@@ -160,7 +160,7 @@ export class MindScribbleDB extends Dexie {
   fileSystem!: Table<FileSystemItem, string>; // NEW: Store file system items
 
   constructor() {
-    super('MindScribbleDB');
+    super('MindPadDB');
 
     // Version 1 - Initial schema with provider awareness and partial sync
     this.version(1).stores({
@@ -347,4 +347,4 @@ export class MindScribbleDB extends Dexie {
 }
 
 // Singleton instance
-export const db = new MindScribbleDB();
+export const db = new MindPadDB();

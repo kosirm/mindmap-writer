@@ -54,7 +54,7 @@ This document summarizes the key architectural decisions made during the session
 
 ### Implementation Strategy
 - **Settings Store**: Centralized store with reactive settings and auto-save
-- **Google Drive Sync**: Background sync service for cross-device settings (_mindscribble_settings.json)
+- **Google Drive Sync**: Background sync service for cross-device settings (_mindpad_settings.json)
 - **Settings Panel**: Modal with tabbed interface, accessible via menu/command/keyboard
 - **Keyboard Manager**: Editable shortcuts with conflict detection
 
@@ -95,4 +95,4 @@ Each major component configurable per view:
 5. **Rapid Tools** - Advanced keyboard workflows
 6. **Google Drive Sync** - Cross-device continuity
 
-This architecture provides a solid foundation for MindScribble's evolution into a professional, customizable mindmapping application with excellent user experience and performance.
+This architecture provides a solid foundation for MindPad's evolution into a professional, customizable mindmapping application with excellent user experience and performance.

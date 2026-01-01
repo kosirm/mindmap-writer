@@ -126,10 +126,10 @@
 
 - [ ] Delete files:
   ```bash
-  git rm mindscribble/quasar/src/core/stores/documentStore.ts
-  git rm mindscribble/quasar/src/core/stores/multiDocumentStore.ts
-  git rm mindscribble/quasar/src/core/stores/storeSynchronizer.ts
-  git rm mindscribble/quasar/src/composables/useStoreMode.ts
+  git rm mindpad/quasar/src/core/stores/documentStore.ts
+  git rm mindpad/quasar/src/core/stores/multiDocumentStore.ts
+  git rm mindpad/quasar/src/core/stores/storeSynchronizer.ts
+  git rm mindpad/quasar/src/composables/useStoreMode.ts
   ```
 - [ ] Test: TypeScript compilation succeeds
 - [ ] Test: No import errors
@@ -153,14 +153,14 @@
 ### Code Cleanup
 - [ ] Search for remaining references:
   ```bash
-  grep -r "useDocumentStore" mindscribble/quasar/src/
-  grep -r "useMultiDocumentStore" mindscribble/quasar/src/
-  grep -r "useStoreSynchronizer" mindscribble/quasar/src/
-  grep -r "useStoreMode" mindscribble/quasar/src/
-  grep -r "isUnifiedMode" mindscribble/quasar/src/
-  grep -r "isDualWriteMode" mindscribble/quasar/src/
+  grep -r "useDocumentStore" mindpad/quasar/src/
+  grep -r "useMultiDocumentStore" mindpad/quasar/src/
+  grep -r "useStoreSynchronizer" mindpad/quasar/src/
+  grep -r "useStoreMode" mindpad/quasar/src/
+  grep -r "isUnifiedMode" mindpad/quasar/src/
+  grep -r "isDualWriteMode" mindpad/quasar/src/
   ```
-- [ ] Clean up localStorage: `localStorage.removeItem('mindscribble-store-mode')`
+- [ ] Clean up localStorage: `localStorage.removeItem('mindpad-store-mode')`
 - [ ] Final commit: `docs: update cleanup documentation`
 
 ---

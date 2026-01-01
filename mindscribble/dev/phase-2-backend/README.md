@@ -1,8 +1,8 @@
-# MindScribble Phase 2: Multi-Backend Storage System
+# MindPad Phase 2: Multi-Backend Storage System
 
 ## 📖 Overview
 
-Phase 2 transforms MindScribble from a single-backend application to a flexible, multi-provider storage system with robust synchronization, security, and mobile support.
+Phase 2 transforms MindPad from a single-backend application to a flexible, multi-provider storage system with robust synchronization, security, and mobile support.
 
 ## 🎯 Goals
 

@@ -12,9 +12,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 // LocalStorage keys for session persistence
-const STORAGE_KEY_ACCESS_TOKEN = 'mindscribble:accessToken'
-const STORAGE_KEY_TOKEN_EXPIRY = 'mindscribble:tokenExpiry'
-const STORAGE_KEY_USER = 'mindscribble:user'
+const STORAGE_KEY_ACCESS_TOKEN = 'mindpad:accessToken'
+const STORAGE_KEY_TOKEN_EXPIRY = 'mindpad:tokenExpiry'
+const STORAGE_KEY_USER = 'mindpad:user'
 
 export interface GoogleUser {
   id: string

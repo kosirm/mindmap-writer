@@ -2,12 +2,12 @@ Here's a comprehensive list of all files, folders, imports, and references that 
 
 Files and Folders to Rename:
 Files:
-mindscribble/quasar/src/pages/components/Vue3MindmapPanel.vue → MindmapPanel.vue
-mindscribble/quasar/src/features/canvas/components/Vue3MindmapView.vue → MindmapView.vue
-mindscribble/quasar/src/dev/vue3MindmapSettingsStore.ts → mindmapSettingsStore.ts
-mindscribble/quasar/src/dev/Vue3MindmapDevTools.vue → MindmapDevTools.vue
+mindpad/quasar/src/pages/components/Vue3MindmapPanel.vue → MindmapPanel.vue
+mindpad/quasar/src/features/canvas/components/Vue3MindmapView.vue → MindmapView.vue
+mindpad/quasar/src/dev/vue3MindmapSettingsStore.ts → mindmapSettingsStore.ts
+mindpad/quasar/src/dev/Vue3MindmapDevTools.vue → MindmapDevTools.vue
 Folders:
-mindscribble/quasar/src/features/canvas/components/vue3-mindmap/ → mindmap/
+mindpad/quasar/src/features/canvas/components/vue3-mindmap/ → mindmap/
 
 
 Imports to Update:

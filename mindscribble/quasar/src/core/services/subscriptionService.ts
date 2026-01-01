@@ -1,4 +1,4 @@
-// mindscribble/quasar/src/core/services/subscriptionService.ts
+// mindpad/quasar/src/core/services/subscriptionService.ts
 import type { SubscriptionPlan, SubscriptionStatus } from '../types';
 import { useAppStore } from '../stores/appStore';
 

@@ -1,4 +1,4 @@
-# IndexedDB Implementation Plan for MindScribble
+# IndexedDB Implementation Plan for MindPad
 
 ## 🎯 Overview
 
@@ -24,17 +24,17 @@ This implementation is designed to support **multiple storage providers** (Phase
 Adding provider-awareness only adds **~1 hour** to the implementation timeline, but saves **weeks** of refactoring when Phase 2 arrives.
 
 ### See Also
-- **Phase 2 Backend Architecture**: `mindscribble/dev/phase-2-backend/01_backend_architecture.md`
+- **Phase 2 Backend Architecture**: `mindpad/dev/phase-2-backend/01_backend_architecture.md`
 - Planned providers: GitHub, Dropbox, S3, LocalFileSystem, WebDAV, IPFS
 
 ## 🏗️ Architecture Integration Points
 
 Based on the current project structure, the indexedDB implementation will integrate with:
 
-1. **Core Services**: `mindscribble/quasar/src/core/services/`
-2. **Unified Document Store**: `mindscribble/quasar/src/core/stores/unifiedDocumentStore.ts`
-3. **Types System**: `mindscribble/quasar/src/core/types/`
-4. **Composables**: `mindscribble/quasar/src/composables/`
+1. **Core Services**: `mindpad/quasar/src/core/services/`
+2. **Unified Document Store**: `mindpad/quasar/src/core/stores/unifiedDocumentStore.ts`
+3. **Types System**: `mindpad/quasar/src/core/types/`
+4. **Composables**: `mindpad/quasar/src/composables/`
 
 ## 🔄 Provider-Aware Architecture (Phase 1 → Phase 2)
 
@@ -138,26 +138,26 @@ Based on the current project structure, the indexedDB implementation will integr
 
 #### 1.1 Install Dexie.js
 ```bash
-cd mindscribble/quasar
+cd mindpad/quasar
 npm install dexie
 ```
 
 #### 1.2 Minimal Error Classes (Single File)
-- **Location**: `mindscribble/quasar/src/core/errors/`
+- **Location**: `mindpad/quasar/src/core/errors/`
 - **Files to Create**:
   - `index.ts` - All error classes in one file (start minimal, add more as needed)
 
-**Rationale**: Start with just 3 error classes (MindScribbleError, StorageError, NetworkError). Add more error classes incrementally as you encounter actual errors during implementation.
+**Rationale**: Start with just 3 error classes (MindPadError, StorageError, NetworkError). Add more error classes incrementally as you encounter actual errors during implementation.
 
 #### 1.3 Global Error Handler (Boot File)
-- **Location**: `mindscribble/quasar/src/boot/`
+- **Location**: `mindpad/quasar/src/boot/`
 - **Files to Create**:
   - `error-handler.ts` - Global unhandled rejection handler with Quasar Notify integration
 
 ### Phase 2: IndexedDB with Dexie.js (Day 1 - 2 hours)
 
 #### 2.1 Core Dexie Database Class
-- **Location**: `mindscribble/quasar/src/core/services/`
+- **Location**: `mindpad/quasar/src/core/services/`
 - **Files to Create**:
   - `indexedDBService.ts` - Dexie database class with schema definition
 
@@ -167,7 +167,7 @@ npm install dexie
 ```typescript
 // Database Schema using Dexie.js
 import Dexie, { Table } from 'dexie';
-import type { MindscribbleDocument, MindscribbleNode } from '../types';
+import type { MindpadDocument, MindpadNode } from '../types';
 
 export interface DatabaseSettings {
   id: string;
@@ -176,14 +176,14 @@ export interface DatabaseSettings {
   userId?: string;
 }
 
-export class MindScribbleDB extends Dexie {
-  documents!: Table<MindscribbleDocument, string>;
-  nodes!: Table<MindscribbleNode, string>;
+export class MindPadDB extends Dexie {
+  documents!: Table<MindpadDocument, string>;
+  nodes!: Table<MindpadNode, string>;
   settings!: Table<DatabaseSettings, string>;
   errorLogs!: Table<ErrorLog, string>;
 
   constructor() {
-    super('MindScribbleDB');
+    super('MindPadDB');
 
     // Version 1 - Initial schema
     this.version(1).stores({
@@ -195,13 +195,13 @@ export class MindScribbleDB extends Dexie {
   }
 }
 
-export const db = new MindScribbleDB();
+export const db = new MindPadDB();
 ```
 
 ### Phase 3: IndexedDB Composable (Day 1 - 1 hour)
 
 #### 3.1 Create IndexedDB Composable
-- **Location**: `mindscribble/quasar/src/composables/`
+- **Location**: `mindpad/quasar/src/composables/`
 - **Files to Create**:
   - `useIndexedDB.ts` - Composable for IndexedDB operations with error handling
 
@@ -210,7 +210,7 @@ export const db = new MindScribbleDB();
 ### Phase 4: Sync Strategy (Week 1 - 1 day)
 
 #### 4.1 Sync Manager Implementation
-- **Location**: `mindscribble/quasar/src/core/services/`
+- **Location**: `mindpad/quasar/src/core/services/`
 - **Files to Create**:
   - `syncManager.ts` - Handles IndexedDB ↔ Provider synchronization with partial sync
 
@@ -386,7 +386,7 @@ This file is stored in each vault (on the provider) and contains metadata about 
 ### Phase 5: Mock Subscription Service (Week 2 - 2 hours)
 
 #### 5.1 Mock Subscription Service
-- **Location**: `mindscribble/quasar/src/core/services/`
+- **Location**: `mindpad/quasar/src/core/services/`
 - **Files to Create**:
   - `subscriptionService.ts` - Mock subscription with hardcoded user (you)
   - `viewAvailabilityManager.ts` - View access control based on subscription
@@ -410,21 +410,21 @@ export const DEV_USER = {
 ### Phase 6: Integration with Unified Store (Week 1 - 1 day)
 
 #### 6.1 Minimal Store Integration
-- **Location**: `mindscribble/quasar/src/core/stores/`
+- **Location**: `mindpad/quasar/src/core/stores/`
 - **Files to Modify**:
   - `unifiedDocumentStore.ts` - Use IndexedDB composable for persistence
 
 **Rationale**: Keep the unified store clean by using the composable pattern instead of instantiating services directly in the store.
 
 #### 6.2 Auto-save with Debouncing
-- **Location**: `mindscribble/quasar/src/composables/`
+- **Location**: `mindpad/quasar/src/composables/`
 - **Files to Create**:
   - `useAutosave.ts` - Auto-save composable with debouncing
 
 ## 📁 Revised File Structure Plan
 
 ```
-mindscribble/quasar/src/
+mindpad/quasar/src/
 ├── boot/
 │   └── error-handler.ts                    # NEW: Global error handler
 ├── core/
@@ -463,7 +463,7 @@ mindscribble/quasar/src/
 ### 1. Provider-Aware Document Types (Future-Proof)
 
 ```typescript
-// mindscribble/quasar/src/core/types/index.ts
+// mindpad/quasar/src/core/types/index.ts
 
 /**
  * Provider-specific metadata for multi-backend support
@@ -499,9 +499,9 @@ export interface DocumentProviders {
 }
 
 /**
- * MindScribble document metadata
+ * MindPad document metadata
  */
-export interface MindscribbleDocument {
+export interface MindpadDocument {
   metadata: {
     id: string;
     title: string;
@@ -533,26 +533,26 @@ export interface MindscribbleDocument {
 ### 2. Minimal Error Classes (All in One File)
 
 ```typescript
-// mindscribble/quasar/src/core/errors/index.ts
+// mindpad/quasar/src/core/errors/index.ts
 
 /**
- * Base error class for all MindScribble errors
+ * Base error class for all MindPad errors
  */
-export class MindScribbleError extends Error {
+export class MindPadError extends Error {
   constructor(
     message: string,
     public code: string,
     public context?: Record<string, any>
   ) {
     super(message);
-    this.name = 'MindScribbleError';
+    this.name = 'MindPadError';
   }
 }
 
 /**
  * Storage-related errors (IndexedDB, quota, etc.)
  */
-export class StorageError extends MindScribbleError {
+export class StorageError extends MindPadError {
   constructor(message: string, context?: Record<string, any>) {
     super(message, 'STORAGE_ERROR', context);
     this.name = 'StorageError';
@@ -562,7 +562,7 @@ export class StorageError extends MindScribbleError {
 /**
  * Network-related errors (sync, offline, etc.)
  */
-export class NetworkError extends MindScribbleError {
+export class NetworkError extends MindPadError {
   constructor(message: string, context?: Record<string, any>) {
     super(message, 'NETWORK_ERROR', context);
     this.name = 'NetworkError';
@@ -572,7 +572,7 @@ export class NetworkError extends MindScribbleError {
 /**
  * Authentication errors (Google OAuth, token expiry, etc.)
  */
-export class AuthError extends MindScribbleError {
+export class AuthError extends MindPadError {
   constructor(message: string, context?: Record<string, any>) {
     super(message, 'AUTH_ERROR', context);
     this.name = 'AuthError';
@@ -585,10 +585,10 @@ export class AuthError extends MindScribbleError {
 ### 2. Global Error Handler (Boot File)
 
 ```typescript
-// mindscribble/quasar/src/boot/error-handler.ts
+// mindpad/quasar/src/boot/error-handler.ts
 import { boot } from 'quasar/wrappers';
 import { Notify } from 'quasar';
-import { MindScribbleError } from '../core/errors';
+import { MindPadError } from '../core/errors';
 
 export default boot(() => {
   // Handle unhandled promise rejections
@@ -596,7 +596,7 @@ export default boot(() => {
     console.error('Unhandled rejection:', event.reason);
 
     const error = event.reason;
-    const message = error instanceof MindScribbleError
+    const message = error instanceof MindPadError
       ? error.message
       : error?.message || 'An unexpected error occurred';
 
@@ -632,9 +632,9 @@ boot: [
 ### 3. IndexedDB Service with Dexie.js (Provider-Aware)
 
 ```typescript
-// mindscribble/quasar/src/core/services/indexedDBService.ts
+// mindpad/quasar/src/core/services/indexedDBService.ts
 import Dexie, { Table } from 'dexie';
-import type { MindscribbleDocument, MindscribbleNode } from '../types';
+import type { MindpadDocument, MindpadNode } from '../types';
 
 export interface DatabaseSettings {
   id: string;
@@ -673,7 +673,7 @@ export interface ProviderMetadata {
 }
 
 /**
- * MindScribble IndexedDB using Dexie.js
+ * MindPad IndexedDB using Dexie.js
  *
  * Dexie handles schema versioning, migrations, and provides a clean API.
  *
@@ -683,16 +683,16 @@ export interface ProviderMetadata {
  * - repositories table stores .repository.json for partial sync
  * - Easy to add GitHub, Dropbox, S3, etc. without schema changes
  */
-export class MindScribbleDB extends Dexie {
-  documents!: Table<MindscribbleDocument, string>;
-  nodes!: Table<MindscribbleNode, string>;
+export class MindPadDB extends Dexie {
+  documents!: Table<MindpadDocument, string>;
+  nodes!: Table<MindpadNode, string>;
   settings!: Table<DatabaseSettings, string>;
   errorLogs!: Table<ErrorLog, string>;
   providerMetadata!: Table<ProviderMetadata, string>; // NEW: Multi-provider support
   repositories!: Table<Repository, string>; // NEW: Store .repository.json locally
 
   constructor() {
-    super('MindScribbleDB');
+    super('MindPadDB');
 
     // Version 1 - Initial schema with provider awareness and partial sync
     this.version(1).stores({
@@ -710,7 +710,7 @@ export class MindScribbleDB extends Dexie {
 }
 
 // Singleton instance
-export const db = new MindScribbleDB();
+export const db = new MindPadDB();
 ```
 
 **Usage Examples**:
@@ -750,10 +750,10 @@ const syncStatuses = await db.providerMetadata
 ### 4. IndexedDB Composable
 
 ```typescript
-// mindscribble/quasar/src/composables/useIndexedDB.ts
+// mindpad/quasar/src/composables/useIndexedDB.ts
 import { db } from '../core/services/indexedDBService';
 import { StorageError } from '../core/errors';
-import type { MindscribbleDocument, MindscribbleNode } from '../core/types';
+import type { MindpadDocument, MindpadNode } from '../core/types';
 
 /**
  * Composable for IndexedDB operations with error handling
@@ -762,7 +762,7 @@ export function useIndexedDB() {
   /**
    * Save document to IndexedDB
    */
-  async function saveDocument(doc: MindscribbleDocument): Promise<void> {
+  async function saveDocument(doc: MindpadDocument): Promise<void> {
     try {
       await db.documents.put(doc);
     } catch (error: any) {
@@ -776,7 +776,7 @@ export function useIndexedDB() {
   /**
    * Load document from IndexedDB
    */
-  async function loadDocument(documentId: string): Promise<MindscribbleDocument | undefined> {
+  async function loadDocument(documentId: string): Promise<MindpadDocument | undefined> {
     try {
       return await db.documents.get(documentId);
     } catch (error: any) {
@@ -804,7 +804,7 @@ export function useIndexedDB() {
   /**
    * Get all documents
    */
-  async function getAllDocuments(): Promise<MindscribbleDocument[]> {
+  async function getAllDocuments(): Promise<MindpadDocument[]> {
     try {
       return await db.documents.toArray();
     } catch (error: any) {
@@ -817,7 +817,7 @@ export function useIndexedDB() {
   /**
    * Get nodes for a specific map
    */
-  async function getNodesByMapId(mapId: string): Promise<MindscribbleNode[]> {
+  async function getNodesByMapId(mapId: string): Promise<MindpadNode[]> {
     try {
       return await db.nodes.where('mapId').equals(mapId).toArray();
     } catch (error: any) {
@@ -841,11 +841,11 @@ export function useIndexedDB() {
 ### 5. Sync Manager (IndexedDB ↔ Storage Providers)
 
 ```typescript
-// mindscribble/quasar/src/core/services/syncManager.ts
+// mindpad/quasar/src/core/services/syncManager.ts
 import { db } from './indexedDBService';
 import { saveMindmapFile, loadMindmapFile } from './googleDriveService';
 import { NetworkError, StorageError } from '../errors';
-import type { MindscribbleDocument } from '../types';
+import type { MindpadDocument } from '../types';
 
 /**
  * Manages synchronization between IndexedDB and storage providers
@@ -871,7 +871,7 @@ export class SyncManager {
   /**
    * Save document to IndexedDB and queue provider sync
    */
-  async saveDocument(doc: MindscribbleDocument): Promise<void> {
+  async saveDocument(doc: MindpadDocument): Promise<void> {
     // 1. Save to IndexedDB first (fast, always works offline)
     try {
       await db.documents.put(doc);
@@ -902,7 +902,7 @@ export class SyncManager {
    *
    * Phase 2: This will support multiple providers
    */
-  private getProviderFileId(doc: MindscribbleDocument): string | undefined {
+  private getProviderFileId(doc: MindpadDocument): string | undefined {
     switch (this.currentProvider) {
       case 'googleDrive':
         // Support both new and legacy metadata formats
@@ -919,7 +919,7 @@ export class SyncManager {
   /**
    * Load document from IndexedDB, sync from provider in background
    */
-  async loadDocument(documentId: string, providerFileId?: string): Promise<MindscribbleDocument | undefined> {
+  async loadDocument(documentId: string, providerFileId?: string): Promise<MindpadDocument | undefined> {
     // 1. Try IndexedDB first (fast)
     let doc = await db.documents.get(documentId);
 
@@ -1006,7 +1006,7 @@ export class SyncManager {
    *
    * Phase 2: This will support multiple providers
    */
-  private async syncToProvider(doc: MindscribbleDocument): Promise<void> {
+  private async syncToProvider(doc: MindpadDocument): Promise<void> {
     if (!navigator.onLine) {
       throw new NetworkError('Cannot sync while offline');
     }
@@ -1048,7 +1048,7 @@ export class SyncManager {
   /**
    * Sync to Google Drive (current implementation)
    */
-  private async syncToGoogleDrive(doc: MindscribbleDocument): Promise<void> {
+  private async syncToGoogleDrive(doc: MindpadDocument): Promise<void> {
     const fileId = this.getProviderFileId(doc);
     await saveMindmapFile(doc, fileId);
   }
@@ -1056,11 +1056,11 @@ export class SyncManager {
   /**
    * Load document from current provider
    */
-  private async loadFromProvider(providerFileId: string): Promise<MindscribbleDocument | undefined> {
+  private async loadFromProvider(providerFileId: string): Promise<MindpadDocument | undefined> {
     try {
       // For now, only Google Drive is implemented
       if (this.currentProvider === 'googleDrive') {
-        return await loadMindmapFile(providerFileId) as MindscribbleDocument;
+        return await loadMindmapFile(providerFileId) as MindpadDocument;
       }
       // Phase 2: Add other providers
 
@@ -1345,7 +1345,7 @@ export const syncManager = new SyncManager();
 ### 6. Mock Subscription Service
 
 ```typescript
-// mindscribble/quasar/src/core/services/subscriptionService.ts
+// mindpad/quasar/src/core/services/subscriptionService.ts
 import type { SubscriptionPlan, SubscriptionStatus } from '../types';
 
 /**
@@ -1398,7 +1398,7 @@ export const subscriptionService = new SubscriptionService();
 ### 7. View Availability Manager
 
 ```typescript
-// mindscribble/quasar/src/core/services/viewAvailabilityManager.ts
+// mindpad/quasar/src/core/services/viewAvailabilityManager.ts
 import { subscriptionService } from './subscriptionService';
 import type { ViewType } from '../types';
 
@@ -1462,16 +1462,16 @@ export const viewAvailabilityManager = new ViewAvailabilityManager();
 ### 8. Auto-save Composable
 
 ```typescript
-// mindscribble/quasar/src/composables/useAutosave.ts
+// mindpad/quasar/src/composables/useAutosave.ts
 import { ref, watch } from 'vue';
 import { useIndexedDB } from './useIndexedDB';
 import { syncManager } from '../core/services/syncManager';
-import type { MindscribbleDocument } from '../core/types';
+import type { MindpadDocument } from '../core/types';
 
 /**
  * Auto-save composable with debouncing
  */
-export function useAutosave(document: Ref<MindscribbleDocument>, delay = 2000) {
+export function useAutosave(document: Ref<MindpadDocument>, delay = 2000) {
   const { saveDocument } = useIndexedDB();
   const isSaving = ref(false);
   const lastSaved = ref<number | null>(null);
@@ -1537,7 +1537,7 @@ export function useAutosave(document: Ref<MindscribbleDocument>, delay = 2000) {
 ### 9. Integration with Unified Store (Minimal)
 
 ```typescript
-// Add to mindscribble/quasar/src/core/stores/unifiedDocumentStore.ts
+// Add to mindpad/quasar/src/core/stores/unifiedDocumentStore.ts
 
 // Add these imports
 import { useIndexedDB } from '../../composables/useIndexedDB';
@@ -1739,7 +1739,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    ```typescript
    private currentProvider: 'googleDrive' | 'github' | 'dropbox' = 'googleDrive';
 
-   private getProviderFileId(doc: MindscribbleDocument): string | undefined {
+   private getProviderFileId(doc: MindpadDocument): string | undefined {
      switch (this.currentProvider) {
        case 'googleDrive': return doc.metadata.providers?.googleDrive?.fileId;
        case 'github': return doc.metadata.providers?.github?.path;
@@ -1785,12 +1785,12 @@ Thanks to the provider-aware schema, adding GitHub in Phase 2 is straightforward
 ### Step 1: Add GitHub Sync Method to SyncManager (No Schema Changes!)
 
 ```typescript
-// mindscribble/quasar/src/core/services/syncManager.ts
+// mindpad/quasar/src/core/services/syncManager.ts
 
 /**
  * Sync to GitHub (Phase 2 implementation)
  */
-private async syncToGitHub(doc: MindscribbleDocument): Promise<void> {
+private async syncToGitHub(doc: MindpadDocument): Promise<void> {
   const githubMeta = doc.metadata.providers?.github;
   if (!githubMeta) {
     throw new Error('GitHub metadata not found');
@@ -1814,7 +1814,7 @@ private async syncToGitHub(doc: MindscribbleDocument): Promise<void> {
 ### Step 2: Update syncToProvider Method
 
 ```typescript
-private async syncToProvider(doc: MindscribbleDocument): Promise<void> {
+private async syncToProvider(doc: MindpadDocument): Promise<void> {
   if (!navigator.onLine) {
     throw new NetworkError('Cannot sync while offline');
   }
@@ -1840,7 +1840,7 @@ private async syncToProvider(doc: MindscribbleDocument): Promise<void> {
 ### Step 3: Update getProviderFileId Method
 
 ```typescript
-private getProviderFileId(doc: MindscribbleDocument): string | undefined {
+private getProviderFileId(doc: MindpadDocument): string | undefined {
   switch (this.currentProvider) {
     case 'googleDrive':
       return doc.metadata.providers?.googleDrive?.fileId || doc.metadata.driveFileId;
@@ -1925,7 +1925,7 @@ Document Metadata (NO SCHEMA CHANGES!):
         branch: "main"
       },
       dropbox: {                        ◄── NEW: Just add this
-        path: "/MindScribble/my-document.json",
+        path: "/MindPad/my-document.json",
         id: "id:xyz123"
       }
     }

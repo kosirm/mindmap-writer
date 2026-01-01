@@ -46,7 +46,7 @@ graph TD
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { eventBus } from '../events'
-import type { MindscribbleDocument, DockviewLayoutData } from '../types'
+import type { MindpadDocument, DockviewLayoutData } from '../types'
 
 const MIGRATION_MODE = import.meta.env.DEV
 
@@ -56,7 +56,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
   // ============================================================
   
   /** All documents by ID */
-  const documents = ref<Map<string, MindscribbleDocument>>(new Map())
+  const documents = ref<Map<string, MindpadDocument>>(new Map())
   
   /** Document instances (file panels) - from MultiDocumentStore */
   const documentInstances = ref<Map<string, DocumentInstance>>(new Map())
@@ -189,7 +189,7 @@ export function useStoreSynchronizer() {
   /**
    * Dual-write: Update both legacy and unified stores
    */
-  function dualWriteDocumentUpdate(updates: Partial<MindscribbleDocument>) {
+  function dualWriteDocumentUpdate(updates: Partial<MindpadDocument>) {
     if (!unifiedStore.activeDocumentId) return
     
     // Update unified store
@@ -380,7 +380,7 @@ describe('UnifiedDocumentStore', () => {
 
     it('should handle document creation', () => {
       const store = useUnifiedDocumentStore()
-      const testDoc: MindscribbleDocument = {
+      const testDoc: MindpadDocument = {
         version: '1.0',
         metadata: { id: 'test-1', name: 'Test', created: new Date().toISOString(), modified: new Date().toISOString() },
         nodes: [],

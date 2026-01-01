@@ -12,8 +12,8 @@ Unable to Render Diagram
 
 
 2. Data Model Extension
-// mindscribble/quasar/src/core/types/node.ts
-interface MindscribbleNode {
+// mindpad/quasar/src/core/types/node.ts
+interface MindpadNode {
   // ... existing fields
   views: {
     conceptmap?: {
@@ -36,7 +36,7 @@ interface MindscribbleNode {
   };
 }
 3. Waiting Box Implementation
-// mindscribble/quasar/src/features/canvas/components/conceptmap/WaitingBox.ts
+// mindpad/quasar/src/features/canvas/components/conceptmap/WaitingBox.ts
 export class WaitingBox {
   private position: {x: number, y: number};
   private size: {width: number, height: number};
@@ -57,7 +57,7 @@ export class WaitingBox {
     this.nodeIds.push(...nodeIds);
   }
 
-  async applyLayout(nodes: MindscribbleNode[]): Promise<void> {
+  async applyLayout(nodes: MindpadNode[]): Promise<void> {
     const nodesToLayout = nodes.filter(node =>
       this.nodeIds.includes(node.id)
     );
@@ -83,13 +83,13 @@ export class WaitingBox {
   }
 }
 4. Layout Strategies
-// mindscribble/quasar/src/features/canvas/components/conceptmap/layoutStrategies.ts
+// mindpad/quasar/src/features/canvas/components/conceptmap/layoutStrategies.ts
 export interface LayoutStrategy {
-  layoutNodes(nodes: MindscribbleNode[], containerSize: {width: number, height: number}): Promise<MindscribbleNode[]>;
+  layoutNodes(nodes: MindpadNode[], containerSize: {width: number, height: number}): Promise<MindpadNode[]>;
 }
 
 export class D3TidyTreeLayout implements LayoutStrategy {
-  async layoutNodes(nodes: MindscribbleNode[], containerSize: {width: number, height: number}): Promise<MindscribbleNode[]> {
+  async layoutNodes(nodes: MindpadNode[], containerSize: {width: number, height: number}): Promise<MindpadNode[]> {
     // Implement D3 tidy tree layout
     // This would use d3.hierarchy() and d3.tree()
     // Return nodes with updated positions relative to container
@@ -98,7 +98,7 @@ export class D3TidyTreeLayout implements LayoutStrategy {
 }
 
 export class GridLayout implements LayoutStrategy {
-  async layoutNodes(nodes: MindscribbleNode[], containerSize: {width: number, height: number}): Promise<MindscribbleNode[]> {
+  async layoutNodes(nodes: MindpadNode[], containerSize: {width: number, height: number}): Promise<MindpadNode[]> {
     const nodeSize = {width: 150, height: 80};
     const spacing = 20;
     const cols = Math.floor(containerSize.width / (nodeSize.width + spacing));
@@ -120,7 +120,7 @@ export class GridLayout implements LayoutStrategy {
   }
 }
 5. Concept Map View Integration
-// mindscribble/quasar/src/features/canvas/components/ConceptMapView.vue
+// mindpad/quasar/src/features/canvas/components/ConceptMapView.vue
 <script setup>
 import { WaitingBox, D3TidyTreeLayout, GridLayout } from './WaitingBox';
 
@@ -207,8 +207,8 @@ async function processWaitingNodes() {
 }
 </script>
 6. Document Store Integration
-// mindscribble/quasar/src/core/stores/documentStore.ts
-function addNode(node: Partial<MindscribbleNode>) {
+// mindpad/quasar/src/core/stores/documentStore.ts
+function addNode(node: Partial<MindpadNode>) {
   const newNode = createNode(node);
 
   // Don't set positions initially
@@ -225,13 +225,13 @@ function addNode(node: Partial<MindscribbleNode>) {
   return newNode;
 }
 
-function getNodesWithoutPositions(viewType: 'conceptmap' | 'boxedConceptmap'): MindscribbleNode[] {
+function getNodesWithoutPositions(viewType: 'conceptmap' | 'boxedConceptmap'): MindpadNode[] {
   return nodes.value.filter(node =>
     !node.views?.[viewType] || node.views[viewType].x === 0
   );
 }
 7. Visual Feedback System
-// mindscribble/quasar/src/features/canvas/components/conceptmap/WaitingBoxIndicator.vue
+// mindpad/quasar/src/features/canvas/components/conceptmap/WaitingBoxIndicator.vue
 <template>
   <div
     v-if="hasWaitingNodes"
@@ -303,7 +303,7 @@ function nodeStyle(node) {
 }
 </script>
 8. Boxed Concept Map Integration
-// mindscribble/quasar/src/features/canvas/components/boxed-conceptmap/BoxedConceptMapView.vue
+// mindpad/quasar/src/features/canvas/components/boxed-conceptmap/BoxedConceptMapView.vue
 <script setup>
 import { WaitingBox, GridLayout } from '../conceptmap/WaitingBox';
 

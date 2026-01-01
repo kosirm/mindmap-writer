@@ -14,7 +14,7 @@ This document outlines the implementation plan for the new file management compo
 
 ### Issues Identified
 
-1. **IndexedDB Not Initialized**: The `MindScribbleDB` singleton is created but never opened, so it doesn't appear in Chrome DevTools
+1. **IndexedDB Not Initialized**: The `MindPadDB` singleton is created but never opened, so it doesn't appear in Chrome DevTools
 2. **Google Drive Dependency**: Current file operations work exclusively with Google Drive
 3. **Limited File Management**: No folder structure or vault concept
 4. **No IndexedDB Operations**: File operations don't use the implemented IndexedDB service
@@ -230,7 +230,7 @@ This document outlines the implementation plan for the new file management compo
    - Sync performance
 
 **Files to Create/Modify**:
-- `mindscribble/dev/phase-1-inexedDB/__TESTING.md` (update)
+- `mindpad/dev/phase-1-inexedDB/__TESTING.md` (update)
 - Test files as needed
 
 **Estimated Time**: 2-3 hours

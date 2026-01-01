@@ -149,7 +149,7 @@ npm run dev
 npm run type-check
 
 # Search for patterns
-grep -r "useDocumentStore" mindscribble/quasar/src/
+grep -r "useDocumentStore" mindpad/quasar/src/
 ```
 
 ### Browser Tools

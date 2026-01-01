@@ -12,7 +12,7 @@ Current implementation uses timer-based token refresh that only works while the 
 ## Solution: Service Worker for Background Refresh
 
 ### Overview
-Implement a Service Worker (SW) to handle token refresh in the background, enabling seamless sessions even when the app isn't active. Since MindScribble is a PWA, SWs can run independently of the main app.
+Implement a Service Worker (SW) to handle token refresh in the background, enabling seamless sessions even when the app isn't active. Since MindPad is a PWA, SWs can run independently of the main app.
 
 ### Implementation Steps
 

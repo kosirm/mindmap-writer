@@ -9,7 +9,7 @@
 ```
 Google Drive Structure:
 ┌───────────────────────────────────────────────────────────────┐
-│ Mindscribble Folder (on Google Drive)                          │
+│ Mindpad Folder (on Google Drive)                          │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐  │
 │  │ .vaults (index file)                                    │  │
@@ -614,7 +614,7 @@ import { useQuasar } from 'quasar'
 import { useVaultStore } from 'src/core/stores/vaultStore'
 import VaultCreationDropdown from './VaultCreationDropdown.vue'
 import VaultSelectionDropdown from './VaultSelectionDropdown.vue'
-import type { MindscribbleDocument } from 'src/core/types'
+import type { MindpadDocument } from 'src/core/types'
 
 const $q = useQuasar()
 const vaultStore = useVaultStore()
@@ -671,7 +671,7 @@ async function handleAddFile() {
     }
 
     // Create a minimal document for the new file
-    const newDocument: MindscribbleDocument = {
+    const newDocument: MindpadDocument = {
       version: '1.0',
       metadata: {
         id: `file-${Date.now()}`,

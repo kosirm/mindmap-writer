@@ -163,7 +163,7 @@ IndexedDB (Local):
 
 ## 🔗 Related Documents
 
-- **Implementation Plan**: `mindscribble/dev/phase-1-inexedDB/IMPLEMENTATION_PLAN.md` (UPDATED)
-- **Quick Notes**: `mindscribble/dev/phase-2-backend/QUICK_NOTES.md` (Source of partial sync strategy)
-- **Provider-Aware Changes**: `mindscribble/dev/phase-1-inexedDB/PROVIDER_AWARE_CHANGES.md`
+- **Implementation Plan**: `mindpad/dev/phase-1-inexedDB/IMPLEMENTATION_PLAN.md` (UPDATED)
+- **Quick Notes**: `mindpad/dev/phase-2-backend/QUICK_NOTES.md` (Source of partial sync strategy)
+- **Provider-Aware Changes**: `mindpad/dev/phase-1-inexedDB/PROVIDER_AWARE_CHANGES.md`
 

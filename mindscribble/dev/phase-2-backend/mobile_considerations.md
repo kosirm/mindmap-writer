@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-Mobile browsers have unique constraints and capabilities that require special consideration for MindScribble. This document covers mobile-specific challenges and solutions.
+Mobile browsers have unique constraints and capabilities that require special consideration for MindPad. This document covers mobile-specific challenges and solutions.
 
 ## 📱 Mobile Browser Landscape
 
@@ -78,20 +78,20 @@ class iOSStorageManager {
 interface StorageStrategy {
   // Tier 1: Essential data (always in IndexedDB)
   essential: {
-    activeDocument: MindscribbleDocument;
-    recentDocuments: MindscribbleDocument[]; // Last 5
+    activeDocument: MindpadDocument;
+    recentDocuments: MindpadDocument[]; // Last 5
     userPreferences: UserPreferences;
   };
 
   // Tier 2: Cached data (can be evicted)
   cached: {
-    allDocuments: MindscribbleDocument[];
+    allDocuments: MindpadDocument[];
     thumbnails: Map<string, Blob>;
   };
 
   // Tier 3: Cloud-only (not stored locally on iOS)
   cloudOnly: {
-    archivedDocuments: MindscribbleDocument[];
+    archivedDocuments: MindpadDocument[];
     largeAttachments: Blob[];
   };
 }
@@ -99,7 +99,7 @@ interface StorageStrategy {
 class MobileStorageStrategy {
   private isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-  async saveDocument(doc: MindscribbleDocument): Promise<void> {
+  async saveDocument(doc: MindpadDocument): Promise<void> {
     if (this.isIOS) {
       // On iOS, be aggressive about cloud sync
       await this.syncToCloudImmediately(doc);
@@ -211,7 +211,7 @@ class PWAManager {
   private showInstallButton(): void {
     // Show Quasar banner
     Notify.create({
-      message: 'Install MindScribble for offline access',
+      message: 'Install MindPad for offline access',
       color: 'primary',
       position: 'bottom',
       timeout: 0,
@@ -498,7 +498,7 @@ class NetworkAwareSync {
 
 ```typescript
 class MobileShareManager {
-  async shareDocument(doc: MindscribbleDocument): Promise<boolean> {
+  async shareDocument(doc: MindpadDocument): Promise<boolean> {
     if (!('share' in navigator)) {
       // Fallback to copy link
       return this.copyLink(doc);
@@ -508,7 +508,7 @@ class MobileShareManager {
       await navigator.share({
         title: doc.metadata.name,
         text: doc.metadata.description,
-        url: `https://mindscribble.app/doc/${doc.metadata.id}`
+        url: `https://mindpad.app/doc/${doc.metadata.id}`
       });
       return true;
     } catch (error) {
@@ -517,7 +517,7 @@ class MobileShareManager {
     }
   }
 
-  async shareFile(doc: MindscribbleDocument): Promise<boolean> {
+  async shareFile(doc: MindpadDocument): Promise<boolean> {
     if (!('share' in navigator) || !('canShare' in navigator)) {
       return false;
     }
@@ -546,8 +546,8 @@ class MobileShareManager {
     return false;
   }
 
-  private copyLink(doc: MindscribbleDocument): boolean {
-    const url = `https://mindscribble.app/doc/${doc.metadata.id}`;
+  private copyLink(doc: MindpadDocument): boolean {
+    const url = `https://mindpad.app/doc/${doc.metadata.id}`;
     navigator.clipboard.writeText(url);
 
     Notify.create({

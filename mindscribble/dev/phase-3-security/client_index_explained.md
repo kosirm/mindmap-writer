@@ -154,7 +154,7 @@ class SearchService {
     this.encryptionService = encryptionService;
   }
   
-  async search(query: string): Promise<MindscribbleDocument[]> {
+  async search(query: string): Promise<MindpadDocument[]> {
     // 1. Normalize the query
     const normalizedQuery = this.normalizeQuery(query);
     
@@ -190,7 +190,7 @@ class IndexManager {
   }
   
   // Update index when document changes
-  async updateDocument(doc: MindscribbleDocument) {
+  async updateDocument(doc: MindpadDocument) {
     // Add to index
     this.index.addDocument(doc.metadata.id, 
       this.extractSearchableContent(doc)
@@ -200,7 +200,7 @@ class IndexManager {
     await this.saveIndex();
   }
   
-  private extractSearchableContent(doc: MindscribbleDocument): string {
+  private extractSearchableContent(doc: MindpadDocument): string {
     // Extract text from all nodes
     return doc.nodes.map(node => node.data.content).join(' ');
   }
@@ -276,7 +276,7 @@ class IndexManager {
 
 ## 🚀 Practical Recommendation
 
-### For MindScribble, I Recommend:
+### For MindPad, I Recommend:
 
 **Phase 1: Start Simple**
 - Implement basic encryption (sync-based approach we discussed earlier)
@@ -335,7 +335,7 @@ graph TD
 
 ## 🎯 Final Verdict
 
-**For MindScribble's current stage:**
+**For MindPad's current stage:**
 - **Don't implement client index yet** - It's overkill for MVP
 - **Use sync-based encryption** - Provides security without complexity
 - **Keep local data unencrypted** - Maintains fast search performance

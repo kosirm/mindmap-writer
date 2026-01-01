@@ -1,14 +1,14 @@
-# MindScribble AI Integration Guide
+# MindPad AI Integration Guide
 
 ## Overview
 
-MindScribble uses **n8n** as an AI agent orchestration platform to provide AI-powered mindmap features. This document describes the complete AI integration architecture.
+MindPad uses **n8n** as an AI agent orchestration platform to provide AI-powered mindmap features. This document describes the complete AI integration architecture.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      MindScribble Frontend                       │
+│                      MindPad Frontend                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
 │  │  AI Chat UI  │  │  AI Store    │  │ Document     │          │
 │  │              │  │  (Pinia)     │  │ Store        │          │
@@ -35,7 +35,7 @@ MindScribble uses **n8n** as an AI agent orchestration platform to provide AI-po
                             │ JSON Response
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      MindScribble Frontend                       │
+│                      MindPad Frontend                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
 │  │ Apply        │→ │  Update      │→ │  Auto-save   │          │
 │  │ Operations   │  │  Canvas      │  │  to Drive    │          │
@@ -436,10 +436,10 @@ The n8n workflow consists of 5 main nodes:
   "type": "n8n-nodes-base.webhook",
   "position": [250, 300],
   "parameters": {
-    "path": "mindscribble-ai",
+    "path": "mindpad-ai",
     "responseMode": "responseNode",
     "options": {
-      "allowedOrigins": "https://mindscribble.app"
+      "allowedOrigins": "https://mindpad.app"
     }
   }
 }
@@ -495,7 +495,7 @@ return {
       "values": [
         {
           "role": "system",
-          "content": "You are an AI assistant for MindScribble, a mindmap application. Your job is to help users create, expand, analyze, and reorganize mindmaps. You must respond with structured JSON operations that the frontend can apply to the mindmap.\n\nAvailable operations:\n- create: Create a new node\n- update: Update an existing node\n- delete: Delete a node\n- move: Move a node to a new parent\n- createEdge: Create a connection between nodes\n- deleteEdge: Delete a connection\n\nResponse format:\n{\n  \"operations\": [\n    { \"type\": \"create\", \"title\": \"...\", \"content\": \"...\", \"parentId\": \"...\", \"position\": { \"x\": 0, \"y\": 0 } }\n  ],\n  \"explanation\": \"Human-readable explanation\",\n  \"suggestions\": [\"Optional suggestion 1\", \"Optional suggestion 2\"]\n}"
+          "content": "You are an AI assistant for MindPad, a mindmap application. Your job is to help users create, expand, analyze, and reorganize mindmaps. You must respond with structured JSON operations that the frontend can apply to the mindmap.\n\nAvailable operations:\n- create: Create a new node\n- update: Update an existing node\n- delete: Delete a node\n- move: Move a node to a new parent\n- createEdge: Create a connection between nodes\n- deleteEdge: Delete a connection\n\nResponse format:\n{\n  \"operations\": [\n    { \"type\": \"create\", \"title\": \"...\", \"content\": \"...\", \"parentId\": \"...\", \"position\": { \"x\": 0, \"y\": 0 } }\n  ],\n  \"explanation\": \"Human-readable explanation\",\n  \"suggestions\": [\"Optional suggestion 1\", \"Optional suggestion 2\"]\n}"
         },
         {
           "role": "user",
@@ -572,7 +572,7 @@ try {
 ## LLM System Prompt (Detailed)
 
 ```
-You are an AI assistant for MindScribble, a professional mindmap application. Your role is to help users create, expand, analyze, and reorganize their mindmaps through natural language commands.
+You are an AI assistant for MindPad, a professional mindmap application. Your role is to help users create, expand, analyze, and reorganize their mindmaps through natural language commands.
 
 ## Your Capabilities
 
@@ -751,7 +751,7 @@ serve(async (req) => {
 
 ```bash
 # Test n8n webhook directly
-curl -X POST https://your-n8n-instance.com/webhook/mindscribble-ai \
+curl -X POST https://your-n8n-instance.com/webhook/mindpad-ai \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Create a mindmap for planning a wedding",

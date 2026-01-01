@@ -43,7 +43,7 @@
 // space.proto
 syntax = "proto3";
 
-package mindscribble.space;
+package mindpad.space;
 
 message SpaceFile {
     string id = 1;                    // Unique file identifier
@@ -142,7 +142,7 @@ message SyncSettings {
 import { loadSync } from 'protobufjs';
 
 const protoRoot = loadSync('./space.proto');
-const Space = protoRoot.lookupType('mindscribble.space.Space');
+const Space = protoRoot.lookupType('mindpad.space.Space');
 
 // 2. Create space object
 const spaceData = {
@@ -295,16 +295,16 @@ class SpaceConverter {
 
 ```bash
 # Convert binary to JSON for debugging
-mindscribble space export .space --output space.json
+mindpad space export .space --output space.json
 
 # Convert JSON to binary for testing
-mindscribble space import space.json --output .space
+mindpad space import space.json --output .space
 
 # Validate space file
-mindscribble space validate .space
+mindpad space validate .space
 
 # Show space info
-mindscribble space info .space
+mindpad space info .space
 ```
 
 ## 📊 Performance Comparison

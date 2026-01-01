@@ -20,8 +20,8 @@ import {
 import type { CommandContext } from '../commands/types'
 
 // LocalStorage keys
-const STARRED_COMMANDS_KEY = 'mindscribble-starred-commands'
-const RECENT_COMMANDS_KEY = 'mindscribble-recent-commands'
+const STARRED_COMMANDS_KEY = 'mindpad-starred-commands'
+const RECENT_COMMANDS_KEY = 'mindpad-recent-commands'
 
 export const useCommandStore = defineStore('command', () => {
   // ============================================================================

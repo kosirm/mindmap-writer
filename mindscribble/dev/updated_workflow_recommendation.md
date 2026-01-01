@@ -53,7 +53,7 @@ graph TD
 ```typescript
 async function initializeApp() {
     // 1. Open IndexedDB (immediate)
-    const db = await openDB('mindscribble', 1)
+    const db = await openDB('mindpad', 1)
     
     // 2. Get current vault ID
     const currentVaultId = await getCurrentVaultId()
@@ -87,7 +87,7 @@ async function initializeApp() {
 
 ```typescript
 async function mergeDriveChanges(vaultId: string, driveTimestamp: number) {
-    const db = await openDB('mindscribble', 1)
+    const db = await openDB('mindpad', 1)
     
     // 1. Backup current local state
     const backupResult = await createLocalBackup(vaultId)

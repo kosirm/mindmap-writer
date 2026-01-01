@@ -193,7 +193,7 @@ async function addFileToRoot() {
     }
     
     // Create a minimal document for the new file
-    const newDocument: MindscribbleDocument = {
+    const newDocument: MindpadDocument = {
       version: '1.0',
       metadata: {
         id: `file-${Date.now()}`,
