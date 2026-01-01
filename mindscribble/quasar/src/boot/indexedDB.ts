@@ -16,7 +16,11 @@ export default boot(async () => {
   try {
     // Open the database connection
     await db.open()
-    console.log('🗄️ [IndexedDB Boot] Database opened successfully')
+    console.log('🗄️ [IndexedDB Boot] Database opened successfully, version:', db.verno)
+
+    // Debug: Check fileSystem table
+    const fileSystemCount = await db.fileSystem.count()
+    console.log('🗄️ [IndexedDB Boot] fileSystem table has', fileSystemCount, 'items')
 
     // Check if this is a new installation or migration
     const centralIndex = await db.centralIndex.get('central')

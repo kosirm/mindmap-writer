@@ -32,8 +32,11 @@
       <!-- Empty state -->
       <div v-else class="vault-empty">
         <q-icon name="folder" size="48px" color="grey-4" />
-        <div class="text-body2 text-grey-6 q-mt-md">No vaults yet</div>
+        <div class="text-body2 text-grey-6 q-mt-md">
+          {{ vaultStore.vaults.length === 0 ? 'No vaults yet' : 'Vault is empty' }}
+        </div>
         <q-btn
+          v-if="vaultStore.vaults.length === 0"
           flat
           color="primary"
           label="Create Vault"
@@ -41,6 +44,9 @@
           class="q-mt-sm"
           @click="createNewVault"
         />
+        <div v-else class="text-caption text-grey-6 q-mt-sm">
+          Use the toolbar to add files and folders
+        </div>
       </div>
     </div>
   </div>
@@ -124,17 +130,21 @@ async function buildTreeFromVault(forceReload = false) {
 
   try {
     isInitializing.value = true
+    console.log('🌳 [VaultTree] Building tree from vault, forceReload:', forceReload)
 
     // Only load vaults if not already loaded or if forced
     if (forceReload || vaultStore.vaults.length === 0) {
+      console.log('🌳 [VaultTree] Loading all vaults...')
       await vaultStore.loadAllVaults()
     }
 
     const vaults = vaultStore.vaults
     const activeVault = vaultStore.activeVault
+    console.log('🌳 [VaultTree] Vaults loaded:', vaults.length, 'Active vault:', activeVault?.name)
 
     // If no vaults exist, show empty state
     if (vaults.length === 0) {
+      console.log('🌳 [VaultTree] No vaults found, showing empty state')
       treeData.value = []
       return
     }
@@ -157,9 +167,11 @@ async function buildTreeFromVault(forceReload = false) {
     // Get the complete vault structure from store
     // Only reload from database if forced or if structure is empty
     if (forceReload || vaultStore.vaultStructure.length === 0) {
+      console.log('🌳 [VaultTree] Loading vault structure...')
       await vaultStore.loadVaultStructure()
     }
     const vaultStructure = vaultStore.vaultStructure
+    console.log('🌳 [VaultTree] Vault structure loaded:', vaultStructure.length, 'items')
 
     // Build tree structure from vault items
     const buildTreeFromVaultStructure = (): VaultTreeItem[] => {
@@ -306,7 +318,25 @@ async function onTreeChange() {
  */
 async function createNewVault() {
   try {
-    const vaultName = prompt('Enter vault name:', 'My Vault')
+    // Use Quasar dialog instead of browser prompt
+    const result = await new Promise<string | null>((resolve) => {
+      $q.dialog({
+        title: 'Create New Vault',
+        message: 'Enter vault name:',
+        prompt: {
+          model: 'My Vault',
+          type: 'text'
+        },
+        cancel: true,
+        persistent: true
+      }).onOk((vaultName: string) => resolve(vaultName))
+        .onCancel(() => resolve(null))
+        .onDismiss(() => resolve(null))
+    })
+
+    if (!result) return
+
+    const vaultName = result.trim()
     if (!vaultName) return
 
     await vaultStore.createNewVault(vaultName, 'New vault')
@@ -342,9 +372,61 @@ function handleStructureRefresh(payload: VaultStructureRefreshedPayload) {
     return
   }
 
-  // For events from store, just rebuild from the already-loaded store data
-  // Don't reload from database to avoid circular dependency
-  void buildTreeFromVault(false)
+  console.log('🌳 [VaultTree] Structure refresh event received, rebuilding tree from store data')
+
+  // Just rebuild the tree from the already-loaded vaultStore.vaultStructure
+  // Don't call buildTreeFromVault() to avoid triggering loadVaultStructure() again
+  const vaultStructure = vaultStore.vaultStructure
+
+  if (vaultStructure.length === 0) {
+    treeData.value = []
+    return
+  }
+
+  // Build tree structure from vault items
+  const buildTreeFromVaultStructure = (): VaultTreeItem[] => {
+    const itemMap = new Map<string, VaultTreeItem>()
+
+    // First pass: Create tree items for all items
+    vaultStructure.forEach(item => {
+      itemMap.set(item.id, {
+        id: item.id,
+        text: item.name,
+        item: item,
+        type: item.type === 'file' ? 'file' : 'folder',
+        children: []
+      })
+    })
+
+    // Second pass: Build hierarchy
+    const rootItems: VaultTreeItem[] = []
+    itemMap.forEach(treeItem => {
+      const parentId = treeItem.item.parentId
+      if (parentId) {
+        const parent = itemMap.get(parentId)
+        if (parent) {
+          parent.children.push(treeItem)
+        }
+      } else {
+        rootItems.push(treeItem)
+      }
+    })
+
+    // Third pass: Sort children by sortOrder
+    const sortChildren = (items: VaultTreeItem[]) => {
+      items.sort((a, b) => (a.item.sortOrder ?? 0) - (b.item.sortOrder ?? 0))
+      items.forEach(item => {
+        if (item.children.length > 0) {
+          sortChildren(item.children)
+        }
+      })
+    }
+    sortChildren(rootItems)
+
+    return rootItems
+  }
+
+  treeData.value = buildTreeFromVaultStructure()
 }
 
 function handleItemRenamed(payload: ItemRenamedPayload) {
@@ -371,6 +453,18 @@ function handleItemMoved(payload: ItemMovedPayload) {
   }
 }
 
+function handleFileCreated() {
+  console.log('🌳 [VaultTree] File created event received, rebuilding tree')
+  // Rebuild tree from the already-updated store data
+  void buildTreeFromVault(false)
+}
+
+function handleFolderCreated() {
+  console.log('🌳 [VaultTree] Folder created event received, rebuilding tree')
+  // Rebuild tree from the already-updated store data
+  void buildTreeFromVault(false)
+}
+
 function handleDockviewFileActivated(payload: FileSelectedPayload) {
   // When a file is activated in dockview, select it in the vault tree
   if (payload.fileId) {
@@ -384,12 +478,32 @@ function handleDockviewFileActivated(payload: FileSelectedPayload) {
 }
 
 // Mount and unmount event listeners
+/**
+ * Handle vault created event
+ */
+function handleVaultCreated() {
+  console.log('🌳 [VaultTree] Vault created, rebuilding tree')
+  void buildTreeFromVault(true)
+}
+
+/**
+ * Handle vault activated event
+ */
+function handleVaultActivated() {
+  console.log('🌳 [VaultTree] Vault activated, rebuilding tree')
+  void buildTreeFromVault(true)
+}
+
 onMounted(() => {
   // Add vault event listeners
   eventBus.on('vault:structure-refreshed', handleStructureRefresh)
   eventBus.on('vault:item-renamed', handleItemRenamed)
   eventBus.on('vault:item-deleted', handleItemDeleted)
   eventBus.on('vault:item-moved', handleItemMoved)
+  eventBus.on('vault:file-created', handleFileCreated)
+  eventBus.on('vault:folder-created', handleFolderCreated)
+  eventBus.on('vault:created', handleVaultCreated)
+  eventBus.on('vault:activated', handleVaultActivated)
 
   // Add dockview event listener
   eventBus.on('dockview:file-activated', handleDockviewFileActivated)
@@ -404,6 +518,10 @@ onUnmounted(() => {
   eventBus.off('vault:item-renamed', handleItemRenamed)
   eventBus.off('vault:item-deleted', handleItemDeleted)
   eventBus.off('vault:item-moved', handleItemMoved)
+  eventBus.off('vault:file-created', handleFileCreated)
+  eventBus.off('vault:folder-created', handleFolderCreated)
+  eventBus.off('vault:created', handleVaultCreated)
+  eventBus.off('vault:activated', handleVaultActivated)
 
   // Clean up dockview event listener
   eventBus.off('dockview:file-activated', handleDockviewFileActivated)

@@ -1,19 +1,43 @@
 <template>
   <div class="vault-toolbar">
-    <!-- Vault Operations -->
-    <div class="toolbar-section">
-      <q-btn flat dense icon="add" size="sm" @click="handleNewVault">
-        <q-tooltip>New Vault</q-tooltip>
-      </q-btn>
-      <q-btn flat dense icon="folder_open" size="sm" @click="handleOpenVault">
-        <q-tooltip>Open Vault</q-tooltip>
-      </q-btn>
-      <q-btn flat dense icon="delete" size="sm" @click="handleDeleteVault">
-        <q-tooltip>Delete Vault</q-tooltip>
-      </q-btn>
-    </div>
+   <!-- Vault Operations -->
+   <div class="toolbar-section">
+     <!-- New Vault with Dialog -->
+     <q-btn
+       flat
+       dense
+       icon="add"
+       size="sm"
+       @click="handleCreateVault"
+       clickable
+     >
+       <q-tooltip>New Vault</q-tooltip>
+     </q-btn>
 
-    <q-separator vertical inset class="q-mx-sm" />
+     <!-- Open Vault with Dialog -->
+     <q-btn
+       flat
+       dense
+       icon="folder_open"
+       size="sm"
+       @click="handleOpenVault"
+       clickable
+     >
+       <q-tooltip>Open Vault</q-tooltip>
+     </q-btn>
+
+     <q-btn flat dense icon="delete" size="sm" @click="handleDeleteVault">
+       <q-tooltip>Delete Vault</q-tooltip>
+     </q-btn>
+   </div>
+
+   <!-- Active Vault Indicator -->
+   <div class="active-vault-indicator" v-if="vaultStore.activeVault">
+     <q-icon name="storage" size="16px" />
+     <span class="vault-name">{{ vaultStore.activeVault.name }}</span>
+   </div>
+
+   <q-separator vertical inset class="q-mx-sm" />
 
     <!-- File Operations -->
     <div class="toolbar-section">
@@ -45,42 +69,158 @@
 import { useQuasar } from 'quasar'
 import { useVaultStore } from 'src/core/stores/vaultStore'
 import type { MindscribbleDocument } from 'src/core/types'
+import VaultCreationDialog from './VaultCreationDialog.vue'
+import VaultSelectionDialog from './VaultSelectionDialog.vue'
+
+console.log('🔧 [VaultToolbar] Component loaded')
 
 const $q = useQuasar()
 const vaultStore = useVaultStore()
 
-// Vault operations
-async function handleNewVault() {
-  try {
-    const vaultName = prompt('Enter vault name:', 'My Vault')
-    if (!vaultName) return
+console.log('🔧 [VaultToolbar] $q:', !!$q, 'vaultStore:', !!vaultStore)
 
-    await vaultStore.createNewVault(vaultName, 'New vault')
-    $q.notify({ type: 'positive', message: 'Vault created', timeout: 2000 })
+/**
+ * Handle vault creation with dialog
+ */
+async function handleCreateVault() {
+  console.log('🔧 [VaultToolbar] handleCreateVault called')
+  try {
+    // Show vault creation dialog
+    console.log('🔧 [VaultToolbar] Opening VaultCreationDialog')
+    console.log('🔧 [VaultToolbar] $q.dialog available:', !!$q.dialog)
+
+    const result = await new Promise<{name: string, description: string} | null>((resolve, reject) => {
+      try {
+        const dialogRef = $q.dialog({
+          component: VaultCreationDialog,
+          componentProps: {
+            // Props will be handled by the dialog component
+          },
+          cancel: true,
+          persistent: true
+        })
+
+        console.log('🔧 [VaultToolbar] Dialog created:', !!dialogRef)
+
+        dialogRef.onOk((vaultData: {name: string, description: string}) => {
+          console.log('🔧 [VaultToolbar] Dialog OK:', vaultData)
+          resolve(vaultData)
+        })
+        .onCancel(() => {
+          console.log('🔧 [VaultToolbar] Dialog cancelled')
+          resolve(null)
+        })
+        .onDismiss(() => {
+          console.log('🔧 [VaultToolbar] Dialog dismissed')
+          resolve(null)
+        })
+      } catch (err) {
+        console.error('🔧 [VaultToolbar] Error creating dialog:', err)
+        reject(new Error('Failed to create dialog'))
+      }
+    })
+
+    if (!result) return
+
+    const { name, description } = result
+    if (!name.trim()) return
+
+    // Show warning about replacing current vault
+    const confirm = await new Promise((resolve) => {
+      $q.dialog({
+        title: 'Replace Current Vault?',
+        message: 'Creating a new vault will replace your current vault. All unsaved changes will be lost. Continue?',
+        cancel: true,
+        persistent: true
+      }).onOk(() => resolve(true)).onCancel(() => resolve(false)).onDismiss(() => resolve(false))
+    })
+
+    if (!confirm) return
+
+    // Create the vault
+    await vaultStore.createNewVault(name.trim(), description.trim())
+
+    $q.notify({
+      type: 'positive',
+      message: `Vault "${name}" created`,
+      timeout: 2000
+    })
   } catch (error) {
     console.error('Failed to create vault:', error)
-    $q.notify({ type: 'error', message: 'Failed to create vault', timeout: 3000 })
+    $q.notify({
+      type: 'error',
+      message: 'Failed to create vault',
+      timeout: 3000
+    })
   }
 }
 
+/**
+ * Handle vault selection with dialog
+ */
 async function handleOpenVault() {
+  console.log('🔧 [VaultToolbar] handleOpenVault called')
   try {
+    // Load vaults first
     await vaultStore.loadAllVaults()
     const vaults = vaultStore.vaults
+    console.log('🔧 [VaultToolbar] Loaded vaults:', vaults.length)
+
     if (vaults.length === 0) {
-      $q.notify({ type: 'warning', message: 'No vaults available', timeout: 2000 })
+      $q.notify({
+        type: 'info',
+        message: 'No vaults available',
+        timeout: 2000
+      })
       return
     }
 
-    // For now, just open the first vault
-    if (vaults.length > 0 && vaults[0]) {
-      await vaultStore.activateVault(vaults[0].id)
-    }
+    // Show vault selection dialog
+    const result = await new Promise<string | null>((resolve) => {
+      $q.dialog({
+        component: VaultSelectionDialog,
+        componentProps: {
+          vaults: vaults,
+          activeVaultId: vaultStore.activeVault?.id || null
+        },
+        cancel: true,
+        persistent: true
+      }).onOk((vaultId: string) => resolve(vaultId))
+        .onCancel(() => resolve(null))
+        .onDismiss(() => resolve(null))
+    })
 
-    $q.notify({ type: 'positive', message: 'Vault opened', timeout: 2000 })
+    if (!result) return
+
+    const vaultId = result
+
+    // Show warning about replacing current vault
+    const confirm = await new Promise((resolve) => {
+      $q.dialog({
+        title: 'Replace Current Vault?',
+        message: 'Selecting another vault will replace your current vault. All unsaved changes will be lost. Continue?',
+        cancel: true,
+        persistent: true
+      }).onOk(() => resolve(true)).onCancel(() => resolve(false)).onDismiss(() => resolve(false))
+    })
+
+    if (!confirm) return
+
+    // Activate the selected vault
+    await vaultStore.activateVault(vaultId, 'vault-toolbar')
+
+    $q.notify({
+      type: 'positive',
+      message: 'Vault activated',
+      timeout: 2000
+    })
   } catch (error) {
-    console.error('Failed to open vault:', error)
-    $q.notify({ type: 'error', message: 'Failed to open vault', timeout: 3000 })
+    console.error('Failed to activate vault:', error)
+    $q.notify({
+      type: 'error',
+      message: 'Failed to activate vault',
+      timeout: 3000
+    })
   }
 }
 
@@ -93,7 +233,15 @@ async function handleDeleteVault() {
       return
     }
 
-    const confirm = window.confirm(`Delete vault "${activeVault.name}"? This cannot be undone.`)
+    const confirm = await new Promise((resolve) => {
+      $q.dialog({
+        title: 'Delete Vault',
+        message: `Delete vault "${activeVault.name}"? This will remove it from your vaults list but the actual vault data on Google Drive will be preserved.`,
+        cancel: true,
+        persistent: true
+      }).onOk(() => resolve(true)).onCancel(() => resolve(false)).onDismiss(() => resolve(false))
+    })
+
     if (!confirm) return
 
     await vaultStore.deleteExistingVault(activeVault.id)
@@ -106,9 +254,11 @@ async function handleDeleteVault() {
 
 // File operations
 async function handleAddFile() {
+  console.log('🔧 [VaultToolbar] handleAddFile called')
   try {
     await vaultStore.loadAllVaults()
     const activeVault = vaultStore.activeVault
+    console.log('🔧 [VaultToolbar] Active vault:', activeVault?.name)
     if (!activeVault) {
       $q.notify({ type: 'warning', message: 'No active vault', timeout: 2000 })
       return
@@ -151,9 +301,11 @@ async function handleAddFile() {
 }
 
 async function handleAddFolder() {
+  console.log('🔧 [VaultToolbar] handleAddFolder called')
   try {
     await vaultStore.loadAllVaults()
     const activeVault = vaultStore.activeVault
+    console.log('🔧 [VaultToolbar] Active vault:', activeVault?.name)
     if (!activeVault) {
       $q.notify({ type: 'warning', message: 'No active vault', timeout: 2000 })
       return
@@ -205,5 +357,27 @@ const emit = defineEmits([
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+.active-vault-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  margin-left: 8px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+
+  .body--dark & {
+    border-left-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.vault-name {
+  font-size: 13px;
+  font-weight: 500;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

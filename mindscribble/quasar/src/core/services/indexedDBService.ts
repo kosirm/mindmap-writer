@@ -87,6 +87,17 @@ export interface VaultMetadata {
 }
 
 /**
+ * Vaults index - stores metadata about all available vaults
+ * This represents the .vaults file from Google Drive
+ */
+export interface VaultsIndex {
+  id: string; // Always 'vaults'
+  version: string; // Schema version "1.0"
+  lastUpdated: number; // Unix timestamp
+  vaults: VaultMetadata[]; // Array of all available vaults
+}
+
+/**
  * Repository metadata for partial sync strategy
  */
 export interface Repository {
@@ -145,6 +156,7 @@ export class MindScribbleDB extends Dexie {
   repositories!: Table<Repository, string>; // Store .repository.json locally
   centralIndex!: Table<CentralIndex, string>; // NEW: Store central vault index
   vaultMetadata!: Table<VaultMetadata, string>; // NEW: Store individual vault metadata
+  vaultsIndex!: Table<VaultsIndex, string>; // NEW: Store vaults index (.vaults file)
   fileSystem!: Table<FileSystemItem, string>; // NEW: Store file system items
 
   constructor() {
@@ -169,7 +181,8 @@ export class MindScribbleDB extends Dexie {
       providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
       repositories: 'repositoryId, lastUpdated',
       centralIndex: 'id', // NEW: Central vault index
-      vaultMetadata: 'id, folderId, isActive' // NEW: Individual vault metadata
+      vaultMetadata: 'id, folderId, isActive', // NEW: Individual vault metadata
+      vaultsIndex: 'id' // NEW: Vaults index (.vaults file)
     }).upgrade(tx => {
       // Migration logic from v1 to v2
       // Create default central index for existing users
@@ -211,6 +224,7 @@ export class MindScribbleDB extends Dexie {
       repositories: 'repositoryId, lastUpdated',
       centralIndex: 'id',
       vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
       fileSystem: 'id, vaultId, parentId, type, name' // NEW: File system items
     }).upgrade(async (tx) => {
       // Migration logic from v2 to v3
@@ -232,6 +246,7 @@ export class MindScribbleDB extends Dexie {
       repositories: 'repositoryId, lastUpdated',
       centralIndex: 'id',
       vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
       fileSystem: 'id, vaultId, parentId, type, name'
     }).upgrade(async (tx) => {
       // Ensure the fileSystem store is properly created and accessible
@@ -250,6 +265,7 @@ export class MindScribbleDB extends Dexie {
       repositories: 'repositoryId, lastUpdated',
       centralIndex: 'id',
       vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
       fileSystem: 'id, vaultId, parentId, type, name, sortOrder'
     }).upgrade(async (tx) => {
       // Add sortOrder to existing items
@@ -277,8 +293,56 @@ export class MindScribbleDB extends Dexie {
       console.log('🗄️ [IndexedDB] Version 5: Added sortOrder to fileSystem items')
     })
 
+    // Version 6 - Migrate vaults from centralIndex to vaultsIndex
+    this.version(6).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
+      fileSystem: 'id, vaultId, parentId, type, name, sortOrder'
+    }).upgrade(async (tx) => {
+      console.log('🗄️ [IndexedDB] Version 6: Migrating vaults from centralIndex to vaultsIndex')
+
+      // Get centralIndex
+      const centralIndexTable = tx.table('centralIndex')
+      const centralIndex = await centralIndexTable.get('central') as CentralIndex | undefined
+
+      if (centralIndex && centralIndex.vaults) {
+        // Convert vaults from Record to Array
+        const vaultsArray: VaultMetadata[] = Object.values(centralIndex.vaults)
+
+        // Create vaultsIndex
+        const vaultsIndexTable = tx.table('vaultsIndex')
+        const vaultsIndex: VaultsIndex = {
+          id: 'vaults',
+          version: '1.0',
+          lastUpdated: Date.now(),
+          vaults: vaultsArray
+        }
+
+        await vaultsIndexTable.put(vaultsIndex)
+        console.log('🗄️ [IndexedDB] Migrated', vaultsArray.length, 'vaults to vaultsIndex')
+      } else {
+        // Create empty vaultsIndex if no centralIndex exists
+        const vaultsIndexTable = tx.table('vaultsIndex')
+        const vaultsIndex: VaultsIndex = {
+          id: 'vaults',
+          version: '1.0',
+          lastUpdated: Date.now(),
+          vaults: []
+        }
+        await vaultsIndexTable.put(vaultsIndex)
+        console.log('🗄️ [IndexedDB] Created empty vaultsIndex')
+      }
+    })
+
     // Future versions can be added here:
-    // this.version(6).stores({ ... }).upgrade(tx => { ... });
+    // this.version(7).stores({ ... }).upgrade(tx => { ... });
   }
 }
 

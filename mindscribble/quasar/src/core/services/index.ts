@@ -9,4 +9,5 @@ export * from './syncManager'
 export * from './indexedDBService'
 export * from './vaultService'
 export * from './fileSystemService'
+export * from './vaultMetadataService'
 

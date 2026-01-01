@@ -628,13 +628,134 @@ export async function setActiveVault(vaultId: string): Promise<void> {
 - Verify only one is active ✅
 - Verify UI indication ✅
 
-### Phase 5: Sync Strategy Integration (Replaces PWA Approach)
+### Phase 5: Partial Sync Strategy with UI State Persistence
 
-**Objective**: Implement environment-aware sync strategy using the provided sync strategy guide.
+**Objective**: Implement intelligent partial sync that only updates changed files/folders, and persist UI state (open files, dockview layouts).
+
+**Key Requirements**:
+- ✅ **Partial sync only** - Update only changed files/folders, not entire vault
+- ✅ **Track changes** - Monitor file/folder renames, moves, content updates
+- ✅ **Background sync** - Use web worker when available, fallback to async
+- ✅ **UI state persistence** - Store open files and dockview layouts per file
+- ✅ **Restore UI on reload** - Load open files and layouts when app starts
 
 **Implementation**:
 
-#### 1. Create Sync Strategy Service
+#### 1. Add UI State to IndexedDB Schema
+
+```typescript
+// src/core/services/indexedDBService.ts
+
+// Add to schema
+export interface UIState {
+  id: string // 'ui-state'
+  openFiles: string[] // Array of file IDs that are open
+  activeFileId: string | null // Currently active file
+  lastUpdated: number
+}
+
+export interface FileLayout {
+  fileId: string // Primary key
+  layout: unknown // Dockview layout JSON
+  lastUpdated: number
+}
+
+// Update MindScribbleDB class
+class MindScribbleDB extends Dexie {
+  // ... existing tables
+  uiState!: Table<UIState, string>
+  fileLayouts!: Table<FileLayout, string>
+
+  constructor() {
+    super('MindScribbleDB')
+
+    // ... existing versions
+
+    // Version 6 - Add UI state persistence
+    this.version(6).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
+      fileSystem: 'id, vaultId, parentId, type, name, sortOrder',
+      uiState: 'id', // NEW
+      fileLayouts: 'fileId' // NEW
+    })
+  }
+}
+```
+
+#### 2. Create UI State Service
+
+```typescript
+// src/core/services/uiStateService.ts
+import { db } from './indexedDBService'
+import type { UIState, FileLayout } from './indexedDBService'
+
+export class UIStateService {
+  /**
+   * Save which files are currently open
+   */
+  static async saveOpenFiles(fileIds: string[], activeFileId: string | null): Promise<void> {
+    const uiState: UIState = {
+      id: 'ui-state',
+      openFiles: fileIds,
+      activeFileId,
+      lastUpdated: Date.now()
+    }
+    await db.uiState.put(uiState)
+    console.log('💾 [UIState] Saved open files:', fileIds)
+  }
+
+  /**
+   * Get which files should be open on app start
+   */
+  static async getOpenFiles(): Promise<{ fileIds: string[], activeFileId: string | null }> {
+    const uiState = await db.uiState.get('ui-state')
+    if (!uiState) {
+      return { fileIds: [], activeFileId: null }
+    }
+    return { fileIds: uiState.openFiles, activeFileId: uiState.activeFileId }
+  }
+
+  /**
+   * Save dockview layout for a specific file
+   */
+  static async saveFileLayout(fileId: string, layout: unknown): Promise<void> {
+    const fileLayout: FileLayout = {
+      fileId,
+      layout,
+      lastUpdated: Date.now()
+    }
+    await db.fileLayouts.put(fileLayout)
+    console.log('💾 [UIState] Saved layout for file:', fileId)
+  }
+
+  /**
+   * Get dockview layout for a specific file
+   */
+  static async getFileLayout(fileId: string): Promise<unknown | null> {
+    const fileLayout = await db.fileLayouts.get(fileId)
+    return fileLayout?.layout || null
+  }
+
+  /**
+   * Clear UI state (when switching vaults)
+   */
+  static async clearUIState(): Promise<void> {
+    await db.uiState.clear()
+    await db.fileLayouts.clear()
+    console.log('🗑️ [UIState] Cleared UI state')
+  }
+}
+```
+
+#### 3. Create Sync Strategy Service with Change Tracking
 
 ```typescript
 // src/core/services/syncStrategy.ts
@@ -655,16 +776,31 @@ export interface SyncResult {
   success: boolean
   syncedFiles?: number
   syncedFolders?: number
+  renamedItems?: number
+  movedItems?: number
   errors?: string[]
 }
 
+export interface ChangeTracker {
+  modifiedFiles: Set<string> // File IDs with content changes
+  renamedItems: Map<string, string> // Item ID -> new name
+  movedItems: Map<string, string | null> // Item ID -> new parent ID
+  deletedItems: Set<string> // Item IDs that were deleted
+}
+
 let syncStrategyInstance: SyncStrategy | null = null
+let changeTracker: ChangeTracker = {
+  modifiedFiles: new Set(),
+  renamedItems: new Map(),
+  movedItems: new Map(),
+  deletedItems: new Set()
+}
 
 export function initializeSyncStrategy(): SyncStrategy {
   if (syncStrategyInstance) {
     return syncStrategyInstance
   }
-  
+
   // Choose strategy based on environment
   if (import.meta.env.DEV) {
     console.log('🔄 [Sync] Using Direct Async strategy (Development mode)')
@@ -676,7 +812,7 @@ export function initializeSyncStrategy(): SyncStrategy {
     console.log('🔄 [Sync] Using Polling strategy (Fallback)')
     syncStrategyInstance = new PollingStrategy()
   }
-  
+
   return syncStrategyInstance
 }
 
@@ -686,28 +822,42 @@ export function getSyncStrategyInstance(): SyncStrategy {
   }
   return syncStrategyInstance
 }
+
+export function getChangeTracker(): ChangeTracker {
+  return changeTracker
+}
+
+export function clearChangeTracker(): void {
+  changeTracker = {
+    modifiedFiles: new Set(),
+    renamedItems: new Map(),
+    movedItems: new Map(),
+    deletedItems: new Set()
+  }
+}
 ```
 
-#### 2. Create Direct Async Strategy (For Development)
+#### 4. Create Direct Async Strategy with Partial Sync
 
 ```typescript
 // src/core/services/strategies/DirectAsyncStrategy.ts
 import type { SyncStrategy, SyncStatus, SyncResult } from './types'
 import { db } from '../indexedDBService'
 import { googleDriveService } from '../googleDriveService'
+import { getChangeTracker, clearChangeTracker } from '../syncStrategy'
 
 export class DirectAsyncStrategy implements SyncStrategy {
   private isSyncing = false
   private lastSyncTime: number | null = null
   private syncInterval: number | null = null
-  
+
   constructor() {
     // Auto-sync every 5 minutes in development
     this.syncInterval = window.setInterval(() => {
       void this.syncAll()
     }, 5 * 60 * 1000) as unknown as number
   }
-  
+
   async getStatus(): Promise<SyncStatus> {
     return {
       strategy: 'direct',
@@ -717,49 +867,111 @@ export class DirectAsyncStrategy implements SyncStrategy {
       pendingChanges: await this.getPendingChangesCount()
     }
   }
-  
+
+  /**
+   * Partial sync - only sync changed items
+   */
   async syncVault(vaultId: string): Promise<SyncResult> {
     try {
       this.isSyncing = true
-      
-      // Get vault structure from IndexedDB
-      const fileSystemItems = await db.fileSystem.where('vaultId').equals(vaultId).toArray()
-      
+      console.log('🔄 [Sync] Starting partial sync for vault:', vaultId)
+
       // Get vault metadata
       const vault = await db.vaultMetadata.get(vaultId)
       if (!vault || !vault.folderId) {
         throw new Error('Vault not found or not initialized on Google Drive')
       }
-      
-      // Sync each file
-      const syncedFiles: string[] = []
+
+      const changeTracker = getChangeTracker()
       const errors: string[] = []
-      
-      for (const item of fileSystemItems) {
-        if (item.type === 'file' && item.fileId) {
-          try {
-            // Get document content
-            const document = await db.documents.get(item.fileId)
-            if (document) {
-              // Sync to Google Drive
-              await googleDriveService.syncFile(vault.folderId, item.fileId, document)
-              syncedFiles.push(item.id)
-            }
-          } catch (error) {
-            console.error(`Failed to sync file ${item.id}:`, error)
-            errors.push(`File ${item.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-          }
+      let syncedFiles = 0
+      let renamedItems = 0
+      let movedItems = 0
+
+      // 1. Handle deleted items
+      for (const itemId of changeTracker.deletedItems) {
+        try {
+          await googleDriveService.deleteFile(itemId)
+          console.log('🗑️ [Sync] Deleted file on Drive:', itemId)
+        } catch (error) {
+          console.error(`Failed to delete file ${itemId}:`, error)
+          errors.push(`Delete ${itemId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
       }
-      
+
+      // 2. Handle renamed items
+      for (const [itemId, newName] of changeTracker.renamedItems) {
+        try {
+          const item = await db.fileSystem.get(itemId)
+          if (item && item.driveFileId) {
+            await googleDriveService.renameFile(item.driveFileId, newName)
+            console.log('✏️ [Sync] Renamed file on Drive:', itemId, '->', newName)
+            renamedItems++
+          }
+        } catch (error) {
+          console.error(`Failed to rename file ${itemId}:`, error)
+          errors.push(`Rename ${itemId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      }
+
+      // 3. Handle moved items (folder structure changes)
+      for (const [itemId, newParentId] of changeTracker.movedItems) {
+        try {
+          const item = await db.fileSystem.get(itemId)
+          if (item && item.driveFileId) {
+            const newParent = newParentId ? await db.fileSystem.get(newParentId) : null
+            const newParentDriveId = newParent?.driveFileId || vault.folderId
+            await googleDriveService.moveFile(item.driveFileId, newParentDriveId)
+            console.log('📁 [Sync] Moved file on Drive:', itemId, '->', newParentId)
+            movedItems++
+          }
+        } catch (error) {
+          console.error(`Failed to move file ${itemId}:`, error)
+          errors.push(`Move ${itemId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      }
+
+      // 4. Handle modified files (content changes)
+      for (const fileId of changeTracker.modifiedFiles) {
+        try {
+          const item = await db.fileSystem.get(fileId)
+          if (item && item.type === 'file' && item.fileId) {
+            const document = await db.documents.get(item.fileId)
+            if (document) {
+              // Sync content to Google Drive
+              await googleDriveService.updateFileContent(item.driveFileId!, document)
+              console.log('💾 [Sync] Updated file content on Drive:', fileId)
+              syncedFiles++
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to sync file ${fileId}:`, error)
+          errors.push(`Sync ${fileId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      }
+
+      // 5. Update .repository.json file with latest structure
+      try {
+        await this.updateRepositoryFile(vaultId, vault.folderId)
+        console.log('📄 [Sync] Updated .repository.json')
+      } catch (error) {
+        console.error('Failed to update .repository.json:', error)
+        errors.push('Failed to update .repository.json')
+      }
+
+      // Clear change tracker after successful sync
+      clearChangeTracker()
+
       this.lastSyncTime = Date.now()
-      
+
       return {
         success: errors.length === 0,
-        syncedFiles: syncedFiles.length,
+        syncedFiles,
+        renamedItems,
+        movedItems,
         errors: errors.length > 0 ? errors : undefined
       }
-      
+
     } catch (error) {
       console.error('Direct sync failed:', error)
       return {
@@ -770,36 +982,26 @@ export class DirectAsyncStrategy implements SyncStrategy {
       this.isSyncing = false
     }
   }
-  
+
   async syncAll(): Promise<SyncResult> {
     try {
       this.isSyncing = true
-      
-      // Get all vaults
-      const centralIndex = await db.centralIndex.get('central')
-      if (!centralIndex) {
+
+      // Get active vault (only one vault in IndexedDB at a time)
+      const vaultsIndex = await db.vaultsIndex.get('vaults')
+      if (!vaultsIndex || vaultsIndex.vaults.length === 0) {
         return { success: false, errors: ['No vaults found'] }
       }
-      
-      const results: SyncResult[] = []
-      
-      for (const vault of Object.values(centralIndex.vaults)) {
-        const result = await this.syncVault(vault.id)
-        results.push(result)
+
+      // Find active vault
+      const activeVault = vaultsIndex.vaults.find(v => v.isActive)
+      if (!activeVault) {
+        return { success: false, errors: ['No active vault'] }
       }
-      
-      // Combine results
-      const allErrors = results.flatMap(r => r.errors || [])
-      const totalSyncedFiles = results.reduce((sum, r) => sum + (r.syncedFiles || 0), 0)
-      
-      this.lastSyncTime = Date.now()
-      
-      return {
-        success: allErrors.length === 0,
-        syncedFiles: totalSyncedFiles,
-        errors: allErrors.length > 0 ? allErrors : undefined
-      }
-      
+
+      // Sync only the active vault
+      return await this.syncVault(activeVault.id)
+
     } catch (error) {
       console.error('Direct sync all failed:', error)
       return {
@@ -810,18 +1012,79 @@ export class DirectAsyncStrategy implements SyncStrategy {
       this.isSyncing = false
     }
   }
-  
-  private async getPendingChangesCount(): Promise<number> {
-    // Count files modified since last sync
-    const lastSync = this.lastSyncTime
-    if (!lastSync) return 0
-    
-    return await db.fileSystem
-      .where('modified')
-      .above(lastSync)
-      .count()
+
+  /**
+   * Update .repository.json file with current vault structure
+   * This allows efficient sync by comparing timestamps
+   */
+  private async updateRepositoryFile(vaultId: string, vaultFolderId: string): Promise<void> {
+    // Get all files and folders in vault
+    const fileSystemItems = await db.fileSystem.where('vaultId').equals(vaultId).toArray()
+
+    // Build repository structure
+    const repositoryStructure: Record<string, any> = {}
+
+    for (const item of fileSystemItems) {
+      if (item.type === 'folder') {
+        repositoryStructure[item.id] = {
+          id: item.id,
+          name: item.name,
+          type: 'folder',
+          parentId: item.parentId,
+          driveFileId: item.driveFileId,
+          created: item.created,
+          modified: item.modified
+        }
+      } else if (item.type === 'file') {
+        const document = await db.documents.get(item.fileId!)
+        repositoryStructure[item.id] = {
+          id: item.id,
+          name: item.name,
+          type: 'file',
+          parentId: item.parentId,
+          driveFileId: item.driveFileId,
+          fileId: item.fileId,
+          created: item.created,
+          modified: item.modified,
+          size: document ? JSON.stringify(document).length : 0
+        }
+      }
+    }
+
+    // Get vault metadata
+    const vault = await db.vaultMetadata.get(vaultId)
+
+    // Create repository content
+    const repositoryContent = {
+      version: '1.0',
+      vaultId: vaultId,
+      vaultName: vault?.name || 'Unknown',
+      lastSynced: Date.now(),
+      structure: repositoryStructure
+    }
+
+    // Find .repository.json file in vault folder
+    const repositoryFile = await googleDriveService.findFileInFolder(vaultFolderId, '.repository.json')
+
+    if (repositoryFile) {
+      // Update existing file
+      await googleDriveService.updateFileContent(repositoryFile.id, repositoryContent)
+    } else {
+      // Create new file
+      await googleDriveService.createFile(vaultFolderId, '.repository.json', repositoryContent)
+    }
   }
-  
+
+  private async getPendingChangesCount(): Promise<number> {
+    const changeTracker = getChangeTracker()
+    return (
+      changeTracker.modifiedFiles.size +
+      changeTracker.renamedItems.size +
+      changeTracker.movedItems.size +
+      changeTracker.deletedItems.size
+    )
+  }
+
   cleanup() {
     if (this.syncInterval) {
       window.clearInterval(this.syncInterval)
@@ -831,64 +1094,218 @@ export class DirectAsyncStrategy implements SyncStrategy {
 }
 ```
 
-#### 3. Create Boot File
+#### 5. Update File System Service to Track Changes
+
+```typescript
+// src/core/services/fileSystemService.ts
+import { getChangeTracker } from './syncStrategy'
+
+// Update createFile to track new files
+export async function createFile(vaultId: string, parentId: string | null, name: string, content: MindscribbleDocument): Promise<FileSystemItem> {
+  // ... existing code ...
+
+  // Track as modified for sync
+  const changeTracker = getChangeTracker()
+  changeTracker.modifiedFiles.add(newFile.id)
+
+  return newFile
+}
+
+// Update renameItem to track renames
+export async function renameItem(itemId: string, newName: string): Promise<void> {
+  // ... existing code ...
+
+  // Track rename for sync
+  const changeTracker = getChangeTracker()
+  changeTracker.renamedItems.set(itemId, newName)
+}
+
+// Update moveItem to track moves
+export async function moveItem(itemId: string, newParentId: string | null): Promise<void> {
+  // ... existing code ...
+
+  // Track move for sync
+  const changeTracker = getChangeTracker()
+  changeTracker.movedItems.set(itemId, newParentId)
+}
+
+// Update deleteItem to track deletions
+export async function deleteItem(itemId: string): Promise<void> {
+  // ... existing code ...
+
+  // Track deletion for sync
+  const changeTracker = getChangeTracker()
+  changeTracker.deletedItems.add(itemId)
+}
+
+// Update updateFileContent to track content changes
+export async function updateFileContent(fileId: string, content: MindscribbleDocument): Promise<void> {
+  // ... existing code ...
+
+  // Track as modified for sync
+  const changeTracker = getChangeTracker()
+  changeTracker.modifiedFiles.add(fileId)
+}
+```
+
+#### 6. Update Unified Document Store to Save UI State
+
+```typescript
+// src/core/stores/unifiedDocumentStore.ts
+import { UIStateService } from '../services/uiStateService'
+
+// Add watcher to save open files when they change
+watch(
+  () => openDocuments.value.map(d => d.id),
+  async (fileIds) => {
+    await UIStateService.saveOpenFiles(fileIds, activeDocumentId.value)
+  },
+  { deep: true }
+)
+
+// Add function to save dockview layout
+async function saveDockviewLayout(fileId: string, layout: unknown) {
+  await UIStateService.saveFileLayout(fileId, layout)
+}
+
+// Add function to restore UI state on app start
+async function restoreUIState() {
+  const { fileIds, activeFileId } = await UIStateService.getOpenFiles()
+
+  console.log('🔄 [UnifiedDocumentStore] Restoring UI state:', fileIds)
+
+  // Load each file from IndexedDB
+  for (const fileId of fileIds) {
+    const item = await fileSystemService.getItem(fileId)
+    if (item && item.type === 'file') {
+      const document = await fileSystemService.getFileContent(item.fileId!)
+      if (document) {
+        // Load document into store
+        await loadDocument(document, item.name)
+
+        // Restore dockview layout
+        const layout = await UIStateService.getFileLayout(fileId)
+        if (layout) {
+          // Apply layout to dockview (implementation depends on dockview API)
+          applyDockviewLayout(fileId, layout)
+        }
+      }
+    }
+  }
+
+  // Set active file
+  if (activeFileId) {
+    activeDocumentId.value = activeFileId
+  }
+}
+
+// Export for use in app initialization
+return {
+  // ... existing exports
+  saveDockviewLayout,
+  restoreUIState
+}
+```
+
+#### 7. Create Boot File
 
 ```typescript
 // src/boot/sync.ts
 import { boot } from 'quasar/wrappers'
 import { initializeSyncStrategy } from 'src/core/services/syncStrategy'
+import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 
 export default boot(async () => {
   console.log('🔄 [Boot] Initializing sync strategy...')
-  
+
   try {
     const syncStrategy = initializeSyncStrategy()
-    
+
     // Log which strategy is being used
     const status = await syncStrategy.getStatus()
     console.log(`🔄 [Boot] Using sync strategy: ${status.strategy}`)
-    
+
+    // Restore UI state (open files and layouts)
+    const documentStore = useUnifiedDocumentStore()
+    await documentStore.restoreUIState()
+    console.log('🔄 [Boot] UI state restored')
+
     // Expose to window for debugging
     if (import.meta.env.DEV) {
       window.__SYNC_STRATEGY__ = syncStrategy
     }
-    
+
   } catch (error) {
     console.error('🔄 [Boot] Failed to initialize sync strategy:', error)
   }
 })
 ```
 
-#### 4. Update quasar.config.ts
+#### 8. Update quasar.config.ts
 
 ```typescript
 // Add sync to boot files
 boot: [
   'indexedDB',
   'google-api',
-  'sync', // Add this
+  'sync', // Add this - must be after indexedDB
   // ... other boot files
 ]
 ```
 
 **Files to Create/Modify**:
+- `src/core/services/indexedDBService.ts` (update - add uiState and fileLayouts tables)
+- `src/core/services/uiStateService.ts` (new)
 - `src/core/services/syncStrategy.ts` (new)
 - `src/core/services/strategies/DirectAsyncStrategy.ts` (new)
 - `src/core/services/strategies/ServiceWorkerStrategy.ts` (new)
 - `src/core/services/strategies/PollingStrategy.ts` (new)
 - `src/core/services/strategies/types.ts` (new)
+- `src/core/services/fileSystemService.ts` (update - add change tracking)
+- `src/core/stores/unifiedDocumentStore.ts` (update - add UI state persistence)
 - `src/boot/sync.ts` (new)
 - `quasar.config.ts` (update)
 
 **Benefits**:
-- ✅ Works in development without HTTPS
-- ✅ Automatic strategy selection based on environment
-- ✅ Easy debugging with Direct Async strategy
-- ✅ Future-proof for production deployment
+- ✅ **Partial sync only** - Only changed files/folders are synced
+- ✅ **Change tracking** - All operations (rename, move, delete, update) are tracked
+- ✅ **UI state persistence** - Open files and layouts are saved
+- ✅ **Seamless restore** - App reopens with same files and layouts
+- ✅ **Background sync** - Automatic sync every 5 minutes
+- ✅ **Works in development** - No HTTPS required
 
-### Phase 6: Google Drive Initialization with OAuth
+### Phase 6: First-Time Initialization and Google Drive Sync
 
-**Objective**: Initialize vault structure on Google Drive with proper OAuth token management.
+**Objective**: Handle first-time app usage, create default vault, initialize Google Drive structure with proper repository files.
+
+**Google Drive Structure**:
+```
+MindScribble/                    (App folder)
+├── .vaults                      (Index of all vaults)
+├── .lock                        (Lock file for concurrent access)
+├── Vault 1/                     (Vault folder)
+│   ├── .repository.json         (Vault structure snapshot for sync)
+│   ├── file1.json               (File - changed from .mindscribble)
+│   ├── folder1/                 (Folder)
+│   │   ├── file2.json
+│   │   └── file3.json
+│   └── ...
+├── Vault 2/                     (Another vault)
+│   ├── .repository.json
+│   └── file4.json
+└── ...
+```
+
+**Key Requirements**:
+- ✅ **First-time setup** - Create default vault "My Vault" on first app launch
+- ✅ **Google Drive folder** - Create "MindScribble" app folder on Google Drive
+- ✅ **Vaults index file** - Create and maintain `.vaults` index file
+- ✅ **Lock file** - Create `.lock` file for concurrent access control
+- ✅ **Repository files** - Create `.repository.json` per vault for efficient sync
+- ✅ **File extension** - Use `.json` instead of `.mindscribble`
+- ✅ **Vault sync** - Sync vault structure and files to Google Drive
+- ✅ **OAuth management** - Handle token refresh automatically
+- ✅ **Offline support** - Work offline, sync when online
 
 **Implementation**:
 
@@ -899,23 +1316,23 @@ boot: [
 export class GoogleAuthService {
   private static tokenRefreshTimer: number | null = null
   private static isRefreshing = false
-  
+
   static async refreshTokenIfNeeded(): Promise<void> {
     if (this.isRefreshing) return
-    
+
     try {
       this.isRefreshing = true
-      
+
       const token = gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse()
       const expiresIn = token.expires_in
-      
+
       // Refresh 5 minutes before expiry
       if (expiresIn < 300) {
         console.log('🔑 [GoogleAuth] Refreshing token...')
         await gapi.auth2.getAuthInstance().currentUser.get().reloadAuthResponse()
         console.log('🔑 [GoogleAuth] Token refreshed successfully')
       }
-      
+
     } catch (error) {
       console.error('🔑 [GoogleAuth] Failed to refresh token:', error)
       throw new Error('Failed to refresh Google OAuth token')
@@ -923,28 +1340,28 @@ export class GoogleAuthService {
       this.isRefreshing = false
     }
   }
-  
+
   static startTokenRefreshTimer(): void {
     // Stop existing timer
     if (this.tokenRefreshTimer) {
       window.clearInterval(this.tokenRefreshTimer)
     }
-    
+
     // Refresh every 50 minutes
     this.tokenRefreshTimer = window.setInterval(() => {
       void this.refreshTokenIfNeeded()
     }, 50 * 60 * 1000) as unknown as number
-    
+
     console.log('🔑 [GoogleAuth] Started token refresh timer')
   }
-  
+
   static stopTokenRefreshTimer(): void {
     if (this.tokenRefreshTimer) {
       window.clearInterval(this.tokenRefreshTimer)
       this.tokenRefreshTimer = null
     }
   }
-  
+
   static async ensureAuthenticated(): Promise<boolean> {
     try {
       // Check if already authenticated
@@ -953,9 +1370,9 @@ export class GoogleAuthService {
         await this.refreshTokenIfNeeded()
         return true
       }
-      
+
       return false
-      
+
     } catch (error) {
       console.error('🔑 [GoogleAuth] Authentication check failed:', error)
       return false
@@ -964,62 +1381,390 @@ export class GoogleAuthService {
 }
 ```
 
-#### 2. Update Google Drive Initialization Service
+#### 2. Create Google Drive Initialization Service
 
 ```typescript
 // src/core/services/googleDriveInitialization.ts
+import { db } from './indexedDBService'
+import { GoogleAuthService } from './googleAuthService'
+import { googleDriveService } from './googleDriveService'
+
 export class GoogleDriveInitializationService {
-  
-  static async initialize(): Promise<void> {
+  private static MINDSCRIBBLE_FOLDER_NAME = 'MindScribble'
+  private static VAULTS_INDEX_FILE_NAME = '.vaults'
+  private static LOCK_FILE_NAME = '.lock'
+  private static REPOSITORY_FILE_NAME = '.repository.json'
+  private static FILE_EXTENSION = '.json' // Changed from .mindscribble
+
+  /**
+   * Initialize Google Drive on first-time use
+   * Creates app folder, .vaults index, .lock file, and syncs default vault
+   */
+  static async initializeFirstTime(): Promise<void> {
     try {
-      console.log('🗄️ [GoogleDriveInit] Starting Google Drive initialization...')
-      
+      console.log('🗄️ [GoogleDriveInit] First-time initialization...')
+
       // Ensure authentication
       const isAuthenticated = await GoogleAuthService.ensureAuthenticated()
       if (!isAuthenticated) {
-        console.log('🗄️ [GoogleDriveInit] User not authenticated, skipping initialization')
+        console.log('🗄️ [GoogleDriveInit] User not authenticated, working offline')
         return
       }
-      
+
       // Start token refresh timer
       GoogleAuthService.startTokenRefreshTimer()
-      
-      // Create Mindscribble folder if it doesn't exist
-      const mindscribbleFolder = await this.createMindscribbleFolder()
-      
-      // Get all vaults from IndexedDB
-      const centralIndex = await db.centralIndex.get('central')
-      if (!centralIndex) {
-        console.log('🗄️ [GoogleDriveInit] No vaults found in IndexedDB')
+
+      // 1. Create MindScribble app folder on Google Drive
+      const appFolder = await this.createAppFolder()
+      console.log('📁 [GoogleDriveInit] App folder created:', appFolder.id)
+
+      // 2. Create .lock file for concurrent access control
+      await this.createLockFile(appFolder.id)
+      console.log('🔒 [GoogleDriveInit] Lock file created')
+
+      // 3. Get vaults from IndexedDB
+      const vaultsIndex = await db.vaultsIndex.get('vaults')
+      if (!vaultsIndex || vaultsIndex.vaults.length === 0) {
+        console.log('🗄️ [GoogleDriveInit] No vaults in IndexedDB')
         return
       }
-      
-      // Initialize each vault on Google Drive
-      for (const vault of Object.values(centralIndex.vaults)) {
-        await this.initializeVaultOnGoogleDrive(vault, mindscribbleFolder.id)
+
+      // 4. Create .vaults index file on Google Drive
+      await this.createVaultsIndexFile(appFolder.id, vaultsIndex.vaults)
+      console.log('📄 [GoogleDriveInit] .vaults index file created')
+
+      // 5. Initialize each vault on Google Drive
+      for (const vault of vaultsIndex.vaults) {
+        await this.initializeVaultOnDrive(vault, appFolder.id)
       }
-      
-      console.log('🗄️ [GoogleDriveInit] Google Drive initialization complete')
-      
+
+      console.log('✅ [GoogleDriveInit] First-time initialization complete')
+
     } catch (error) {
-      console.error('🗄️ [GoogleDriveInit] Failed to initialize Google Drive:', error)
-      throw new Error('Google Drive initialization failed')
+      console.error('❌ [GoogleDriveInit] First-time initialization failed:', error)
+      // Don't throw - allow offline usage
     }
   }
-  
-  // ... rest of the implementation
+
+  /**
+   * Create .lock file for concurrent access control
+   */
+  private static async createLockFile(appFolderId: string): Promise<void> {
+    const lockContent = {
+      version: '1.0',
+      created: Date.now(),
+      lastAccessed: Date.now(),
+      lockedBy: null // null = unlocked
+    }
+
+    // Check if .lock file already exists
+    const existingFile = await googleDriveService.findFileInFolder(appFolderId, this.LOCK_FILE_NAME)
+
+    if (!existingFile) {
+      await googleDriveService.createFile(appFolderId, this.LOCK_FILE_NAME, lockContent)
+      console.log('🔒 [GoogleDriveInit] Created .lock file')
+    }
+  }
+
+  /**
+   * Create Mindscribble app folder on Google Drive
+   */
+  private static async createAppFolder(): Promise<{ id: string, name: string }> {
+    // Check if folder already exists
+    const existingFolder = await googleDriveService.findFolder(this.MINDSCRIBBLE_FOLDER_NAME)
+    if (existingFolder) {
+      console.log('📁 [GoogleDriveInit] App folder already exists')
+      return existingFolder
+    }
+
+    // Create new folder
+    const folder = await googleDriveService.createFolder(this.MINDSCRIBBLE_FOLDER_NAME, null)
+    return folder
+  }
+
+  /**
+   * Create .vaults index file on Google Drive
+   */
+  private static async createVaultsIndexFile(
+    appFolderId: string,
+    vaults: Array<{ id: string, name: string, description?: string, created: number, modified: number }>
+  ): Promise<void> {
+    const indexContent = {
+      version: '1.0',
+      lastUpdated: Date.now(),
+      vaults: vaults.map(v => ({
+        id: v.id,
+        name: v.name,
+        description: v.description || '',
+        created: v.created,
+        modified: v.modified
+      }))
+    }
+
+    // Check if .vaults file already exists
+    const existingFile = await googleDriveService.findFileInFolder(appFolderId, this.VAULTS_INDEX_FILE_NAME)
+
+    if (existingFile) {
+      // Update existing file
+      await googleDriveService.updateFileContent(existingFile.id, indexContent)
+      console.log('📄 [GoogleDriveInit] Updated .vaults index file')
+    } else {
+      // Create new file
+      await googleDriveService.createFile(appFolderId, this.VAULTS_INDEX_FILE_NAME, indexContent)
+      console.log('📄 [GoogleDriveInit] Created .vaults index file')
+    }
+  }
+
+  /**
+   * Initialize a vault on Google Drive
+   */
+  private static async initializeVaultOnDrive(
+    vault: { id: string, name: string },
+    appFolderId: string
+  ): Promise<void> {
+    console.log('� [GoogleDriveInit] Initializing vault on Drive:', vault.name)
+
+    // 1. Create vault folder
+    const vaultFolder = await googleDriveService.createFolder(vault.name, appFolderId)
+
+    // 2. Update vault metadata with Drive folder ID
+    await db.vaultMetadata.update(vault.id, { folderId: vaultFolder.id })
+
+    // 3. Get all files and folders in this vault
+    const fileSystemItems = await db.fileSystem.where('vaultId').equals(vault.id).toArray()
+
+    // 4. Build repository structure for .repository.json
+    const repositoryStructure: Record<string, any> = {}
+
+    // 5. Sync all files and folders
+    for (const item of fileSystemItems) {
+      if (item.type === 'folder') {
+        // Create folder on Drive
+        const parentDriveId = item.parentId
+          ? (await db.fileSystem.get(item.parentId))?.driveFileId || vaultFolder.id
+          : vaultFolder.id
+        const driveFolder = await googleDriveService.createFolder(item.name, parentDriveId)
+
+        // Store Drive folder ID
+        await db.fileSystem.update(item.id, { driveFileId: driveFolder.id })
+
+        // Add to repository structure
+        repositoryStructure[item.id] = {
+          id: item.id,
+          name: item.name,
+          type: 'folder',
+          parentId: item.parentId,
+          driveFileId: driveFolder.id,
+          created: item.created,
+          modified: item.modified
+        }
+
+      } else if (item.type === 'file' && item.fileId) {
+        // Create file on Drive with .json extension
+        const document = await db.documents.get(item.fileId)
+        if (document) {
+          const parentDriveId = item.parentId
+            ? (await db.fileSystem.get(item.parentId))?.driveFileId || vaultFolder.id
+            : vaultFolder.id
+
+          // Use .json extension instead of .mindscribble
+          const fileName = item.name.endsWith('.json') ? item.name : `${item.name}.json`
+          const driveFile = await googleDriveService.createFile(parentDriveId, fileName, document)
+
+          // Store Drive file ID
+          await db.fileSystem.update(item.id, { driveFileId: driveFile.id })
+
+          // Add to repository structure
+          repositoryStructure[item.id] = {
+            id: item.id,
+            name: item.name,
+            type: 'file',
+            parentId: item.parentId,
+            driveFileId: driveFile.id,
+            fileId: item.fileId,
+            created: item.created,
+            modified: item.modified,
+            size: JSON.stringify(document).length
+          }
+        }
+      }
+    }
+
+    // 6. Create .repository.json file
+    const repositoryContent = {
+      version: '1.0',
+      vaultId: vault.id,
+      vaultName: vault.name,
+      lastSynced: Date.now(),
+      structure: repositoryStructure
+    }
+
+    await googleDriveService.createFile(
+      vaultFolder.id,
+      this.REPOSITORY_FILE_NAME,
+      repositoryContent
+    )
+    console.log('📄 [GoogleDriveInit] Created .repository.json for vault:', vault.name)
+
+    console.log('✅ [GoogleDriveInit] Vault initialized on Drive:', vault.name)
+  }
+
+  /**
+   * Update .vaults index file when vaults change
+   */
+  static async updateVaultsIndex(): Promise<void> {
+    try {
+      const isAuthenticated = await GoogleAuthService.ensureAuthenticated()
+      if (!isAuthenticated) {
+        console.log('🗄️ [GoogleDriveInit] Not authenticated, skipping index update')
+        return
+      }
+
+      // Get app folder
+      const appFolder = await googleDriveService.findFolder(this.MINDSCRIBBLE_FOLDER_NAME)
+      if (!appFolder) {
+        console.log('🗄️ [GoogleDriveInit] App folder not found, skipping index update')
+        return
+      }
+
+      // Get vaults from IndexedDB
+      const vaultsIndex = await db.vaultsIndex.get('vaults')
+      if (!vaultsIndex) {
+        return
+      }
+
+      // Update .vaults file
+      await this.createVaultsIndexFile(appFolder.id, vaultsIndex.vaults)
+      console.log('✅ [GoogleDriveInit] .vaults index updated')
+
+    } catch (error) {
+      console.error('❌ [GoogleDriveInit] Failed to update vaults index:', error)
+    }
+  }
+}
+```
+
+#### 3. Update IndexedDB Boot to Handle First-Time Setup
+
+```typescript
+// src/boot/indexedDB.ts
+import { boot } from 'quasar/wrappers'
+import { db } from '../core/services/indexedDBService'
+import { useAppStore } from '../core/stores/appStore'
+import { GoogleDriveInitializationService } from '../core/services/googleDriveInitialization'
+
+export default boot(async () => {
+  console.log('🗄️ [IndexedDB Boot] Initializing IndexedDB database...')
+
+  try {
+    // Open the database connection
+    await db.open()
+    console.log('🗄️ [IndexedDB Boot] Database opened successfully, version:', db.verno)
+
+    // Check if this is first-time use
+    const vaultsIndex = await db.vaultsIndex.get('vaults')
+
+    if (!vaultsIndex || vaultsIndex.vaults.length === 0) {
+      console.log('🗄️ [IndexedDB Boot] First-time use, creating default vault...')
+
+      // Create default vault
+      const defaultVault = {
+        id: 'default-vault',
+        name: 'My Vault',
+        description: 'Default vault created on first use',
+        created: Date.now(),
+        modified: Date.now(),
+        isActive: true,
+        folderId: '', // Will be set when synced to Google Drive
+        fileCount: 0,
+        folderCount: 0,
+        size: 0
+      }
+
+      // Create vaults index
+      const newVaultsIndex = {
+        id: 'vaults',
+        version: '1.0',
+        lastUpdated: Date.now(),
+        vaults: [defaultVault]
+      }
+
+      await db.vaultsIndex.add(newVaultsIndex)
+      await db.vaultMetadata.add(defaultVault)
+
+      console.log('✅ [IndexedDB Boot] Default vault created')
+
+      // Initialize Google Drive (if authenticated)
+      await GoogleDriveInitializationService.initializeFirstTime()
+    } else {
+      console.log('🗄️ [IndexedDB Boot] Existing vaults found:', vaultsIndex.vaults.length)
+    }
+
+    // Get the app store and set IndexedDB initialization status
+    const appStore = useAppStore()
+    appStore.setIndexedDBInitialized(true)
+
+    console.log('🗄️ [IndexedDB Boot] IndexedDB initialization complete')
+
+  } catch (error) {
+    console.error('🗄️ [IndexedDB Boot] Failed to initialize IndexedDB:', error)
+
+    // Get the app store and set initialization error
+    const appStore = useAppStore()
+    appStore.setIndexedDBInitialized(false)
+    appStore.setIndexedDBError(error instanceof Error ? error.message : 'Unknown error')
+  }
+})
+```
+
+#### 4. Update Vault Store to Sync Index on Changes
+
+```typescript
+// src/core/stores/vaultStore.ts
+import { GoogleDriveInitializationService } from '../services/googleDriveInitialization'
+
+// Update createNewVault to sync index
+async function createNewVault(name: string, description?: string) {
+  // ... existing code ...
+
+  // Update .vaults index on Google Drive
+  await GoogleDriveInitializationService.updateVaultsIndex()
+
+  return newVault
+}
+
+// Update renameExistingVault to sync index
+async function renameExistingVault(vaultId: string, newName: string) {
+  // ... existing code ...
+
+  // Update .vaults index on Google Drive
+  await GoogleDriveInitializationService.updateVaultsIndex()
+}
+
+// Update deleteExistingVault to sync index
+async function deleteExistingVault(vaultId: string) {
+  // ... existing code ...
+
+  // Update .vaults index on Google Drive
+  await GoogleDriveInitializationService.updateVaultsIndex()
 }
 ```
 
 **Files to Create/Modify**:
 - `src/core/services/googleAuthService.ts` (new)
-- `src/core/services/googleDriveInitialization.ts` (update)
+- `src/core/services/googleDriveInitialization.ts` (new)
+- `src/core/services/googleDriveService.ts` (update - add helper methods)
+- `src/core/services/indexedDBService.ts` (update - add driveFileId to FileSystemItem)
+- `src/boot/indexedDB.ts` (update - add first-time setup)
+- `src/core/stores/vaultStore.ts` (update - sync index on changes)
 
 **Testing**:
-- Google Drive folder creation ✅
-- Vault initialization ✅
-- .repository.json creation ✅
-- OAuth token refresh ✅
+- ✅ First-time app launch creates default vault
+- ✅ Google Drive folder creation works
+- ✅ .vaults index file is created and updated
+- ✅ Vault structure is synced to Google Drive
+- ✅ OAuth token refresh works automatically
+- ✅ Offline mode works (no errors when offline)
 
 ### Phase 8: Integration and Testing
 
