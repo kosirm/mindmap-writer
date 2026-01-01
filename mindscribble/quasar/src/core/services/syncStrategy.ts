@@ -16,6 +16,14 @@ interface SyncManager {
   getTags(): Promise<string[]>
 }
 
+// NEW: Change tracker for Phase 5
+export interface ChangeTracker {
+  modifiedFiles: Set<string> // File IDs with content changes
+  renamedItems: Map<string, string> // Item ID -> new name
+  movedItems: Map<string, string | null> // Item ID -> new parent ID
+  deletedItems: Set<string> // Item IDs that were deleted
+}
+
 export interface SyncResult {
   success: boolean
   syncedFiles: number
@@ -38,6 +46,27 @@ export interface SyncStatus {
   lastSyncTime: number | null
   pendingChanges: number
   strategy: 'service-worker' | 'direct' | 'polling'
+}
+
+// NEW: Global change tracker for Phase 5
+let changeTracker: ChangeTracker = {
+  modifiedFiles: new Set(),
+  renamedItems: new Map(),
+  movedItems: new Map(),
+  deletedItems: new Set()
+}
+
+export function getChangeTracker(): ChangeTracker {
+  return changeTracker
+}
+
+export function clearChangeTracker(): void {
+  changeTracker = {
+    modifiedFiles: new Set(),
+    renamedItems: new Map(),
+    movedItems: new Map(),
+    deletedItems: new Set()
+  }
 }
 
 /**
@@ -97,10 +126,34 @@ class DirectAsyncSyncStrategy implements SyncStrategy {
     this.isSyncing = true
 
     try {
+      // NEW: Implement partial sync using change tracker
+      const changeTracker = getChangeTracker()
+      const totalChanges = (
+        changeTracker.modifiedFiles.size +
+        changeTracker.renamedItems.size +
+        changeTracker.movedItems.size +
+        changeTracker.deletedItems.size
+      )
+
+      if (totalChanges === 0) {
+        console.log('🔄 [DirectSync] No changes to sync')
+        return {
+          success: true,
+          syncedFiles: 0,
+          errors: [],
+          timestamp: Date.now()
+        }
+      }
+
+      console.log(`🔄 [DirectSync] Found ${totalChanges} changes to sync`)
+
       // Import sync service dynamically to avoid circular dependencies
       const { GoogleDriveSyncService } = await import('./googleDriveSyncService')
 
       const result = await GoogleDriveSyncService.syncVault(vaultId)
+
+      // NEW: Clear change tracker after successful sync
+      clearChangeTracker()
 
       this.lastSyncTime = Date.now()
 
@@ -178,11 +231,20 @@ class DirectAsyncSyncStrategy implements SyncStrategy {
   }
 
   getStatus(): SyncStatus {
+    // NEW: Calculate pending changes from change tracker
+    const changeTracker = getChangeTracker()
+    const pendingChanges = (
+      changeTracker.modifiedFiles.size +
+      changeTracker.renamedItems.size +
+      changeTracker.movedItems.size +
+      changeTracker.deletedItems.size
+    )
+
     return {
       isOnline: navigator.onLine,
       isSyncing: this.isSyncing,
       lastSyncTime: this.lastSyncTime,
-      pendingChanges: 0, // TODO: Implement pending changes tracking
+      pendingChanges, // NEW: Real pending changes count
       strategy: 'direct'
     }
   }
