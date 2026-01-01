@@ -6,7 +6,7 @@
      <q-btn
        flat
        dense
-       icon="add"
+       :icon="icons.newVault"
        size="sm"
        @click="handleCreateVault"
        clickable
@@ -18,7 +18,7 @@
      <q-btn
        flat
        dense
-       icon="folder_open"
+       :icon="icons.openVault"
        size="sm"
        @click="handleOpenVault"
        clickable
@@ -26,7 +26,7 @@
        <q-tooltip>Open Vault</q-tooltip>
      </q-btn>
 
-     <q-btn flat dense icon="delete" size="sm" @click="handleDeleteVault">
+     <q-btn flat dense :icon="icons.deleteVault" size="sm" @click="handleDeleteVault">
        <q-tooltip>Delete Vault</q-tooltip>
      </q-btn>
    </div>
@@ -41,10 +41,10 @@
 
     <!-- File Operations -->
     <div class="toolbar-section">
-      <q-btn flat dense icon="note_add" size="sm" @click="handleAddFile">
+      <q-btn flat dense :icon="icons.addFile" size="sm" @click="handleAddFile">
         <q-tooltip>Add File</q-tooltip>
       </q-btn>
-      <q-btn flat dense icon="create_new_folder" size="sm" @click="handleAddFolder">
+      <q-btn flat dense :icon="icons.addFolder" size="sm" @click="handleAddFolder">
         <q-tooltip>Add Folder</q-tooltip>
       </q-btn>
     </div>
@@ -53,10 +53,10 @@
 
     <!-- View Controls -->
     <div class="toolbar-section">
-      <q-btn flat dense icon="unfold_more" size="sm" @click="handleExpandAll">
+      <q-btn flat dense :icon="icons.expandAll" size="sm" @click="handleExpandAll">
         <q-tooltip>Expand all</q-tooltip>
       </q-btn>
-      <q-btn flat dense icon="unfold_less" size="sm" @click="handleCollapseAll">
+      <q-btn flat dense :icon="icons.collapseAll" size="sm" @click="handleCollapseAll">
         <q-tooltip>Collapse all</q-tooltip>
       </q-btn>
     </div>
@@ -68,6 +68,7 @@
 <script setup lang="ts">
 import { useQuasar } from 'quasar'
 import { useVaultStore } from 'src/core/stores/vaultStore'
+import { getVaultIcon } from 'src/shared/utils/vaultIcons'
 import type { MindpadDocument } from 'src/core/types'
 import VaultCreationDialog from './VaultCreationDialog.vue'
 import VaultSelectionDialog from './VaultSelectionDialog.vue'
@@ -76,6 +77,17 @@ console.log('🔧 [VaultToolbar] Component loaded')
 
 const $q = useQuasar()
 const vaultStore = useVaultStore()
+
+// Vault icons
+const icons = {
+  newVault: getVaultIcon('new-vault'),
+  openVault: getVaultIcon('open-vault'),
+  deleteVault: getVaultIcon('delete-vault'),
+  addFile: getVaultIcon('add-file'),
+  addFolder: getVaultIcon('add-folder'),
+  expandAll: getVaultIcon('expand-all'),
+  collapseAll: getVaultIcon('collapse-all')
+}
 
 console.log('🔧 [VaultToolbar] $q:', !!$q, 'vaultStore:', !!vaultStore)
 
