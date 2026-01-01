@@ -16,6 +16,7 @@ import type { MindpadDocument } from '../types'
 import { VaultMetadataService } from '../services/vaultMetadataService'
 import * as fileSystemService from '../services/fileSystemService'
 import { db } from '../services/indexedDBService'
+import { GoogleDriveInitializationService } from '../services/googleDriveInitialization'
 
 export const useVaultStore = defineStore('vaults', () => {
   // ============================================================
@@ -258,6 +259,9 @@ export const useVaultStore = defineStore('vaults', () => {
       // Update local state
       await loadAllVaults(source)
 
+      // Update .vaults index on Google Drive
+      await GoogleDriveInitializationService.updateVaultsIndex()
+
       // Emit events
       eventBus.emit('vault:created', { vaultId: newVault.id, vaultName: newVault.name, vaultMetadata: newVault, source })
       eventBus.emit('vault:activated', { vaultId: newVault.id, vaultName: newVault.name, vaultMetadata: newVault, source })
@@ -306,6 +310,9 @@ export const useVaultStore = defineStore('vaults', () => {
 
       vaultRevision.value++
 
+      // Update .vaults index on Google Drive
+      await GoogleDriveInitializationService.updateVaultsIndex()
+
       // Emit event
       eventBus.emit('vault:deleted', { vaultId, source })
     } catch (err) {
@@ -342,6 +349,9 @@ export const useVaultStore = defineStore('vaults', () => {
       }
 
       vaultRevision.value++
+
+      // Update .vaults index on Google Drive
+      await GoogleDriveInitializationService.updateVaultsIndex()
 
       eventBus.emit('vault:item-renamed', {
         source: 'store',

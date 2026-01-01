@@ -349,3 +349,123 @@ export async function getFileMetadata(fileId: string): Promise<DriveFileMetadata
     throw error
   }
 }
+
+// ============================================================
+// HELPER METHODS FOR PHASE 6
+// ============================================================
+
+/**
+ * Find folder by name in root
+ */
+export async function findDriveFolder(name: string): Promise<{ id: string, name: string } | null> {
+  try {
+    const response = await gapi.client.drive.files.list({
+      q: `mimeType='application/vnd.google-apps.folder' and name='${name}' and trashed=false`,
+      fields: 'files(id, name)',
+      spaces: 'drive'
+    })
+
+    const files = response.result.files || []
+    return files.length > 0 && files[0] ? { id: files[0].id!, name: files[0].name! } : null
+
+  } catch (error) {
+    console.error('Failed to find folder:', error)
+    return null
+  }
+}
+
+/**
+ * Find file in specific folder
+ */
+export async function findFileInFolder(folderId: string, fileName: string): Promise<{ id: string, name: string } | null> {
+  try {
+    const response = await gapi.client.drive.files.list({
+      q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
+      fields: 'files(id, name)',
+      spaces: 'drive'
+    })
+
+    const files = response.result.files || []
+    return files.length > 0 && files[0] ? { id: files[0].id!, name: files[0].name! } : null
+
+  } catch (error) {
+    console.error('Failed to find file in folder:', error)
+    return null
+  }
+}
+
+/**
+ * Create folder in parent
+ */
+export async function createDriveFolder(name: string, parentId: string | null): Promise<{ id: string, name: string }> {
+  try {
+    const fileMetadata = {
+      name: name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: parentId ? [parentId] : []
+    }
+
+    const response = await gapi.client.drive.files.create({
+      resource: fileMetadata,
+      fields: 'id, name'
+    })
+
+    return { id: response.result.id!, name: response.result.name! }
+
+  } catch (error) {
+    console.error('Failed to create folder:', error)
+    throw new Error('Failed to create folder')
+  }
+}
+
+/**
+ * Create file in parent
+ */
+export async function createDriveFile(parentId: string, fileName: string, content: unknown): Promise<{ id: string, name: string }> {
+  try {
+    const fileMetadata = {
+      name: fileName,
+      parents: [parentId]
+    }
+
+    const media = {
+      mimeType: 'application/json',
+      body: JSON.stringify(content, null, 2)
+    }
+
+    const response = await gapi.client.drive.files.create({
+      resource: fileMetadata,
+      // @ts-expect-error - media property is valid in Google Drive API but not in types
+      media: media,
+      fields: 'id, name'
+    })
+
+    return { id: response.result.id!, name: response.result.name! }
+
+  } catch (error) {
+    console.error('Failed to create file:', error)
+    throw new Error('Failed to create file')
+  }
+}
+
+/**
+ * Update file content
+ */
+export async function updateDriveFileContent(fileId: string, content: unknown): Promise<void> {
+  try {
+    const media = {
+      mimeType: 'application/json',
+      body: JSON.stringify(content, null, 2)
+    }
+
+    await gapi.client.drive.files.update({
+      fileId: fileId,
+      // @ts-expect-error - media property is valid in Google Drive API but not in types
+      media: media
+    })
+
+  } catch (error) {
+    console.error('Failed to update file content:', error)
+    throw new Error('Failed to update file content')
+  }
+}
