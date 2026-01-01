@@ -1,6 +1,6 @@
 <template>
   <div class="file-management">
-    <div class="vault-title text-h6 q-mb-md">
+    <div class="vault-title text-subtitle2 q-mb-md">
       <q-icon :name="vaultManagementIcon" class="q-mr-sm" />
       {{ vaultStore.activeVault?.name || 'Vault Management' }}
     </div>
@@ -28,10 +28,12 @@ const vaultManagementIcon = getVaultIcon('vault-management')
 }
 
 .vault-title {
+  padding-top: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
+  margin-bottom: 0px; // gap between title and tree toolbar
 }
 
 .vault-tree-container {
