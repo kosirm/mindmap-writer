@@ -97,6 +97,7 @@ const displayTitle = computed(() => props.item.name || '<span class="placeholder
 // Tiptap editor - use shallowRef for complex objects like Editor
 const titleEditor = shallowRef<Editor | null>(null)
 
+
 // Click handlers
 function handleItemClick() {
   // Only files can be selected
@@ -356,7 +357,6 @@ onBeforeUnmount(() => {
   padding: 4px 0px;
   border-radius: 4px;
   transition: all 0.15s ease;
-  cursor: grab;
   min-height: 32px;
   position: relative;
 
@@ -406,7 +406,6 @@ onBeforeUnmount(() => {
 .item-title-wrapper {
   flex: 1;
   min-width: 0;
-  cursor: grab;
 }
 
 .item-title {
