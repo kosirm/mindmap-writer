@@ -27,13 +27,8 @@
       />
     </div>
 
-    <!-- Drag handle (shown on hover) -->
-    <div class="drag-handle" :class="triggerClass">
-      <q-icon name="drag_indicator" size="18px" />
-    </div>
-
     <!-- Item title -->
-    <div class="item-title-wrapper">
+    <div class="item-title-wrapper" :class="triggerClass">
       <!-- Show editor when editing, otherwise show title -->
       <EditorContent
         v-if="isEditing && titleEditor"
@@ -406,37 +401,11 @@ onBeforeUnmount(() => {
   margin-right: 4px;
 }
 
-.drag-handle {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-  color: var(--ms-text-secondary);
-  border-radius: 3px;
-  opacity: 0;
-  transition: all 0.15s ease;
-
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-    color: var(--ms-text-primary);
-  }
-
-  .vault-tree-item.is-hovered &,
-  .vault-tree-item.is-selected & {
-    opacity: 1;
-  }
-}
 
 .item-title-wrapper {
   flex: 1;
   min-width: 0;
-  padding-right: 32px;
+  cursor: grab;
 }
 
 .item-title {
