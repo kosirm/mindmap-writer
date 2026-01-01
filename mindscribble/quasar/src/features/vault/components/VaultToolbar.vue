@@ -31,11 +31,11 @@
      </q-btn>
    </div>
 
-   <!-- Active Vault Indicator -->
-   <div class="active-vault-indicator" v-if="vaultStore.activeVault">
+   <!-- Active Vault Indicator - Removed as per requirements -->
+   <!-- <div class="active-vault-indicator" v-if="vaultStore.activeVault">
      <q-icon name="storage" size="16px" />
      <span class="vault-name">{{ vaultStore.activeVault.name }}</span>
-   </div>
+   </div> -->
 
    <q-separator vertical inset class="q-mx-sm" />
 

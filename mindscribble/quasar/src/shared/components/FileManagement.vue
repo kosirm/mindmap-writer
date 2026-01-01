@@ -1,8 +1,8 @@
 <template>
   <div class="file-management">
-    <div class="text-h6 q-mb-md">
-      <q-icon name="folder" class="q-mr-sm" />
-      Vault Management
+    <div class="vault-title text-h6 q-mb-md">
+      <q-icon name="database" class="q-mr-sm" />
+      {{ vaultStore.activeVault?.name || 'Vault Management' }}
     </div>
 
     <!-- Vault Tree Component -->
@@ -12,6 +12,9 @@
 
 <script setup lang="ts">
 import { VaultTree } from 'src/features/vault'
+import { useVaultStore } from 'src/core/stores/vaultStore'
+
+const vaultStore = useVaultStore()
 </script>
 
 <style scoped lang="scss">
@@ -20,6 +23,13 @@ import { VaultTree } from 'src/features/vault'
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.vault-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .vault-tree-container {
