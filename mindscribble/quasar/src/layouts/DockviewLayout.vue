@@ -19,7 +19,7 @@ import { type DockviewApi } from 'dockview-core'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useAppStore } from 'src/core/stores/appStore'
-import { eventBus, type FileSelectedPayload } from 'src/core/events'
+import { eventBus, type FileSelectedPayload, type ItemRenamedPayload } from 'src/core/events'
 import type { MindpadDocument } from 'src/core/types'
 import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
 import { getFileContent } from 'src/core/services/fileSystemService'
@@ -355,6 +355,9 @@ onMounted(() => {
   // Listen for vault file selection events
   eventBus.on('vault:file-selected', handleVaultFileSelected)
 
+  // Listen for vault item rename events
+  eventBus.on('vault:item-renamed', handleVaultItemRenamed)
+
   // Log initial state
   console.log('Drive store state:', {
     hasOpenFile: driveStore.hasOpenFile,
@@ -367,8 +370,9 @@ onUnmounted(() => {
   window.removeEventListener('beforeunload', clearParentLayoutOnUnload)
   window.removeEventListener('file:close', handleFileClose)
 
-  // Remove vault event listener
+  // Remove vault event listeners
   eventBus.off('vault:file-selected', handleVaultFileSelected)
+  eventBus.off('vault:item-renamed', handleVaultItemRenamed)
 })
 
 // Handle file close events
@@ -402,6 +406,26 @@ function handleVaultFileSelected(payload: FileSelectedPayload) {
 
   // File not open, open it
   void openFileFromVault(payload.fileId, payload.fileName)
+}
+
+/**
+ * Handle vault item rename events
+ */
+function handleVaultItemRenamed(payload: ItemRenamedPayload) {
+  // Only handle file renames (not folders)
+  if (payload.itemType !== 'file') {
+    return
+  }
+
+  console.log('Vault file renamed:', payload.itemId, 'to', payload.newName)
+
+  // Find the panel that has this file open
+  const panelToUpdate = findPanelByVaultFileId(payload.itemId)
+  if (panelToUpdate) {
+    console.log('Updating tab title for renamed file:', payload.itemId)
+    // Update the panel title to reflect the new file name
+    panelToUpdate.api.setTitle(payload.newName)
+  }
 }
 
 /**
