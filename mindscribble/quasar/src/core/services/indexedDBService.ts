@@ -34,6 +34,7 @@ export interface FileSystemItem {
   size?: number; // For files
   fileId?: string; // For files - reference to document ID
   children?: string[]; // For folders - list of child IDs
+  driveFileId?: string; // NEW: Google Drive file/folder ID
 }
 
 export interface DatabaseSettings {
@@ -385,8 +386,38 @@ export class MindPadDB extends Dexie {
       console.log('🗄️ [IndexedDB] fileLayouts table created')
     })
 
+    // Version 8 - Add driveFileId field to fileSystem for Google Drive integration
+    this.version(8).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
+      fileSystem: 'id, vaultId, parentId, type, name, sortOrder, driveFileId', // Updated
+      uiState: 'id',
+      fileLayouts: 'fileId'
+    }).upgrade(async (tx) => {
+      console.log('🗄️ [IndexedDB] Version 8: Adding driveFileId field to fileSystem')
+
+      // Add driveFileId field to existing items (initially null)
+      const fileSystemTable = tx.table('fileSystem')
+      const allItems = await fileSystemTable.toArray()
+
+      for (const item of allItems) {
+        if (!item.driveFileId) {
+          await fileSystemTable.update(item.id, { driveFileId: null })
+        }
+      }
+
+      console.log('🗄️ [IndexedDB] Added driveFileId field to', allItems.length, 'items')
+    })
+
     // Future versions can be added here:
-    // this.version(8).stores({ ... }).upgrade(tx => { ... });
+    // this.version(9).stores({ ... }).upgrade(tx => { ... });
   }
 }
 

@@ -11,3 +11,5 @@ export * from './vaultService'
 export * from './fileSystemService'
 export * from './vaultMetadataService'
 
+export { GoogleAuthService } from './googleAuthService'
+

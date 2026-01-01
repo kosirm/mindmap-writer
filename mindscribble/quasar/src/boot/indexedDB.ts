@@ -6,6 +6,7 @@
 import { boot } from 'quasar/wrappers'
 import { db } from '../core/services/indexedDBService'
 import { useAppStore } from '../core/stores/appStore'
+import { GoogleDriveInitializationService } from '../core/services/googleDriveInitialization'
 
 /**
  * Initialize IndexedDB database
@@ -22,43 +23,44 @@ export default boot(async () => {
     const fileSystemCount = await db.fileSystem.count()
     console.log('🗄️ [IndexedDB Boot] fileSystem table has', fileSystemCount, 'items')
 
-    // Check if this is a new installation or migration
-    const centralIndex = await db.centralIndex.get('central')
+    // Check if this is first-time use
+    const vaultsIndex = await db.vaultsIndex.get('vaults')
 
-    if (!centralIndex) {
-      console.log('🗄️ [IndexedDB Boot] No central index found, creating default vault...')
+    if (!vaultsIndex || vaultsIndex.vaults.length === 0) {
+      console.log('🗄️ [IndexedDB Boot] First-time use, creating default vault...')
 
-      // Create default central index with initial vault
-      const defaultCentralIndex = {
-        id: 'central',
-        version: '1.0',
-        lastUpdated: Date.now(),
-        vaults: {
-          'default-vault': {
-            id: 'default-vault',
-            name: 'My Vault',
-            description: 'Default vault created during initialization',
-            created: Date.now(),
-            modified: Date.now(),
-            folderId: '',
-            repositoryFileId: '',
-            fileCount: 0,
-            folderCount: 0,
-            size: 0,
-            isActive: true
-          }
-        }
+      // Create default vault
+      const defaultVault = {
+        id: 'default-vault',
+        name: 'My Vault',
+        description: 'Default vault created on first use',
+        created: Date.now(),
+        modified: Date.now(),
+        isActive: true,
+        folderId: '', // Will be set when synced to Google Drive
+        repositoryFileId: '', // Will be set when synced to Google Drive
+        fileCount: 0,
+        folderCount: 0,
+        size: 0
       }
 
-      // Store default central index
-      await db.centralIndex.add(defaultCentralIndex)
+      // Create vaults index
+      const newVaultsIndex = {
+        id: 'vaults',
+        version: '1.0',
+        lastUpdated: Date.now(),
+        vaults: [defaultVault]
+      }
 
-      // Store default vault metadata
-      await db.vaultMetadata.add(defaultCentralIndex.vaults['default-vault'])
+      await db.vaultsIndex.add(newVaultsIndex)
+      await db.vaultMetadata.add(defaultVault)
 
-      console.log('🗄️ [IndexedDB Boot] Default vault created successfully')
+      console.log('✅ [IndexedDB Boot] Default vault created')
+
+      // Initialize Google Drive (if authenticated)
+      await GoogleDriveInitializationService.initializeFirstTime()
     } else {
-      console.log('🗄️ [IndexedDB Boot] Existing central index found, using existing vaults')
+      console.log('🗄️ [IndexedDB Boot] Existing vaults found:', vaultsIndex.vaults.length)
     }
 
     // Get the app store and set IndexedDB initialization status
