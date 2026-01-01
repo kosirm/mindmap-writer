@@ -232,46 +232,18 @@ async function buildTreeFromVault(forceReload = false) {
 }
 
 /**
- * Validate drop operation - files can only be dropped into folders
+ * Validate drop operation using he-tree's dragContext
+ * Prevent files from being dropped into other files
  */
-function validateDrop(dropInfo: { targetId: string; sourceId: string; dropPosition: string }) {
-  const { targetId, sourceId, dropPosition } = dropInfo
+function validateDrop() {
+  // Use he-tree's dragContext to get the drag and drop information
+  // Import dragContext from '@he-tree/vue' to access:
+  // - dragContext.dragNode: the node being dragged
+  // - dragContext.targetInfo: information about the drop target
+  // - dragContext.closestNode: the closest node being hovered over
 
-  // Find target and source items
-  const findItem = (items: VaultTreeItem[]): VaultTreeItem | null => {
-    for (const item of items) {
-      if (item.id === targetId || item.id === sourceId) return item
-      const found = findItem(item.children)
-      if (found) return found
-    }
-    return null
-  }
-
-  const targetItem = findItem(treeData.value)
-  const sourceItem = findItem(treeData.value)
-
-  if (!targetItem || !sourceItem) return false
-
-  // Cannot drop files into other files
-  if (targetItem.type === 'file' && dropPosition === 'inside') {
-    $q.notify({
-      type: 'warning',
-      message: 'Cannot drop files into other files',
-      timeout: 2000
-    })
-    return false
-  }
-
-  // Cannot drop vaults (they are root level only)
-  if (sourceItem.type === 'vault') {
-    $q.notify({
-      type: 'warning',
-      message: 'Vaults cannot be moved',
-      timeout: 2000
-    })
-    return false
-  }
-
+  // For now, we'll handle validation in onTreeChange where we have
+  // full access to the tree structure and can fix invalid hierarchies
   return true
 }
 
@@ -279,6 +251,46 @@ function validateDrop(dropInfo: { targetId: string; sourceId: string; dropPositi
  * Handle tree changes from drag-and-drop
  */
 async function onTreeChange() {
+  console.log('🔍 [onTreeChange] Tree structure changed, extracting hierarchy')
+
+  // First, fix any invalid hierarchies (files containing other files)
+  const fixInvalidHierarchies = (items: VaultTreeItem[]): boolean => {
+    let fixedSomething = false
+
+    items.forEach((item, index) => {
+      // If this is a file with children, move all children to be siblings
+      if (item.type === 'file' && item.children.length > 0) {
+        console.log(`🔍 [fixInvalidHierarchies] Found file with children: ${item.text} (${item.id})`)
+
+        // Move all children to be siblings after this file
+        const childrenToMove = [...item.children]
+        item.children = [] // Clear the children from the file
+
+        // Insert children after the current item
+        items.splice(index + 1, 0, ...childrenToMove)
+        fixedSomething = true
+
+        console.log(`🔍 [fixInvalidHierarchies] Moved ${childrenToMove.length} children to be siblings`)
+      }
+
+      // Recursively check children
+      if (item.children.length > 0) {
+        const childrenFixed = fixInvalidHierarchies(item.children)
+        if (childrenFixed) {
+          fixedSomething = true
+        }
+      }
+    })
+
+    return fixedSomething
+  }
+
+  // Apply the fix
+  const hierarchiesFixed = fixInvalidHierarchies(treeData.value)
+  if (hierarchiesFixed) {
+    console.log('🔍 [onTreeChange] Fixed invalid hierarchies, re-extracting structure')
+  }
+
   // Extract hierarchy from current tree structure
   const extractHierarchy = (
     items: VaultTreeItem[],
@@ -287,6 +299,7 @@ async function onTreeChange() {
     const result: Array<{ itemId: string; parentId: string | null; order: number }> = []
 
     items.forEach((item, index) => {
+      console.log(`🔍 [extractHierarchy] Item: ${item.text} (${item.type}), parent: ${parentId || 'root'}, order: ${index}`)
       result.push({ itemId: item.id, parentId, order: index })
 
       if (item.children.length > 0) {
@@ -299,10 +312,12 @@ async function onTreeChange() {
   }
 
   const newHierarchy = extractHierarchy(treeData.value)
+  console.log('🔍 [onTreeChange] Extracted hierarchy:', newHierarchy)
 
   // Apply changes to file system
   for (const { itemId, parentId, order } of newHierarchy) {
     try {
+      console.log(`🔍 [onTreeChange] Moving item ${itemId} to parent ${parentId || 'root'}, order ${order}`)
       await vaultStore.moveExistingItem(itemId, parentId, order)
     } catch (error) {
       console.error(`Failed to move item ${itemId}:`, error)
@@ -593,5 +608,18 @@ onUnmounted(() => {
   border: 2px dashed rgba(25, 118, 210, 0.4);
   border-radius: 4px;
   min-height: 32px;
+}
+
+// Remove red circle indicator during drag operations
+:deep(.he-tree-drag-over) {
+  position: relative;
+}
+
+:deep(.he-tree-drag-over::before) {
+  display: none !important;
+}
+
+:deep(.he-tree-drag-over-circle) {
+  display: none !important;
 }
 </style>
