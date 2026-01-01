@@ -3,7 +3,8 @@
     class="vault-tree-item"
     :class="{
       'is-selected': isSelected,
-      'is-hovered': isHovered
+      'is-hovered': isHovered,
+      [triggerClass]: true
     }"
     :data-item-id="item.id"
     @mouseenter="isHovered = true"
@@ -28,7 +29,7 @@
     </div>
 
     <!-- Item title -->
-    <div class="item-title-wrapper" :class="triggerClass">
+    <div class="item-title-wrapper">
       <!-- Show editor when editing, otherwise show title -->
       <EditorContent
         v-if="isEditing && titleEditor"
@@ -355,7 +356,7 @@ onBeforeUnmount(() => {
   padding: 4px 0px;
   border-radius: 4px;
   transition: all 0.15s ease;
-  cursor: default;
+  cursor: grab;
   min-height: 32px;
   position: relative;
 
