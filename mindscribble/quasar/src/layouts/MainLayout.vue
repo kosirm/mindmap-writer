@@ -306,7 +306,7 @@ function handleMiniHover(tab: string) {
 function getDrawerTitle() {
   switch (leftDrawerTab.value) {
     case 'files':
-      return 'Vault Management'
+      return 'Vault'
     case 'tools':
       return 'Tools'
     case 'dev':

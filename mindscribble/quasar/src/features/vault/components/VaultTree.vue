@@ -566,12 +566,12 @@ onUnmounted(() => {
 
 .vault-tree-container {
   flex: 1;
-  padding: 8px;
+  padding-top: 0px;
   overflow-y: auto;
 }
 
 .vault-tree-content {
-  padding: 4px 0;
+  padding: 8px;
 }
 
 .vault-empty {

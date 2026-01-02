@@ -1,7 +1,6 @@
 <template>
   <div class="file-management">
-    <div class="vault-title text-subtitle2 q-mb-md">
-      <q-icon :name="vaultManagementIcon" class="q-mr-sm" />
+    <div class="vault-title text-subtitle2">
       {{ vaultStore.activeVault?.name || 'Vault Management' }}
     </div>
 
@@ -13,10 +12,8 @@
 <script setup lang="ts">
 import { VaultTree } from 'src/features/vault'
 import { useVaultStore } from 'src/core/stores/vaultStore'
-import { getVaultIcon } from 'src/shared/utils/vaultIcons'
 
 const vaultStore = useVaultStore()
-const vaultManagementIcon = getVaultIcon('vault-management')
 </script>
 
 <style scoped lang="scss">
@@ -28,12 +25,12 @@ const vaultManagementIcon = getVaultIcon('vault-management')
 }
 
 .vault-title {
-  padding-top: 5px;
+  padding: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  margin-bottom: 0px; // gap between title and tree toolbar
+  background-color: #F3F3F3;
 }
 
 .vault-tree-container {

@@ -1,5 +1,7 @@
 - filenames in dockview tab titles should be limited to some length, othrewise it looks ugly for long filenames
 - very long filenames should be truncated with "..." at the end also in vault tree so that when vault management is smaller than the width of the title - we don't get scrollbar on vault management, but we get truncated title instead
+- toolbar in vault management 100% width and aligned with toolbar of the outline view ✅
+- vault-title should be editable
 
 OPENING VIEWS:
 - there is a way for view to be opened on specific position relative to other views (left, right, below, above) and there is also option to set max and min width/height of the view. This we could use to open views in a specific layout. For example:
@@ -29,4 +31,15 @@ THEMING:
 - first variables for dark and light mode
 - then full theming support
 
-- toolbar in vault management 100% width and aligned with toolbar of the outline view !!!
+TESTING:
+- e2e testing with cypress/playwright
+- unit testing with vitest
+- organize testing in logical units (folders)
+
+PROJECT CLEANUP:
+- remove unused files and folders
+
+CODE CLEANUP:
+- find unused code
+- find unused files
+  
