@@ -17,3 +17,5 @@ If I click details I can see where this style is comming from (css):
 
 But I don't know whow to override this style.
 _____________________________________________________________
+
+THEME:
