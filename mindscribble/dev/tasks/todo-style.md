@@ -19,3 +19,5 @@ But I don't know whow to override this style.
 _____________________________________________________________
 
 THEME:
+--dv-activegroup-visiblepanel-tab-background-color (not working)
+htio bi imat nekakav visual clue - koji view je aktivan
