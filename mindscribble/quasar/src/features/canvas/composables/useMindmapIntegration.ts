@@ -17,7 +17,7 @@ export function useMindmapIntegration() {
     // Access the nodes array to ensure reactivity
     const doc = unifiedStore.activeDocument
     const nodes = doc?.nodes || []
-    console.log('[MindmapIntegration] Computing mindmapData (unified mode), nodes count:', nodes.length)
+    // console.log('[MindmapIntegration] Computing mindmapData (unified mode), nodes count:', nodes.length)
     return transformNodesToMindmapFormat(nodes)
   })
 

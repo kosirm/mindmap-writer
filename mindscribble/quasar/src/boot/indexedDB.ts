@@ -12,12 +12,12 @@ import { GoogleDriveInitializationService } from '../core/services/googleDriveIn
  * Initialize IndexedDB database
  */
 export default boot(async () => {
-  console.log('🗄️ [IndexedDB Boot] Initializing IndexedDB database...')
+  // console.log('🗄️ [IndexedDB Boot] Initializing IndexedDB database...')
 
   try {
     // Open the database connection
     await db.open()
-    console.log('🗄️ [IndexedDB Boot] Database opened successfully, version:', db.verno)
+    // console.log('🗄️ [IndexedDB Boot] Database opened successfully, version:', db.verno)
 
     // Debug: Check fileSystem table
     const fileSystemCount = await db.fileSystem.count()
@@ -27,7 +27,7 @@ export default boot(async () => {
     const vaultsIndex = await db.vaultsIndex.get('vaults')
 
     if (!vaultsIndex || vaultsIndex.vaults.length === 0) {
-      console.log('🗄️ [IndexedDB Boot] First-time use, creating default vault...')
+      // console.log('🗄️ [IndexedDB Boot] First-time use, creating default vault...')
 
       // Create default vault
       const defaultVault = {
@@ -55,7 +55,7 @@ export default boot(async () => {
       await db.vaultsIndex.add(newVaultsIndex)
       await db.vaultMetadata.add(defaultVault)
 
-      console.log('✅ [IndexedDB Boot] Default vault created')
+      // console.log('✅ [IndexedDB Boot] Default vault created')
 
       // Initialize Google Drive (if authenticated)
       await GoogleDriveInitializationService.initializeFirstTime()
@@ -67,7 +67,7 @@ export default boot(async () => {
     const appStore = useAppStore()
     appStore.setIndexedDBInitialized(true)
 
-    console.log('🗄️ [IndexedDB Boot] IndexedDB initialization complete')
+    // console.log('🗄️ [IndexedDB Boot] IndexedDB initialization complete')
 
   } catch (error) {
     console.error('🗄️ [IndexedDB Boot] Failed to initialize IndexedDB:', error)

@@ -122,6 +122,11 @@ provide('outlineEmitter', outlineEmitter)
 const navigation = useOutlineNavigation(treeData)
 provide('outlineNavigation', navigation)
 
+// Listen for toggle edit mode events from nodes
+outlineEmitter.on('toggle-edit-mode-from-node', () => {
+  toggleEditMode()
+})
+
 // Provide method to update local tree data (to avoid prop mutation)
 const updateLocalNodeData = (nodeId: string, updates: { title?: string; content?: string }) => {
   const updateItem = (items: OutlineTreeItem[]): boolean => {

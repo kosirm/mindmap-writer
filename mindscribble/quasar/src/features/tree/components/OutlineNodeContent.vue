@@ -9,6 +9,7 @@
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
     @click="handleNodeClick"
+    @dblclick="handleDoubleClick"
   >
     <!-- Expand/collapse button -->
     <!-- eslint-disable-next-line vue/no-mutating-props -->
@@ -136,6 +137,12 @@ function handleNodeClick(event: MouseEvent) {
       })
     }
   }
+}
+
+function handleDoubleClick() {
+  // Double-click to enter edit mode (like vault tree)
+  // Emit event to parent to toggle edit mode at tree level
+  outlineEmitter?.emit('toggle-edit-mode-from-node', {})
 }
 
 function handleTitleClick() {

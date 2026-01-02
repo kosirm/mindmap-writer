@@ -314,7 +314,7 @@ onStoreEvent('store:node-selected', ({ nodeId, source, scrollIntoView }) => {
     setTimeout(() => {
       // Try to find within the writer view container
       const writerView = document.querySelector('.writer-view')
-      console.log('WriterView: writer view element:', writerView)
+      // console.log('WriterView: writer view element:', writerView)
       if (writerView) {
         const nodeElement = writerView.querySelector(`[data-node-id="${nodeId}"]`)
         // console.log('WriterView: found element in writer view:', nodeElement)

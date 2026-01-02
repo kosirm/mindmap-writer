@@ -1314,7 +1314,7 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   async function saveDockviewLayout(documentId: string, layoutData: DockviewLayoutData) {
     await UIStateService.saveFileLayout(documentId, layoutData)
-    console.log('💾 [UnifiedDocumentStore] Saved layout for document:', documentId)
+    // console.log('💾 [UnifiedDocumentStore] Saved layout for document:', documentId)
   }
 
   /**
@@ -1329,10 +1329,10 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
    */
   async function restoreUIState() {
     try {
-      console.log('🔄 [UnifiedDocumentStore] Restoring UI state...')
+      // console.log('🔄 [UnifiedDocumentStore] Restoring UI state...')
 
       const { fileIds, activeFileId } = await UIStateService.getOpenFiles()
-      console.log('🔄 [UnifiedDocumentStore] Found open files:', fileIds)
+      // console.log('🔄 [UnifiedDocumentStore] Found open files:', fileIds)
 
       // Load each file from IndexedDB
       for (const fileId of fileIds) {
@@ -1343,13 +1343,13 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
             if (document) {
               // Load document into store
               addDocument(document)
-              console.log('🔄 [UnifiedDocumentStore] Loaded document:', document.metadata.name)
+              // console.log('🔄 [UnifiedDocumentStore] Loaded document:', document.metadata.name)
 
               // Restore dockview layout
               const layout = await getDockviewLayout(fileId)
               if (layout) {
                 saveLayout(fileId, layout)
-                console.log('🔄 [UnifiedDocumentStore] Restored layout for:', fileId)
+                // console.log('🔄 [UnifiedDocumentStore] Restored layout for:', fileId)
               }
             }
           }
@@ -1361,10 +1361,10 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
       // Set active file
       if (activeFileId) {
         setActiveDocument(activeFileId)
-        console.log('🔄 [UnifiedDocumentStore] Set active document:', activeFileId)
+        // console.log('🔄 [UnifiedDocumentStore] Set active document:', activeFileId)
       }
 
-      console.log('✅ [UnifiedDocumentStore] UI state restored successfully')
+      // console.log('✅ [UnifiedDocumentStore] UI state restored successfully')
     } catch (error) {
       console.error('❌ [UnifiedDocumentStore] Failed to restore UI state:', error)
     }

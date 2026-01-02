@@ -89,7 +89,7 @@ export default defineComponent({
 
     // Computed property for D3 data - use modelValue prop
     const d3Data = computed(() => {
-      console.log('[MindmapCore] d3Data computed, modelValue:', props.modelValue)
+      // console.log('[MindmapCore] d3Data computed, modelValue:', props.modelValue)
       return props.modelValue
     })
 
@@ -122,20 +122,20 @@ export default defineComponent({
      */
     const panToNode = (nodeId: string, retryCount = 0) => {
       if (retryCount === 0) {
-        console.log('🎯 panToNode called for node:', nodeId)
+        // console.log('🎯 panToNode called for node:', nodeId)
       }
 
       // Prevent multiple concurrent pan operations
       if (isPanning) {
         if (retryCount === 0) {
-          console.log('⚠️ Pan already in progress, skipping this request')
+          // console.log('⚠️ Pan already in progress, skipping this request')
         }
         return
       }
 
       if (!svg || !svgEle.value || !zoomBehavior || !g) {
         if (retryCount === 0) {
-          console.log('⚠️ Cannot pan: missing required elements', { svg: !!svg, svgEle: !!svgEle.value, zoomBehavior: !!zoomBehavior, g: !!g })
+          // console.log('⚠️ Cannot pan: missing required elements', { svg: !!svg, svgEle: !!svgEle.value, zoomBehavior: !!zoomBehavior, g: !!g })
         }
         return
       }
@@ -149,13 +149,13 @@ export default defineComponent({
         // If SVG doesn't have dimensions yet (e.g., panel not visible), retry up to 5 times
         if (retryCount < 5) {
           if (retryCount === 0) {
-            console.log(`⚠️ SVG has no dimensions, retrying in 100ms (attempt ${retryCount + 1}/5)`)
+            // console.log(`⚠️ SVG has no dimensions, retrying in 100ms (attempt ${retryCount + 1}/5)`)
           }
           setTimeout(() => {
             panToNode(nodeId, retryCount + 1)
           }, 100)
         } else {
-          console.log('⚠️ Cannot pan: SVG has no dimensions after 5 retries (panel may not be visible)')
+          // console.log('⚠️ Cannot pan: SVG has no dimensions after 5 retries (panel may not be visible)')
           // Clear panning flag on failure
           isPanning = false
         }
@@ -165,7 +165,7 @@ export default defineComponent({
       // Find the node element
       const nodeElement = g.select<SVGGElement>(`.node[data-id="${nodeId}"]`)
       if (!nodeElement.node()) {
-        console.log('⚠️ Node not found for panning:', nodeId)
+        // console.log('⚠️ Node not found for panning:', nodeId)
         isPanning = false
         return
       }
@@ -174,40 +174,40 @@ export default defineComponent({
       const transform = nodeElement.attr('transform')
       const match = transform?.match(/translate\(([^,]+),([^)]+)\)/) || []
       if (match.length < 3) {
-        console.log('⚠️ Could not parse node transform:', transform)
+        // console.log('⚠️ Could not parse node transform:', transform)
         isPanning = false
         return
       }
 
       const nodeX = parseFloat(match[1] || '0')
       const nodeY = parseFloat(match[2] || '0')
-      console.log('📍 Node position in g coordinates:', { nodeX, nodeY })
+      // console.log('📍 Node position in g coordinates:', { nodeX, nodeY })
 
       // Get current zoom transform
       const currentTransform = d3.zoomTransform(svgEle.value)
       const currentScale = currentTransform.k
-      console.log('🔍 Current zoom transform:', { k: currentScale, x: currentTransform.x, y: currentTransform.y })
+      // console.log('🔍 Current zoom transform:', { k: currentScale, x: currentTransform.x, y: currentTransform.y })
 
       // Get SVG dimensions
       const svgWidth = svgNode.clientWidth
       const svgHeight = svgNode.clientHeight
-      console.log('📐 SVG viewport dimensions:', { svgWidth, svgHeight })
+      // console.log('📐 SVG viewport dimensions:', { svgWidth, svgHeight })
 
       // Calculate center of SVG viewport
       const svgCenterX = svgWidth / 2
       const svgCenterY = svgHeight / 2
-      console.log('🎯 SVG viewport center:', { svgCenterX, svgCenterY })
+      // console.log('🎯 SVG viewport center:', { svgCenterX, svgCenterY })
 
       // Calculate target translation to center the node
       // We want: nodeX * k + targetX = svgCenterX
       // Therefore: targetX = svgCenterX - nodeX * k
       const targetX = svgCenterX - nodeX * currentScale
       const targetY = svgCenterY - nodeY * currentScale
-      console.log('🎯 Target translation:', { targetX, targetY })
+      // console.log('🎯 Target translation:', { targetX, targetY })
 
       // Create target transform
       const targetTransform = d3.zoomIdentity.translate(targetX, targetY).scale(currentScale)
-      console.log('🎯 Target transform:', targetTransform)
+      // console.log('🎯 Target transform:', targetTransform)
 
       // Animate to the target transform
       svg.transition()
@@ -215,13 +215,13 @@ export default defineComponent({
         .ease(d3.easeCubicOut)
         .call(zoomBehavior.transform.bind(zoomBehavior), targetTransform)
         .on('end', () => {
-          console.log('🎬 Pan animation completed for node:', nodeId)
+          // console.log('🎬 Pan animation completed for node:', nodeId)
           // Verify final position
           if (svgEle.value) {
             const finalTransform = d3.zoomTransform(svgEle.value)
             console.log('🎯 Final transform after pan:', { k: finalTransform.k, x: finalTransform.x, y: finalTransform.y })
           } else {
-            console.log('⚠️ SVG element not available when checking final transform')
+            // console.log('⚠️ SVG element not available when checking final transform')
           }
           // Clear panning flag
           isPanning = false
@@ -240,7 +240,7 @@ export default defineComponent({
       const isCtrlClick = event.ctrlKey || event.metaKey
       const isShiftClick = event.shiftKey
 
-      console.log('🎯 Node click:', nodeId, { ctrlKey: isCtrlClick, shiftKey: isShiftClick, metaKey: event.metaKey })
+      // console.log('🎯 Node click:', nodeId, { ctrlKey: isCtrlClick, shiftKey: isShiftClick, metaKey: event.metaKey })
 
       if (isShiftClick) {
         // Start rectangle selection
@@ -251,9 +251,9 @@ export default defineComponent({
 
       if (isCtrlClick) {
         // Multi-select: toggle selection
-        console.log('⌨️ Ctrl+click - toggling selection for:', nodeId)
-        console.log('📊 Current store selection:', [...unifiedStore.selectedNodeIds])
-        console.log('📊 Current local selection:', [...selectedNodeIds.value])
+        // console.log('⌨️ Ctrl+click - toggling selection for:', nodeId)
+        // console.log('📊 Current store selection:', [...unifiedStore.selectedNodeIds])
+        // console.log('📊 Current local selection:', [...selectedNodeIds.value])
 
         if (unifiedStore.selectedNodeIds.includes(nodeId)) {
           // Remove from selection
@@ -269,24 +269,24 @@ export default defineComponent({
           selectedNodeIds.value = [...unifiedStore.selectedNodeIds]
         }
 
-        console.log('📊 After update - store selection:', [...unifiedStore.selectedNodeIds])
-        console.log('📊 After update - local selection:', [...selectedNodeIds.value])
+        // console.log('📊 After update - store selection:', [...unifiedStore.selectedNodeIds])
+        // console.log('📊 After update - local selection:', [...selectedNodeIds.value])
 
         // Update styles immediately
-        console.log('🎨 About to update styles, selectedNodeIds:', [...selectedNodeIds.value])
+        // console.log('🎨 About to update styles, selectedNodeIds:', [...selectedNodeIds.value])
         void nextTick(() => {
           updateSelectedNodeStyles()
         })
       } else {
         // Single select: clear previous selection and select this node
-        console.log('🎯 Regular click - selecting:', nodeId, 'current selection:', [...selectedNodeIds.value])
+        // console.log('🎯 Regular click - selecting:', nodeId, 'current selection:', [...selectedNodeIds.value])
         // Notify store first (it will update its state)
         emit('node-select', nodeId)
         unifiedStore.selectNode(nodeId, 'mindmap')
         // Update local state to match store
         selectedNodeIds.value = [nodeId]
         // Update styles immediately
-        console.log('🎨 About to update styles, selectedNodeIds:', [...selectedNodeIds.value])
+        // console.log('🎨 About to update styles, selectedNodeIds:', [...selectedNodeIds.value])
         void nextTick(() => {
           updateSelectedNodeStyles()
         })
@@ -294,7 +294,7 @@ export default defineComponent({
     }
 
     const startRectangleSelection = (event: MouseEvent) => {
-      console.log('🎯 startRectangleSelection called, svg:', !!svg, 'g:', !!g)
+      // console.log('🎯 startRectangleSelection called, svg:', !!svg, 'g:', !!g)
       if (!svg || !g) return
 
       // Prevent default text selection behavior
@@ -304,7 +304,7 @@ export default defineComponent({
       isDraggingSelection.value = true
       selectionStart.value = { x: event.clientX, y: event.clientY }
 
-      console.log('📍 Selection start:', selectionStart.value, 'isDraggingSelection:', isDraggingSelection.value)
+      // console.log('📍 Selection start:', selectionStart.value, 'isDraggingSelection:', isDraggingSelection.value)
 
       // Add global class to prevent text selection in all panels
       document.body.classList.add('mindmap-selecting')
@@ -325,7 +325,7 @@ export default defineComponent({
       if (svgRect) {
         const startX = event.clientX - svgRect.left
         const startY = event.clientY - svgRect.top
-        console.log('📍 Rectangle start (SVG coords):', startX, startY)
+        // console.log('📍 Rectangle start (SVG coords):', startX, startY)
         selectionRectElement
           .attr('x', startX)
           .attr('y', startY)
@@ -382,8 +382,8 @@ export default defineComponent({
       if (currentG && svg && svgEle.value) {
         // Get the current transform of the g element
         const gTransform = d3.zoomTransform(svgEle.value)
-        console.log('🔍 Current zoom transform:', gTransform)
-        console.log('📦 Selection rect (SVG coords):', rect)
+        // console.log('🔍 Current zoom transform:', gTransform)
+        // console.log('📦 Selection rect (SVG coords):', rect)
 
         currentG.selectAll('.node').each(function(d: unknown) {
           const nodeData = d as { data: { id: string } }
@@ -419,13 +419,13 @@ export default defineComponent({
           )
 
           if (intersects) {
-            console.log('✅ Node intersects:', nodeData.data.id, { nodeXSvg, nodeYSvg, nodeLeft, nodeTop, nodeRight, nodeBottom })
+            // console.log('✅ Node intersects:', nodeData.data.id, { nodeXSvg, nodeYSvg, nodeLeft, nodeTop, nodeRight, nodeBottom })
             selectedNodes.push(nodeData.data.id)
           }
         })
 
         // Update selection in store
-        console.log('📦 Rectangle selection completed, selected nodes:', selectedNodes)
+        // console.log('📦 Rectangle selection completed, selected nodes:', selectedNodes)
         if (selectedNodes.length > 0) {
           unifiedStore.selectNodes(selectedNodes, 'mindmap')
           // Update local state to match store
@@ -499,7 +499,7 @@ export default defineComponent({
     }
 
     const handleNodeAction = (action: { action: string, nodeId: string }) => {
-      console.log('Node action:', action)
+      // console.log('Node action:', action)
       // Handle node actions from context menu
       switch (action.action) {
         case 'add-child':
@@ -552,7 +552,7 @@ export default defineComponent({
       g = svg.append('g')
         .attr('class', 'mindmap-main-group')
         .on('mousedown', (event: MouseEvent) => {
-          console.log('🖱️ Mousedown on main group, shiftKey:', event.shiftKey)
+          // console.log('🖱️ Mousedown on main group, shiftKey:', event.shiftKey)
           // Check if we clicked on a node (event.target will be part of a .node group)
           const target = event.target as Element
           const isNodeClick = target.closest('.node') !== null
@@ -597,9 +597,9 @@ export default defineComponent({
       // This needs to be added AFTER zoom behavior to intercept events
       if (svgEle.value) {
         svgEle.value.addEventListener('mousedown', (event: MouseEvent) => {
-          console.log('🖱️ SVG mousedown, shiftKey:', event.shiftKey)
+          // console.log('🖱️ SVG mousedown, shiftKey:', event.shiftKey)
           if (event.shiftKey) {
-            console.log('📦 Shift detected, starting rectangle selection...')
+            // console.log('📦 Shift detected, starting rectangle selection...')
             event.preventDefault()
             event.stopPropagation()
             startRectangleSelection(event)
@@ -797,7 +797,7 @@ export default defineComponent({
       // Add click handler to text group for selection
       // console.log('🔧 Setting up click handler for', gText.size(), 'text groups')
       gText.on('click', (event: MouseEvent, d) => {
-        console.log('🖐️ Click handler called for node:', d.data.id, 'event:', event, 'ctrlKey:', event.ctrlKey, 'shiftKey:', event.shiftKey)
+        // console.log('🖐️ Click handler called for node:', d.data.id, 'event:', event, 'ctrlKey:', event.ctrlKey, 'shiftKey:', event.shiftKey)
         event.stopPropagation()
         if (d.data.id) {
           handleNodeSelect(d.data.id, event)
@@ -1098,10 +1098,10 @@ export default defineComponent({
                   return
                 }
               } else {
-                console.log('No target sibling found')
+                // console.log('No target sibling found')
               }
             } else {
-              console.log('No reordering needed, dy too small or no parent')
+              // console.log('No reordering needed, dy too small or no parent')
             }
 
             // No valid operation, snap back to original position with smooth animation
@@ -1128,14 +1128,14 @@ export default defineComponent({
       if (!svgNode.clientWidth || !svgNode.clientHeight) {
         if (retryCount < 10) { // Limit retries to prevent spam
           if (retryCount === 0 || retryCount % 5 === 0) {
-            console.log(`⚠️ SVG not yet sized, deferring center view (attempt ${retryCount + 1}/10)`)
+            // console.log(`⚠️ SVG not yet sized, deferring center view (attempt ${retryCount + 1}/10)`)
           }
           // Retry after a short delay to allow dockview to complete layout
           setTimeout(() => {
             initializeCenterView(retryCount + 1)
           }, 100)
         } else {
-          console.log('⚠️ SVG still not sized after 10 attempts, giving up')
+          // console.log('⚠️ SVG still not sized after 10 attempts, giving up')
         }
         return
       }
@@ -1155,7 +1155,7 @@ export default defineComponent({
     // Handle ESC key to clear selection
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && selectedNodeIds.value.length > 0) {
-        console.log('🔑 ESC pressed - clearing selection')
+        // console.log('🔑 ESC pressed - clearing selection')
         selectedNodeIds.value = []
         unifiedStore.selectNode(null, 'mindmap')
         void nextTick(() => {
@@ -1198,14 +1198,14 @@ export default defineComponent({
 
     // Watch for modelValue changes (works with both legacy and unified stores)
     watch(() => props.modelValue, () => {
-      console.log('[MindmapCore] modelValue changed, redrawing mindmap')
+      // console.log('[MindmapCore] modelValue changed, redrawing mindmap')
       drawMindmap()
     }, { deep: true })
 
     const updateSelectedNodeStyles = () => {
       const currentG = g
       if (!currentG) {
-        console.log('⚠️ updateSelectedNodeStyles: g is null')
+        // console.log('⚠️ updateSelectedNodeStyles: g is null')
         return
       }
 
@@ -1235,14 +1235,14 @@ export default defineComponent({
 
     // Listen to selection changes from other views via event bus
     onStoreEvent('store:node-selected', ({ nodeId, scrollIntoView }) => {
-      console.log('👀 Single node selected in store:', nodeId, 'scrollIntoView:', scrollIntoView)
+      // console.log('👀 Single node selected in store:', nodeId, 'scrollIntoView:', scrollIntoView)
 
       selectedNodeIds.value = nodeId ? [nodeId] : []
 
       // Pan to the selected node if requested
       // Note: useViewEvents already filters out events from this view (source === 'mindmap')
       if (nodeId && scrollIntoView) {
-        console.log('🎯 Requesting pan to node:', nodeId)
+        // console.log('🎯 Requesting pan to node:', nodeId)
         setTimeout(() => {
           panToNode(nodeId)
         }, 100) // Small delay to ensure node is rendered

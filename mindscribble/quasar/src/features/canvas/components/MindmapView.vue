@@ -55,13 +55,13 @@ watch(() => mindmapSettings.groupSpacing, (newVal) => {
 }, { immediate: true })
 
 // Debug: Watch mindmapData changes
-watch(mindmapData, (newVal) => {
-  console.log('[MindmapView] mindmapData changed, new data:', newVal)
-}, { deep: true })
+// watch(mindmapData, (newVal) => {
+//   console.log('[MindmapView] mindmapData changed, new data:', newVal)
+// }, { deep: true })
 
 onMounted(() => {
   setupStoreEventListeners()
-  console.log('[MindmapView] Mounted, initial mindmapData:', mindmapData.value)
+  // console.log('[MindmapView] Mounted, initial mindmapData:', mindmapData.value)
 })
 </script>
 

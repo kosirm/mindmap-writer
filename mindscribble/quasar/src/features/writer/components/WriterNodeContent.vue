@@ -125,7 +125,7 @@ const indentLevel = computed(() => {
   // Try to extract depth from the stat object
   // he-tree typically provides depth information in the stat object
   if (props.stat && typeof props.stat === 'object') {
-    console.log('Stat object for node', props.node.id, ':', props.stat)
+    // console.log('Stat object for node', props.node.id, ':', props.stat)
 
     // Check for common depth properties
     if ('depth' in props.stat) {

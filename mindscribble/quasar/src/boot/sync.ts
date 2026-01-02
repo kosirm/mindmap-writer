@@ -12,7 +12,7 @@ declare global {
 }
 
 export default boot(async ({ app }) => {
-  console.log('🔄 [Boot] Initializing sync strategy...')
+  // console.log('🔄 [Boot] Initializing sync strategy...')
 
   try {
     // Initialize sync strategy
@@ -28,7 +28,7 @@ export default boot(async ({ app }) => {
     // Restore UI state (open files and layouts)
     const documentStore = useUnifiedDocumentStore()
     await documentStore.restoreUIState()
-    console.log('🔄 [Boot] UI state restored')
+    // console.log('🔄 [Boot] UI state restored')
 
     // Make services available globally
     app.config.globalProperties.$syncStrategy = syncStrategy
@@ -41,7 +41,7 @@ export default boot(async ({ app }) => {
       window.__SYNC_STRATEGY__ = syncStrategy
     }
 
-    console.log('🔄 [Boot] Sync Strategy Service initialized successfully')
+    // console.log('🔄 [Boot] Sync Strategy Service initialized successfully')
   } catch (error) {
     console.error('🔄 [Boot] Failed to initialize sync strategy:', error)
   }

@@ -105,14 +105,14 @@ class DirectAsyncSyncStrategy implements SyncStrategy {
   private syncInterval: number | null = null
 
   initialize(): void {
-    console.log('🔄 [DirectSync] Initialized')
+    // console.log('🔄 [DirectSync] Initialized')
 
     // Start auto-sync every 5 minutes in development
     this.startAutoSync()
   }
 
   async syncVault(vaultId: string): Promise<SyncResult> {
-    console.log(`🔄 [DirectSync] Syncing vault: ${vaultId}`)
+    // console.log(`🔄 [DirectSync] Syncing vault: ${vaultId}`)
 
     if (this.isSyncing) {
       return {
@@ -136,7 +136,7 @@ class DirectAsyncSyncStrategy implements SyncStrategy {
       )
 
       if (totalChanges === 0) {
-        console.log('🔄 [DirectSync] No changes to sync')
+        // console.log('🔄 [DirectSync] No changes to sync')
         return {
           success: true,
           syncedFiles: 0,
@@ -145,7 +145,7 @@ class DirectAsyncSyncStrategy implements SyncStrategy {
         }
       }
 
-      console.log(`🔄 [DirectSync] Found ${totalChanges} changes to sync`)
+      // console.log(`🔄 [DirectSync] Found ${totalChanges} changes to sync`)
 
       // Import sync service dynamically to avoid circular dependencies
       const { GoogleDriveSyncService } = await import('./googleDriveSyncService')
@@ -177,7 +177,7 @@ class DirectAsyncSyncStrategy implements SyncStrategy {
   }
 
   async syncFile(vaultId: string, fileId: string): Promise<SyncResult> {
-    console.log(`🔄 [DirectSync] Syncing file: ${fileId} in vault: ${vaultId}`)
+    // console.log(`🔄 [DirectSync] Syncing file: ${fileId} in vault: ${vaultId}`)
 
     try {
       const { GoogleDriveSyncService } = await import('./googleDriveSyncService')
@@ -201,7 +201,7 @@ class DirectAsyncSyncStrategy implements SyncStrategy {
   }
 
   async syncAll(): Promise<SyncResult> {
-    console.log('🔄 [DirectSync] Syncing all vaults')
+    // console.log('🔄 [DirectSync] Syncing all vaults')
 
     try {
       const { GoogleDriveSyncService } = await import('./googleDriveSyncService')

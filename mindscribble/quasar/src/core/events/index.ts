@@ -418,15 +418,15 @@ export const eventBus = mitt<Events>()
 // DEBUG LOGGING (Development only)
 // ============================================================
 
-if (import.meta.env.DEV) {
-  eventBus.on('*', (type, payload) => {
-    console.log(
-      `%c[EventBus] ${String(type)}`,
-      'color: #4CAF50; font-weight: bold',
-      payload
-    )
-  })
-}
+// if (import.meta.env.DEV) {
+//   eventBus.on('*', (type, payload) => {
+//     console.log(
+//       `%c[EventBus] ${String(type)}`,
+//       'color: #4CAF50; font-weight: bold',
+//       payload
+//     )
+//   })
+// }
 
 // ============================================================
 // COMPOSABLES
