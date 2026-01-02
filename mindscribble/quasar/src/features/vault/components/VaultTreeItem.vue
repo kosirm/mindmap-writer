@@ -359,6 +359,7 @@ onBeforeUnmount(() => {
   transition: all 0.15s ease;
   min-height: 32px;
   position: relative;
+  cursor: default; /* Default cursor for the entire item */
 
   &.is-hovered {
     background-color: rgba(0, 0, 0, 0.02);
@@ -417,6 +418,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   outline: none;
+  cursor: default; /* Always default cursor unless in edit mode */
 
   &.navigation-mode {
     cursor: default;
