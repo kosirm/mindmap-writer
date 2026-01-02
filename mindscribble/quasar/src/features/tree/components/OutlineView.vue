@@ -78,7 +78,7 @@ import { useViewEvents } from 'src/core/events'
 import { useOutlineNavigation } from '../composables/useOutlineNavigation'
 import type { MindpadNode } from 'src/core/types'
 
-const TRIGGER_CLASS = 'drag-handle'
+const TRIGGER_CLASS = 'node-title-wrapper'
 const $q = useQuasar()
 
 // Unified store for document-level operations

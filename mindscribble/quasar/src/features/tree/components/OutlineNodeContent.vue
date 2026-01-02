@@ -17,10 +17,6 @@
     </div>
     <div v-else class="expand-spacer"></div>
 
-    <!-- Drag handle (shown on hover) -->
-    <div class="drag-handle" :class="triggerClass">
-      <q-icon name="drag_indicator" size="18px" />
-    </div>
 
 <!-- Node title -->
     <div class="node-title-wrapper">
@@ -426,43 +422,13 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.drag-handle {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-  color: var(--ms-text-secondary);
-  border-radius: 3px;
-  opacity: 0;
-  transition: all 0.15s ease;
-
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-    color: var(--ms-text-primary);
-  }
-
-  .outline-node.is-hovered &,
-  .outline-node.is-selected & {
-    opacity: 1;
-  }
-}
 
 .node-title-wrapper {
   flex: 1;
   min-width: 0;
-  padding-right: 32px; // Make space for drag handle
+  cursor: grab; // Make the whole title area draggable
 }
 
-.node-title-wrapper {
-  flex: 1;
-  min-width: 0;
-}
 
 .node-title {
   font-weight: 500;
