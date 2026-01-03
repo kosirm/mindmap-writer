@@ -237,6 +237,7 @@ import { useAuthStore } from 'src/core/stores/authStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { usePanelStore } from 'src/core/stores/panelStore'
+import { useVaultStore } from 'src/core/stores/vaultStore'
 import DockviewLayout from './DockviewLayout.vue'
 import MobileLayout from './MobileLayout.vue'
 import CommandPalette from 'src/shared/components/CommandPalette.vue'
@@ -246,10 +247,7 @@ import AIChat from 'src/features/ai/components/AIChat.vue'
 import { registerCommands, handleKeyboardEvent, initCommandAPI, updateContext } from 'src/core/commands'
 import { allCommands } from 'src/core/commands/definitions'
 import { signIn, signOut } from 'src/boot/google-api'
-import {
-  updateMindmapFile,
-  type DriveFileMetadata
-} from 'src/core/services/googleDriveService'
+import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
 import type { MindpadDocument } from 'src/core/types'
 import type { FileSystemItem } from 'src/core/services/indexedDBService'
 import { getVaultIcon } from 'src/shared/utils/vaultIcons'
@@ -265,6 +263,7 @@ const authStore = useAuthStore()
 const unifiedStore = useUnifiedDocumentStore()
 const driveStore = useGoogleDriveStore()
 const panelStore = usePanelStore()
+const vaultStore = useVaultStore()
 
 // Initialize autosave (2 second debounce)
 // Note: We'll need to implement this properly once we have the document ref
@@ -486,79 +485,66 @@ function onFileOpen() {
   showFileModal.value = true
 }
 
-function onFileSave() {
+async function onFileSave() {
+  // Ctrl+S now triggers sync to Google Drive
+  // Auto-save to IndexedDB happens automatically on changes
+
   if (!authStore.isSignedIn) {
-    $q.notify({ type: 'warning', message: 'Please sign in to save files to Google Drive' })
+    $q.notify({
+      type: 'info',
+      message: 'File is auto-saved locally. Sign in to sync to Google Drive.',
+      timeout: 2000
+    })
     return
   }
 
-  console.log('onFileSave - currentFile:', driveStore.currentFile, 'hasOpenFile:', driveStore.hasOpenFile)
-
-  // If we have a current file, save directly without modal
-  if (driveStore.hasOpenFile) {
-    void saveCurrentFile()
-    return
-  }
-
-  // No current file - open Save As modal
-  fileModalMode.value = 'save'
-  showFileModal.value = true
-}
-
-async function saveCurrentFile() {
-  if (!driveStore.currentFile) return
-
-  driveStore.setSyncStatus('saving')
+  // Trigger sync to Google Drive
   try {
-    // Get document from unified store
-    const document = unifiedStore.toDocument()
-
-    if (!document) {
-      throw new Error('No active document to save')
-    }
-
-    console.log('💾 Saving from unified store:', {
-      nodeCount: document.nodes.length,
-      edgeCount: document.edges.length
+    $q.notify({
+      type: 'info',
+      message: 'Syncing to Google Drive...',
+      timeout: 1000
     })
 
-    document.metadata.name = driveStore.currentFileName || document.metadata.name || 'Untitled'
-
-    const savedFile = await updateMindmapFile(
-      driveStore.currentFile.id,
-      document,
-      document.metadata.name
-    )
-    driveStore.updateFileInList(savedFile)
-    driveStore.setCurrentFile(savedFile)
-
-    // Mark document as clean in unified store
-    if (unifiedStore.activeDocumentId) {
-      unifiedStore.markClean(unifiedStore.activeDocumentId)
+    // Get the active vault and file
+    const activeVault = vaultStore.activeVault
+    if (!activeVault) {
+      $q.notify({
+        type: 'warning',
+        message: 'No active vault to sync'
+      })
+      return
     }
 
-    // Show "synced" status briefly
-    driveStore.setSyncStatus('synced')
-    setTimeout(() => {
-      if (driveStore.syncStatus === 'synced') {
-        driveStore.setSyncStatus('idle')
-      }
-    }, 3000)
+    // Get the current file from vault
+    const selectedFileId = vaultStore.selectedFileId
+    const selectedFile = selectedFileId ? vaultStore.findItem(selectedFileId) : null
+    if (!selectedFile || selectedFile.type !== 'file') {
+      $q.notify({
+        type: 'warning',
+        message: 'No file selected to sync'
+      })
+      return
+    }
+
+    // Import and use the sync service
+    const { GoogleDriveSyncService } = await import('../core/services/googleDriveSyncService')
+    await GoogleDriveSyncService.syncFile(activeVault.id, selectedFile.id)
 
     $q.notify({
       type: 'positive',
-      message: `Saved "${document.metadata.name}"`,
+      message: 'Synced to Google Drive',
       timeout: 1500
     })
   } catch (error) {
-    console.error('Failed to save file:', error)
-    driveStore.setSyncError('Failed to save file')
+    console.error('Failed to sync to Google Drive:', error)
     $q.notify({
       type: 'negative',
-      message: 'Failed to save to Google Drive'
+      message: 'Failed to sync to Google Drive'
     })
   }
 }
+
 
 function onFileSaveAs() {
   if (!authStore.isSignedIn) {
@@ -647,7 +633,7 @@ onMounted(() => {
   // Listen for file operation events
   window.addEventListener('file:new', onFileNew)
   window.addEventListener('file:open', onFileOpen)
-  window.addEventListener('file:save', onFileSave)
+  window.addEventListener('file:save', () => void onFileSave())
   window.addEventListener('file:saveAs', onFileSaveAs)
   window.addEventListener('file:manage', onFileManage)
 
@@ -667,7 +653,7 @@ onUnmounted(() => {
   // Remove file operation listeners
   window.removeEventListener('file:new', onFileNew)
   window.removeEventListener('file:open', onFileOpen)
-  window.removeEventListener('file:save', onFileSave)
+  window.removeEventListener('file:save', () => void onFileSave())
   window.removeEventListener('file:saveAs', onFileSaveAs)
   window.removeEventListener('file:manage', onFileManage)
 })

@@ -173,6 +173,7 @@ async function openFileFromVault(fileSystemItemId: string, fileName: string) {
     console.log('📂 Opening file from vault:', fileName)
     console.log('📂 Document ID:', documentId)
     console.log('📂 Vault file ID:', fileSystemItemId)
+    console.log('📂 Document metadata:', document.metadata)
 
     // If document has a saved layout, save it to localStorage using document ID
     if (document.dockviewLayout) {
@@ -183,12 +184,21 @@ async function openFileFromVault(fileSystemItemId: string, fileName: string) {
 
     // Create a minimal DriveFileMetadata-like object to store vault file ID
     // This allows us to track which vault file is open in which panel
+    // Use fallback for invalid timestamps
+    const now = new Date().toISOString()
+    const createdTime = document.metadata.created
+      ? new Date(document.metadata.created).toISOString()
+      : now
+    const modifiedTime = document.metadata.modified
+      ? new Date(document.metadata.modified).toISOString()
+      : now
+
     const vaultFileMetadata = {
       id: fileSystemItemId,
       name: fileName,
       mimeType: 'application/vnd.mindpad',
-      createdTime: new Date(document.metadata.created).toISOString(),
-      modifiedTime: new Date(document.metadata.modified).toISOString(),
+      createdTime,
+      modifiedTime,
       size: '0'
     }
 

@@ -278,7 +278,15 @@ export async function loadJsonFile<T = object>(fileId: string): Promise<T> {
  * Load a mindmap file from Google Drive
  */
 export async function loadMindmapFile(fileId: string): Promise<MindpadDocument> {
-  return loadJsonFile<MindpadDocument>(fileId)
+  const rawDocument = await loadJsonFile<Record<string, unknown>>(fileId)
+
+  // Deserialize from short property names to long property names
+  // This handles both old format (long names) and new format (short names)
+  const { deserializeDocument } = await import('../utils/propertySerialization')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const document = deserializeDocument(rawDocument as any) as unknown as MindpadDocument
+
+  return document
 }
 
 /**

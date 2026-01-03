@@ -44,6 +44,14 @@ export async function createFile(
       fileId: content.metadata.id
     }
 
+    // Serialize document BEFORE transaction to avoid premature commit
+    // Store with SHORT property names for space optimization
+    let serializedDoc: Record<string, unknown> | null = null
+    if (content) {
+      const { serializeDocument } = await import('../utils/propertySerialization')
+      serializedDoc = serializeDocument(content as unknown as Record<string, unknown>)
+    }
+
     // Store the file system item
     console.log('📁 [FileSystemService] Creating file:', fileItem.name, 'in vault:', vaultId)
     await db.transaction('rw', db.fileSystem, db.documents, async () => {
@@ -55,10 +63,12 @@ export async function createFile(
       await db.fileSystem.add(fileItem)
       console.log('📁 [FileSystemService] File added to fileSystem store')
 
-      // If this is a file with content, store the document
-      if (content) {
-        await db.documents.put(content)
-        console.log('📁 [FileSystemService] Document saved to documents store')
+      // If this is a file with content, store the document with SHORT property names
+      if (serializedDoc) {
+        // Store the serialized document directly (with short property names)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await db.documents.put(serializedDoc as any)
+        console.log('📁 [FileSystemService] Document saved with short property names')
       }
 
       // If parent exists, add this file to parent's children
@@ -336,8 +346,18 @@ export async function getFileContent(fileId: string): Promise<MindpadDocument | 
       return null
     }
 
-    const document = await db.documents.get(fileItem.fileId)
-    return document || null
+    const storedDocument = await db.documents.get(fileItem.fileId)
+    if (!storedDocument) {
+      return null
+    }
+
+    // Deserialize from short property names to long property names
+    // This converts the optimized storage format back to the working format
+    const { deserializeDocument } = await import('../utils/propertySerialization')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const document = deserializeDocument(storedDocument as any) as unknown as MindpadDocument
+
+    return document
   } catch (error) {
     console.error(`Failed to get file content for ${fileId}:`, error)
     return null
@@ -346,8 +366,15 @@ export async function getFileContent(fileId: string): Promise<MindpadDocument | 
 
 /**
  * Update file content
+ * @param fileId - File system item ID
+ * @param content - Document content (can be MindpadDocument or serialized Record)
+ * @param documentId - Optional document ID (required if content is serialized)
  */
-export async function updateFileContent(fileId: string, content: MindpadDocument): Promise<void> {
+export async function updateFileContent(
+  fileId: string,
+  content: MindpadDocument | Record<string, unknown>,
+  documentId?: string
+): Promise<void> {
   try {
     await db.transaction('rw', db.fileSystem, db.documents, async () => {
       const fileItem = await db.fileSystem.get(fileId)
@@ -356,13 +383,20 @@ export async function updateFileContent(fileId: string, content: MindpadDocument
         throw new Error('File not found')
       }
 
-      // Update document
-      await db.documents.put(content)
+      // Update document (content is already serialized with short property names)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await db.documents.put(content as any)
 
       // Update file system item
       fileItem.modified = Date.now()
       fileItem.size = JSON.stringify(content).length
-      fileItem.fileId = content.metadata.id
+
+      // Use provided documentId or try to extract from content
+      if (documentId) {
+        fileItem.fileId = documentId
+      } else if ('metadata' in content && content.metadata && typeof content.metadata === 'object' && 'id' in content.metadata) {
+        fileItem.fileId = (content.metadata as { id: string }).id
+      }
 
       await db.fileSystem.put(fileItem)
 

@@ -361,8 +361,8 @@ export function deserializeDocument(serialized: Partial<Record<PropertyName, unk
     metadata: {
       id: serialized[PROP.MAP_ID] || '',
       name: serialized[PROP.MAP_NAME] || 'Untitled',
-      created: serialized[PROP.MAP_CREATED],
-      modified: serialized[PROP.MAP_MODIFIED],
+      created: serialized[PROP.MAP_CREATED] || Date.now(),
+      modified: serialized[PROP.MAP_MODIFIED] || Date.now(),
       tags: serialized[PROP.MAP_TAGS] || [],
       searchableText: serialized[PROP.MAP_SEARCHABLE_TEXT] || '',
       nodeCount: serialized[PROP.MAP_NODE_COUNT] || 0,

@@ -10,7 +10,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { eventBus, type Events, type EventSource } from '../events'
 import type {
   MindpadDocument,
@@ -33,7 +33,8 @@ import {
 } from '../utils/propertySerialization'
 import { subscriptionService, viewAvailabilityManager } from '../services'
 import { UIStateService } from '../services/uiStateService'
-import { getItem, getFileContent } from '../services/fileSystemService'
+import { getItem, getFileContent, updateFileContent } from '../services/fileSystemService'
+import { db } from '../services/indexedDBService'
 
 /**
  * Document instance with its associated state
@@ -118,6 +119,109 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     if (!activeDocumentId.value) return false
     return dirtyDocuments.value.has(activeDocumentId.value)
   })
+
+  // ============================================================
+  // AUTO-SAVE TO INDEXEDDB
+  // ============================================================
+
+  // Debounced save timeout
+  let autoSaveTimeout: NodeJS.Timeout | null = null
+  const AUTO_SAVE_DELAY = 2000 // 2 seconds
+
+  /**
+   * Auto-save document to IndexedDB when it becomes dirty
+   * This watches for changes and saves to IndexedDB after a debounce delay
+   */
+  async function autoSaveToIndexedDB(documentId: string) {
+    try {
+      const doc = documents.value.get(documentId)
+      if (!doc) {
+        console.warn('⚠️ [UnifiedStore] Cannot auto-save: document not found:', documentId)
+        return
+      }
+
+      // Find the file system item for this document
+      const fileSystemItems = await db.fileSystem
+        .where('fileId')
+        .equals(documentId)
+        .toArray()
+
+      if (fileSystemItems.length === 0) {
+        console.warn('⚠️ [UnifiedStore] Cannot auto-save: no file system item found for document:', documentId)
+        return
+      }
+
+      const fileSystemItem = fileSystemItems[0]
+      if (!fileSystemItem) {
+        return
+      }
+
+      console.log('💾 [UnifiedStore] Auto-saving document to IndexedDB:', doc.metadata.name || documentId)
+
+      // Step 1: Deep clone to remove Vue reactivity
+      const plainDoc = JSON.parse(JSON.stringify(doc)) as MindpadDocument
+
+      // Step 2: Serialize to short property names for space optimization
+      const serializedDoc = serializeDocument(plainDoc as unknown as Record<string, unknown>)
+
+      // Save to IndexedDB using fileSystemService (with short property names)
+      await updateFileContent(fileSystemItem.id, serializedDoc, doc.metadata.id)
+
+      // Mark as clean after successful save
+      markClean(documentId)
+
+      console.log('✅ [UnifiedStore] Auto-save successful:', doc.metadata.name || documentId)
+    } catch (error) {
+      console.error('❌ [UnifiedStore] Auto-save failed:', error)
+    }
+  }
+
+  /**
+   * Debounced auto-save function
+   */
+  function debouncedAutoSave(documentId: string) {
+    if (autoSaveTimeout) {
+      clearTimeout(autoSaveTimeout)
+    }
+
+    autoSaveTimeout = setTimeout(() => {
+      void autoSaveToIndexedDB(documentId)
+    }, AUTO_SAVE_DELAY)
+  }
+
+  /**
+   * Watch for dirty documents and trigger auto-save
+   */
+  watch(
+    () => Array.from(dirtyDocuments.value),
+    (dirtyDocs) => {
+      // Auto-save each dirty document
+      dirtyDocs.forEach(docId => {
+        debouncedAutoSave(docId)
+      })
+    },
+    { deep: true }
+  )
+
+  /**
+   * Force immediate save to IndexedDB (for Ctrl+S)
+   */
+  async function forceSaveToIndexedDB(documentId?: string) {
+    // Clear any pending auto-save
+    if (autoSaveTimeout) {
+      clearTimeout(autoSaveTimeout)
+      autoSaveTimeout = null
+    }
+
+    // If no documentId provided, save the active document
+    const docIdToSave = documentId || activeDocumentId.value
+    if (!docIdToSave) {
+      console.warn('⚠️ [UnifiedStore] Cannot force save: no document specified')
+      return
+    }
+
+    await autoSaveToIndexedDB(docIdToSave)
+  }
 
   // ============================================================
   // CORE METHODS
@@ -1401,6 +1505,9 @@ export const useUnifiedDocumentStore = defineStore('documents', () => {
     createEmptyDocument,
     updateDocumentMetadata,
     updateDocumentLayoutSettings,
+
+    // Auto-save methods
+    forceSaveToIndexedDB,
 
     // Document instance management (multi-document support)
     createDocument,

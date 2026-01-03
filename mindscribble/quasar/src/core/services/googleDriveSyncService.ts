@@ -4,6 +4,12 @@
  */
 
 import { db } from './indexedDBService'
+import {
+  getOrCreateAppFolder,
+  createMindmapFile,
+  updateMindmapFile,
+  createDriveFolder
+} from './googleDriveService'
 
 export interface SyncVaultResult {
   syncedFiles: number
@@ -78,12 +84,52 @@ export class GoogleDriveSyncService {
         throw new Error(`Document content not found for file ${fileId}`)
       }
 
-      // TODO: Implement actual Google Drive upload
-      // For now, just log
-      console.log(`🔄 [GoogleDriveSync] Would sync file: ${fileItem.name}`)
+      // Get vault metadata
+      const vault = await db.vaultMetadata.get(vaultId)
+      if (!vault) {
+        throw new Error(`Vault ${vaultId} not found`)
+      }
 
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Get or create the vault folder on Google Drive
+      let vaultFolderId = vault.folderId
+      if (!vaultFolderId) {
+        // Create vault folder under MindPad folder
+        const appFolderId = await getOrCreateAppFolder()
+        const vaultFolder = await createDriveFolder(vault.name, appFolderId)
+        vaultFolderId = vaultFolder.id
+
+        // Update vault metadata with folder ID
+        vault.folderId = vaultFolderId
+        await db.vaultMetadata.put(vault)
+      }
+
+      // Prepare file name
+      const fileName = fileItem.name.endsWith('.mindpad') ? fileItem.name : `${fileItem.name}.mindpad`
+
+      // Check if we already have a Drive file ID stored
+      if (fileItem.driveFileId) {
+        // Update existing file
+        console.log(`🔄 [GoogleDriveSync] Updating existing file: ${fileName}`)
+        try {
+          await updateMindmapFile(fileItem.driveFileId, document, fileName)
+        } catch (error) {
+          // If update fails (file might have been deleted), create new file
+          console.warn(`⚠️ [GoogleDriveSync] Update failed, creating new file:`, error)
+          const createdFile = await createMindmapFile(vaultFolderId, fileName, document)
+          fileItem.driveFileId = createdFile.id
+          await db.fileSystem.put(fileItem)
+        }
+      } else {
+        // Create new file
+        console.log(`🔄 [GoogleDriveSync] Creating new file: ${fileName}`)
+        const createdFile = await createMindmapFile(vaultFolderId, fileName, document)
+
+        // Store the Google Drive file ID in the file system item
+        fileItem.driveFileId = createdFile.id
+        await db.fileSystem.put(fileItem)
+      }
+
+      console.log(`✅ [GoogleDriveSync] Successfully synced file: ${fileName}`)
 
     } catch (error) {
       console.error(`🔄 [GoogleDriveSync] File sync failed:`, error)
