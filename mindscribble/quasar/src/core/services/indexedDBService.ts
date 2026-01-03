@@ -416,8 +416,79 @@ export class MindPadDB extends Dexie {
       console.log('🗄️ [IndexedDB] Added driveFileId field to', allItems.length, 'items')
     })
 
+    // Version 9 - Add fileId index to fileSystem for efficient lookups
+    this.version(9).stores({
+      documents: 'metadata.id, metadata.modified, metadata.vaultId',
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
+      fileSystem: 'id, vaultId, parentId, type, name, sortOrder, driveFileId, fileId', // Added fileId index
+      uiState: 'id',
+      fileLayouts: 'fileId'
+    }).upgrade(async (tx) => {
+      console.log('🗄️ [IndexedDB] Version 9: Adding fileId index to fileSystem')
+
+      // No data migration needed, just adding an index
+      const fileSystemTable = tx.table('fileSystem')
+      const count = await fileSystemTable.count()
+      console.log('🗄️ [IndexedDB] fileId index added to', count, 'items')
+    })
+
+    // Version 10 - Use short property names for documents (space optimization)
+    // f = metadata.id (MAP_ID)
+    // u = metadata.modified (MAP_MODIFIED)
+    // (vaultId is not serialized, so we keep it as-is for now)
+    this.version(10).stores({
+      documents: 'f, u', // Short property names: f=id, u=modified
+      nodes: 'id, mapId, vaultId, modified',
+      settings: 'id',
+      errorLogs: 'id, timestamp',
+      providerMetadata: 'id, documentId, providerId, lastSyncedAt, syncStatus',
+      repositories: 'repositoryId, lastUpdated',
+      centralIndex: 'id',
+      vaultMetadata: 'id, folderId, isActive',
+      vaultsIndex: 'id',
+      fileSystem: 'id, vaultId, parentId, type, name, sortOrder, driveFileId, fileId',
+      uiState: 'id',
+      fileLayouts: 'fileId'
+    }).upgrade(async (tx) => {
+      console.log('🗄️ [IndexedDB] Version 10: Migrating documents to short property names')
+
+      const { serializeDocument } = await import('../utils/propertySerialization')
+      const documentsTable = tx.table('documents')
+      const allDocuments = await documentsTable.toArray()
+
+      console.log(`🗄️ [IndexedDB] Migrating ${allDocuments.length} documents to short property names`)
+
+      // Migrate each document to short property names
+      for (const doc of allDocuments) {
+        try {
+          // Serialize to short property names
+          const serializedDoc = serializeDocument(doc as unknown as Record<string, unknown>)
+
+          // Delete old document (with long property names)
+          await documentsTable.delete(doc.metadata?.id)
+
+          // Add new document (with short property names)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await documentsTable.add(serializedDoc as any)
+
+          console.log(`✅ Migrated document: ${String(serializedDoc.n) || 'Untitled'}`)
+        } catch (error) {
+          console.error('Failed to migrate document:', error, doc)
+        }
+      }
+
+      console.log('✅ [IndexedDB] Document migration complete')
+    })
+
     // Future versions can be added here:
-    // this.version(9).stores({ ... }).upgrade(tx => { ... });
+    // this.version(11).stores({ ... }).upgrade(tx => { ... });
   }
 }
 
