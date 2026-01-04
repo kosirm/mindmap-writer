@@ -31,12 +31,18 @@ const props = defineProps<Props>()
 const title = ref('Untitled')
 
 onMounted(() => {
+  console.log('🔄 [FileTab] Mounted')
+  console.log('🔄 [FileTab] props.params.api.title:', props.params.api.title)
+  console.log('🔄 [FileTab] props.params.api.getTitle?.():', props.params.api.getTitle?.())
+  console.log('🔄 [FileTab] props.params.api._title:', props.params.api._title)
+
   // Get initial title
   updateTitle()
 
   // Watch for title changes
   if (props.params.api.onDidTitleChange) {
     props.params.api.onDidTitleChange(() => {
+      console.log('🔄 [FileTab] Title changed event')
       updateTitle()
     })
   }
@@ -49,8 +55,12 @@ function updateTitle() {
                    props.params.api._title ||
                    'Untitled'
 
+  console.log('🔄 [FileTab] updateTitle - apiTitle:', apiTitle)
+
   // Remove the 📄 emoji if it exists
   title.value = apiTitle.replace('📄 ', '')
+
+  console.log('🔄 [FileTab] updateTitle - final title:', title.value)
 }
 
 function handleClose(event: MouseEvent) {

@@ -180,7 +180,7 @@ function setupDocumentWatchers() {
     if (newName && props.params?.api) {
       props.params.api.setTitle(newName)
     }
-  })
+  }, { immediate: true })
 }
 
 

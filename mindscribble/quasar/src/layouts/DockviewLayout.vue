@@ -19,7 +19,8 @@ import { type DockviewApi } from 'dockview-core'
 import { useGoogleDriveStore } from 'src/core/stores/googleDriveStore'
 import { useUnifiedDocumentStore } from 'src/core/stores/unifiedDocumentStore'
 import { useAppStore } from 'src/core/stores/appStore'
-import { eventBus, type FileSelectedPayload, type ItemRenamedPayload } from 'src/core/events'
+import { eventBus, type FileSelectedPayload, type ItemRenamedPayload, type RestoreUIStatePayload } from 'src/core/events'
+import { UIStateService } from 'src/core/services/uiStateService'
 import type { MindpadDocument } from 'src/core/types'
 import type { DriveFileMetadata } from 'src/core/services/googleDriveService'
 import { getFileContent } from 'src/core/services/fileSystemService'
@@ -51,18 +52,29 @@ function onReady(event: { api: DockviewApi }) {
     }
   })
 
-  // Try to load saved parent layout, otherwise create default
-  const loaded = loadParentLayoutFromStorage()
-  if (!loaded) {
-    createDefaultLayout()
+  // Try to load saved parent layout, otherwise don't create default
+  loadParentLayoutFromStorage()
+  // Don't create default layout - let restoreUIState handle it
+
+  // Track when panels are closed
+  dockviewApi.value.onDidRemovePanel(() => {
+    void trackOpenFiles()
+  })
+
+  // Track when active panel changes
+  dockviewApi.value.onDidActivePanelChange(() => {
+    void trackOpenFiles()
+  })
+
+  // Check if there's pending UI state to restore
+  console.log('🔄 [DockviewLayout] Dockview ready, checking for pending UI state...')
+  const pendingState = unifiedStore.getPendingUIState()
+  if (pendingState) {
+    console.log('🔄 [DockviewLayout] Found pending UI state, restoring...')
+    void handleRestoreUIState(pendingState)
+  } else {
+    console.log('🔄 [DockviewLayout] No pending UI state to restore')
   }
-}
-
-function createDefaultLayout() {
-  if (!dockviewApi.value) return
-
-  // Add initial file panel
-  addFile()
 }
 
 function addFile() {
@@ -120,7 +132,7 @@ function addFile() {
   }) */
 }
 
-function openFileFromDrive(document: MindpadDocument, driveFile: DriveFileMetadata) {
+async function openFileFromDrive(document: MindpadDocument, driveFile: DriveFileMetadata) {
   if (!dockviewApi.value) return
 
   fileCounter++
@@ -150,6 +162,9 @@ function openFileFromDrive(document: MindpadDocument, driveFile: DriveFileMetada
     title: fileName,
     tabComponent: 'file-tab'
   })
+
+  // Track open files
+  await trackOpenFiles()
 
   console.log(`✅ Opened file "${fileName}" in new panel ${fileId}`, document.dockviewLayout ? 'with saved layout' : 'without layout')
 }
@@ -203,7 +218,9 @@ async function openFileFromVault(fileSystemItemId: string, fileName: string) {
     }
 
     // Create document instance in unified store with vault file metadata
-    unifiedStore.createDocument(fileId, document, vaultFileMetadata, null)
+    const instance = unifiedStore.createDocument(fileId, document, vaultFileMetadata, null)
+    console.log('📂 Created document instance:', instance)
+    console.log('📂 Instance driveFile:', instance.driveFile)
 
     // Add panel to dockview
     dockviewApi.value.addPanel({
@@ -213,8 +230,12 @@ async function openFileFromVault(fileSystemItemId: string, fileName: string) {
       tabComponent: 'file-tab'
     })
 
+    // Track open files (wait for next tick to ensure everything is ready)
+    await nextTick()
+    await trackOpenFiles()
+
     console.log(`✅ Opened vault file "${fileName}" in new panel ${fileId}`)
-  } catch (error) {
+    } catch (error) {
     console.error(`Failed to open vault file ${fileSystemItemId}:`, error)
   }
 }
@@ -292,6 +313,228 @@ function updateFilePanelTabs() {
   })
 
   // console.log('✅ Updated all file panel tabs to use custom tab component')
+}
+
+/**
+ * Track currently open files in IndexedDB
+ * Stores the vault file system item IDs, not panel IDs
+ */
+async function trackOpenFiles() {
+  if (!dockviewApi.value) return
+
+  const panels = dockviewApi.value.panels
+  console.log('💾 [DockviewLayout] Tracking files for panels:', panels.map(p => p.id))
+
+  // Map panel IDs to vault file system item IDs
+  const fileSystemItemIds: string[] = []
+  const panelIdToFileSystemId = new Map<string, string>()
+
+  for (const panel of panels) {
+    const docInstance = unifiedStore.getDocumentInstance(panel.id)
+    console.log(`💾 [DockviewLayout] Panel ${panel.id} - docInstance:`, docInstance ? 'found' : 'NOT FOUND')
+    if (docInstance) {
+      console.log(`💾 [DockviewLayout] Panel ${panel.id} - driveFile:`, docInstance.driveFile)
+    }
+
+    if (docInstance?.driveFile?.id) {
+      // driveFile.id contains the vault file system item ID
+      fileSystemItemIds.push(docInstance.driveFile.id)
+      panelIdToFileSystemId.set(panel.id, docInstance.driveFile.id)
+    }
+  }
+
+  // Get active file system item ID
+  const activePanelId = dockviewApi.value.activePanel?.id || null
+  const activeFileSystemItemId = activePanelId ? panelIdToFileSystemId.get(activePanelId) || null : null
+
+  await UIStateService.saveOpenFiles(fileSystemItemIds, activeFileSystemItemId)
+  console.log('💾 [DockviewLayout] Tracked open files (file system IDs):', fileSystemItemIds)
+  console.log('💾 [DockviewLayout] Panel ID mapping:', Object.fromEntries(panelIdToFileSystemId))
+}
+
+/**
+ * Handle UI state restoration from IndexedDB
+ * fileIds are vault file system item IDs, not panel IDs
+ */
+async function handleRestoreUIState(payload: RestoreUIStatePayload) {
+  if (!dockviewApi.value) return
+
+  console.log('🔄 [DockviewLayout] Restoring UI state:', payload)
+  console.log('🔄 [DockviewLayout] File system item IDs to restore:', payload.fileIds)
+
+  // Don't restore parent layout - just open files manually
+  // This is simpler and more reliable than trying to restore panel IDs
+  console.log('📂 [DockviewLayout] Opening files manually')
+
+  const panelIdMapping = new Map<string, string>() // fileSystemItemId -> panelId
+
+  for (const fileSystemItemId of payload.fileIds) {
+    const panelId = await reopenFile(fileSystemItemId)
+    if (panelId) {
+      panelIdMapping.set(fileSystemItemId, panelId)
+    }
+  }
+
+  // Set active panel
+  if (payload.activeFileId && panelIdMapping.has(payload.activeFileId)) {
+    const activePanelId = panelIdMapping.get(payload.activeFileId)
+    if (activePanelId) {
+      const panel = dockviewApi.value.getPanel(activePanelId)
+      if (panel) {
+        panel.api.setActive()
+        console.log('✅ [DockviewLayout] Set active panel:', activePanelId)
+      }
+    }
+  }
+
+  console.log('✅ [DockviewLayout] UI state restored')
+}
+
+/**
+ * Reopen a file by its file system item ID
+ * Returns the panel ID that was created
+ */
+async function reopenFile(fileSystemItemId: string): Promise<string | null> {
+  try {
+    console.log(`🔄 [DockviewLayout] Attempting to reopen file with ID: ${fileSystemItemId}`)
+
+    // First, check if the file system item exists
+    const { getItem } = await import('src/core/services/fileSystemService')
+    const fileItem = await getItem(fileSystemItemId)
+    console.log(`🔄 [DockviewLayout] File system item:`, fileItem)
+
+    if (!fileItem) {
+      console.error(`❌ File system item not found: ${fileSystemItemId}`)
+      return null
+    }
+
+    if (fileItem.type !== 'file') {
+      console.error(`❌ Item is not a file: ${fileSystemItemId}`)
+      return null
+    }
+
+    console.log(`🔄 [DockviewLayout] File item fileId (document ID):`, fileItem.fileId)
+
+    // Check if document exists in documents table
+    const { db } = await import('src/core/services/indexedDBService')
+    const storedDocument = await db.documents.get(fileItem.fileId || '')
+    console.log(`🔄 [DockviewLayout] Document in DB:`, storedDocument ? 'FOUND' : 'NOT FOUND')
+
+    if (!storedDocument) {
+      console.error(`❌ Document not found in documents table for fileId: ${fileItem.fileId}`)
+      return null
+    }
+
+    // Log the stored document structure
+    console.log(`🔄 [DockviewLayout] Stored document keys:`, Object.keys(storedDocument))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    console.log(`🔄 [DockviewLayout] Has nodes array:`, Array.isArray((storedDocument as any).nodes))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    console.log(`🔄 [DockviewLayout] Has 'n' array:`, Array.isArray((storedDocument as any).n))
+
+    // The stored document has short property names (f, n, a, u, etc.)
+    // deserializeDocument expects short property names and will convert them
+    let document: MindpadDocument | null = null
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stored = storedDocument as any
+      const { deserializeDocument } = await import('src/core/utils/propertySerialization')
+
+      // Extract non-document properties that shouldn't be passed to deserializeDocument
+      const { dockviewLayout, dockviewLayoutId, fileSystemItemId, ...docData } = stored
+
+      // Ensure arrays are present with long keys (deserializeDocument expects these)
+      const normalizedDoc = {
+        ...docData,
+        nodes: docData.nodes || [],
+        edges: docData.edges || [],
+        interMapLinks: docData.interMapLinks || docData.iml || []
+      }
+
+      // deserializeDocument will convert short property names (n, f, a, u) to metadata fields
+      document = deserializeDocument(normalizedDoc) as unknown as MindpadDocument
+
+      // Restore the dockviewLayout if it exists
+      if (dockviewLayout) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).dockviewLayout = dockviewLayout
+      }
+      if (dockviewLayoutId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).dockviewLayoutId = dockviewLayoutId
+      }
+
+      if (!document) {
+        console.error(`❌ Failed to deserialize document for ${fileSystemItemId}`)
+        return null
+      }
+    } catch (error) {
+      console.error(`❌ Error deserializing document:`, error)
+      return null
+    }
+
+    const fileName = document.metadata?.name || 'Untitled'
+
+    // Generate a new panel ID
+    fileCounter++
+    const panelId = `file-${fileCounter}`
+    const documentId = document.dockviewLayoutId || document.metadata.id
+
+    // If document has a saved layout, save it to localStorage using document ID
+    if (document.dockviewLayout) {
+      const storageKey = `dockview-child-${documentId}-layout`
+      localStorage.setItem(storageKey, JSON.stringify(document.dockviewLayout))
+    }
+
+    // Create vault file metadata to track the file system item ID
+    const now = new Date().toISOString()
+    const createdTime = document.metadata.created
+      ? new Date(document.metadata.created).toISOString()
+      : now
+    const modifiedTime = document.metadata.modified
+      ? new Date(document.metadata.modified).toISOString()
+      : now
+
+    const vaultFileMetadata = {
+      id: fileSystemItemId, // Store the file system item ID here
+      name: fileName,
+      mimeType: 'application/vnd.mindpad',
+      createdTime,
+      modifiedTime,
+      size: '0'
+    }
+
+    // Create document instance in unified store
+    try {
+      unifiedStore.createDocument(panelId, document, vaultFileMetadata, null)
+    } catch (error) {
+      console.error(`Failed to create document instance:`, error)
+      return null
+    }
+
+    // Add panel to dockview
+    if (!dockviewApi.value) {
+      console.error(`dockviewApi is not available`)
+      return null
+    }
+
+    try {
+      dockviewApi.value.addPanel({
+        id: panelId,
+        component: 'file-panel',
+        title: fileName,
+        tabComponent: 'file-tab'
+      })
+    } catch (error) {
+      console.error(`Failed to add panel:`, error)
+      return null
+    }
+
+    return panelId
+  } catch (error) {
+    console.error(`Failed to reopen file ${fileSystemItemId}:`, error)
+    return null
+  }
 }
 
 // Expose functions to parent component (MainLayout)
@@ -383,6 +626,7 @@ onUnmounted(() => {
   // Remove vault event listeners
   eventBus.off('vault:file-selected', handleVaultFileSelected)
   eventBus.off('vault:item-renamed', handleVaultItemRenamed)
+  eventBus.off('restore-ui-state', handleRestoreUIState)
 })
 
 // Handle file close events
@@ -421,20 +665,31 @@ function handleVaultFileSelected(payload: FileSelectedPayload) {
 /**
  * Handle vault item rename events
  */
-function handleVaultItemRenamed(payload: ItemRenamedPayload) {
+async function handleVaultItemRenamed(payload: ItemRenamedPayload) {
   // Only handle file renames (not folders)
   if (payload.itemType !== 'file') {
     return
   }
 
-  console.log('Vault file renamed:', payload.itemId, 'to', payload.newName)
-
   // Find the panel that has this file open
   const panelToUpdate = findPanelByVaultFileId(payload.itemId)
   if (panelToUpdate) {
-    console.log('Updating tab title for renamed file:', payload.itemId)
     // Update the panel title to reflect the new file name
     panelToUpdate.api.setTitle(payload.newName)
+
+    // IMPORTANT: Also update the document metadata in the unified store and IndexedDB
+    const docInstance = unifiedStore.getDocumentInstance(panelToUpdate.id)
+    if (docInstance) {
+      const documentId = docInstance.document.metadata.id
+
+      // Update the document metadata
+      docInstance.document.metadata.name = payload.newName
+      docInstance.document.metadata.modified = Date.now()
+
+      // Mark as dirty and force save to IndexedDB
+      unifiedStore.markDirty(documentId)
+      await unifiedStore.forceSaveToIndexedDB()
+    }
   }
 }
 

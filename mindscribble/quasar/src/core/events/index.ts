@@ -59,6 +59,16 @@ export type EventSource =
   | 'dockview'         // Dockview component
 
 // ============================================================
+// UI STATE RESTORATION EVENT PAYLOADS
+// ============================================================
+
+/** Restore UI state payload */
+export interface RestoreUIStatePayload {
+  fileIds: string[]
+  activeFileId: string | null
+}
+
+// ============================================================
 // STORE EVENT PAYLOADS
 // ============================================================
 
@@ -360,7 +370,10 @@ export type UIEvents = {
   'ui:keyboard-shortcut': { shortcut: string; context: string }
 
   // Context (panel focus)
-  'context:changed': ContextChangedPayload
+  'context:changed': ContextChangedPayload,
+  
+  // UI State Restoration
+  'restore-ui-state': RestoreUIStatePayload
 }
 
 // ============================================================
