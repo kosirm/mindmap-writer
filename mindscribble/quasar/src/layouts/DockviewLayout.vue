@@ -609,7 +609,7 @@ onMounted(() => {
   eventBus.on('vault:file-selected', handleVaultFileSelected)
 
   // Listen for vault item rename events
-  eventBus.on('vault:item-renamed', handleVaultItemRenamed)
+  eventBus.on('vault:item-renamed', (payload) => void handleVaultItemRenamed(payload))
 
   // Log initial state
   console.log('Drive store state:', {
@@ -625,8 +625,8 @@ onUnmounted(() => {
 
   // Remove vault event listeners
   eventBus.off('vault:file-selected', handleVaultFileSelected)
-  eventBus.off('vault:item-renamed', handleVaultItemRenamed)
-  eventBus.off('restore-ui-state', handleRestoreUIState)
+  eventBus.off('vault:item-renamed', (payload) => void handleVaultItemRenamed(payload))
+  eventBus.off('restore-ui-state', (payload) => void handleRestoreUIState(payload))
 })
 
 // Handle file close events
